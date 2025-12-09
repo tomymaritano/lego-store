@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Heart, ShoppingCart, Star, Minus, Plus, Share2, Truck, Shield, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
 import { products } from "@/data/products";
-import { useCartStore, useWishlistStore } from "@/stores";
+import { useCartStore, useWishlistStore, useRecentlyViewedStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice, calculateDiscount, cn } from "@/lib/utils";
 import { Button, Badge, Breadcrumbs, showToast } from "@/components/ui";
@@ -31,8 +31,16 @@ export default function ItemPage({ params }: ItemPageProps) {
   const addToWishlist = useWishlistStore((state) => state.addToWishlist);
   const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
   const isInWishlist = useWishlistStore((state) => state.isInWishlist);
-  // Recently viewed tracking disabled temporarily
-  // const addToRecentlyViewed = useRecentlyViewedStore((state) => state.addItem);
+  const addToRecentlyViewed = useRecentlyViewedStore((state) => state.addItem);
+  const hasTrackedRef = useRef(false);
+
+  // Track recently viewed - runs once per product
+  useEffect(() => {
+    if (product && !hasTrackedRef.current) {
+      hasTrackedRef.current = true;
+      addToRecentlyViewed(product);
+    }
+  }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!product) {
     notFound();
