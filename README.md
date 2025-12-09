@@ -2,7 +2,7 @@
 
 A modern, production-ready e-commerce template built with Next.js 14, TypeScript, and Tailwind CSS. Perfect for building online stores, marketplaces, or showcasing products.
 
-**[Live Demo](https://lego-store-demo.vercel.app)** | **[Documentation](#customization)** | **[Changelog](./CHANGELOG.md)**
+**[Live Demo](https://lego-store-8i83q5ulc-indiehacklab.vercel.app)** | **[Documentation](#customization)** | **[Changelog](./CHANGELOG.md)**
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
@@ -29,8 +29,6 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
     <td align="center">Shopping Cart</td>
   </tr>
 </table>
-
-> Note: Add your screenshots to the `screenshots/` folder
 
 ## Features
 
