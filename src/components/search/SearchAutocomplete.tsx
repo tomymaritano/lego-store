@@ -8,6 +8,7 @@ import { Search, Clock, TrendingUp, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { products } from "@/data/products";
 import { formatPrice, cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import type { Product } from "@/types";
 
 interface SearchAutocompleteProps {
@@ -48,6 +49,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [suggestions, setSuggestions] = useState<Product[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -58,14 +60,14 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
     setRecentSearches(getRecentSearches());
   }, []);
 
-  // Search products with debounce
+  // Search products with debounced query (300ms delay)
   useEffect(() => {
-    if (query.length < 2) {
+    if (debouncedQuery.length < 2) {
       setSuggestions([]);
       return;
     }
 
-    const searchTerms = query.toLowerCase().split(" ");
+    const searchTerms = debouncedQuery.toLowerCase().split(" ");
     const results = products.filter((product) => {
       const searchableText = `${product.name} ${product.theme} ${product.category} ${product.description}`.toLowerCase();
       return searchTerms.every((term) => searchableText.includes(term));
@@ -73,7 +75,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
 
     setSuggestions(results.slice(0, MAX_SUGGESTIONS));
     setSelectedIndex(-1);
-  }, [query]);
+  }, [debouncedQuery]);
 
   // Handle click outside
   useEffect(() => {
