@@ -106,18 +106,18 @@ export default function HomePage() {
         </div>
 
         {/* Wave Divider */}
-        <div className="absolute bottom-0 left-0 right-0">
+        <div className="absolute bottom-0 left-0 right-0 text-background-primary">
           <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z"
-              fill="white"
+              fill="currentColor"
             />
           </svg>
         </div>
       </section>
 
       {/* Features Bar */}
-      <section className="bg-white py-8 border-b">
+      <section className="bg-background-primary py-8 border-b border-border">
         <div className="container-custom">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {features.map((feature, index) => (
@@ -129,11 +129,11 @@ export default function HomePage() {
                 className="flex items-center gap-3"
               >
                 <div className="w-12 h-12 bg-lego-yellow/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <feature.icon className="w-6 h-6 text-lego-black" />
+                  <feature.icon className="w-6 h-6 text-foreground-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">{feature.title}</h3>
-                  <p className="text-xs text-gray-500">{feature.description}</p>
+                  <h3 className="font-semibold text-sm text-foreground-primary">{feature.title}</h3>
+                  <p className="text-xs text-foreground-muted">{feature.description}</p>
                 </div>
               </motion.div>
             ))}
@@ -142,11 +142,11 @@ export default function HomePage() {
       </section>
 
       {/* Categories Section */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-background-secondary">
         <div className="container-custom">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold">Explora por Categoría</h2>
-            <p className="text-gray-600 mt-2">Encuentra tu colección perfecta</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground-primary">Explora por Categoría</h2>
+            <p className="text-foreground-secondary mt-2">Encuentra tu colección perfecta</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -159,10 +159,10 @@ export default function HomePage() {
                 transition={{ delay: index * 0.1 }}
               >
                 <Link href={cat.href}>
-                  <div className="group relative bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300">
+                  <div className="group relative bg-surface rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-border">
                     <div className={`absolute inset-0 bg-gradient-to-br ${cat.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
 
-                    <div className="relative h-48 bg-gray-100">
+                    <div className="relative h-48 bg-background-tertiary">
                       <Image
                         src={cat.image}
                         alt={cat.name}
@@ -172,10 +172,10 @@ export default function HomePage() {
                     </div>
 
                     <div className="p-6">
-                      <h3 className="text-xl font-bold group-hover:text-lego-blue transition-colors">
+                      <h3 className="text-xl font-bold text-foreground-primary group-hover:text-lego-blue transition-colors">
                         {cat.name}
                       </h3>
-                      <p className="text-gray-500 text-sm mt-1">{cat.description}</p>
+                      <p className="text-foreground-muted text-sm mt-1">{cat.description}</p>
                       <div className="mt-4 flex items-center text-lego-blue font-medium text-sm">
                         Ver colección
                         <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-2 transition-transform" />
@@ -217,8 +217,8 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                 >
                   <Link href={`/item/${product.id}`}>
-                    <div className="group bg-white rounded-xl overflow-hidden">
-                      <div className="relative aspect-square bg-gray-50">
+                    <div className="group bg-surface rounded-xl overflow-hidden border border-border/50">
+                      <div className="relative aspect-square bg-background-secondary">
                         {product.isOnSale && (
                           <span className="absolute top-3 left-3 z-10 bg-lego-red text-white text-xs font-bold px-2 py-1 rounded">
                             OFERTA
@@ -232,7 +232,7 @@ export default function HomePage() {
                         />
                       </div>
                       <div className="p-4">
-                        <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
+                        <h3 className="font-semibold text-foreground-primary text-sm line-clamp-1">
                           {product.name}
                         </h3>
                         <div className="flex items-center gap-2 mt-2">
@@ -240,7 +240,7 @@ export default function HomePage() {
                             ${product.price.toLocaleString()}
                           </span>
                           {product.originalPrice && (
-                            <span className="text-xs text-gray-400 line-through">
+                            <span className="text-xs text-foreground-muted line-through">
                               ${product.originalPrice.toLocaleString()}
                             </span>
                           )}
@@ -256,17 +256,17 @@ export default function HomePage() {
       )}
 
       {/* All Products */}
-      <section id="products" className="py-16">
+      <section id="products" className="py-16 bg-background-primary">
         <div className="container-custom">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-10">
             <div>
               <span className="text-lego-blue font-semibold text-sm uppercase tracking-wider">
                 Catálogo
               </span>
-              <h2 className="text-3xl md:text-4xl font-bold mt-2">
+              <h2 className="text-3xl md:text-4xl font-bold mt-2 text-foreground-primary">
                 Todos los Productos
               </h2>
-              <p className="text-gray-600 mt-2">{products.length} sets disponibles</p>
+              <p className="text-foreground-secondary mt-2">{products.length} sets disponibles</p>
             </div>
           </div>
 
