@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2024-12-09
+
+### Added
+
+- **Storybook**
+  - Component stories for Button, Badge, Input, Skeleton, ProductCard
+  - Global styles integration
+  - Accessibility addon enabled
+  - Multiple background options (light, dark, lego-yellow)
+
+- **Lighthouse Audit**
+  - Performance: 87%
+  - Accessibility: 79%
+  - Best Practices: 96%
+  - SEO: 100%
+
+### Fixed
+
+- Fixed Recently Viewed tracking with useRef to prevent duplicates
+- Fixed ProductReviews infinite re-render loop with useMemo
+- Fixed product page params handling for Next.js 14 compatibility
+
+---
+
 ## [1.0.0] - 2024-12-09
 
 ### Added

@@ -9,6 +9,12 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+## Lighthouse Scores
+
+| Performance | Accessibility | Best Practices | SEO |
+|:-----------:|:-------------:|:--------------:|:---:|
+| 87 | 79 | 96 | 100 |
+
 ## Screenshots
 
 <table>
