@@ -1,27 +1,565 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================================
+   LEGO STORE DESIGN TOKENS
+   =========================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand Colors */
+  --lego-yellow: #ffd44a;
+  --lego-red: #e53935;
+  --lego-blue: #1e88e5;
+  --lego-green: #43a047;
+  --lego-orange: #ff9800;
+  --lego-black: #1d1d1d;
+
+  /* Backgrounds - Light Mode */
+  --bg-primary: #ffffff;
+  --bg-secondary: #faf9f7;
+  --bg-tertiary: #f5f3f0;
+
+  /* Text - Light Mode */
+  --text-primary: #1d1d1d;
+  --text-secondary: #57534e;
+  --text-muted: #a8a29e;
+
+  /* Surfaces - Light Mode */
+  --surface-elevated: #ffffff;
+  --surface-overlay: rgba(255, 255, 255, 0.95);
+
+  /* Borders - Light Mode */
+  --border-default: #e7e5e4;
+  --border-subtle: #f5f5f4;
+
+  /* Status Colors */
+  --color-success: #22c55e;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #1e88e5;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+
+  /* Legacy compatibility */
+  --background: var(--bg-primary);
+  --foreground: var(--text-primary);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Dark Mode - Warm LEGO Grays */
+.dark {
+  --bg-primary: #171412;
+  --bg-secondary: #1e1b18;
+  --bg-tertiary: #262320;
+
+  --text-primary: #fafaf9;
+  --text-secondary: #d6d3d1;
+  --text-muted: #a8a29e;
+
+  --surface-elevated: #292524;
+  --surface-overlay: rgba(23, 20, 18, 0.95);
+
+  --border-default: #44403c;
+  --border-subtle: #292524;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+
+  --background: var(--bg-primary);
+  --foreground: var(--text-primary);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  font-family: "Barlow", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Selection color */
+::selection {
+  background-color: var(--lego-yellow);
+  color: var(--lego-black);
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--lego-yellow);
+  outline-offset: 2px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold tracking-tight text-foreground-primary;
+  }
+
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+
+  h3 {
+    @apply text-2xl md:text-3xl;
+  }
+
+  h4 {
+    @apply text-xl md:text-2xl;
+  }
+
+  a {
+    @apply transition-colors duration-200;
+  }
+
+  img {
+    @apply max-w-full h-auto;
+  }
+}
+
+@layer components {
+  /* Container */
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
+  }
+
+  .btn-primary {
+    @apply btn bg-lego-yellow text-lego-black hover:bg-yellow-400 focus:ring-lego-yellow shadow-md hover:shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply btn bg-background-secondary text-foreground-primary hover:bg-background-tertiary focus:ring-gray-400;
+  }
+
+  .btn-outline {
+    @apply btn border-2 border-foreground-primary text-foreground-primary hover:bg-foreground-primary hover:text-background-primary focus:ring-foreground-primary;
+  }
+
+  .btn-ghost {
+    @apply btn text-foreground-secondary hover:bg-background-secondary focus:ring-gray-400;
+  }
+
+  .btn-danger {
+    @apply btn bg-status-error text-white hover:bg-red-600 focus:ring-status-error;
+  }
+
+  .btn-sm {
+    @apply px-4 py-2 text-sm;
+  }
+
+  .btn-md {
+    @apply px-5 py-2.5 text-base;
+  }
+
+  .btn-lg {
+    @apply px-8 py-3.5 text-lg;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-surface rounded-2xl shadow-lg overflow-hidden border border-border transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-xl hover:-translate-y-1;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider;
+  }
+
+  .badge-new {
+    @apply badge bg-lego-blue text-white;
+  }
+
+  .badge-sale {
+    @apply badge bg-lego-red text-white;
+  }
+
+  .badge-limited {
+    @apply badge bg-gradient-to-r from-orange-500 to-amber-500 text-white;
+  }
+
+  .badge-exclusive {
+    @apply badge bg-gradient-to-r from-purple-500 to-pink-500 text-white;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full px-4 py-3 border border-border rounded-xl bg-surface focus:outline-none focus:ring-2 focus:ring-lego-yellow focus:border-transparent transition-all placeholder:text-foreground-muted;
+  }
+
+  .input-search {
+    @apply input pl-12 bg-background-secondary border-0;
+  }
+
+  /* Section Title */
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-foreground-primary;
+  }
+
+  .section-subtitle {
+    @apply text-foreground-secondary mt-2;
+  }
+
+  /* Product Grid */
+  .product-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+  }
+
+  /* Price */
+  .price {
+    @apply text-2xl font-bold text-foreground-primary;
+  }
+
+  .price-original {
+    @apply text-base text-foreground-muted line-through;
+  }
+
+  .price-sale {
+    @apply text-2xl font-bold text-lego-red;
+  }
+
+  /* Skeleton Loader */
+  .skeleton {
+    @apply bg-gradient-to-r from-background-tertiary via-background-secondary to-background-tertiary bg-[length:200%_100%] animate-shimmer rounded-lg;
+  }
+
+  /* Glass Effect */
+  .glass {
+    background: var(--surface-overlay);
+    @apply backdrop-blur-md;
+  }
+
+  /* Gradient Text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-lego-red via-lego-orange to-lego-yellow bg-clip-text text-transparent;
+  }
+
+  /* Hero Pattern */
+  .hero-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .dark .hero-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* LEGO Studs Pattern */
+  .lego-studs {
+    background-image: radial-gradient(circle, rgba(0,0,0,0.1) 6px, transparent 6px);
+    background-size: 24px 24px;
+  }
+
+  .dark .lego-studs {
+    background-image: radial-gradient(circle, rgba(255,255,255,0.1) 6px, transparent 6px);
+  }
 }
 
 @layer utilities {
+  /* Text Utilities */
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--lego-yellow) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--lego-yellow);
+    border-radius: 3px;
+  }
+
+  /* Line Clamp */
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Aspect Ratio */
+  .aspect-product {
+    aspect-ratio: 1 / 1;
+  }
+
+  /* Safe Area */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* No Select */
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  /* Smooth scroll */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom shadows */
+  .shadow-soft {
+    box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  .shadow-hard {
+    box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  .shadow-lego {
+    box-shadow: 0 4px 14px 0 rgba(255, 212, 74, 0.39);
+  }
+
+  /* Transition utilities */
+  .transition-fast {
+    transition-duration: 150ms;
+  }
+
+  .transition-normal {
+    transition-duration: 300ms;
+  }
+
+  .transition-slow {
+    transition-duration: 500ms;
+  }
+}
+
+/* Custom Animations */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animation Classes */
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-scale {
+  animation: pulse-scale 2s ease-in-out infinite;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.5s ease-out forwards;
+}
+
+/* Hover Animations */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+}
+
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+.hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(255, 212, 74, 0.5);
+}
+
+/* Page Transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.page-exit {
+  opacity: 1;
+}
+
+.page-exit-active {
+  opacity: 0;
+  transition: opacity 300ms;
+}
+
+/* Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
