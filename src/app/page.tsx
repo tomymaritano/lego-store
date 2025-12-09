@@ -191,18 +191,18 @@ export default function HomePage() {
 
       {/* Featured Products Highlight */}
       {featuredProducts.length > 0 && (
-        <section className="py-16 bg-lego-black text-white">
+        <section className="py-16 bg-background-tertiary">
           <div className="container-custom">
             <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-10">
               <div>
-                <span className="text-lego-yellow font-semibold text-sm uppercase tracking-wider">
+                <span className="text-lego-red font-semibold text-sm uppercase tracking-wider">
                   Destacados
                 </span>
-                <h2 className="text-3xl md:text-4xl font-bold mt-2">
+                <h2 className="text-3xl md:text-4xl font-bold mt-2 text-foreground-primary">
                   Ofertas Especiales
                 </h2>
               </div>
-              <Link href="/" className="text-lego-yellow hover:underline mt-4 md:mt-0">
+              <Link href="/" className="text-lego-blue hover:underline mt-4 md:mt-0 font-medium">
                 Ver todas las ofertas →
               </Link>
             </div>
@@ -217,7 +217,7 @@ export default function HomePage() {
                   transition={{ delay: index * 0.1 }}
                 >
                   <Link href={`/item/${product.id}`}>
-                    <div className="group bg-surface rounded-xl overflow-hidden border border-border/50">
+                    <div className="group bg-surface rounded-xl overflow-hidden border border-border shadow-sm hover:shadow-lg transition-shadow">
                       <div className="relative aspect-square bg-background-secondary">
                         {product.isOnSale && (
                           <span className="absolute top-3 left-3 z-10 bg-lego-red text-white text-xs font-bold px-2 py-1 rounded">

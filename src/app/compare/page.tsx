@@ -34,11 +34,11 @@ export default function ComparePage() {
       <PageTransition>
         <div className="container-custom py-16">
           <div className="max-w-md mx-auto text-center">
-            <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Scale className="w-12 h-12 text-gray-400" />
+            <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-6">
+              <Scale className="w-12 h-12 text-foreground-muted" />
             </div>
-            <h1 className="text-2xl font-bold mb-4">No hay productos para comparar</h1>
-            <p className="text-gray-500 mb-8">
+            <h1 className="text-2xl font-bold mb-4 text-foreground-primary">No hay productos para comparar</h1>
+            <p className="text-foreground-muted mb-8">
               Agrega productos a la comparación para ver sus características lado a lado.
             </p>
             <Link href="/">
@@ -73,8 +73,8 @@ export default function ComparePage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold">Comparar Productos</h1>
-            <p className="text-gray-500">{items.length} de 4 productos máximo</p>
+            <h1 className="text-3xl font-bold text-foreground-primary">Comparar Productos</h1>
+            <p className="text-foreground-muted">{items.length} de 4 productos máximo</p>
           </div>
           <Button variant="outline" onClick={clearCompare}>
             Limpiar todo
@@ -87,11 +87,11 @@ export default function ComparePage() {
             {/* Product Images & Names */}
             <thead>
               <tr>
-                <th className="w-48 p-4 text-left text-sm font-medium text-gray-500 border-b">
+                <th className="w-48 p-4 text-left text-sm font-medium text-foreground-muted border-b border-border">
                   Producto
                 </th>
                 {items.map((item) => (
-                  <th key={item.id} className="p-4 border-b">
+                  <th key={item.id} className="p-4 border-b border-border">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -99,12 +99,13 @@ export default function ComparePage() {
                     >
                       <button
                         onClick={() => removeFromCompare(item.id)}
-                        className="absolute -top-2 -right-2 p-1 bg-gray-100 hover:bg-gray-200 rounded-full z-10"
+                        className="absolute -top-2 -right-2 p-1 bg-background-secondary hover:bg-background-tertiary rounded-full z-10 text-foreground-primary"
+                        aria-label={`Remover ${item.name} de comparación`}
                       >
                         <X className="w-4 h-4" />
                       </button>
                       <Link href={`/item/${item.id}`}>
-                        <div className="relative w-32 h-32 mx-auto bg-gray-50 rounded-xl mb-3">
+                        <div className="relative w-32 h-32 mx-auto bg-background-secondary rounded-xl mb-3">
                           <Image
                             src={item.img}
                             alt={item.name}
@@ -112,7 +113,7 @@ export default function ComparePage() {
                             className="object-contain p-2"
                           />
                         </div>
-                        <h3 className="font-semibold text-sm line-clamp-2 hover:text-lego-blue transition-colors">
+                        <h3 className="font-semibold text-sm line-clamp-2 text-foreground-primary hover:text-lego-blue transition-colors">
                           {item.name}
                         </h3>
                       </Link>
@@ -121,10 +122,10 @@ export default function ComparePage() {
                 ))}
                 {/* Empty slots */}
                 {[...Array(4 - items.length)].map((_, i) => (
-                  <th key={`empty-${i}`} className="p-4 border-b">
+                  <th key={`empty-${i}`} className="p-4 border-b border-border">
                     <Link href="/">
-                      <div className="w-32 h-32 mx-auto bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center">
-                        <span className="text-gray-400 text-sm text-center px-2">
+                      <div className="w-32 h-32 mx-auto bg-background-secondary rounded-xl border-2 border-dashed border-border flex items-center justify-center">
+                        <span className="text-foreground-muted text-sm text-center px-2">
                           + Agregar producto
                         </span>
                       </div>
@@ -136,15 +137,15 @@ export default function ComparePage() {
 
             <tbody>
               {/* Price Row */}
-              <tr className="bg-gray-50 dark:bg-gray-800">
-                <td className="p-4 font-medium text-sm">Precio</td>
+              <tr className="bg-background-secondary">
+                <td className="p-4 font-medium text-sm text-foreground-primary">Precio</td>
                 {items.map((item) => (
                   <td key={item.id} className="p-4 text-center">
                     <span className="text-xl font-bold text-lego-red">
                       {formatPrice(item.price)}
                     </span>
                     {item.originalPrice && (
-                      <span className="block text-sm text-gray-400 line-through">
+                      <span className="block text-sm text-foreground-muted line-through">
                         {formatPrice(item.originalPrice)}
                       </span>
                     )}
@@ -157,12 +158,12 @@ export default function ComparePage() {
 
               {/* Specs Rows */}
               {specs.map((spec, idx) => (
-                <tr key={spec.key} className={idx % 2 === 0 ? "" : "bg-gray-50 dark:bg-gray-800"}>
-                  <td className="p-4 font-medium text-sm capitalize">{spec.label}</td>
+                <tr key={spec.key} className={idx % 2 === 0 ? "" : "bg-background-secondary"}>
+                  <td className="p-4 font-medium text-sm capitalize text-foreground-primary">{spec.label}</td>
                   {items.map((item) => {
                     const value = item[spec.key as keyof typeof item];
                     return (
-                      <td key={item.id} className="p-4 text-center text-sm">
+                      <td key={item.id} className="p-4 text-center text-sm text-foreground-primary">
                         {spec.key === "rating" ? (
                           <span className="flex items-center justify-center gap-1">
                             <span className="text-amber-500">★</span>
@@ -194,8 +195,8 @@ export default function ComparePage() {
               ))}
 
               {/* Actions Row */}
-              <tr className="border-t">
-                <td className="p-4 font-medium text-sm">Acciones</td>
+              <tr className="border-t border-border">
+                <td className="p-4 font-medium text-sm text-foreground-primary">Acciones</td>
                 {items.map((item) => (
                   <td key={item.id} className="p-4 text-center">
                     <div className="flex flex-col gap-2">
