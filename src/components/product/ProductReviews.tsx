@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Star, ThumbsUp, CheckCircle, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useReviewStore, type Review } from "@/stores/reviewStore";
@@ -13,9 +13,20 @@ interface ProductReviewsProps {
 
 export function ProductReviews({ productId }: ProductReviewsProps) {
   const [showForm, setShowForm] = useState(false);
-  const reviews = useReviewStore((state) => state.getProductReviews(productId));
-  const averageRating = useReviewStore((state) => state.getAverageRating(productId));
+  const allReviews = useReviewStore((state) => state.reviews);
   const markHelpful = useReviewStore((state) => state.markHelpful);
+
+  // Memoize filtered reviews to prevent infinite re-renders
+  const reviews = useMemo(
+    () => allReviews.filter((r) => r.productId === productId),
+    [allReviews, productId]
+  );
+
+  const averageRating = useMemo(() => {
+    if (reviews.length === 0) return 0;
+    const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+    return Math.round((sum / reviews.length) * 10) / 10;
+  }, [reviews]);
 
   const ratingDistribution = [5, 4, 3, 2, 1].map((rating) => ({
     rating,

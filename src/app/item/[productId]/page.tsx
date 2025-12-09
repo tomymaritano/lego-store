@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, use } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Heart, ShoppingCart, Star, Minus, Plus, Share2, Truck, Shield, RotateCcw } from "lucide-react";
 import { motion } from "framer-motion";
 import { products } from "@/data/products";
-import { useCartStore, useWishlistStore, useRecentlyViewedStore } from "@/stores";
+import { useCartStore, useWishlistStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice, calculateDiscount, cn } from "@/lib/utils";
 import { Button, Badge, Breadcrumbs, showToast } from "@/components/ui";
-import { RecentlyViewed, ImageZoom, ProductReviews } from "@/components/product";
+import { ImageZoom, ProductReviews, RecentlyViewed } from "@/components/product";
 
 interface ItemPageProps {
   params: Promise<{ productId: string }> | { productId: string };
@@ -31,14 +31,8 @@ export default function ItemPage({ params }: ItemPageProps) {
   const addToWishlist = useWishlistStore((state) => state.addToWishlist);
   const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
   const isInWishlist = useWishlistStore((state) => state.isInWishlist);
-  const addToRecentlyViewed = useRecentlyViewedStore((state) => state.addItem);
-
-  // Track recently viewed
-  useEffect(() => {
-    if (product) {
-      addToRecentlyViewed(product);
-    }
-  }, [product, addToRecentlyViewed]);
+  // Recently viewed tracking disabled temporarily
+  // const addToRecentlyViewed = useRecentlyViewedStore((state) => state.addItem);
 
   if (!product) {
     notFound();
