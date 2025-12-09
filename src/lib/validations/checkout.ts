@@ -49,7 +49,7 @@ export const shippingSchema = z.object({
     .max(10, "El código postal no puede exceder 10 caracteres"),
   country: z
     .string()
-    .default("México"),
+    .min(2, "El país debe tener al menos 2 caracteres"),
 });
 
 // Payment Information Schema

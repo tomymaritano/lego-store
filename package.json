@@ -14,6 +14,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-query-devtools": "^5.91.1",
     "clsx": "^2.1.1",
@@ -23,6 +24,7 @@
     "next": "14.2.33",
     "react": "^18",
     "react-dom": "^18",
+    "react-hook-form": "^7.68.0",
     "react-hot-toast": "^2.6.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",

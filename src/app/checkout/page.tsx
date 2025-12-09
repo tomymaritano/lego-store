@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Check,
   ChevronLeft,
@@ -15,12 +17,14 @@ import {
   Truck,
   Lock,
   Shield,
+  AlertCircle,
 } from "lucide-react";
 import { useCartStore } from "@/stores";
 import { useCheckoutStore, type ShippingInfo, type PaymentInfo, type CheckoutStep } from "@/stores/checkoutStore";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice, cn } from "@/lib/utils";
 import { Button, Breadcrumbs, showToast } from "@/components/ui";
+import { shippingSchema, paymentSchema, type ShippingFormData, type PaymentFormData } from "@/lib/validations";
 
 const steps: { id: CheckoutStep; label: string; icon: typeof MapPin }[] = [
   { id: "shipping", label: "Envío", icon: MapPin },
@@ -257,8 +261,13 @@ interface ShippingFormProps {
 }
 
 function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
-  const [formData, setFormData] = useState<ShippingInfo>(
-    initialData || {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ShippingFormData>({
+    resolver: zodResolver(shippingSchema),
+    defaultValues: initialData || {
       firstName: "",
       lastName: "",
       email: "",
@@ -268,17 +277,18 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
       state: "",
       zipCode: "",
       country: "México",
-    }
-  );
+    },
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
+  const onFormSubmit = (data: ShippingFormData) => {
+    onSubmit(data as ShippingInfo);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const inputClassName = (hasError: boolean) =>
+    cn(
+      "w-full px-4 py-3 rounded-xl border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent transition-colors",
+      hasError ? "border-status-error" : "border-border"
+    );
 
   return (
     <motion.div
@@ -292,29 +302,35 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
         Información de envío
       </h2>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Nombre *</label>
             <input
               type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("firstName")}
+              className={inputClassName(!!errors.firstName)}
             />
+            {errors.firstName && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.firstName.message}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Apellido *</label>
             <input
               type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("lastName")}
+              className={inputClassName(!!errors.lastName)}
             />
+            {errors.lastName && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.lastName.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -323,23 +339,29 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Email *</label>
             <input
               type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("email")}
+              className={inputClassName(!!errors.email)}
             />
+            {errors.email && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.email.message}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Teléfono *</label>
             <input
               type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("phone")}
+              className={inputClassName(!!errors.phone)}
             />
+            {errors.phone && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.phone.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -347,13 +369,16 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
           <label className="block text-sm font-medium mb-1 text-foreground-primary">Dirección *</label>
           <input
             type="text"
-            name="address"
-            value={formData.address}
-            onChange={handleChange}
-            required
+            {...register("address")}
             placeholder="Calle, número, colonia"
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary placeholder:text-foreground-muted focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+            className={cn(inputClassName(!!errors.address), "placeholder:text-foreground-muted")}
           />
+          {errors.address && (
+            <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.address.message}
+            </p>
+          )}
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4">
@@ -361,34 +386,43 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Ciudad *</label>
             <input
               type="text"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("city")}
+              className={inputClassName(!!errors.city)}
             />
+            {errors.city && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.city.message}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Estado *</label>
             <input
               type="text"
-              name="state"
-              value={formData.state}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("state")}
+              className={inputClassName(!!errors.state)}
             />
+            {errors.state && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.state.message}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground-primary">C.P. *</label>
             <input
               type="text"
-              name="zipCode"
-              value={formData.zipCode}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              {...register("zipCode")}
+              className={inputClassName(!!errors.zipCode)}
             />
+            {errors.zipCode && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.zipCode.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -399,7 +433,7 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
               Volver al carrito
             </Button>
           </Link>
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" disabled={isSubmitting}>
             Continuar al pago
           </Button>
         </div>
@@ -416,44 +450,57 @@ interface PaymentFormProps {
 }
 
 function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
-  const [formData, setFormData] = useState<PaymentInfo>(
-    initialData || {
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<PaymentFormData>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: initialData || {
       cardNumber: "",
       cardName: "",
       expiryDate: "",
       cvv: "",
-    }
-  );
+    },
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
+  const cardNumber = watch("cardNumber");
+  const expiryDate = watch("expiryDate");
+  const cvv = watch("cvv");
+
+  // Format card number as user types
+  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "").slice(0, 16);
+    value = value.replace(/(\d{4})/g, "$1 ").trim();
+    setValue("cardNumber", value, { shouldValidate: false });
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-
-    // Format card number
-    if (e.target.name === "cardNumber") {
-      value = value.replace(/\D/g, "").slice(0, 16);
-      value = value.replace(/(\d{4})/g, "$1 ").trim();
+  // Format expiry date as user types
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "").slice(0, 4);
+    if (value.length > 2) {
+      value = value.slice(0, 2) + "/" + value.slice(2);
     }
-
-    // Format expiry date
-    if (e.target.name === "expiryDate") {
-      value = value.replace(/\D/g, "").slice(0, 4);
-      if (value.length > 2) {
-        value = value.slice(0, 2) + "/" + value.slice(2);
-      }
-    }
-
-    // Format CVV
-    if (e.target.name === "cvv") {
-      value = value.replace(/\D/g, "").slice(0, 4);
-    }
-
-    setFormData({ ...formData, [e.target.name]: value });
+    setValue("expiryDate", value, { shouldValidate: false });
   };
+
+  // Format CVV as user types
+  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+    setValue("cvv", value, { shouldValidate: false });
+  };
+
+  const onFormSubmit = (data: PaymentFormData) => {
+    onSubmit(data as PaymentInfo);
+  };
+
+  const inputClassName = (hasError: boolean) =>
+    cn(
+      "w-full px-4 py-3 rounded-xl border bg-background-primary text-foreground-primary placeholder:text-foreground-muted focus:ring-2 focus:ring-lego-yellow focus:border-transparent transition-colors",
+      hasError ? "border-status-error" : "border-border"
+    );
 
   return (
     <motion.div
@@ -467,31 +514,39 @@ function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
         Información de pago
       </h2>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1 text-foreground-primary">Número de tarjeta *</label>
           <input
             type="text"
-            name="cardNumber"
-            value={formData.cardNumber}
-            onChange={handleChange}
-            required
+            {...register("cardNumber")}
+            value={cardNumber}
+            onChange={handleCardNumberChange}
             placeholder="1234 5678 9012 3456"
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary placeholder:text-foreground-muted focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+            className={inputClassName(!!errors.cardNumber)}
           />
+          {errors.cardNumber && (
+            <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.cardNumber.message}
+            </p>
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1 text-foreground-primary">Nombre en la tarjeta *</label>
           <input
             type="text"
-            name="cardName"
-            value={formData.cardName}
-            onChange={handleChange}
-            required
+            {...register("cardName")}
             placeholder="Como aparece en la tarjeta"
-            className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary placeholder:text-foreground-muted focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+            className={inputClassName(!!errors.cardName)}
           />
+          {errors.cardName && (
+            <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.cardName.message}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -499,25 +554,35 @@ function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
             <label className="block text-sm font-medium mb-1 text-foreground-primary">Fecha de expiración *</label>
             <input
               type="text"
-              name="expiryDate"
-              value={formData.expiryDate}
-              onChange={handleChange}
-              required
+              {...register("expiryDate")}
+              value={expiryDate}
+              onChange={handleExpiryChange}
               placeholder="MM/AA"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary placeholder:text-foreground-muted focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              className={inputClassName(!!errors.expiryDate)}
             />
+            {errors.expiryDate && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.expiryDate.message}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1 text-foreground-primary">CVV *</label>
             <input
               type="text"
-              name="cvv"
-              value={formData.cvv}
-              onChange={handleChange}
-              required
+              {...register("cvv")}
+              value={cvv}
+              onChange={handleCvvChange}
               placeholder="123"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-background-primary text-foreground-primary placeholder:text-foreground-muted focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+              className={inputClassName(!!errors.cvv)}
             />
+            {errors.cvv && (
+              <p className="mt-1 text-sm text-status-error flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                {errors.cvv.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -534,7 +599,7 @@ function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
             <ChevronLeft className="w-4 h-4 mr-2" />
             Volver
           </Button>
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" disabled={isSubmitting}>
             Revisar pedido
           </Button>
         </div>
