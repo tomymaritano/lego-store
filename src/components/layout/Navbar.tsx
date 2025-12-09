@@ -143,10 +143,10 @@ export function Navbar() {
               </button>
 
               {/* Wishlist */}
-              <Link href="/wishlist" className="relative p-2.5 rounded-full hover:bg-background-secondary transition-colors">
+              <Link href="/wishlist" className="relative p-2.5 rounded-full hover:bg-background-secondary transition-colors" data-testid="wishlist-button">
                 <Heart className="w-5 h-5 text-foreground-secondary" />
                 {hydrated && wishlistCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-lego-red text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-lego-red text-white text-[10px] font-bold rounded-full flex items-center justify-center" data-testid="wishlist-count">
                     {wishlistCount}
                   </span>
                 )}
@@ -157,10 +157,11 @@ export function Navbar() {
                 onClick={() => setIsCartOpen(true)}
                 className="relative p-2.5 rounded-full hover:bg-background-secondary transition-colors"
                 aria-label="Cart"
+                data-testid="cart-button"
               >
                 <ShoppingCart className="w-5 h-5 text-foreground-secondary" />
                 {hydrated && totalQuantity > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-lego-yellow text-lego-black text-[10px] font-bold rounded-full flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-lego-yellow text-lego-black text-[10px] font-bold rounded-full flex items-center justify-center" data-testid="cart-count">
                     {totalQuantity}
                   </span>
                 )}

@@ -86,6 +86,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="h-full"
+      data-testid="product-card"
     >
       <Link href={`/item/${product.id}`}>
         <div className="group bg-surface rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 h-full flex flex-col border border-border">
@@ -180,6 +181,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
                 disabled={product.stock === 0 || inCart}
                 className="w-full shadow-lg"
                 size="sm"
+                data-testid="add-to-cart-btn"
               >
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 {inCart ? "En carrito" : product.stock === 0 ? "Agotado" : "Agregar al carrito"}
@@ -204,7 +206,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             </span>
 
             {/* Name */}
-            <h3 className="font-bold text-foreground-primary mt-1 line-clamp-2 group-hover:text-lego-blue transition-colors leading-tight">
+            <h3 className="font-bold text-foreground-primary mt-1 line-clamp-2 group-hover:text-lego-blue transition-colors leading-tight" data-testid="product-name">
               {product.name}
             </h3>
 
@@ -231,7 +233,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             {/* Price */}
             <div className="mt-auto pt-3 flex items-end justify-between">
               <div>
-                <span className="text-2xl font-bold text-foreground-primary">
+                <span className="text-2xl font-bold text-foreground-primary" data-testid="product-price">
                   {formatPrice(product.price)}
                 </span>
                 {product.isOnSale && product.originalPrice && (

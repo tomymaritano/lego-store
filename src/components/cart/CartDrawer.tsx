@@ -47,7 +47,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
           {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {cart.map((item) => (
-              <div key={item.id} className="flex gap-4 p-3 bg-background-secondary rounded-lg">
+              <div key={item.id} className="flex gap-4 p-3 bg-background-secondary rounded-lg" data-testid="cart-item">
                 <div className="relative w-20 h-20 bg-surface rounded-lg overflow-hidden flex-shrink-0">
                   <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
                 </div>
@@ -91,7 +91,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   Ver carrito
                 </Button>
               </Link>
-              <Button className="w-full">Finalizar compra</Button>
+              <Button className="w-full" data-testid="checkout-btn">Finalizar compra</Button>
             </div>
           </div>
         </>

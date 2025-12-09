@@ -2,10 +2,35 @@
 
 A modern, production-ready e-commerce template built with Next.js 14, TypeScript, and Tailwind CSS. Perfect for building online stores, marketplaces, or showcasing products.
 
+**[Live Demo](https://lego-store-demo.vercel.app)** | **[Documentation](#customization)** | **[Changelog](./CHANGELOG.md)**
+
 ![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="./screenshots/home-light.png" alt="Home Light" width="400"/></td>
+    <td><img src="./screenshots/home-dark.png" alt="Home Dark" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center">Home - Light Mode</td>
+    <td align="center">Home - Dark Mode</td>
+  </tr>
+  <tr>
+    <td><img src="./screenshots/product-detail.png" alt="Product Detail" width="400"/></td>
+    <td><img src="./screenshots/cart.png" alt="Cart" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center">Product Detail</td>
+    <td align="center">Shopping Cart</td>
+  </tr>
+</table>
+
+> Note: Add your screenshots to the `screenshots/` folder
 
 ## Features
 
@@ -34,6 +59,8 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
 - **Type Safety** - Full TypeScript coverage
 - **API Layer** - Abstracted data layer, easy to connect to any backend
 - **Performance** - Optimized images, lazy loading, code splitting
+- **i18n Ready** - Spanish and English translations included
+- **Testing** - Vitest unit tests, Playwright E2E tests, Storybook
 
 ## Quick Start
 
@@ -156,7 +183,13 @@ src/
 | `npm run build` | Build for production |
 | `npm start` | Start production server |
 | `npm run lint` | Run ESLint |
-| `npm run test` | Run tests |
+| `npm run test` | Run unit tests (Vitest) |
+| `npm run test:ui` | Run tests with UI |
+| `npm run test:coverage` | Run tests with coverage |
+| `npm run test:e2e` | Run E2E tests (Playwright) |
+| `npm run test:e2e:ui` | Run E2E tests with UI |
+| `npm run storybook` | Start Storybook |
+| `npm run build-storybook` | Build Storybook |
 
 ## Design System
 
@@ -190,9 +223,12 @@ CSS custom properties for easy theming:
 
 ### Vercel (Recommended)
 
-1. Push your code to GitHub
-2. Import project in [Vercel](https://vercel.com)
-3. Deploy with one click
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/lego-store)
+
+1. Click the button above, or:
+2. Push your code to GitHub
+3. Import project in [Vercel](https://vercel.com)
+4. Deploy with one click
 
 ### Other Platforms
 
