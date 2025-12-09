@@ -1,13 +1,16 @@
 {
+  "id": "/",
   "name": "LEGO Store - Tienda Oficial",
   "short_name": "LEGO Store",
   "description": "La mejor tienda de sets LEGO. Encuentra helmets, brickheadz, vehículos y más.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#ffd44a",
+  "theme_color": "#E3000B",
   "orientation": "portrait-primary",
   "scope": "/",
+  "lang": "es-MX",
+  "dir": "ltr",
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -58,7 +61,34 @@
       "purpose": "maskable any"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Buscar productos",
+      "short_name": "Buscar",
+      "description": "Busca sets LEGO",
+      "url": "/search",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Mi carrito",
+      "short_name": "Carrito",
+      "description": "Ver carrito de compras",
+      "url": "/cart",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Lista de deseos",
+      "short_name": "Wishlist",
+      "description": "Ver lista de deseos",
+      "url": "/wishlist",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    }
+  ],
   "categories": ["shopping", "entertainment"],
   "screenshots": [],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  }
 }
