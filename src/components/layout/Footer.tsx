@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   Facebook,
@@ -108,11 +109,14 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-3 lg:col-span-2">
             {/* Logo */}
-            <Link href="/" className="inline-flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-lego-yellow rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-lego-red font-black text-xl">L</span>
-              </div>
-              <span className="text-2xl font-black">LEGO Store</span>
+            <Link href="/" className="inline-block mb-6">
+              <Image
+                src="/images/lego.png"
+                alt="LEGO Store"
+                width={120}
+                height={60}
+                className="h-12 w-auto brightness-0 invert"
+              />
             </Link>
 
             <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-sm">

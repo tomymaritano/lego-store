@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Search, ShoppingCart, Heart, Menu, User, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore, useWishlistStore } from "@/stores";
@@ -49,11 +50,15 @@ export function Navbar() {
         <div className="container-custom">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex-shrink-0 flex items-center gap-2">
-              <div className="w-10 h-10 bg-lego-yellow rounded-lg flex items-center justify-center">
-                <span className="text-lego-red font-black text-lg">L</span>
-              </div>
-              <span className="text-xl font-black text-foreground-primary hidden sm:block">LEGO</span>
+            <Link href="/" className="flex-shrink-0">
+              <Image
+                src="/images/lego.png"
+                alt="LEGO Store"
+                width={80}
+                height={40}
+                className="h-10 w-auto"
+                priority
+              />
             </Link>
 
             {/* Desktop Navigation */}
