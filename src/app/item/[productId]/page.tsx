@@ -13,11 +13,13 @@ import { Button, Badge, Breadcrumbs, showToast } from "@/components/ui";
 import { RecentlyViewed, ImageZoom, ProductReviews } from "@/components/product";
 
 interface ItemPageProps {
-  params: Promise<{ productId: string }>;
+  params: Promise<{ productId: string }> | { productId: string };
 }
 
 export default function ItemPage({ params }: ItemPageProps) {
-  const { productId } = use(params);
+  // Handle both Promise and direct object params (Next.js 14.x compatibility)
+  const resolvedParams = params instanceof Promise ? use(params) : params;
+  const { productId } = resolvedParams;
   const hydrated = useHydration();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
