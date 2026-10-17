@@ -84,9 +84,9 @@ test.describe("Production status codes", () => {
     expect(await ok.text()).toContain("Helmets");
   });
 
-  test("a category page is prerendered and applies the URL's filters after hydration", async ({ page, request }) => {
+  test("a category page's server HTML is the whole category; the URL's filters apply after hydration", async ({ page, request }) => {
     const html = await (await request.get("/category/helmet?onSale=1")).text();
-    // The static HTML is the unfiltered category…
+    // The server HTML is the unfiltered category…
     expect(html).toContain("Tusken Raider");
     // …and the client narrows it to what the URL asks for.
     await page.goto("/category/helmet?onSale=1");

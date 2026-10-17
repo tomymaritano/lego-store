@@ -9,6 +9,8 @@ export default defineConfig({
   testDir: "./e2e",
   // Compiles each dev route once before the workers start (see the file).
   globalSetup: "./e2e/global-setup.ts",
+  // Deletes the accounts the auth specs created (e2e/helpers/db.ts).
+  globalTeardown: "./e2e/global-teardown.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -43,7 +45,9 @@ export default defineConfig({
       timeout: 300_000,
       // Separate build folder: building into .next while `next dev` reads it
       // broke dev requests mid-run ("Unexpected end of JSON input").
-      env: { NEXT_DIST_DIR: ".next-e2e" },
+      // AUTH_TRUST_HOST: Auth.js only trusts the Host header in production when told to
+      // (Vercel sets it implicitly; a local `next start` does not).
+      env: { NEXT_DIST_DIR: ".next-e2e", AUTH_TRUST_HOST: "true" },
     },
   ],
 });
