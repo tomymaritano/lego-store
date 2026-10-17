@@ -1,4 +1,13 @@
-import type { Product, FilterConfig, ProductFilters, SortOption, PaginatedResponse } from "@/types";
+import type { Product } from "@/types";
+import { PLACEHOLDER_IMAGE } from "@/lib/utils";
+
+/** Sets without a working picture use the neutral brick placeholder. */
+const NO_IMAGE = PLACEHOLDER_IMAGE;
+
+/**
+ * Mock catalogue. Only src/lib/api reads this file (ESLint enforces it), so the
+ * backend can replace it with a database without touching pages.
+ */
 
 export const products: Product[] = [
   {
@@ -17,11 +26,7 @@ export const products: Product[] = [
     pieces: "501-1000",
     highlight: "Edición Limitada",
     img: "https://www.lego.com/cdn/cs/set/assets/bltde62e4576a817dd4/75349.png",
-    imageSecondary: "https://www.lego.com/cdn/cs/set/assets/bltd9dfc1fa25e3b4e8/75349-alt.png",
-    images: [
-      "https://www.lego.com/cdn/cs/set/assets/bltde62e4576a817dd4/75349.png",
-      "https://www.lego.com/cdn/cs/set/assets/bltd9dfc1fa25e3b4e8/75349-alt.png",
-    ],
+    images: ["https://www.lego.com/cdn/cs/set/assets/bltde62e4576a817dd4/75349.png"],
     stock: 10,
     shortDescription: "Edición limitada para coleccionistas.",
     description: "Star Wars Captain Rex helmet para fanáticos de la saga. Detalles premium con base para exhibir.",
@@ -61,10 +66,7 @@ export const products: Product[] = [
     pieces: "501-1000",
     highlight: "Edición Limitada",
     img: "https://www.lego.com/cdn/cs/set/assets/blt047686711ed3cb43/75350.png",
-    images: [
-      "https://www.lego.com/cdn/cs/set/assets/blt047686711ed3cb43/75350.png",
-      "https://www.lego.com/cdn/cs/set/assets/blt5ea22f9c23e3b1ef/75350-alt.png",
-    ],
+    images: ["https://www.lego.com/cdn/cs/set/assets/blt047686711ed3cb43/75350.png"],
     stock: 20,
     shortDescription: "Helmet del Comandante Cody.",
     description: "Construcción detallada del casco del comandante Cody. Perfecto para los amantes de Clone Wars.",
@@ -85,10 +87,7 @@ export const products: Product[] = [
     pieces: "501-1000",
     highlight: "Destacados",
     img: "https://www.lego.com/cdn/cs/set/assets/blta6da339d766e9905/75328.png",
-    images: [
-      "https://www.lego.com/cdn/cs/set/assets/blta6da339d766e9905/75328.png",
-      "https://www.lego.com/cdn/cs/set/assets/bltcdaa26a08e012537/75328-alt.png",
-    ],
+    images: ["https://www.lego.com/cdn/cs/set/assets/blta6da339d766e9905/75328.png"],
     stock: 20,
     shortDescription: "Helmet de The Mandalorian.",
     description: "Replica en LEGO del casco del Mandaloriano. Diseño elegante y robusto para exposición.",
@@ -127,11 +126,8 @@ export const products: Product[] = [
     interests: ["Edificios", "Arte"],
     pieces: "0-500",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/bltc971a95594361e17/40624.png",
-    images: [
-      "https://www.lego.com/cdn/cs/set/assets/bltc971a95594361e17/40624.png",
-      "https://www.lego.com/cdn/cs/set/assets/bltb8b53c6b6f4c364f/40624-alt.png",
-    ],
+    img: "https://www.lego.com/cdn/cs/set/assets/blt6ca0aa8d223ed976/40623.png",
+    images: ["https://www.lego.com/cdn/cs/set/assets/blt6ca0aa8d223ed976/40623.png"],
     stock: 20,
     shortDescription: "Pack Brickheadz Battle of Endor.",
     description: "Incluye personajes clave de la batalla de Endor en formato Brickheadz. Para fans de la saga.",
@@ -151,11 +147,8 @@ export const products: Product[] = [
     interests: ["Vehículos"],
     pieces: "1001-2000",
     highlight: "Exclusivos",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt38e8915698af2d5f/75308.jpg",
-    images: [
-      "https://www.lego.com/cdn/cs/set/assets/blt38e8915698af2d5f/75308.jpg",
-      "https://www.lego.com/cdn/cs/set/assets/bltf5a58e645e0f7ca4/75308-alt.png",
-    ],
+    img: NO_IMAGE,
+    images: [],
     stock: 40,
     shortDescription: "Iconico Batmobile en LEGO.",
     description: "Recreación del Batmobile con piezas LEGO. Detalle premium y tamaño impresionante.",
@@ -174,8 +167,9 @@ export const products: Product[] = [
     interests: ["Arte"],
     pieces: "0-500",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt6ca0aa8d223ed976/40623.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt6ca0aa8d223ed976/40623.png"],
+    // No picture of this set yet (40623 is Battle of Endor Heroes): placeholder brick.
+    img: NO_IMAGE,
+    images: [],
     stock: 10,
     shortDescription: "Zombie para los amantes de lo retro.",
     description: "Brickheadz con temática de Zombie. Perfecto para Halloween o colecciones originales.",
@@ -194,11 +188,8 @@ export const products: Product[] = [
     interests: ["Arte"],
     pieces: "0-500",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt959c93653cb028e3/75335.png",
-    images: [
-      "https://www.lego.com/cdn/cs/set/assets/blt959c93653cb028e3/75335.png",
-      "https://www.lego.com/cdn/cs/set/assets/blt1e0f326504db812a/75335-alt.png",
-    ],
+    img: NO_IMAGE,
+    images: [],
     stock: 20,
     shortDescription: "Donald Duck en formato Brickheadz.",
     description: "Figura de Donald Duck construible en Brickheadz. Ideal para fans de Disney y LEGO.",
@@ -240,8 +231,8 @@ export const products: Product[] = [
     interests: ["Vehículos"],
     pieces: "2001+",
     highlight: "Exclusivos",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt67d6db01a36f4963/42056.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt67d6db01a36f4963/42056.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 15,
     shortDescription: "Porsche 911 GT3 RS a escala 1:8.",
     description: "Modelo Technic del icónico Porsche 911 GT3 RS con detalles mecánicos funcionales.",
@@ -261,8 +252,8 @@ export const products: Product[] = [
     interests: ["Edificios"],
     pieces: "2001+",
     highlight: "Exclusivos",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt0e7b91eedb6b4989/71043.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt0e7b91eedb6b4989/71043.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 5,
     shortDescription: "Castillo de Hogwarts micro-escala.",
     description: "Recreación épica del castillo de Hogwarts con más de 6000 piezas. Incluye microfiguras.",
@@ -281,8 +272,8 @@ export const products: Product[] = [
     interests: ["Vehículos"],
     pieces: "2001+",
     highlight: "Edición Limitada",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt2ec9f1b2c5f5a5e5/42143.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt2ec9f1b2c5f5a5e5/42143.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 8,
     shortDescription: "Ferrari Daytona SP3 Technic.",
     description: "Superdeportivo Ferrari con transmisión secuencial de 8 velocidades y motor V12.",
@@ -301,8 +292,8 @@ export const products: Product[] = [
     interests: ["Edificios", "Arte"],
     pieces: "2001+",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt6e6bfa79e3f52ed6/21056.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt6e6bfa79e3f52ed6/21056.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 12,
     shortDescription: "Réplica del Taj Mahal.",
     description: "Modelo Architecture del famoso Taj Mahal con detalles arquitectónicos precisos.",
@@ -321,8 +312,8 @@ export const products: Product[] = [
     interests: ["Vehículos"],
     pieces: "2001+",
     highlight: "Exclusivos",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt7b5bc123c1d8a5e4/75192.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt7b5bc123c1d8a5e4/75192.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 3,
     shortDescription: "Millennium Falcon Ultimate Collector Series.",
     description: "El set LEGO más grande jamás creado. Más de 7500 piezas del Halcón Milenario.",
@@ -342,8 +333,8 @@ export const products: Product[] = [
     interests: ["Edificios", "Arte"],
     pieces: "2001+",
     highlight: "Exclusivos",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt7d6c0c5e7c6d7a5f/10276.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt7d6c0c5e7c6d7a5f/10276.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 6,
     shortDescription: "Coliseo Romano de más de 9000 piezas.",
     description: "El set más grande de LEGO Architecture. Réplica detallada del Coliseo de Roma.",
@@ -362,8 +353,8 @@ export const products: Product[] = [
     interests: ["Vehículos", "Deportes"],
     pieces: "1001-2000",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt5e6c7d8f9a0b1c2d/42141.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt5e6c7d8f9a0b1c2d/42141.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 20,
     shortDescription: "McLaren F1 2022 Technic.",
     description: "Modelo oficial del monoplaza McLaren F1 con detalles del equipo de Fórmula 1.",
@@ -382,8 +373,8 @@ export const products: Product[] = [
     interests: ["Robots"],
     pieces: "2001+",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt6e8f9a0b1c2d3e4f/75308.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt6e8f9a0b1c2d3e4f/75308.png"],
+    img: "https://www.lego.com/cdn/cs/set/assets/blt38e8915698af2d5f/75308.jpg",
+    images: ["https://www.lego.com/cdn/cs/set/assets/blt38e8915698af2d5f/75308.jpg"],
     stock: 15,
     shortDescription: "R2-D2 a escala construible.",
     description: "Modelo detallado del icónico droide R2-D2 con compartimentos ocultos y cabeza giratoria.",
@@ -403,8 +394,8 @@ export const products: Product[] = [
     interests: ["Vehículos"],
     pieces: "2001+",
     highlight: "Exclusivos",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt7f9a0b1c2d3e4f5g/42083.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt7f9a0b1c2d3e4f5g/42083.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 7,
     shortDescription: "Bugatti Chiron Technic 1:8.",
     description: "Superdeportivo Bugatti Chiron con motor W16, alerón activo y transmisión de 8 velocidades.",
@@ -423,8 +414,8 @@ export const products: Product[] = [
     interests: ["Arte"],
     pieces: "0-500",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt8a0b1c2d3e4f5g6h/76217.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt8a0b1c2d3e4f5g6h/76217.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 25,
     shortDescription: "Groot construible de Guardianes.",
     description: "Figura de Baby Groot de los Guardianes de la Galaxia. Posable y decorativo.",
@@ -443,8 +434,8 @@ export const products: Product[] = [
     interests: ["Edificios"],
     pieces: "1001-2000",
     highlight: "Destacados",
-    img: "https://www.lego.com/cdn/cs/set/assets/blt9b1c2d3e4f5g6h7i/21046.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/blt9b1c2d3e4f5g6h7i/21046.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 18,
     shortDescription: "Empire State Building Architecture.",
     description: "Réplica detallada del icónico rascacielos de Nueva York en escala Architecture.",
@@ -463,157 +454,10 @@ export const products: Product[] = [
     interests: ["Vehículos", "Robots"],
     pieces: "2001+",
     highlight: "Edición Limitada",
-    img: "https://www.lego.com/cdn/cs/set/assets/bltac2d3e4f5g6h7i8j/75313.png",
-    images: ["https://www.lego.com/cdn/cs/set/assets/bltac2d3e4f5g6h7i8j/75313.png"],
+    img: NO_IMAGE,
+    images: [],
     stock: 10,
     shortDescription: "AT-AT UCS de Star Wars.",
     description: "Caminante AT-AT Ultimate Collector Series con interior detallado y minifiguras.",
   },
 ];
-
-export const FILTER_CONFIG: FilterConfig[] = [
-  { label: "Tipo de Producto", key: "type", options: ["Sets", "Decoración del hogar"] },
-  { label: "Edad", key: "age", options: ["12+", "16+", "18+"] },
-  {
-    label: "Tema",
-    key: "theme",
-    options: ["Architecture", "Star Wars", "Technic", "Harry Potter", "Marvel", "Disney"],
-  },
-  {
-    label: "Intereses",
-    key: "interests",
-    options: ["Edificios", "Vehículos", "Arte", "Robots", "Deportes"],
-  },
-  { label: "Número de Piezas", key: "pieces", options: ["0-500", "501-1000", "1001-2000", "2001+"] },
-  { label: "Destacados", key: "highlight", options: ["Exclusivos", "Destacados", "Edición Limitada"] },
-];
-
-// Service functions
-export const getProducts = (): Promise<Product[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(products), 300);
-  });
-};
-
-export const getProductById = (productId: string): Promise<Product | undefined> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(products.find((prod) => prod.id === productId));
-    }, 300);
-  });
-};
-
-export const getProductsByCategory = (category: string): Promise<Product[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(products.filter((prod) => prod.category === category));
-    }, 300);
-  });
-};
-
-const matchesFilter = (product: Product, key: keyof ProductFilters, values: string[]): boolean => {
-  if (!values?.length) return true;
-
-  switch (key) {
-    case "type":
-      return values.includes(product.type);
-    case "age":
-      return values.includes(product.age);
-    case "theme":
-      return values.includes(product.theme);
-    case "interests":
-      return values.some((interest) => product.interests.includes(interest));
-    case "pieces":
-      return values.includes(product.pieces);
-    case "highlight":
-      return values.includes(product.highlight);
-    default:
-      return true;
-  }
-};
-
-export const getProductsByFilters = (filters: ProductFilters): Promise<Product[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const filteredProducts = products.filter((product) =>
-        (Object.entries(filters) as [keyof ProductFilters, string[]][]).every(([key, values]) =>
-          matchesFilter(product, key, values)
-        )
-      );
-      resolve(filteredProducts);
-    }, 300);
-  });
-};
-
-export const getProductsPaginated = ({
-  page = 1,
-  limit = 9,
-  categoryId,
-  filters = {} as ProductFilters,
-  sortOption,
-}: {
-  page?: number;
-  limit?: number;
-  categoryId?: string;
-  filters?: ProductFilters;
-  sortOption?: SortOption;
-}): Promise<PaginatedResponse<Product>> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      let result = [...products];
-
-      // Filter by category
-      if (categoryId) {
-        result = result.filter((p) => p.category.toLowerCase() === categoryId.toLowerCase());
-      }
-
-      // Apply filters
-      result = result.filter((prod) =>
-        (Object.entries(filters) as [keyof ProductFilters, string[]][]).every(([key, values]) =>
-          matchesFilter(prod, key, values)
-        )
-      );
-
-      // Apply sorting
-      switch (sortOption) {
-        case "price_low_high":
-          result.sort((a, b) => a.price - b.price);
-          break;
-        case "price_high_low":
-          result.sort((a, b) => b.price - a.price);
-          break;
-        case "name_asc":
-          result.sort((a, b) => a.name.localeCompare(b.name));
-          break;
-        case "name_desc":
-          result.sort((a, b) => b.name.localeCompare(a.name));
-          break;
-        default:
-          break;
-      }
-
-      // Paginate
-      const total = result.length;
-      const start = (page - 1) * limit;
-      const paginated = result.slice(start, start + limit);
-
-      resolve({ products: paginated, total });
-    }, 300);
-  });
-};
-
-export const searchProducts = (query: string): Promise<Product[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const lowerQuery = query.toLowerCase();
-      const results = products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(lowerQuery) ||
-          p.description.toLowerCase().includes(lowerQuery) ||
-          p.theme.toLowerCase().includes(lowerQuery) ||
-          p.category.toLowerCase().includes(lowerQuery)
-      );
-      resolve(results);
-    }, 300);
-  });
-};

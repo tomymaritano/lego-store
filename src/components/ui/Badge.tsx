@@ -1,31 +1,35 @@
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-import type { HTMLAttributes } from "react";
 
-interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: "default" | "new" | "sale" | "limited" | "exclusive" | "success" | "warning";
+/**
+ * Every variant pairs a fill with its on-colour token (>= 4.5:1, checked in tests).
+ * Product badges (new, sale, limited, exclusive) are saturated brand fills with
+ * white text in both themes, so they read as one family on photos.
+ */
+const badgeVariants = cva(
+  "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption font-bold tracking-wide uppercase whitespace-nowrap [&_svg]:size-3",
+  {
+    variants: {
+      variant: {
+        neutral: "bg-badge-neutral text-fg",
+        new: "bg-badge-new text-on-badge-new",
+        sale: "bg-badge-sale text-on-badge-sale",
+        limited: "bg-badge-limited text-on-badge-limited",
+        exclusive: "bg-badge-exclusive text-on-badge-exclusive",
+        success: "bg-success text-on-success",
+        warning: "bg-warning text-on-warning",
+        danger: "bg-danger text-on-danger",
+      },
+    },
+    defaultVariants: { variant: "neutral" },
+  }
+);
+
+export interface BadgeProps extends React.ComponentProps<"span">, VariantProps<typeof badgeVariants> {}
+
+function Badge({ className, variant, ...props }: BadgeProps) {
+  return <span data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />;
 }
 
-export function Badge({ className, variant = "default", children, ...props }: BadgeProps) {
-  const variants = {
-    default: "bg-background-secondary text-foreground-primary",
-    new: "bg-lego-blue text-white shadow-sm",
-    sale: "bg-lego-red text-white shadow-sm",
-    limited: "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm",
-    exclusive: "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm",
-    success: "bg-status-success text-white shadow-sm",
-    warning: "bg-status-warning text-white shadow-sm",
-  };
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide transition-transform hover:scale-105",
-        variants[variant],
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </span>
-  );
-}
+export { Badge, badgeVariants };

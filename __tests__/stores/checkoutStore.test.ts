@@ -1,0 +1,73 @@
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { summarizePayment, useCheckoutStore } from "@/stores/checkoutStore";
+
+const card = { cardNumber: "4111 1111 1111 1234", cardName: "Ana Pérez", expiryDate: "12/29", cvv: "987" };
+
+describe("checkoutStore", () => {
+  beforeEach(() => {
+    useCheckoutStore.getState().resetCheckout();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps only a summary of the card, never the number or the CVV", () => {
+    useCheckoutStore.getState().setPaymentInfo(card);
+    const state = useCheckoutStore.getState();
+    expect(state.paymentSummary).toEqual({ brand: "visa", cardName: "Ana Pérez", expiryDate: "12/29", last4: "1234" });
+    const serialized = JSON.stringify(state);
+    expect(serialized).not.toContain("4111");
+    expect(serialized).not.toContain("987");
+  });
+
+  it("summarizes any card format", () => {
+    expect(summarizePayment({ ...card, cardNumber: "5555-4444-3333-2222" })).toMatchObject({ last4: "2222", brand: "mastercard" });
+    expect(summarizePayment({ ...card, cardNumber: "3782 822463 10005" })).toMatchObject({ last4: "0005", brand: "amex" });
+  });
+
+  it("is not persisted", () => {
+    useCheckoutStore.getState().setShippingInfo({
+      firstName: "Ana",
+      lastName: "Pérez",
+      email: "ana@example.com",
+      phone: "1155555555",
+      address: "Calle 123",
+      city: "CABA",
+      state: "Ciudad Autónoma de Buenos Aires",
+      zipCode: "1000",
+      country: "Argentina",
+    });
+    expect(Object.keys(localStorage).some((key) => key.includes("checkout"))).toBe(false);
+    expect("persist" in useCheckoutStore).toBe(false);
+  });
+
+  it("processes the order, moves to confirmation and drops the payment summary", async () => {
+    vi.useFakeTimers();
+    useCheckoutStore.getState().setPaymentInfo(card);
+    const pending = useCheckoutStore.getState().processOrder({ total: 1198 });
+    expect(useCheckoutStore.getState().isProcessing).toBe(true);
+    await vi.runAllTimersAsync();
+    const orderId = await pending;
+    expect(orderId).toMatch(/^LEGO-/);
+    expect(useCheckoutStore.getState()).toMatchObject({
+      currentStep: "confirmation",
+      isProcessing: false,
+      orderId,
+      orderTotal: 1198,
+      paymentSummary: null,
+    });
+  });
+
+  it("cancels the order when its signal aborts: no order id, no confirmation", async () => {
+    vi.useFakeTimers();
+    useCheckoutStore.getState().setStep("review");
+    useCheckoutStore.getState().setPaymentInfo(card);
+    const controller = new AbortController();
+    const pending = useCheckoutStore.getState().processOrder({ total: 1198 }, { signal: controller.signal });
+    const outcome = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    controller.abort();
+    await outcome;
+    await vi.runAllTimersAsync();
+    expect(useCheckoutStore.getState()).toMatchObject({ currentStep: "review", isProcessing: false, orderId: null });
+  });
+});

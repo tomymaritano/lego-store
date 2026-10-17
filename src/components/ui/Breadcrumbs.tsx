@@ -1,47 +1,48 @@
-"use client";
-
+import * as React from "react";
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface BreadcrumbItem {
+export interface BreadcrumbItem {
   label: string;
   href?: string;
 }
 
-interface BreadcrumbsProps {
+export interface BreadcrumbsProps extends Omit<React.ComponentProps<"nav">, "children"> {
+  /** Trail after "Inicio". The last item is the current page. */
   items: BreadcrumbItem[];
-  className?: string;
 }
 
-export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
+const linkClasses =
+  "rounded-sm text-fg-muted transition-colors duration-fast hover:text-fg hover:underline underline-offset-4";
+
+export function Breadcrumbs({ items, className, ...props }: BreadcrumbsProps) {
   return (
-    <nav aria-label="Breadcrumb" className={cn("py-4", className)}>
-      <ol className="flex items-center flex-wrap gap-1 text-sm">
+    <nav aria-label="Ruta de navegación" data-slot="breadcrumbs" {...props} className={cn("py-4", className)}>
+      <ol className="flex flex-wrap items-center gap-1 text-sm">
         <li className="flex items-center">
-          <Link
-            href="/"
-            className="text-gray-500 hover:text-lego-blue transition-colors flex items-center gap-1"
-          >
-            <Home className="w-4 h-4" />
+          <Link href="/" className={cn(linkClasses, "flex items-center gap-1")}>
+            <Home aria-hidden="true" className="size-4" />
             <span className="sr-only">Inicio</span>
           </Link>
         </li>
-        {items.map((item, index) => (
-          <li key={index} className="flex items-center">
-            <ChevronRight className="w-4 h-4 text-gray-400 mx-1" />
-            {item.href ? (
-              <Link
-                href={item.href}
-                className="text-gray-500 hover:text-lego-blue transition-colors"
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <span className="text-gray-900 font-medium">{item.label}</span>
-            )}
-          </li>
-        ))}
+        {items.map((item, index) => {
+          const isCurrent = index === items.length - 1;
+          return (
+            <li key={`${item.label}-${index}`} className="flex items-center">
+              <ChevronRight aria-hidden="true" className="mx-1 size-4 text-fg-muted" />
+              {item.href && !isCurrent ? (
+                <Link href={item.href} className={linkClasses}>
+                  {item.label}
+                </Link>
+              ) : (
+                <span aria-current={isCurrent ? "page" : undefined} className="font-medium text-fg">
+                  {item.label}
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );

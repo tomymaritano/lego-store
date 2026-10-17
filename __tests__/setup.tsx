@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -21,7 +21,36 @@ vi.mock("next/image", () => ({
   },
 }));
 
-// Reset localStorage before each test
+// Reset localStorage before each test (absent in node-environment tests)
 beforeEach(() => {
-  localStorage.clear();
+  globalThis.localStorage?.clear();
+});
+
+// jsdom has no IntersectionObserver (motion's whileInView needs one): a no-op stub.
+if (typeof window !== "undefined" && !("IntersectionObserver" in window)) {
+  class IntersectionObserverStub {
+    readonly root = null;
+    readonly rootMargin = "";
+    readonly thresholds = [];
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  Object.assign(window, { IntersectionObserver: IntersectionObserverStub });
+}
+
+// The app renders motion's light `m.*` elements under <LazyMotion> (ClientProviders),
+// which loads the animation features asynchronously. Components tested on
+// their own have no LazyMotion around them, so map `m` to the full `motion`
+// (same API, features bundled) and make LazyMotion a passthrough.
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return {
+    ...actual,
+    m: actual.motion,
+    LazyMotion: ({ children }: { children: React.ReactNode }) => children,
+  };
 });

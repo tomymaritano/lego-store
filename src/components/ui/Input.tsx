@@ -1,46 +1,68 @@
 "use client";
 
-import { forwardRef, type InputHTMLAttributes } from "react";
+import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useFieldControl } from "./Field";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  error?: string;
+/** Shared look for text-like controls (Input, Textarea, SelectTrigger). */
+export const controlClasses = cn(
+  "w-full rounded-lg border border-border-strong bg-surface text-fg",
+  "transition-[border-color,box-shadow] duration-fast ease-standard",
+  "placeholder:text-fg-muted",
+  "outline-none focus-visible:border-focus-ring focus-visible:ring-2 focus-visible:ring-focus-ring/40",
+  "disabled:cursor-not-allowed disabled:opacity-60",
+  "aria-invalid:border-danger aria-invalid:focus-visible:ring-danger/30"
+);
+
+export interface InputProps extends React.ComponentProps<"input"> {
+  /** Marks the control invalid without a Field (Field sets this itself). */
+  invalid?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
 
-const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = "text", error, leftIcon, rightIcon, ...props }, ref) => {
-    return (
-      <div className="relative">
-        {leftIcon && (
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-            {leftIcon}
-          </div>
-        )}
-        <input
-          type={type}
-          className={cn(
-            "w-full px-4 py-2 border border-gray-300 rounded-lg transition-all duration-200",
-            "focus:outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent",
-            "placeholder:text-gray-400",
-            leftIcon && "pl-10",
-            rightIcon && "pr-10",
-            error && "border-red-500 focus:ring-red-400",
-            className
-          )}
-          ref={ref}
-          {...props}
-        />
-        {rightIcon && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400">{rightIcon}</div>
-        )}
-        {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-      </div>
-    );
-  }
-);
+function Input({ className, type = "text", leftIcon, rightIcon, ...props }: InputProps) {
+  const { controlProps } = useFieldControl(props);
+  const input = (
+    <input
+      type={type}
+      data-slot="input"
+      className={cn(controlClasses, "h-11 px-3.5 text-body", leftIcon && "pl-10", rightIcon && "pr-10", className)}
+      {...controlProps}
+    />
+  );
 
-Input.displayName = "Input";
+  if (!leftIcon && !rightIcon) return input;
 
-export { Input };
+  return (
+    <div className="relative">
+      {leftIcon ? (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-fg-muted [&_svg]:size-4">
+          {leftIcon}
+        </span>
+      ) : null}
+      {input}
+      {rightIcon ? (
+        <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-fg-muted [&_svg]:size-4">{rightIcon}</span>
+      ) : null}
+    </div>
+  );
+}
+
+export interface TextareaProps extends React.ComponentProps<"textarea"> {
+  invalid?: boolean;
+}
+
+function Textarea({ className, rows = 4, ...props }: TextareaProps) {
+  const { controlProps } = useFieldControl(props);
+  return (
+    <textarea
+      data-slot="textarea"
+      rows={rows}
+      className={cn(controlClasses, "min-h-24 resize-y px-3.5 py-2.5 text-body", className)}
+      {...controlProps}
+    />
+  );
+}
+
+export { Input, Textarea };

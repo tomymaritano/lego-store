@@ -1,67 +1,47 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { Theme } from "@/types";
+import { THEME_STORAGE_KEY } from "@/lib/theme";
+import { isRecord, persistStorage } from "./persist";
 
-type Theme = "light" | "dark" | "system";
-
+/**
+ * The single source of truth for the theme preference. It does not touch the
+ * DOM: the inline script in <head> applies it before paint and ThemeSync keeps
+ * <html> in sync afterwards (see lib/theme.ts).
+ */
 interface ThemeState {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  /** light ⇄ dark ("system" resolves to the opposite of the current look). */
   toggleTheme: () => void;
 }
+
+const isTheme = (value: unknown): value is Theme => value === "light" || value === "dark" || value === "system";
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       theme: "system",
-
-      setTheme: (theme) => {
-        set({ theme });
-        applyTheme(theme);
-      },
-
+      setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
         const current = get().theme;
-        const next = current === "dark" ? "light" : "dark";
-        set({ theme: next });
-        applyTheme(next);
+        const isDark =
+          current === "dark" ||
+          (current === "system" &&
+            typeof document !== "undefined" &&
+            document.documentElement.classList.contains("dark"));
+        set({ theme: isDark ? "light" : "dark" });
       },
     }),
     {
-      name: "lego-theme-storage",
-      storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          applyTheme(state.theme);
-        }
-      },
+      name: THEME_STORAGE_KEY,
+      version: 1,
+      storage: createJSONStorage(persistStorage),
+      skipHydration: true,
+      partialize: (state) => ({ theme: state.theme }),
+      migrate: (persisted) => ({
+        theme: isRecord(persisted) && isTheme(persisted.theme) ? persisted.theme : "system",
+      }),
     }
   )
 );
-
-function applyTheme(theme: Theme) {
-  if (typeof window === "undefined") return;
-
-  const root = document.documentElement;
-  const isDark =
-    theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-
-  if (isDark) {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-}
-
-// Initialize theme on load
-if (typeof window !== "undefined") {
-  const stored = localStorage.getItem("lego-theme-storage");
-  if (stored) {
-    try {
-      const { state } = JSON.parse(stored);
-      applyTheme(state.theme);
-    } catch {
-      applyTheme("system");
-    }
-  }
-}

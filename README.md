@@ -1,276 +1,196 @@
-# E-commerce Template - Next.js 14
+# LEGO Store
 
-A modern, production-ready e-commerce template built with Next.js 14, TypeScript, and Tailwind CSS. Perfect for building online stores, marketplaces, or showcasing products.
+Tienda online de sets LEGO (proyecto de portfolio): catálogo con búsqueda e
+infinite scroll, ficha de producto, carrito, lista de deseos, comparador de
+hasta 4 productos y un checkout en pasos (pago simulado). Toda la UI está en
+español, tiene modo oscuro y apunta a WCAG 2.1 AA.
 
-**[Live Demo](https://lego-store-8i83q5ulc-indiehacklab.vercel.app)** | **[Documentation](#customization)** | **[Changelog](./CHANGELOG.md)**
-
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwindcss)
-![License](https://img.shields.io/badge/License-MIT-green)
-
-## Lighthouse Scores
-
-| Performance | Accessibility | Best Practices | SEO |
-|:-----------:|:-------------:|:--------------:|:---:|
-| 87 | 79 | 96 | 100 |
-
-## Screenshots
+Los datos del catálogo son un mock local; el próximo paso del proyecto es un
+backend real (ver `docs/superpowers/specs/`). La UI ya está preparada para eso:
+todas las lecturas pasan por una sola capa (`src/lib/api`).
 
 <table>
   <tr>
-    <td><img src="./screenshots/home-light.png" alt="Home Light" width="400"/></td>
-    <td><img src="./screenshots/home-dark.png" alt="Home Dark" width="400"/></td>
+    <td><img src="./screenshots/home-light.png" alt="Inicio, modo claro" width="400"/></td>
+    <td><img src="./screenshots/home-dark.png" alt="Inicio, modo oscuro" width="400"/></td>
   </tr>
   <tr>
-    <td align="center">Home - Light Mode</td>
-    <td align="center">Home - Dark Mode</td>
+    <td><img src="./screenshots/product-detail.png" alt="Ficha de producto" width="400"/></td>
+    <td><img src="./screenshots/cart.png" alt="Carrito, modo oscuro" width="400"/></td>
   </tr>
   <tr>
-    <td><img src="./screenshots/product-detail.png" alt="Product Detail" width="400"/></td>
-    <td><img src="./screenshots/cart.png" alt="Cart" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center">Product Detail</td>
-    <td align="center">Shopping Cart</td>
+    <td><img src="./screenshots/checkout.png" alt="Checkout, paso de envío" width="400"/></td>
+    <td><img src="./screenshots/mobile.png" alt="Inicio en un teléfono, modo oscuro" width="200"/></td>
   </tr>
 </table>
 
-## Features
+Las capturas se regeneran con `npm run screenshots` contra un build de
+producción en marcha (`npm run build && npm start`).
 
-### Core Functionality
+## Stack
 
-- **Product Catalog** - Browse products with filters by category and theme
-- **Shopping Cart** - Add/remove items, quantity management, persistent storage
-- **Wishlist** - Save favorite products for later
-- **Product Comparison** - Compare up to 4 products side by side
-- **Search** - Real-time autocomplete with debouncing and recent searches
-- **Checkout Flow** - Multi-step checkout with form validation
+- **Next.js 16** (App Router, Turbopack) + **React 19**, TypeScript 5.9
+- **Tailwind CSS 4** con tokens de diseño en `@theme` (`src/app/globals.css`)
+- Primitivos estilo **shadcn/ui sobre Base UI** (`src/components/ui`)
+- **motion** (`motion/react`, vía `LazyMotion` + `m.*`) para animaciones, con presets en `src/lib/motion.ts`
+- **Zustand** (estado del cliente persistido), **TanStack Query** (datos en islas cliente)
+- **React Hook Form** + **Zod** (checkout, contacto y reseñas; se cargan solo donde se usan), **sonner** (toasts)
+- Barlow servida por `next/font` (self-hosted y precargada)
+- **Vitest** (unit + Storybook), **Playwright** (E2E), **Storybook 10** con a11y
 
-### User Experience
-
-- **Dark Mode** - Automatic theme detection with manual toggle
-- **Responsive Design** - Mobile-first approach, works on all devices
-- **Animations** - Smooth transitions with Framer Motion
-- **Accessibility** - ARIA labels, keyboard navigation, skip links
-- **Infinite Scroll** - Load more products as you scroll
-- **SEO Optimized** - Meta tags, Open Graph, structured data ready
-
-### Technical Highlights
-
-- **Design Tokens** - CSS custom properties for consistent theming
-- **State Management** - Zustand with localStorage persistence
-- **Type Safety** - Full TypeScript coverage
-- **API Layer** - Abstracted data layer, easy to connect to any backend
-- **Performance** - Optimized images, lazy loading, code splitting
-- **i18n Ready** - Spanish and English translations included
-- **Testing** - Vitest unit tests, Playwright E2E tests, Storybook
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view the app.
-
-## Customization
-
-### 1. Site Configuration
-
-Edit `src/config/site.ts` to customize your store:
-
-```typescript
-export const siteConfig = {
-  name: "Your Store Name",
-  description: "Your store description",
-  url: "https://yourstore.com",
-  locale: "en-US",
-  currency: "USD",
-  contact: {
-    email: "hello@yourstore.com",
-    phone: "+1 234 567 890",
-  },
-  social: {
-    instagram: "https://instagram.com/yourstore",
-    // ...
-  },
-};
-```
-
-### 2. Theme Colors
-
-Update brand colors in `tailwind.config.ts`:
-
-```typescript
-colors: {
-  brand: {
-    yellow: "#ffd44a",
-    red: "#e53935",
-    blue: "#1e88e5",
-  },
-}
-```
-
-### 3. Products Data
-
-Replace mock data in `src/data/products.ts` or connect to your API by updating `src/lib/api/products.ts`.
-
-### 4. Connect to Backend
-
-The API layer (`src/lib/api/`) is designed for easy backend integration:
-
-```typescript
-// src/lib/api/products.ts
-export async function getProducts(): Promise<Product[]> {
-  // Replace with your API call
-  const response = await fetch(`${API_BASE_URL}/products`);
-  return response.json();
-}
-```
-
-## Tech Stack
-
-| Category | Technologies |
-|----------|-------------|
-| Framework | Next.js 14 (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS, CSS Variables |
-| State | Zustand |
-| Animations | Framer Motion |
-| Icons | Lucide React |
-| Data Fetching | TanStack Query |
-
-## Project Structure
-
-```text
-src/
-├── app/                    # Next.js App Router pages
-│   ├── page.tsx           # Home page
-│   ├── cart/              # Cart page
-│   ├── checkout/          # Checkout flow
-│   ├── compare/           # Product comparison
-│   ├── item/[productId]/  # Product detail
-│   ├── search/            # Search results
-│   └── wishlist/          # Wishlist page
-├── components/
-│   ├── ui/                # Reusable UI components (Button, Input, etc.)
-│   ├── layout/            # Navbar, Footer, PageTransition
-│   ├── product/           # Product-related components
-│   ├── cart/              # Cart components
-│   └── search/            # Search components
-├── config/                 # Site configuration
-├── hooks/                  # Custom React hooks
-├── lib/
-│   ├── api/               # API service layer
-│   └── utils.ts           # Utilities
-├── stores/                 # Zustand stores
-├── types/                  # TypeScript types
-└── data/                   # Mock product data
-```
+Requiere Node `^22.13` o `>=24`.
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run test` | Run unit tests (Vitest) |
-| `npm run test:ui` | Run tests with UI |
-| `npm run test:coverage` | Run tests with coverage |
-| `npm run test:e2e` | Run E2E tests (Playwright) |
-| `npm run test:e2e:ui` | Run E2E tests with UI |
-| `npm run storybook` | Start Storybook |
-| `npm run build-storybook` | Build Storybook |
+| Comando | Qué hace |
+| --- | --- |
+| `npm run dev` | Servidor de desarrollo en http://localhost:3000 |
+| `npm run build` / `npm start` | Build de producción y servidor |
+| `npm run lint` | ESLint (incluye las guardas del sistema de diseño) |
+| `npx tsc --noEmit` | Chequeo de tipos |
+| `npm test` | Vitest en modo watch (`npx vitest run` para una corrida) |
+| `npm run test:coverage` | Cobertura de los tests unitarios |
+| `npm run test:e2e` | Playwright: proyecto `chromium` contra `npm run dev` y proyecto `prod` contra un build en el puerto 3100 (los levanta si no están) |
+| `npm run storybook` / `npm run build-storybook` | Storybook en http://localhost:6006 / build estático |
+| `npm run size -- <url>` | JS de primera carga (gzip) por ruta clave contra su presupuesto, sobre un `npm start` en marcha |
+| `npm run screenshots` | Regenera las capturas de `screenshots/` (`BASE_URL` para otro origen) |
 
-## Design System
+## Estructura
 
-### Color Tokens
-
-CSS custom properties for easy theming:
-
-```css
-/* Light Mode */
---bg-primary: #ffffff;
---bg-secondary: #faf9f7;
---text-primary: #1d1d1d;
-
-/* Dark Mode (automatic) */
---bg-primary: #171412;
---bg-secondary: #1e1b18;
---text-primary: #fafaf9;
+```
+src/
+  app/                 Rutas (App Router). Páginas = Server Components.
+    (info)/            Ayuda y la tienda: faq, envios, devoluciones, contacto,
+                       nosotros, terminos, privacidad (layout con menú lateral)
+    api/               Route Handlers para las islas cliente
+      products/        GET /api/products (filtros, orden, paginación)
+      products/by-ids/ GET /api/products/by-ids?ids=1,2
+      products/facets/ GET /api/products/facets (conteos en vivo de los filtros)
+      search/          GET /api/search?q= (autocompletado)
+    cart/ wishlist/ compare/ search/ category/ item/
+    checkout/_components/  Pasos, resumen y confirmación del checkout
+  components/
+    ui/                Primitivos del sistema de diseño (barrel index.ts)
+    layout/            Navbar, Footer, PageHeader, menús y paneles (carga diferida)
+    product/           Tarjeta, grilla, catálogo y filtros, ficha, galería, reseñas (reviews/)
+    cart/ wishlist/ compare/ search/ home/ info/ forms/ icons/
+    motion/            Reveal / Stagger para Server Components
+  data/                Mock del catálogo (solo lo lee src/lib/api)
+  hooks/               useProductActions, useProductsByIds, useInfiniteScroll…
+  lib/
+    api/               Gateway de datos (server-only)
+    api-client.ts      Llamadas del navegador a /api/*
+    productQuery.ts    ProductQuery <-> URL search params
+    pricing.ts         Subtotal, envío y totales (carrito y checkout)
+    card.ts argentina.ts  Tarjetas, provincias y códigos postales
+    flyToCart.ts       Animación "vuela al carrito" (Web Animations API)
+    motion.ts motion-features.ts theme.ts metadata.ts utils.ts validations/
+  stores/              Zustand: cart, wishlist, compare, recentlyViewed, theme, reviews, checkout, ui
+  types/               Tipos de dominio (única fuente)
+__tests__/             Tests unitarios y de componentes (Vitest + Testing Library)
+e2e/                   Tests de Playwright (e2e/prod: contra el build de producción)
+scripts/               Presupuesto de JS y capturas del README
 ```
 
-### Components
+## Arquitectura de datos
 
-- **Button** - Primary, Secondary, Outline, Ghost, Danger variants
-- **Input** - Text, Search, with validation states
-- **Badge** - New, Sale, Status indicators
-- **Card** - Product cards with hover effects
-- **Drawer** - Cart sidebar, mobile menu
-- **Toast** - Notifications system
-- **Skeleton** - Loading states
+- **Lecturas**: Server Components llaman a `@/lib/api` (`getPaginatedProducts`,
+  `getProductById`, `searchProducts`, `getFilterOptions`, `getCategories`,
+  `getRelatedProducts`, `getProductsByIds`…). Son funciones `async` con argumentos y
+  resultados serializables; el backend reemplazará su implementación sin cambiar
+  las firmas. Importar `@/data` fuera de `src/lib/api` es un error de lint.
+- **Islas cliente** (infinite scroll, autocompletado, comparador, favoritos,
+  vistos recientemente) usan los Route Handlers de `src/app/api` vía
+  `@/lib/api-client` y React Query. El catálogo nunca viaja en el bundle.
+- **Búsqueda**: un solo algoritmo (`src/lib/api/search.ts`): todos los términos
+  deben aparecer en nombre, tema, categoría o descripción, sin distinguir
+  mayúsculas ni acentos.
 
-## Deployment
+## Estado del cliente
 
-### Vercel (Recommended)
+- Stores de Zustand con **selectores** (`useCartCount`, `useCartSubtotal`,
+  `useIsInCart(id)`, `useIsInWishlist(id)`, `useCompareIds`…).
+- Persistencia versionada con `migrate` desde formatos anteriores. Comparar y
+  vistos recientemente guardan IDs; favoritos, un snapshot mínimo.
+- Hidratación: los stores usan `skipHydration` y `<StoreHydrator />` los carga una
+  sola vez tras hidratar (y sincroniza pestañas). `useStoresHydrated()` distingue
+  "cargando" de "vacío" donde importa.
+- Tema: el store es la única fuente de verdad; un script inline en `<head>` aplica
+  la clase `dark` antes del primer pintado y `ThemeSync` lo mantiene al día.
+- El checkout vive en memoria y nunca guarda el número de tarjeta ni el CVV.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/lego-store)
+## Sistema de diseño
 
-1. Click the button above, or:
-2. Push your code to GitHub
-3. Import project in [Vercel](https://vercel.com)
-4. Deploy with one click
+- **Tokens** en tres niveles (primitivos → semánticos → componente) en
+  `globals.css`, expuestos como utilidades: `bg-bg`, `bg-surface`, `text-fg`,
+  `text-fg-muted`, `bg-primary`/`text-on-primary`, `text-danger`, `text-info`… El
+  contraste AA se verifica en `__tests__/design/tokens.test.ts`.
+- La paleta por defecto de Tailwind está desactivada (`--color-*: initial`):
+  solo existen los colores de los tokens.
+- **Primitivos** en `src/components/ui`: Button (con `render` para links),
+  IconButton, Field, Input, Textarea, Select, Checkbox, RadioGroup, Slider,
+  Dialog, Sheet, Tabs, Card, Badge, Rating, RatingInput, Price, EmptyState,
+  Skeleton, QuantitySelector, Spinner, Toast, Breadcrumbs, ThemeToggle. Cada
+  uno con stories en claro y oscuro.
+- **Guardas de ESLint** (errores en todo `src/`): colores crudos de la paleta,
+  alias heredados, `dark:`, duraciones numéricas de movimiento y tamaños de
+  texto de Tailwind (`text-sm`, `text-2xl`…: se usa la escala `text-caption`,
+  `text-label`, `text-body`, `text-title`, `text-heading`, `text-headline`,
+  `text-display`). Dentro de `ui/` rigen las mismas reglas, salvo que `dark:`
+  y los tamaños compactos de los primitivos están permitidos.
+- **Movimiento**: presets en `src/lib/motion.ts` (150–300 ms) y
+  `<MotionConfig reducedMotion="user">`; respetan `prefers-reduced-motion`. Los
+  componentes usan `m.*` dentro de `<LazyMotion>` (el bundle de features se
+  pide aparte, aunque Turbopack hoy lo deja en el chunk compartido de motion:
+  unos 45 kB gzip en la primera carga).
 
-### Other Platforms
+## Rendimiento
 
-Build the production bundle:
+- Inicio, fichas y categorías se prerenderizan sin `loading.tsx`: el HTML
+  estático trae el contenido en orden y el texto del hero (el LCP) se pinta en
+  el primer frame. Los filtros de una categoría viven en la URL y se aplican en
+  el cliente, así que la ruta sigue siendo estática.
+- Los paneles poco usados (carrito lateral, menú y búsqueda móviles, vista
+  rápida, formulario de reseñas) se cargan bajo demanda con `next/dynamic` y se
+  precargan al pasar el puntero o enfocar su botón. Sonner (toasts) y las
+  reseñas de la ficha se cargan después de hidratar.
+- Imágenes en AVIF (WebP de respaldo) con `sizes` ajustados a cada grilla.
+- `npm run size` mide el JS de primera carga por ruta (gzip, sin los polyfills
+  `noModule`) contra un presupuesto por ruta; CI lo corre en cada PR.
+- Lighthouse CI (`lighthouserc.json`, móvil simulado) audita `/`, `/item/1`,
+  `/category/helmet` y `/cart`; la última corrida local dio rendimiento 80-82
+  (mediana), accesibilidad 100 y buenas prácticas 100. El gate de SEO de CI es
+  ≥ 90 en las rutas indexables (`/`, fichas y categorías), y el objetivo es 100,
+  que hoy cumplen. `/cart` y `/checkout` son `noindex` a propósito (lo correcto
+  en páginas transaccionales), así que no se afirma SEO sobre ellas. `/checkout` no está en
+  Lighthouse: sin carrito redirige a `/cart` y el informe mediría esa página;
+  su accesibilidad se audita con axe en `e2e/checkout.spec.ts`, paso a paso y
+  con un carrito cargado.
 
-```bash
-npm run build
-```
+## Tests
 
-The output will be in `.next/` folder.
+- `__tests__/lib`: gateway de datos (búsqueda, filtros, orden, paginación,
+  casos borde), parser de queries y Route Handlers.
+- `__tests__/stores`: stores, selectores, migraciones e hidratación.
+- `__tests__/components`: primitivos (`ui/`), carrito lateral, carrito /
+  favoritos / comparador, catálogo y filtros, checkout, formularios, galería,
+  ficha de producto, reseñas, autocompletado, useProductActions,
+  useProductsByIds y suscripciones a los stores.
+- `__tests__/config`: cada link de navegación resuelve a una página.
+- `__tests__/lint` y `__tests__/design`: guardas de ESLint y contraste de tokens.
+- Storybook: cada story se renderiza en Chromium con axe (a11y como error).
+- `e2e/`: un archivo por área: `homepage` (inicio), `catalog` (filtros en la URL,
+  orden, precio), `search` (búsqueda y combobox), `product` (ficha), `cart`
+  (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
+  (favoritos, comparador y su barra), `checkout` (con axe), `shell` (navbar,
+  footer, páginas de información, 404), `state` (estado persistido), `a11y`
+  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro) y el proyecto `prod`
+  (navegación, transiciones y rutas estáticas sobre el build de producción).
 
-## Environment Variables
+CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
+Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
+JS y Lighthouse.
 
-Create a `.env.local` file:
+## Licencia
 
-```env
-# API Configuration (optional)
-NEXT_PUBLIC_API_URL=https://api.yourstore.com
-
-# Analytics (optional)
-NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
-```
-
-## Browser Support
-
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-
-## License
-
-MIT License - feel free to use for personal or commercial projects.
-
-## Support
-
-For questions or issues, please open a GitHub issue or contact support.
-
----
-
-Built with Next.js, TypeScript, and Tailwind CSS.
+MIT, ver [LICENSE](./LICENSE).

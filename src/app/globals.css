@@ -1,101 +1,343 @@
-@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&display=swap");
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Dark mode is class based: <html class="dark"> */
+@custom-variant dark (&:where(.dark, .dark *));
 
-/* ===========================================
+/* ===========================================================================
    LEGO STORE DESIGN TOKENS
-   =========================================== */
+
+   Three tiers:
+   1. Primitives (raw palette). Plain CSS vars, NOT exposed as Tailwind
+      utilities, so components cannot reach for them directly. Tailwind's
+      own default palette is reset (`--color-*: initial`), and ESLint
+      rejects raw palette class names as a second barrier.
+   2. Semantic tokens (what a colour is for). Defined in :root and overridden
+      in .dark. Only this tier changes between themes.
+   3. Component tokens, only where a component needs a colour no semantic
+      token describes (badge brand fills).
+
+   Tiers 2 and 3 are exposed to Tailwind through `@theme inline` below
+   (bg-bg, text-fg, text-fg-muted, bg-primary, text-on-primary, ...).
+   Contrast is checked numerically by __tests__/design/tokens.test.ts.
+   =========================================================================== */
 
 :root {
-  /* Brand Colors */
-  --lego-yellow: #ffd44a;
-  --lego-red: #e53935;
-  --lego-blue: #1e88e5;
-  --lego-green: #43a047;
-  --lego-orange: #ff9800;
-  --lego-black: #1d1d1d;
+  /* ---- 1. Primitives ---------------------------------------------------- */
+  --yellow-50: #fff9e6;
+  --yellow-100: #ffefb3;
+  --yellow-200: #ffe580;
+  --yellow-300: #ffdb4d;
+  --yellow-400: #ffd44a; /* LEGO yellow */
+  --yellow-500: #f5c400;
+  --yellow-600: #d4a600;
+  --yellow-700: #9e7b00;
+  --yellow-800: #6b5300;
+  --yellow-900: #3d2f00;
 
-  /* Backgrounds - Light Mode */
-  --bg-primary: #ffffff;
-  --bg-secondary: #faf9f7;
-  --bg-tertiary: #f5f3f0;
+  --red-50: #fdecea;
+  --red-100: #fbd0cc;
+  --red-200: #f5a39b;
+  --red-300: #f28b82;
+  --red-400: #ec6b62;
+  --red-500: #e53935; /* LEGO red */
+  --red-600: #c62828;
+  --red-700: #a51d1d;
+  --red-800: #7f1717;
+  --red-900: #4c0f0f;
 
-  /* Text - Light Mode */
-  --text-primary: #1d1d1d;
-  --text-secondary: #57534e;
-  --text-muted: #a8a29e;
+  --blue-50: #e8f2fc;
+  --blue-100: #c5ddf7;
+  --blue-200: #93c1f1;
+  --blue-300: #64a6ea;
+  --blue-400: #3d93e6;
+  --blue-500: #1e88e5; /* LEGO blue */
+  --blue-600: #1565c0;
+  --blue-700: #0d4f9e;
+  --blue-800: #0a3a75;
+  --blue-900: #06234a;
+  --blue-850: #1f3550; /* muted deep blue: tints on dark surfaces */
 
-  /* Surfaces - Light Mode */
-  --surface-elevated: #ffffff;
-  --surface-overlay: rgba(255, 255, 255, 0.95);
+  /* Warm stone neutrals */
+  --stone-0: #ffffff;
+  --stone-25: #fafaf9;
+  --stone-50: #faf9f7;
+  --stone-100: #f5f3f0;
+  --stone-200: #e7e5e4;
+  --stone-300: #d6d3d1;
+  --stone-400: #a8a29e;
+  --stone-450: #8f8780;
+  --stone-500: #78716c;
+  --stone-550: #6b645f;
+  --stone-600: #57534e;
+  --stone-700: #44403c;
+  --stone-750: #353029;
+  --stone-800: #292524;
+  --stone-850: #262320;
+  --stone-900: #1e1b18;
+  --stone-925: #1c1917;
+  --stone-950: #171412;
 
-  /* Borders - Light Mode */
-  --border-default: #e7e5e4;
-  --border-subtle: #f5f5f4;
+  --green-300: #86efac;
+  --green-400: #4ade80;
+  --green-700: #15803d;
+  --green-950: #052e16;
+  --amber-400: #fbbf24;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+  --orange-700: #c2410c;
+  --purple-700: #7e22ce;
 
-  /* Status Colors */
-  --color-success: #22c55e;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-info: #1e88e5;
+  /* ---- 2. Semantic (light) ---------------------------------------------- */
+  --bg: var(--stone-0);
+  --bg-subtle: var(--stone-50);
+  --bg-muted: var(--stone-100);
+  --surface: var(--stone-0);
+  --surface-raised: var(--stone-0);
+  --overlay: rgb(23 20 18 / 0.6);
+
+  --fg: var(--stone-925);
+  --fg-secondary: var(--stone-600);
+  --fg-muted: var(--stone-550);
+
+  --border: var(--stone-200);
+  --border-strong: var(--stone-500);
+
+  --primary: var(--yellow-400);
+  --primary-hover: var(--yellow-500);
+  --on-primary: var(--stone-925);
+
+  --danger: var(--red-600);
+  --on-danger: var(--stone-0);
+  --success: var(--green-700);
+  --on-success: var(--stone-0);
+  --warning: var(--amber-700);
+  --on-warning: var(--stone-0);
+  --info: var(--blue-600);
+  --on-info: var(--stone-0);
+
+  --focus-ring: var(--blue-600);
+  --rating: var(--amber-600);
+  --sale: var(--red-600);
+  --on-sale: var(--stone-0);
+
+  /* ---- 3. Component ------------------------------------------------------ */
+  /* Brand fills for product badges; they sit on photos, so they stay the
+     same in both themes and always carry white text. */
+  --badge-sale: var(--red-600);
+  --on-badge-sale: var(--stone-0);
+  --badge-new: var(--blue-600);
+  --on-badge-new: var(--stone-0);
+  --badge-limited: var(--orange-700);
+  --on-badge-limited: var(--stone-0);
+  --badge-exclusive: var(--purple-700);
+  --on-badge-exclusive: var(--stone-0);
+  --badge-neutral: var(--stone-100);
+  /* LEGO red for accents on the always-yellow hero and the promo strip:
+     it does not change with the theme (pill, badge, brick, promo bar). */
+  --brand-red: var(--red-600);
+  --on-brand-red: var(--stone-0);
+  /* Solid blue band (CTA banner, hero brick). Unlike --info, which is tuned
+     as a text colour, it stays a deep blue in dark mode. */
+  --info-surface: var(--blue-600);
+  --on-info-surface: var(--stone-0);
+  /* Tint for highlighted table rows (compare "Resaltar diferencias"): a blue
+     wash that reads on the surface in both themes and keeps body text AA. */
+  --row-highlight: var(--blue-50);
+
+  /* ---- Elevation (dark-aware) ------------------------------------------- */
+  --shadow-color: 28 25 23;
+  --elevation-sm: 0 1px 2px rgb(var(--shadow-color) / 0.06);
+  --elevation-md: 0 4px 6px -1px rgb(var(--shadow-color) / 0.1), 0 2px 4px -2px rgb(var(--shadow-color) / 0.06);
+  --elevation-lg: 0 10px 15px -3px rgb(var(--shadow-color) / 0.1), 0 4px 6px -4px rgb(var(--shadow-color) / 0.06);
+  --elevation-xl: 0 20px 25px -5px rgb(var(--shadow-color) / 0.12), 0 8px 10px -6px rgb(var(--shadow-color) / 0.08);
+  --elevation-card: 0 2px 8px rgb(var(--shadow-color) / 0.08);
+
+  /* ---- Motion ------------------------------------------------------------ */
+  /* Mirrored in src/lib/motion.ts (a unit test keeps them in sync). */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+}
+
+/* Dark mode: only semantic and elevation tokens change. */
+.dark {
+  --bg: var(--stone-950);
+  --bg-subtle: var(--stone-900);
+  --bg-muted: var(--stone-850);
+  --surface: var(--stone-800);
+  --surface-raised: var(--stone-750);
+  --overlay: rgb(0 0 0 / 0.7);
+
+  --fg: var(--stone-25);
+  --fg-secondary: var(--stone-300);
+  --fg-muted: var(--stone-400);
+
+  --border: var(--stone-700);
+  --border-strong: var(--stone-450);
+
+  --primary: var(--yellow-400);
+  --primary-hover: var(--yellow-300);
+  --on-primary: var(--stone-925);
+
+  --danger: var(--red-300);
+  --on-danger: var(--stone-950);
+  --success: var(--green-400);
+  --on-success: var(--green-950);
+  --warning: var(--amber-400);
+  --on-warning: var(--stone-925);
+  --info: var(--blue-300);
+  --on-info: var(--stone-950);
+
+  --focus-ring: var(--yellow-400);
+  --rating: var(--amber-400);
+  --sale: var(--red-300);
+  --on-sale: var(--stone-950);
+
+  --badge-neutral: var(--stone-750);
+  --info-surface: var(--blue-800);
+  --row-highlight: var(--blue-850);
+
+  --shadow-color: 0 0 0;
+  --elevation-sm: 0 1px 2px rgb(var(--shadow-color) / 0.3);
+  --elevation-md: 0 4px 6px -1px rgb(var(--shadow-color) / 0.4);
+  --elevation-lg: 0 10px 15px -3px rgb(var(--shadow-color) / 0.5);
+  --elevation-xl: 0 20px 25px -5px rgb(var(--shadow-color) / 0.6);
+  --elevation-card: 0 2px 8px rgb(var(--shadow-color) / 0.35);
+}
+
+/* Semantic + component tokens as Tailwind utilities. */
+@theme inline {
+  /* Drop Tailwind's default palette first: bg-gray-500, text-red-600,
+     bg-white... no longer exist as utilities. Colours come only from the
+     semantic and component tokens below. */
+  --color-*: initial;
+
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-muted: var(--bg-muted);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-overlay: var(--overlay);
+  --color-fg: var(--fg);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-danger: var(--danger);
+  --color-on-danger: var(--on-danger);
+  --color-success: var(--success);
+  --color-on-success: var(--on-success);
+  --color-warning: var(--warning);
+  --color-on-warning: var(--on-warning);
+  --color-info: var(--info);
+  --color-on-info: var(--on-info);
+  --color-focus-ring: var(--focus-ring);
+  --color-rating: var(--rating);
+  --color-sale: var(--sale);
+  --color-on-sale: var(--on-sale);
+  --color-badge-sale: var(--badge-sale);
+  --color-on-badge-sale: var(--on-badge-sale);
+  --color-badge-new: var(--badge-new);
+  --color-on-badge-new: var(--on-badge-new);
+  --color-badge-limited: var(--badge-limited);
+  --color-on-badge-limited: var(--on-badge-limited);
+  --color-badge-exclusive: var(--badge-exclusive);
+  --color-on-badge-exclusive: var(--on-badge-exclusive);
+  --color-badge-neutral: var(--badge-neutral);
+  --color-brand-red: var(--brand-red);
+  --color-on-brand-red: var(--on-brand-red);
+  --color-info-surface: var(--info-surface);
+  --color-on-info-surface: var(--on-info-surface);
+  --color-row-highlight: var(--row-highlight);
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-
-  /* Legacy compatibility */
-  --background: var(--bg-primary);
-  --foreground: var(--text-primary);
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+  --shadow-xl: var(--elevation-xl);
+  --shadow-card: var(--elevation-card);
 }
 
-/* Dark Mode - Warm LEGO Grays */
-.dark {
-  --bg-primary: #171412;
-  --bg-secondary: #1e1b18;
-  --bg-tertiary: #262320;
+@theme {
+  /* --font-barlow is set on <html> by next/font (app/layout.tsx): self-hosted, preloaded, with a metric-matched fallback. */
+  --font-sans: var(--font-barlow, "Barlow"), system-ui, sans-serif;
 
-  --text-primary: #fafaf9;
-  --text-secondary: #d6d3d1;
-  --text-muted: #a8a29e;
+  /* Radius scale. xl/2xl keep the values of the Tailwind 3 config. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
 
-  --surface-elevated: #292524;
-  --surface-overlay: rgba(23, 20, 18, 0.95);
+  /* Sticky site header height (h-16 bar). Also the scroll offset for anchors and focus (see html below). */
+  --spacing-header: 4rem;
 
-  --border-default: #44403c;
-  --border-subtle: #292524;
+  /* Type scale (text-caption, text-label, text-body, text-title, text-heading,
+     text-headline, text-display). Heading sizes are fluid, so one class
+     replaces a text-2xl md:text-3xl style ladder. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 700;
+  /* Section headings: 24px on phones to 30px on wide screens. */
+  --text-heading: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
+  --text-heading--line-height: 1.2;
+  /* Page headings (h1 of a page): 30px on phones to 36px on wide screens. */
+  --text-headline: clamp(1.875rem, 1.5rem + 1.5vw, 2.25rem);
+  --text-headline--line-height: 1.15;
+  /* Fluid: 36px on phones to 60px on wide screens (hero / display headings). */
+  --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.75rem);
+  --text-display--line-height: 1.05;
+  --text-display--font-weight: 800;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+  /* Easings (ease-standard, ease-emphasized, ease-exit) */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
-  --background: var(--bg-primary);
-  --foreground: var(--text-primary);
+  --animate-shimmer: shimmer 1.6s infinite linear;
+  /* 404 bricks dropping into place (staggered with animation-delay). */
+  --animate-brick-drop: brick-drop var(--duration-slow) var(--ease-emphasized) both;
+
+  @keyframes brick-drop {
+    from {
+      opacity: 0;
+      translate: 0 -1.5rem;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
 }
 
-body {
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  font-family: "Barlow", system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
+/* Motion duration utilities backed by the tokens above. */
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
 }
-
-/* Selection color */
-::selection {
-  background-color: var(--lego-yellow);
-  color: var(--lego-black);
+@utility duration-base {
+  transition-duration: var(--duration-base);
 }
-
-/* Focus visible */
-:focus-visible {
-  outline: 2px solid var(--lego-yellow);
-  outline-offset: 2px;
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
 }
 
 @layer base {
@@ -103,463 +345,192 @@ body {
     @apply border-border;
   }
 
+  /* Anchors, focus() and scrollIntoView stop below the sticky header (plus a little air). */
+  html {
+    scroll-padding-top: calc(var(--spacing-header) + --spacing(4));
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--fg-muted);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  body {
+    color: var(--fg);
+    background: var(--bg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition:
+      background-color var(--duration-base) var(--ease-standard),
+      color var(--duration-base) var(--ease-standard);
+  }
+
+  ::selection {
+    background-color: var(--yellow-400);
+    color: var(--stone-925);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Heading defaults */
   h1,
   h2,
   h3,
   h4,
   h5,
   h6 {
-    @apply font-bold tracking-tight text-foreground-primary;
+    @apply font-bold tracking-tight text-fg;
   }
 
+  /* Defaults on the type scale; components usually set their own role. */
   h1 {
-    @apply text-4xl md:text-5xl lg:text-6xl;
+    @apply text-display;
   }
 
   h2 {
-    @apply text-3xl md:text-4xl;
+    @apply text-headline;
   }
 
   h3 {
-    @apply text-2xl md:text-3xl;
+    @apply text-heading;
   }
 
   h4 {
-    @apply text-xl md:text-2xl;
+    @apply text-title;
   }
 
   a {
-    @apply transition-colors duration-200;
+    @apply transition-colors duration-base;
   }
 
-  img {
-    @apply max-w-full h-auto;
-  }
-}
-
-@layer components {
-  /* Container */
-  .container-custom {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
-  }
-
-  /* Buttons */
-  .btn {
-    @apply inline-flex items-center justify-center rounded-xl font-bold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
-  }
-
-  .btn-primary {
-    @apply btn bg-lego-yellow text-lego-black hover:bg-yellow-400 focus:ring-lego-yellow shadow-md hover:shadow-lg;
-  }
-
-  .btn-secondary {
-    @apply btn bg-background-secondary text-foreground-primary hover:bg-background-tertiary focus:ring-gray-400;
-  }
-
-  .btn-outline {
-    @apply btn border-2 border-foreground-primary text-foreground-primary hover:bg-foreground-primary hover:text-background-primary focus:ring-foreground-primary;
-  }
-
-  .btn-ghost {
-    @apply btn text-foreground-secondary hover:bg-background-secondary focus:ring-gray-400;
-  }
-
-  .btn-danger {
-    @apply btn bg-status-error text-white hover:bg-red-600 focus:ring-status-error;
-  }
-
-  .btn-sm {
-    @apply px-4 py-2 text-sm;
-  }
-
-  .btn-md {
-    @apply px-5 py-2.5 text-base;
-  }
-
-  .btn-lg {
-    @apply px-8 py-3.5 text-lg;
-  }
-
-  /* Cards */
-  .card {
-    @apply bg-surface rounded-2xl shadow-lg overflow-hidden border border-border transition-all duration-300;
-  }
-
-  .card-hover {
-    @apply card hover:shadow-xl hover:-translate-y-1;
-  }
-
-  /* Badges */
-  .badge {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider;
-  }
-
-  .badge-new {
-    @apply badge bg-lego-blue text-white;
-  }
-
-  .badge-sale {
-    @apply badge bg-lego-red text-white;
-  }
-
-  .badge-limited {
-    @apply badge bg-gradient-to-r from-orange-500 to-amber-500 text-white;
-  }
-
-  .badge-exclusive {
-    @apply badge bg-gradient-to-r from-purple-500 to-pink-500 text-white;
-  }
-
-  /* Inputs */
-  .input {
-    @apply w-full px-4 py-3 border border-border rounded-xl bg-surface focus:outline-none focus:ring-2 focus:ring-lego-yellow focus:border-transparent transition-all placeholder:text-foreground-muted;
-  }
-
-  .input-search {
-    @apply input pl-12 bg-background-secondary border-0;
-  }
-
-  /* Section Title */
-  .section-title {
-    @apply text-3xl md:text-4xl font-bold text-foreground-primary;
-  }
-
-  .section-subtitle {
-    @apply text-foreground-secondary mt-2;
-  }
-
-  /* Product Grid */
-  .product-grid {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
-  }
-
-  /* Price */
-  .price {
-    @apply text-2xl font-bold text-foreground-primary;
-  }
-
-  .price-original {
-    @apply text-base text-foreground-muted line-through;
-  }
-
-  .price-sale {
-    @apply text-2xl font-bold text-lego-red;
-  }
-
-  /* Skeleton Loader */
-  .skeleton {
-    @apply bg-gradient-to-r from-background-tertiary via-background-secondary to-background-tertiary bg-[length:200%_100%] animate-shimmer rounded-lg;
-  }
-
-  /* Glass Effect */
-  .glass {
-    background: var(--surface-overlay);
-    @apply backdrop-blur-md;
-  }
-
-  /* Gradient Text */
-  .gradient-text {
-    @apply bg-gradient-to-r from-lego-red via-lego-orange to-lego-yellow bg-clip-text text-transparent;
-  }
-
-  /* Hero Pattern */
-  .hero-pattern {
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  }
-
-  .dark .hero-pattern {
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  }
-
-  /* LEGO Studs Pattern */
-  .lego-studs {
-    background-image: radial-gradient(circle, rgba(0,0,0,0.1) 6px, transparent 6px);
-    background-size: 24px 24px;
-  }
-
-  .dark .lego-studs {
-    background-image: radial-gradient(circle, rgba(255,255,255,0.1) 6px, transparent 6px);
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      /* Staggers too: with fill-mode both, a delay would leave items blank. */
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      /* Smooth scrolling (scroll-smooth) is motion too; JS scrollBy picks its own behavior. */
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-@layer utilities {
-  /* Text Utilities */
-  .text-balance {
-    text-wrap: balance;
-  }
+/* While the floating compare bar is shown (CompareBar sets the attribute),
+   reserve room under the page so it never covers the last CTAs or fields.
+   The room goes inside the footer's bottom bar, so it reads as part of the
+   footer instead of a stray band of page background below it. */
+html[data-compare-bar] [data-footer-bottom] {
+  padding-bottom: --spacing(28);
+}
 
-  /* Scrollbar */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+/* Sonner: unstyled toasts. Sonner only hides the content of collapsed
+   toasts stacked behind the front one for [data-styled='true']; we use
+   `unstyled`, so re-apply it or the back toast shows through. */
+[data-sonner-toast][data-expanded="false"][data-front="false"] > * {
+  opacity: 0;
+}
 
-  .scrollbar-hide::-webkit-scrollbar {
+/* A toast dismissed because a sheet or dialog opened (the cart drawer clears
+   them) disappears at once: its exit fade would otherwise play over the
+   panel's footer buttons, which sit above it in the stacking order. */
+html:has([data-slot="sheet-content"][data-open], [data-slot="dialog-content"][data-open])
+  [data-sonner-toast][data-removed="true"] {
+  opacity: 0 !important;
+  transition: none !important;
+}
+
+@utility container-custom {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
     display: none;
   }
-
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: var(--lego-yellow) transparent;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: var(--lego-yellow);
-    border-radius: 3px;
-  }
-
-  /* Line Clamp */
-  .line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .line-clamp-3 {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  /* Aspect Ratio */
-  .aspect-product {
-    aspect-ratio: 1 / 1;
-  }
-
-  /* Safe Area */
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  /* No Select */
-  .no-select {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-  }
-
-  /* Smooth scroll */
-  .scroll-smooth {
-    scroll-behavior: smooth;
-  }
-
-  /* Custom shadows */
-  .shadow-soft {
-    box-shadow: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
-  }
-
-  .shadow-hard {
-    box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.1);
-  }
-
-  .shadow-lego {
-    box-shadow: 0 4px 14px 0 rgba(255, 212, 74, 0.39);
-  }
-
-  /* Transition utilities */
-  .transition-fast {
-    transition-duration: 150ms;
-  }
-
-  .transition-normal {
-    transition-duration: 300ms;
-  }
-
-  .transition-slow {
-    transition-duration: 500ms;
-  }
 }
 
-/* Custom Animations */
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+/* Native <details> disclosures (FAQ accordion): animate the panel height
+   where ::details-content is supported; elsewhere they just open. The
+   reduced-motion rule above zeroes the duration. */
+:root {
+  interpolate-size: allow-keywords;
 }
 
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+.disclosure::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size var(--duration-base) var(--ease-standard),
+    content-visibility var(--duration-base) allow-discrete;
 }
 
-@keyframes pulse-scale {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
+.disclosure[open]::details-content {
+  block-size: auto;
 }
 
-@keyframes bounce-subtle {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
+/* Product and category photos: covers shot on an opaque white background
+   blend into the tinted media area in light mode instead of showing a white
+   box. Dark mode keeps them as they are (multiply would turn them black). */
+.photo-blend {
+  mix-blend-mode: multiply;
+}
+.dark .photo-blend {
+  mix-blend-mode: normal;
+}
+/* Vertical scroller whose content may be cut off (desktop filter panel):
+   the top / bottom edge fades out while there is more to scroll that way
+   (data-fade-start / data-fade-end, see useScrollEdges). */
+.scroll-fade-y {
+  --fade-start: 0rem;
+  --fade-end: 0rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--fade-start),
+    #000 calc(100% - var(--fade-end)),
+    transparent
+  );
+}
+.scroll-fade-y[data-fade-start] {
+  --fade-start: 2.5rem;
+}
+.scroll-fade-y[data-fade-end] {
+  --fade-end: 2.5rem;
 }
 
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Opaque product photos (JPEG, white backdrop): in dark mode they cannot
+   blend into the card, so they read as a rounded, slightly dimmed photo
+   tile instead of a glaring white rectangle. */
+.photo-opaque {
+  border-radius: var(--radius-xl);
+}
+.dark .photo-opaque {
+  filter: brightness(0.88);
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Animation Classes */
-.animate-shimmer {
-  animation: shimmer 2s infinite linear;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-.animate-pulse-scale {
-  animation: pulse-scale 2s ease-in-out infinite;
-}
-
-.animate-bounce-subtle {
-  animation: bounce-subtle 2s ease-in-out infinite;
-}
-
-.animate-spin-slow {
-  animation: spin-slow 8s linear infinite;
-}
-
-.animate-fade-in {
-  animation: fade-in 0.5s ease-out forwards;
-}
-
-.animate-slide-up {
-  animation: slide-up 0.5s ease-out forwards;
-}
-
-.animate-slide-down {
-  animation: slide-down 0.5s ease-out forwards;
-}
-
-/* Hover Animations */
-.hover-lift {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.hover-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
-}
-
-.hover-scale {
-  transition: transform 0.3s ease;
-}
-
-.hover-scale:hover {
-  transform: scale(1.02);
-}
-
-.hover-glow {
-  transition: box-shadow 0.3s ease;
-}
-
-.hover-glow:hover {
-  box-shadow: 0 0 20px rgba(255, 212, 74, 0.5);
-}
-
-/* Page Transitions */
-.page-enter {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 300ms, transform 300ms;
-}
-
-.page-exit {
-  opacity: 1;
-}
-
-.page-exit-active {
-  opacity: 0;
-  transition: opacity 300ms;
-}
-
-/* Print Styles */
+/* Print: scroll reveals (motion's inline opacity/transform) never ran for
+   content below the fold, so force it visible and in place on paper. */
 @media print {
-  .no-print {
-    display: none !important;
+  [style*="opacity"] {
+    opacity: 1 !important;
   }
-}
-
-/* Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  [style*="transform"] {
+    transform: none !important;
   }
 }

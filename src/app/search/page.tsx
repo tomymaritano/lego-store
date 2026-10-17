@@ -1,97 +1,147 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-import { useMemo, Suspense } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, Search } from "lucide-react";
-import { products } from "@/data/products";
-import { ProductList } from "@/components/product";
-import { ProductListSkeleton, Button } from "@/components/ui";
+import { SearchX } from "lucide-react";
+import { getCategories, getFacetCounts, getFilterOptions, getPaginatedProducts } from "@/lib/api";
+import { pageMetadata } from "@/lib/metadata";
+import { parseProductQuery } from "@/lib/productQuery";
+import { pluralize } from "@/lib/utils";
+import { Breadcrumbs, Button, EmptyState } from "@/components/ui";
+import { CatalogView } from "@/components/product/CatalogView";
 
-function SearchContent() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get("q") || "";
+interface SearchPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
+export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
+  const { q } = parseProductQuery(await searchParams);
+  return {
+    ...pageMetadata({
+      title: q ? `Resultados para “${q}”` : "Catálogo",
+      description: q
+        ? `Sets LEGO que coinciden con “${q}”: filtra por tema, edad, piezas y precio.`
+        : "Todo el catálogo de sets LEGO: filtra por tema, categoría, edad, piezas y precio.",
+      path: q ? `/search?q=${encodeURIComponent(q)}` : "/search",
+    }),
+    // Search results are thin, ever-changing pages: let crawlers follow, not index.
+    robots: { index: false, follow: true },
+  };
+}
 
-    const lowerQuery = query.toLowerCase();
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(lowerQuery) ||
-        p.description.toLowerCase().includes(lowerQuery) ||
-        p.theme.toLowerCase().includes(lowerQuery) ||
-        p.category.toLowerCase().includes(lowerQuery)
-    );
-  }, [query]);
+/**
+ * /search?q=… shows the matches for a search; /search alone is the whole
+ * catalogue. Both can be narrowed with the filters and sorted; everything
+ * lives in the URL (see CatalogView).
+ */
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const { page: _page, limit: _limit, ...urlQuery } = parseProductQuery(await searchParams);
+  void _page;
+  void _limit;
+  const q = urlQuery.q;
 
-  if (!query.trim()) {
-    return (
-      <div className="container-custom py-16">
-        <div className="max-w-md mx-auto text-center">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-            <Search className="w-12 h-12 text-foreground-muted" />
-          </div>
-          <h1 className="text-2xl font-bold mb-4 text-foreground-primary">Busca productos</h1>
-          <p className="text-foreground-muted mb-8">
-            Usa la barra de búsqueda para encontrar tus sets LEGO favoritos.
-          </p>
-          <Link href="/">
-            <Button size="lg">
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Volver a la tienda
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const [firstPage, options, counts] = await Promise.all([
+    getPaginatedProducts(urlQuery),
+    getFilterOptions({ q }),
+    getFacetCounts(urlQuery),
+  ]);
 
   return (
     <div className="container-custom py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <nav className="text-sm text-foreground-muted mb-4">
-          <Link href="/" className="hover:text-lego-blue">
-            Inicio
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="text-foreground-primary">Búsqueda</span>
-        </nav>
+      <Breadcrumbs items={[{ label: q ? "Búsqueda" : "Catálogo" }]} />
 
-        <h1 className="text-3xl font-bold text-foreground-primary">
-          Resultados para &quot;{query}&quot;
-        </h1>
-        <p className="text-foreground-muted mt-2">
-          {results.length} {results.length === 1 ? "producto encontrado" : "productos encontrados"}
+      <header className="mb-8">
+        {q ? (
+          <>
+            <p className="text-label tracking-wider text-fg-secondary uppercase">Resultados de búsqueda</p>
+            <h1 className="mt-1 text-headline break-words">&ldquo;{q}&rdquo;</h1>
+          </>
+        ) : (
+          <h1 className="text-headline">Catálogo</h1>
+        )}
+        <p className="mt-2 text-fg-secondary">
+          {/* With a search, the live count (after filters) is CatalogView's alone. */}
+          {q
+            ? options.total > 0
+              ? "Sets que coinciden con tu búsqueda. Usa los filtros para afinar los resultados."
+              : "Ningún set coincide con tu búsqueda."
+            : `${pluralize(options.total, "set")} para armar, regalar y coleccionar`}
         </p>
-      </div>
+      </header>
 
-      {/* Results */}
-      {results.length > 0 ? (
-        <ProductList products={results} />
+      {options.total > 0 ? (
+        <CatalogView
+          key={q ?? ""}
+          initialPage={firstPage}
+          initialQuery={urlQuery}
+          options={options}
+          initialCounts={counts}
+          showCategories
+        />
       ) : (
-        <div className="text-center py-12">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">🔍</span>
-          </div>
-          <h3 className="text-lg font-semibold mb-2 text-foreground-primary">No se encontraron resultados</h3>
-          <p className="text-foreground-muted mb-6">
-            Intenta con otras palabras clave o explora nuestras categorías.
-          </p>
-          <Link href="/">
-            <Button>Ver todos los productos</Button>
-          </Link>
-        </div>
+        <NoResults q={q ?? ""} />
       )}
     </div>
   );
 }
 
-export default function SearchPage() {
+/** Nothing matches the search text: suggest themes and categories that do exist. */
+async function NoResults({ q }: { q: string }) {
+  const [{ themes }, categories] = await Promise.all([getFilterOptions(), getCategories()]);
+  const popularThemes = [...themes].sort((a, b) => b.count - a.count).slice(0, 5);
+
   return (
-    <Suspense fallback={<ProductListSkeleton count={6} />}>
-      <SearchContent />
-    </Suspense>
+    <div className="rounded-2xl border border-dashed border-border-strong" data-testid="search-empty">
+      <EmptyState
+        icon={<SearchX />}
+        title={`No encontramos sets para “${q}”`}
+        description="Revisa la ortografía, prueba con menos palabras o explora alguna de estas sugerencias."
+        action={
+          <Button size="lg" render={<Link href="/search" />}>
+            Ver todo el catálogo
+          </Button>
+        }
+      />
+      <div className="grid gap-8 px-6 pb-10 sm:grid-cols-2 sm:px-10">
+        <nav aria-labelledby="suggest-themes-title">
+          <h3 id="suggest-themes-title" className="mb-3 text-label text-fg">
+            Temas populares
+          </h3>
+          <ul className="flex flex-wrap gap-2">
+            {popularThemes.map((theme) => (
+              <li key={theme.value}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-full"
+                  render={<Link href={`/search?q=${encodeURIComponent(theme.value)}`} />}
+                >
+                  {theme.label}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <nav aria-labelledby="suggest-categories-title">
+          <h3 id="suggest-categories-title" className="mb-3 text-label text-fg">
+            Categorías
+          </h3>
+          <ul className="flex flex-wrap gap-2">
+            {categories
+              .filter((category) => category.productCount > 0)
+              .map((category) => (
+                <li key={category.id}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-full"
+                    render={<Link href={`/category/${category.id}`} />}
+                  >
+                    {category.name}
+                  </Button>
+                </li>
+              ))}
+          </ul>
+        </nav>
+      </div>
+    </div>
   );
 }

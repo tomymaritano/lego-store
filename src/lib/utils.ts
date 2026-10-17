@@ -1,5 +1,21 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// Teach tailwind-merge our custom theme keys so e.g. `text-label text-fg`
+// keeps both classes (size + colour) instead of treating both as colours,
+// and `duration-fast duration-base` resolves to the last one.
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["caption", "label", "body", "title", "heading", "headline", "display"] }],
+      shadow: [{ shadow: ["card"] }],
+      // Motion tokens from globals.css, so `cn(base, className)` overrides them.
+      duration: [{ duration: ["fast", "base", "slow"] }],
+      ease: [{ ease: ["standard", "emphasized", "exit"] }],
+      animate: [{ animate: ["shimmer"] }],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,13 +33,13 @@ export function calculateDiscount(originalPrice: number, currentPrice: number): 
   return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
 }
 
-export function debounce<T extends (...args: unknown[]) => unknown>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
+/** Fallback product image (a broken or missing URL): a neutral brick that works in light and dark. */
+export const PLACEHOLDER_IMAGE = "/images/placeholder-product.svg";
+
+/**
+ * "1 producto", "3 productos". Spanish plural for UI copy; pass the plural
+ * when it is not just singular + "s".
+ */
+export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }

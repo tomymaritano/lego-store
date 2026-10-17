@@ -1,107 +1,33 @@
 "use client";
 
-import { motion, type Variants } from "framer-motion";
-import { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { m } from "motion/react";
+import { pageTransition } from "@/lib/motion";
+
+/** Becomes true after the first client render; module scope, so it survives template remounts. */
+let hasNavigated = false;
 
 interface PageTransitionProps {
   children: ReactNode;
   className?: string;
 }
 
-const pageVariants: Variants = {
-  initial: {
-    opacity: 0,
-    y: 20,
-  },
-  enter: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-      when: "beforeChildren",
-      staggerChildren: 0.1,
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: -10,
-    transition: {
-      duration: 0.2,
-      ease: "easeIn",
-    },
-  },
-};
-
+/**
+ * Subtle fade/rise when a page is entered by client navigation (mounted by
+ * app/template.tsx, which remounts on route change). The first page load
+ * renders at full opacity straight from the server HTML: no hidden content
+ * before hydration (LCP, no-JS). Reduced motion keeps only the fade (MotionConfig).
+ */
 export function PageTransition({ children, className }: PageTransitionProps) {
+  const [animateIn] = useState(() => hasNavigated);
+
+  useEffect(() => {
+    hasNavigated = true;
+  }, []);
+
   return (
-    <motion.div
-      initial="initial"
-      animate="enter"
-      exit="exit"
-      variants={pageVariants}
-      className={className}
-    >
+    <m.div initial={animateIn ? "hidden" : false} animate="visible" variants={pageTransition} className={className}>
       {children}
-    </motion.div>
+    </m.div>
   );
 }
-
-// Child animation variants for staggered content
-export const fadeInUp: Variants = {
-  initial: { opacity: 0, y: 20 },
-  enter: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-    }
-  },
-};
-
-export const fadeIn: Variants = {
-  initial: { opacity: 0 },
-  enter: {
-    opacity: 1,
-    transition: {
-      duration: 0.3,
-    }
-  },
-};
-
-export const slideInLeft: Variants = {
-  initial: { opacity: 0, x: -30 },
-  enter: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-    }
-  },
-};
-
-export const slideInRight: Variants = {
-  initial: { opacity: 0, x: 30 },
-  enter: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      duration: 0.4,
-      ease: "easeOut",
-    }
-  },
-};
-
-export const scaleIn: Variants = {
-  initial: { opacity: 0, scale: 0.95 },
-  enter: {
-    opacity: 1,
-    scale: 1,
-    transition: {
-      duration: 0.3,
-      ease: "easeOut",
-    }
-  },
-};

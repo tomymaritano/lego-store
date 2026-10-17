@@ -1,171 +1,145 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useCartStore } from "@/stores/cartStore";
-import type { Product } from "@/types";
+import { useCartCount, useCartStore, useCartSubtotal, useIsInCart } from "@/stores/cartStore";
+import { PLACEHOLDER_IMAGE } from "@/lib/utils";
+import type { ProductSummary } from "@/types";
 
-const mockProduct: Product = {
-  id: "1",
-  name: "Test Product",
-  price: 100,
-  isNew: false,
-  isOnSale: false,
-  rating: 4.5,
-  category: "helmet",
-  type: "Sets",
-  age: "18+",
-  theme: "Star Wars",
-  interests: ["Arte"],
-  pieces: "501-1000",
-  highlight: "Destacados",
-  img: "https://example.com/image.png",
-  images: ["https://example.com/image.png"],
-  stock: 10,
-  shortDescription: "Test description",
-  description: "Full test description",
-};
+const rex: ProductSummary = { id: "1", name: "Captain Rex Helmet", price: 899, img: "/rex.png", stock: 3 };
+const leia: ProductSummary = { id: "2", name: "Princess Leia Helmet", price: 649, img: "/leia.png", stock: 10 };
 
 describe("cartStore", () => {
   beforeEach(() => {
-    // Reset the store before each test
     useCartStore.setState({ cart: [] });
   });
 
-  it("should start with an empty cart", () => {
-    const { result } = renderHook(() => useCartStore());
-    expect(result.current.cart).toHaveLength(0);
+  it("starts empty", () => {
+    expect(useCartStore.getState().cart).toEqual([]);
   });
 
-  it("should add item to cart", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 2);
-    });
-
-    expect(result.current.cart).toHaveLength(1);
-    expect(result.current.cart[0].quantity).toBe(2);
-    expect(result.current.cart[0].name).toBe("Test Product");
+  it("adds a line with the summary fields", () => {
+    useCartStore.getState().addItem(rex, 2);
+    expect(useCartStore.getState().cart).toEqual([
+      { id: "1", name: "Captain Rex Helmet", price: 899, image: "/rex.png", quantity: 2, stock: 3 },
+    ]);
   });
 
-  it("should increase quantity for existing item", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 2);
-      result.current.addItem(mockProduct, 3);
-    });
-
-    expect(result.current.cart).toHaveLength(1);
-    expect(result.current.cart[0].quantity).toBe(5);
+  it("defaults to one unit and merges repeated adds", () => {
+    const { addItem } = useCartStore.getState();
+    addItem(leia);
+    addItem(leia, 2);
+    expect(useCartStore.getState().cart).toHaveLength(1);
+    expect(useCartStore.getState().cart[0].quantity).toBe(3);
   });
 
-  it("should not exceed stock when adding", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 15); // stock is 10
-    });
-
-    expect(result.current.cart[0].quantity).toBe(10);
+  it("clamps quantities to the stock", () => {
+    const { addItem } = useCartStore.getState();
+    addItem(rex, 10);
+    expect(useCartStore.getState().cart[0].quantity).toBe(3);
+    addItem(rex, 1);
+    expect(useCartStore.getState().cart[0].quantity).toBe(3);
   });
 
-  it("should remove item from cart", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 1);
-      result.current.removeItem("1");
-    });
-
-    expect(result.current.cart).toHaveLength(0);
+  it("ignores out-of-stock products", () => {
+    useCartStore.getState().addItem({ ...rex, stock: 0 });
+    expect(useCartStore.getState().cart).toEqual([]);
   });
 
-  it("should increase quantity", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 1);
-      result.current.increaseQuantity("1");
-    });
-
-    expect(result.current.cart[0].quantity).toBe(2);
+  it("increases and decreases within [1, stock]", () => {
+    const { addItem, increaseQuantity, decreaseQuantity } = useCartStore.getState();
+    addItem(rex, 1);
+    decreaseQuantity("1");
+    expect(useCartStore.getState().cart[0].quantity).toBe(1);
+    increaseQuantity("1");
+    increaseQuantity("1");
+    increaseQuantity("1");
+    expect(useCartStore.getState().cart[0].quantity).toBe(3);
   });
 
-  it("should not increase quantity beyond stock", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 10);
-      result.current.increaseQuantity("1");
-    });
-
-    expect(result.current.cart[0].quantity).toBe(10);
+  it("sets an exact quantity, clamped and rounded", () => {
+    const { addItem, setQuantity } = useCartStore.getState();
+    addItem(leia, 1);
+    setQuantity("2", 4.6);
+    expect(useCartStore.getState().cart[0].quantity).toBe(5);
+    setQuantity("2", 99);
+    expect(useCartStore.getState().cart[0].quantity).toBe(10);
+    setQuantity("2", -2);
+    expect(useCartStore.getState().cart[0].quantity).toBe(1);
   });
 
-  it("should decrease quantity", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 3);
-      result.current.decreaseQuantity("1");
-    });
-
-    expect(result.current.cart[0].quantity).toBe(2);
+  it("removes a line and clears the cart", () => {
+    const { addItem, removeItem, clearCart } = useCartStore.getState();
+    addItem(rex);
+    addItem(leia);
+    removeItem("1");
+    expect(useCartStore.getState().cart.map((l) => l.id)).toEqual(["2"]);
+    clearCart();
+    expect(useCartStore.getState().cart).toEqual([]);
   });
 
-  it("should not decrease quantity below 1", () => {
-    const { result } = renderHook(() => useCartStore());
+  describe("selectors", () => {
+    it("count, subtotal and membership follow the store", () => {
+      const count = renderHook(() => useCartCount());
+      const subtotal = renderHook(() => useCartSubtotal());
+      const inCart = renderHook(() => useIsInCart("1"));
+      expect([count.result.current, subtotal.result.current, inCart.result.current]).toEqual([0, 0, false]);
 
-    act(() => {
-      result.current.addItem(mockProduct, 1);
-      result.current.decreaseQuantity("1");
+      act(() => {
+        useCartStore.getState().addItem(rex, 2);
+        useCartStore.getState().addItem(leia, 1);
+      });
+      count.rerender();
+      subtotal.rerender();
+      inCart.rerender();
+      expect(count.result.current).toBe(3);
+      expect(subtotal.result.current).toBe(899 * 2 + 649);
+      expect(inCart.result.current).toBe(true);
     });
-
-    expect(result.current.cart[0].quantity).toBe(1);
   });
 
-  it("should clear cart", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 1);
-      result.current.addItem({ ...mockProduct, id: "2", name: "Product 2" }, 2);
-      result.current.clearCart();
+  describe("persistence", () => {
+    it("migrates the unversioned v0 shape and drops malformed lines", async () => {
+      localStorage.setItem(
+        "lego-cart-storage",
+        JSON.stringify({
+          state: {
+            cart: [
+              { id: "1", name: "Rex", price: 899, image: "/rex.png", quantity: 2, stock: 3 },
+              { id: "x", name: "Broken" },
+              { id: "2", name: "Leia", price: 649, quantity: 1, stock: 5 },
+            ],
+          },
+          version: 0,
+        })
+      );
+      await useCartStore.persist.rehydrate();
+      const cart = useCartStore.getState().cart;
+      expect(cart.map((l) => l.id)).toEqual(["1", "2"]);
+      expect(cart[1].image).toBe(PLACEHOLDER_IMAGE);
+      expect(JSON.parse(localStorage.getItem("lego-cart-storage")!).version).toBe(1);
     });
-
-    expect(result.current.cart).toHaveLength(0);
   });
 
-  it("should check if item is in cart", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 1);
+  describe("restoreItem (undo)", () => {
+    it("puts a removed line back at its old position", () => {
+      const { addItem, removeItem, restoreItem } = useCartStore.getState();
+      addItem(rex, 2);
+      addItem(leia);
+      const line = useCartStore.getState().cart[0];
+      removeItem("1");
+      restoreItem(line, { index: 0, before: "2" });
+      expect(useCartStore.getState().cart.map((l) => [l.id, l.quantity])).toEqual([
+        ["1", 2],
+        ["2", 1],
+      ]);
     });
 
-    expect(result.current.isInCart("1")).toBe(true);
-    expect(result.current.isInCart("999")).toBe(false);
-  });
-
-  it("should calculate total quantity", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 2);
-      result.current.addItem({ ...mockProduct, id: "2" }, 3);
+    it("appends without an index and never duplicates a line", () => {
+      const { addItem, restoreItem } = useCartStore.getState();
+      addItem(leia);
+      const line = { id: "1", name: "Captain Rex Helmet", price: 899, image: "/rex.png", quantity: 1, stock: 3 };
+      restoreItem(line);
+      restoreItem(line, { index: 0 });
+      expect(useCartStore.getState().cart.map((l) => l.id)).toEqual(["2", "1"]);
     });
-
-    expect(result.current.getTotalQuantity()).toBe(5);
-  });
-
-  it("should calculate total price", () => {
-    const { result } = renderHook(() => useCartStore());
-
-    act(() => {
-      result.current.addItem(mockProduct, 2); // 100 * 2 = 200
-      result.current.addItem({ ...mockProduct, id: "2", price: 50 }, 3); // 50 * 3 = 150
-    });
-
-    expect(result.current.getTotalPrice()).toBe(350);
   });
 });

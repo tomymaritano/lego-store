@@ -1,104 +1,86 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useWishlistStore } from "@/stores/wishlistStore";
-import type { Product } from "@/types";
+import { useIsInWishlist, useWishlistCount, useWishlistStore } from "@/stores/wishlistStore";
+import type { ProductSummary } from "@/types";
 
-const mockProduct: Product = {
-  id: "1",
-  name: "Test Product",
-  price: 100,
-  isNew: false,
-  isOnSale: false,
-  rating: 4.5,
-  category: "helmet",
-  type: "Sets",
-  age: "18+",
-  theme: "Star Wars",
-  interests: ["Arte"],
-  pieces: "501-1000",
-  highlight: "Destacados",
-  img: "https://example.com/image.png",
-  images: ["https://example.com/image.png"],
-  stock: 10,
-  shortDescription: "Test description",
-  description: "Full test description",
-};
+const rex: ProductSummary = { id: "1", name: "Captain Rex Helmet", price: 899, img: "/rex.png", stock: 3 };
 
 describe("wishlistStore", () => {
   beforeEach(() => {
     useWishlistStore.setState({ wishlist: [] });
   });
 
-  it("should start with an empty wishlist", () => {
-    const { result } = renderHook(() => useWishlistStore());
-    expect(result.current.wishlist).toHaveLength(0);
+  it("stores a minimal snapshot", () => {
+    useWishlistStore.getState().addToWishlist({ ...rex, extra: "ignored" } as ProductSummary);
+    expect(useWishlistStore.getState().wishlist).toEqual([
+      { id: "1", name: "Captain Rex Helmet", price: 899, image: "/rex.png", stock: 3 },
+    ]);
   });
 
-  it("should add item to wishlist", () => {
-    const { result } = renderHook(() => useWishlistStore());
-
-    act(() => {
-      result.current.addToWishlist(mockProduct);
-    });
-
-    expect(result.current.wishlist).toHaveLength(1);
-    expect(result.current.wishlist[0].name).toBe("Test Product");
+  it("does not add duplicates", () => {
+    const { addToWishlist } = useWishlistStore.getState();
+    addToWishlist(rex);
+    addToWishlist(rex);
+    expect(useWishlistStore.getState().wishlist).toHaveLength(1);
   });
 
-  it("should not add duplicate items", () => {
-    const { result } = renderHook(() => useWishlistStore());
-
-    act(() => {
-      result.current.addToWishlist(mockProduct);
-      result.current.addToWishlist(mockProduct);
-    });
-
-    expect(result.current.wishlist).toHaveLength(1);
+  it("toggles and reports the new state", () => {
+    const { toggleWishlist } = useWishlistStore.getState();
+    expect(toggleWishlist(rex)).toBe(true);
+    expect(toggleWishlist(rex)).toBe(false);
+    expect(useWishlistStore.getState().wishlist).toEqual([]);
   });
 
-  it("should remove item from wishlist", () => {
-    const { result } = renderHook(() => useWishlistStore());
-
-    act(() => {
-      result.current.addToWishlist(mockProduct);
-      result.current.removeFromWishlist("1");
-    });
-
-    expect(result.current.wishlist).toHaveLength(0);
+  it("removes and clears", () => {
+    const { addToWishlist, removeFromWishlist, clearWishlist } = useWishlistStore.getState();
+    addToWishlist(rex);
+    addToWishlist({ ...rex, id: "2" });
+    removeFromWishlist("1");
+    expect(useWishlistStore.getState().wishlist.map((i) => i.id)).toEqual(["2"]);
+    clearWishlist();
+    expect(useWishlistStore.getState().wishlist).toEqual([]);
   });
 
-  it("should clear wishlist", () => {
-    const { result } = renderHook(() => useWishlistStore());
-
-    act(() => {
-      result.current.addToWishlist(mockProduct);
-      result.current.addToWishlist({ ...mockProduct, id: "2", name: "Product 2" });
-      result.current.clearWishlist();
-    });
-
-    expect(result.current.wishlist).toHaveLength(0);
+  it("selectors follow the store", () => {
+    const count = renderHook(() => useWishlistCount());
+    const inWishlist = renderHook(() => useIsInWishlist("1"));
+    act(() => useWishlistStore.getState().addToWishlist(rex));
+    count.rerender();
+    inWishlist.rerender();
+    expect(count.result.current).toBe(1);
+    expect(inWishlist.result.current).toBe(true);
   });
 
-  it("should check if item is in wishlist", () => {
-    const { result } = renderHook(() => useWishlistStore());
-
-    act(() => {
-      result.current.addToWishlist(mockProduct);
-    });
-
-    expect(result.current.isInWishlist("1")).toBe(true);
-    expect(result.current.isInWishlist("999")).toBe(false);
+  it("migrates v0 (with category) to the minimal snapshot", async () => {
+    localStorage.setItem(
+      "lego-wishlist-storage",
+      JSON.stringify({
+        state: { wishlist: [{ id: "1", name: "Rex", price: 899, image: "/rex.png", stock: 3, category: "helmet" }, 42] },
+        version: 0,
+      })
+    );
+    await useWishlistStore.persist.rehydrate();
+    expect(useWishlistStore.getState().wishlist).toEqual([
+      { id: "1", name: "Rex", price: 899, image: "/rex.png", stock: 3 },
+    ]);
   });
 
-  it("should calculate total wishlist quantity", () => {
-    const { result } = renderHook(() => useWishlistStore());
+  it("removeMany drops stale snapshots", () => {
+    const { addToWishlist, removeMany } = useWishlistStore.getState();
+    addToWishlist({ id: "1", name: "Rex", price: 899, img: "/rex.png", stock: 1 });
+    addToWishlist({ id: "999", name: "Gone", price: 1, img: "/gone.png", stock: 1 });
+    removeMany(["999"]);
+    expect(useWishlistStore.getState().wishlist.map((item) => item.id)).toEqual(["1"]);
+  });
 
-    act(() => {
-      result.current.addToWishlist(mockProduct);
-      result.current.addToWishlist({ ...mockProduct, id: "2" });
-      result.current.addToWishlist({ ...mockProduct, id: "3" });
-    });
-
-    expect(result.current.getTotalWishlistQuantity()).toBe(3);
+  it("restores a removed item at its old position, once", () => {
+    const { addToWishlist, removeFromWishlist, restoreItem } = useWishlistStore.getState();
+    addToWishlist(rex);
+    addToWishlist({ id: "2", name: "Leia", price: 649, img: "/leia.png", stock: 1 });
+    const saved = useWishlistStore.getState().wishlist[0];
+    removeFromWishlist("1");
+    restoreItem(saved, { index: 0, before: "2" });
+    restoreItem(saved, { index: 0 });
+    expect(useWishlistStore.getState().wishlist.map((item) => item.id)).toEqual(["1", "2"]);
   });
 });

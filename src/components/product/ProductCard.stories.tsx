@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/nextjs";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ProductCard } from "./ProductCard";
 
 const meta: Meta<typeof ProductCard> = {
@@ -108,7 +108,16 @@ export const WithSecondaryImage: Story = {
   args: {
     product: {
       ...baseProduct,
-      imageSecondary: "https://www.lego.com/cdn/cs/set/assets/bltd9dfc1fa25e3b4e8/75349-alt.png",
+      imageSecondary: "https://www.lego.com/cdn/cs/set/assets/blt32953937b372413f/75351.png",
     },
   },
+};
+
+export const LowStock: Story = {
+  args: { product: { ...baseProduct, stock: 3 } },
+};
+
+export const Dark: Story = {
+  args: { product: { ...baseProduct, isNew: true, isOnSale: true, originalPrice: 999 } },
+  globals: { theme: "dark" },
 };

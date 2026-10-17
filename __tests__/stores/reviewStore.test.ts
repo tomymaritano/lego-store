@@ -1,19 +1,48 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useReviewStore } from "@/stores/reviewStore";
+import { mockReviews, useReviewStore } from "@/stores/reviewStore";
 
 describe("Review Store", () => {
   beforeEach(() => {
-    // Reset to initial state with mock reviews
-    const initialReviews = useReviewStore.getState().reviews.filter(r =>
-      r.productId === "75349" || r.productId === "75351"
+    useReviewStore.setState({ reviews: mockReviews });
+  });
+
+  it("seed reviews point at real catalogue products", async () => {
+    const { getProducts } = await import("@/lib/api");
+    const ids = new Set((await getProducts()).map((p) => p.id));
+    expect(mockReviews.every((r) => ids.has(r.productId))).toBe(true);
+    expect(useReviewStore.getState().getProductReviews("1")).toHaveLength(2);
+  });
+
+  it("migrates v0 seeds with legacy slugs and keeps user reviews", async () => {
+    localStorage.setItem(
+      "lego-reviews-storage",
+      JSON.stringify({
+        state: {
+          reviews: [
+            { ...mockReviews[0], productId: "helmet-captain-rex", helpful: 30 },
+            { ...mockReviews[3], productId: "brickheadz-mando" },
+            { ...mockReviews[0], id: "r999", productId: "helmet-darth-vader" },
+            { id: "u1", productId: "7", userId: "x", userName: "Ana", rating: 4, title: "t", comment: "c", date: "2024-01-01", helpful: 0, verified: false },
+          ],
+        },
+        version: 0,
+      })
     );
-    useReviewStore.setState({ reviews: initialReviews });
+    await useReviewStore.persist.rehydrate();
+    const reviews = useReviewStore.getState().reviews;
+    expect(reviews.map((r) => [r.id, r.productId])).toEqual([
+      ["r1", "1"],
+      ["r4", "4"],
+      ["r999", "3"],
+      ["u1", "7"],
+    ]);
+    expect(reviews[0].helpful).toBe(30);
   });
 
   it("should get reviews for a specific product", () => {
     const { getProductReviews } = useReviewStore.getState();
 
-    const reviews = getProductReviews("75349");
+    const reviews = getProductReviews("1");
 
     expect(Array.isArray(reviews)).toBe(true);
   });
@@ -21,7 +50,7 @@ describe("Review Store", () => {
   it("should calculate average rating for a product", () => {
     const { getAverageRating } = useReviewStore.getState();
 
-    const avgRating = getAverageRating("75349");
+    const avgRating = getAverageRating("1");
 
     expect(typeof avgRating).toBe("number");
     expect(avgRating).toBeGreaterThanOrEqual(0);
@@ -72,7 +101,7 @@ describe("Review Store", () => {
   });
 
   it("should include required fields when adding a review", () => {
-    const { addReview, getProductReviews } = useReviewStore.getState();
+    const { addReview } = useReviewStore.getState();
     const productId = "test-product-fields";
 
     addReview({

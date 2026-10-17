@@ -1,23 +1,23 @@
 /**
- * API Service Layer
- *
- * Centralized exports for all API services.
- * Import from here for clean imports throughout the app:
- *
- * @example
- * import { getProducts, getProductById, searchProducts } from "@/lib/api";
+ * The single data gateway of the app (server-only). Pages (Server Components)
+ * and Route Handlers read the catalogue through these functions; nothing else
+ * imports @/data (ESLint enforces it). Client islands call the Route Handlers
+ * in src/app/api through @/lib/api-client.
  */
+import "server-only";
 
-// Product API
 export {
   getProducts,
   getProductById,
+  getProductsByIds,
   searchProducts,
-  getProductsByCategory,
-  getProductsByTheme,
-  getFeaturedProducts,
-  getSaleProducts,
+  getSearchSuggestions,
   getPaginatedProducts,
   getRelatedProducts,
   getFilterOptions,
+  getFacetCounts,
+  getFeaturedProducts,
+  getSaleProducts,
+  getCategories,
+  getCategoryById,
 } from "./products";

@@ -1,252 +1,285 @@
-/**
- * Products API Service
- *
- * This module provides an abstraction layer for product data operations.
- * Currently uses local data, but can be easily swapped to a real API.
- *
- * To connect to a real backend:
- * 1. Replace the imports with fetch/axios calls
- * 2. Update the functions to call your API endpoints
- * 3. Keep the same function signatures for compatibility
- */
+import "server-only";
 
-import { products as localProducts } from "@/data/products";
+import { products as catalogue } from "@/data/products";
+import { categories as categoryData } from "@/data/categories";
+import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE } from "@/lib/productQuery";
 import type {
+  Category,
+  FacetCounts,
+  FilterOption,
+  FilterOptions,
+  PaginatedResponse,
   Product,
   ProductFilters,
+  ProductQuery,
+  SearchSuggestion,
   SortOption,
-  PaginatedResponse,
 } from "@/types";
+import { normalizeText, search } from "./search";
 
-// Configuration - change this to your API base URL when connecting to a backend
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
-
-/**
- * Get all products
+/*
+ * Catalogue reads. Today they run over the mock data in src/data; the backend
+ * will swap the bodies for database queries, so keep the signatures as they
+ * are: async, plain serialisable arguments and results, null for "not found".
  */
+
+
+const categoryName = (slug: string) => categoryData.find((c) => c.id === slug)?.name;
+
+const same = (a: string, b: string) => normalizeText(a) === normalizeText(b);
+const oneOf = (value: string, list: string[]) => list.some((item) => same(item, value));
+
+/** Applies every filter in `filters` (AND across fields, OR inside a list). */
+function applyFilters(list: Product[], filters: ProductFilters): Product[] {
+  const { category, themes, types, ages, interests, pieces, highlights } = filters;
+  const { minPrice, maxPrice, minRating, inStock, onSale, isNew } = filters;
+
+  return list.filter(
+    (p) =>
+      (!category || same(p.category, category)) &&
+      (!themes?.length || oneOf(p.theme, themes)) &&
+      (!types?.length || oneOf(p.type, types)) &&
+      (!ages?.length || oneOf(p.age, ages)) &&
+      (!interests?.length || p.interests.some((i) => oneOf(i, interests))) &&
+      (!pieces?.length || oneOf(p.pieces, pieces)) &&
+      (!highlights?.length || oneOf(p.highlight, highlights)) &&
+      (minPrice === undefined || p.price >= minPrice) &&
+      (maxPrice === undefined || p.price <= maxPrice) &&
+      (minRating === undefined || p.rating >= minRating) &&
+      (!inStock || p.stock > 0) &&
+      (!onSale || p.isOnSale) &&
+      (!isNew || p.isNew)
+  );
+}
+
+const byName = (a: Product, b: Product) => a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+
+/** Returns a sorted copy. "featured" keeps the incoming order (catalogue or search relevance). */
+function sortProducts(list: Product[], sort: SortOption = "featured"): Product[] {
+  const sorted = [...list];
+  switch (sort) {
+    case "newest":
+      return sorted.sort((a, b) => Number(b.isNew) - Number(a.isNew) || Number(b.id) - Number(a.id));
+    case "price-asc":
+      return sorted.sort((a, b) => a.price - b.price);
+    case "price-desc":
+      return sorted.sort((a, b) => b.price - a.price);
+    case "rating":
+      return sorted.sort((a, b) => b.rating - a.rating);
+    case "name-asc":
+      return sorted.sort(byName);
+    case "name-desc":
+      return sorted.sort((a, b) => byName(b, a));
+    case "featured":
+    default:
+      return sorted;
+  }
+}
+
+/** The products in scope for a query: search first (it ranks), then filters. */
+function scope(query: Pick<ProductQuery, "q"> & ProductFilters): Product[] {
+  const base = query.q?.trim() ? search(catalogue, query.q, categoryName) : catalogue;
+  return applyFilters(base, query);
+}
+
+function clampInt(value: number | undefined, min: number, max: number, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(value)));
+}
+
+// ---------------------------------------------------------------------------
+
 export async function getProducts(): Promise<Product[]> {
-  // TODO: Replace with API call when backend is available
-  // return fetch(`${API_BASE_URL}/products`).then(res => res.json());
-  return Promise.resolve(localProducts);
+  return [...catalogue];
 }
 
-/**
- * Get a single product by ID
- */
 export async function getProductById(id: string): Promise<Product | null> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products/${id}`).then(res => res.json());
-  const product = localProducts.find((p) => p.id === id);
-  return Promise.resolve(product || null);
+  return catalogue.find((p) => p.id === id) ?? null;
 }
 
 /**
- * Search products by query string
+ * Products for a list of ids, in the order given; unknown ids and duplicates
+ * are skipped. Used to hydrate compare / wishlist / recently viewed, which
+ * only persist ids on the client.
  */
-export async function searchProducts(query: string): Promise<Product[]> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products/search?q=${encodeURIComponent(query)}`).then(res => res.json());
+export async function getProductsByIds(ids: string[]): Promise<Product[]> {
+  const unique = Array.from(new Set(ids)).slice(0, MAX_IDS_PER_REQUEST);
+  return unique.map((id) => catalogue.find((p) => p.id === id)).filter((p): p is Product => !!p);
+}
 
-  if (!query || query.length < 2) {
-    return Promise.resolve([]);
-  }
+/** Full-text search (see ./search.ts), ranked by relevance. */
+export async function searchProducts(query: string, options: { limit?: number } = {}): Promise<Product[]> {
+  const results = search(catalogue, query, categoryName);
+  return options.limit === undefined ? results : results.slice(0, Math.max(0, options.limit));
+}
 
-  const searchTerms = query.toLowerCase().split(" ");
-  const results = localProducts.filter((product) => {
-    const searchableText =
-      `${product.name} ${product.theme} ${product.category} ${product.description}`.toLowerCase();
-    return searchTerms.every((term) => searchableText.includes(term));
-  });
-
-  return Promise.resolve(results);
+/** Lightweight rows for the autocomplete. */
+export async function getSearchSuggestions(
+  query: string,
+  limit = 5
+): Promise<{ items: SearchSuggestion[]; total: number }> {
+  const results = search(catalogue, query, categoryName);
+  return {
+    items: results.slice(0, limit).map(({ id, name, price, img, theme }) => ({ id, name, price, img, theme })),
+    total: results.length,
+  };
 }
 
 /**
- * Get products by category
+ * Search + filters + sort + pagination in one call. Pages call it for the
+ * first page; GET /api/products serves the next ones (infinite scroll).
  */
-export async function getProductsByCategory(
-  category: string
-): Promise<Product[]> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products?category=${category}`).then(res => res.json());
-  const results = localProducts.filter(
-    (p) => p.category.toLowerCase() === category.toLowerCase()
-  );
-  return Promise.resolve(results);
-}
+export async function getPaginatedProducts(query: ProductQuery = {}): Promise<PaginatedResponse<Product>> {
+  const limit = clampInt(query.limit, 1, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE);
+  const page = clampInt(query.page, 1, Number.MAX_SAFE_INTEGER, 1);
 
-/**
- * Get products by theme
- */
-export async function getProductsByTheme(theme: string): Promise<Product[]> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products?theme=${theme}`).then(res => res.json());
-  const results = localProducts.filter(
-    (p) => p.theme.toLowerCase() === theme.toLowerCase()
-  );
-  return Promise.resolve(results);
-}
+  const sorted = sortProducts(scope(query), query.sort);
+  const total = sorted.length;
+  const start = (page - 1) * limit;
 
-/**
- * Get featured/new products
- */
-export async function getFeaturedProducts(limit: number = 8): Promise<Product[]> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products/featured?limit=${limit}`).then(res => res.json());
-  const featured = localProducts.filter((p) => p.isNew).slice(0, limit);
-  return Promise.resolve(featured);
-}
-
-/**
- * Get products on sale
- */
-export async function getSaleProducts(limit?: number): Promise<Product[]> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products/sale`).then(res => res.json());
-  const onSale = localProducts.filter((p) => p.isOnSale);
-  return Promise.resolve(limit ? onSale.slice(0, limit) : onSale);
-}
-
-/**
- * Get paginated products with filters and sorting
- */
-export async function getPaginatedProducts(params: {
-  page: number;
-  limit: number;
-  category?: string;
-  theme?: string;
-  filters?: Partial<ProductFilters>;
-  sort?: SortOption;
-  search?: string;
-}): Promise<PaginatedResponse<Product>> {
-  // TODO: Replace with API call
-  // const queryParams = new URLSearchParams({...params});
-  // return fetch(`${API_BASE_URL}/products?${queryParams}`).then(res => res.json());
-
-  let filtered = [...localProducts];
-
-  // Apply category filter
-  if (params.category) {
-    filtered = filtered.filter(
-      (p) => p.category.toLowerCase() === params.category!.toLowerCase()
-    );
-  }
-
-  // Apply theme filter
-  if (params.theme) {
-    filtered = filtered.filter(
-      (p) => p.theme.toLowerCase() === params.theme!.toLowerCase()
-    );
-  }
-
-  // Apply search
-  if (params.search && params.search.length >= 2) {
-    const searchTerms = params.search.toLowerCase().split(" ");
-    filtered = filtered.filter((product) => {
-      const searchableText =
-        `${product.name} ${product.theme} ${product.category}`.toLowerCase();
-      return searchTerms.every((term) => searchableText.includes(term));
-    });
-  }
-
-  // Apply additional filters
-  if (params.filters) {
-    const { type, age, interests, pieces, highlight } = params.filters;
-
-    if (type?.length) {
-      filtered = filtered.filter((p) => type.includes(p.type));
-    }
-    if (age?.length) {
-      filtered = filtered.filter((p) => age.includes(p.age));
-    }
-    if (interests?.length) {
-      filtered = filtered.filter((p) =>
-        p.interests.some((i) => interests.includes(i))
-      );
-    }
-    if (pieces?.length) {
-      filtered = filtered.filter((p) => pieces.includes(p.pieces));
-    }
-    if (highlight?.length) {
-      filtered = filtered.filter((p) => highlight.includes(p.highlight));
-    }
-  }
-
-  // Apply sorting
-  if (params.sort) {
-    switch (params.sort) {
-      case "price_low_high":
-        filtered.sort((a, b) => a.price - b.price);
-        break;
-      case "price_high_low":
-        filtered.sort((a, b) => b.price - a.price);
-        break;
-      case "name_asc":
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case "name_desc":
-        filtered.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      case "recommended":
-      default:
-        // Keep original order or sort by rating
-        filtered.sort((a, b) => b.rating - a.rating);
-        break;
-    }
-  }
-
-  // Apply pagination
-  const total = filtered.length;
-  const start = (params.page - 1) * params.limit;
-  const paginatedProducts = filtered.slice(start, start + params.limit);
-
-  return Promise.resolve({
-    products: paginatedProducts,
+  return {
+    items: sorted.slice(start, start + limit),
     total,
-  });
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+    hasMore: start + limit < total,
+  };
+}
+
+/** Same theme or category, closest first (both > theme > category), then best rated. */
+export async function getRelatedProducts(productId: string, limit = 4): Promise<Product[]> {
+  const product = catalogue.find((p) => p.id === productId);
+  if (!product) return [];
+
+  return catalogue
+    .filter((p) => p.id !== productId)
+    .map((p) => ({
+      p,
+      score: (p.theme === product.theme ? 2 : 0) + (p.category === product.category ? 1 : 0),
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || b.p.rating - a.p.rating)
+    .slice(0, limit)
+    .map(({ p }) => p);
+}
+
+/** Thresholds offered by the rating filter, highest first. */
+const RATING_THRESHOLDS = [4.5, 4, 3] as const;
+
+/** Leading number of "12+", "501-1000", "2001+" for natural ordering. */
+const leadingNumber = (value: string) => Number.parseInt(value, 10) || 0;
+
+function facet(
+  list: Product[],
+  values: (p: Product) => string[],
+  order: "alpha" | "numeric" = "alpha",
+  label: (value: string) => string = (v) => v
+): FilterOption[] {
+  const counts = new Map<string, number>();
+  for (const p of list) {
+    for (const value of new Set(values(p))) counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return Array.from(counts, ([value, count]) => ({ value, label: label(value), count })).sort((a, b) =>
+    order === "numeric" ? leadingNumber(a.value) - leadingNumber(b.value) : a.label.localeCompare(b.label, "es")
+  );
 }
 
 /**
- * Get related products (same theme or category)
+ * Values available for each filter, with how many products have them, inside
+ * an optional scope (a category page, a search). Values with 0 products in
+ * scope are not listed.
  */
-export async function getRelatedProducts(
-  productId: string,
-  limit: number = 4
-): Promise<Product[]> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products/${productId}/related?limit=${limit}`).then(res => res.json());
+export async function getFilterOptions(
+  scopeQuery: Pick<ProductQuery, "q" | "category"> = {}
+): Promise<FilterOptions> {
+  const list = scope({ q: scopeQuery.q, category: scopeQuery.category });
+  const prices = list.map((p) => p.price);
 
-  const product = localProducts.find((p) => p.id === productId);
-  if (!product) return Promise.resolve([]);
+  return {
+    categories: facet(list, (p) => [p.category], "alpha", (slug) => categoryName(slug) ?? slug),
+    themes: facet(list, (p) => [p.theme]),
+    types: facet(list, (p) => [p.type]),
+    ages: facet(list, (p) => [p.age], "numeric"),
+    interests: facet(list, (p) => p.interests),
+    pieces: facet(list, (p) => [p.pieces], "numeric"),
+    highlights: facet(list, (p) => [p.highlight]),
+    price: { min: prices.length ? Math.min(...prices) : 0, max: prices.length ? Math.max(...prices) : 0 },
+    ratings: RATING_THRESHOLDS.map((stars) => ({
+      value: String(stars),
+      label: `${String(stars).replace(".", ",")} estrellas o más`,
+      count: list.filter((p) => p.rating >= stars).length,
+    })).filter((option) => option.count > 0),
+    flags: {
+      onSale: list.filter((p) => p.isOnSale).length,
+      inStock: list.filter((p) => p.stock > 0).length,
+      isNew: list.filter((p) => p.isNew).length,
+    },
+    total: list.length,
+  };
+}
 
-  const related = localProducts
-    .filter(
-      (p) =>
-        p.id !== productId &&
-        (p.theme === product.theme || p.category === product.category)
-    )
-    .slice(0, limit);
-
-  return Promise.resolve(related);
+function countBy(list: Product[], values: (p: Product) => string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const p of list) {
+    for (const value of new Set(values(p))) counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /**
- * Get unique values for filter options
+ * Facet counts that follow the active filters (see FacetCounts): each facet
+ * is counted over the products matching the search text and every other
+ * filter, leaving out its own selection. Sort and paging are ignored.
+ * Values missing from a map have 0 products.
  */
-export async function getFilterOptions(): Promise<{
-  categories: string[];
-  themes: string[];
-  types: string[];
-  ages: string[];
-}> {
-  // TODO: Replace with API call
-  // return fetch(`${API_BASE_URL}/products/filters`).then(res => res.json());
+export async function getFacetCounts(query: ProductQuery = {}): Promise<FacetCounts> {
+  const without = (field: keyof ProductFilters) => scope({ ...query, [field]: undefined });
 
-  const categories = Array.from(new Set(localProducts.map((p) => p.category)));
-  const themes = Array.from(new Set(localProducts.map((p) => p.theme)));
-  const types = Array.from(new Set(localProducts.map((p) => p.type)));
-  const ages = Array.from(new Set(localProducts.map((p) => p.age)));
+  const byCategory = without("category");
+  const byRating = without("minRating");
 
-  return Promise.resolve({ categories, themes, types, ages });
+  return {
+    categories: countBy(byCategory, (p) => [p.category]),
+    themes: countBy(without("themes"), (p) => [p.theme]),
+    types: countBy(without("types"), (p) => [p.type]),
+    ages: countBy(without("ages"), (p) => [p.age]),
+    interests: countBy(without("interests"), (p) => p.interests),
+    pieces: countBy(without("pieces"), (p) => [p.pieces]),
+    highlights: countBy(without("highlights"), (p) => [p.highlight]),
+    ratings: Object.fromEntries(
+      RATING_THRESHOLDS.map((stars) => [String(stars), byRating.filter((p) => p.rating >= stars).length])
+    ),
+    flags: {
+      onSale: without("onSale").filter((p) => p.isOnSale).length,
+      inStock: without("inStock").filter((p) => p.stock > 0).length,
+      isNew: without("isNew").filter((p) => p.isNew).length,
+    },
+    anyCategory: byCategory.length,
+    anyRating: byRating.length,
+  };
+}
+
+/** New arrivals. */
+export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
+  return catalogue.filter((p) => p.isNew).slice(0, limit);
+}
+
+/** Discounted products, biggest discount first. */
+export async function getSaleProducts(limit?: number): Promise<Product[]> {
+  const discount = (p: Product) => (p.originalPrice ? (p.originalPrice - p.price) / p.originalPrice : 0);
+  const onSale = catalogue.filter((p) => p.isOnSale).sort((a, b) => discount(b) - discount(a));
+  return limit === undefined ? onSale : onSale.slice(0, limit);
+}
+
+/** Categories in navigation order, with their product count. */
+export async function getCategories(): Promise<Category[]> {
+  return categoryData.map((c) => ({
+    ...c,
+    productCount: catalogue.filter((p) => p.category === c.id).length,
+  }));
+}
+
+export async function getCategoryById(id: string): Promise<Category | null> {
+  return (await getCategories()).find((c) => same(c.id, id)) ?? null;
 }

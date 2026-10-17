@@ -1,60 +1,66 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { products } from "@/data/products";
-import { ProductList } from "@/components/product";
+import { getCategories, getCategoryById, getFacetCounts, getFilterOptions, getPaginatedProducts } from "@/lib/api";
+import { Breadcrumbs } from "@/components/ui";
+import { CatalogView } from "@/components/product/CatalogView";
+import { pluralize } from "@/lib/utils";
+import { pageMetadata } from "@/lib/metadata";
 
 interface CategoryPageProps {
   params: Promise<{ categoryId: string }>;
 }
 
-const categoryNames: Record<string, string> = {
-  helmet: "Helmets",
-  brickheadz: "Brickheadz",
-  cars: "Vehículos",
-};
+/**
+ * Every category is prerendered. Filters and sort in the URL are read on the
+ * client by CatalogView, so they never make this route render on demand.
+ */
+export async function generateStaticParams() {
+  return (await getCategories()).map((category) => ({ categoryId: category.id }));
+}
 
-export async function generateMetadata({ params }: CategoryPageProps) {
-  const { categoryId } = await params;
-  const name = categoryNames[categoryId] || categoryId;
-
-  return {
-    title: `${name} | LEGO Store`,
-    description: `Explora nuestra colección de ${name} LEGO`,
-  };
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const category = await getCategoryById((await params).categoryId);
+  if (!category) return { title: "Categoría no encontrada" };
+  // Filtered views share the category's canonical URL.
+  return pageMetadata({
+    title: category.name,
+    description: `Explora nuestra colección de ${category.name} LEGO: ${category.description.toLowerCase()}. ${pluralize(category.productCount, "set")} con envío a todo el país.`,
+    path: `/category/${category.id}`,
+  });
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { categoryId } = await params;
+  const category = await getCategoryById(categoryId);
+  if (!category) notFound();
 
-  const categoryProducts = products.filter(
-    (p) => p.category.toLowerCase() === categoryId.toLowerCase()
-  );
-
-  if (categoryProducts.length === 0 && !categoryNames[categoryId]) {
-    notFound();
-  }
-
-  const categoryName = categoryNames[categoryId] || categoryId;
+  // The category comes from the path; the server renders it unfiltered and
+  // CatalogView applies any filters or sort in the URL after hydration.
+  const scope = { category: category.id };
+  const [firstPage, options, counts] = await Promise.all([
+    getPaginatedProducts(scope),
+    getFilterOptions(scope),
+    getFacetCounts(scope),
+  ]);
 
   return (
     <div className="container-custom py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <nav className="text-sm text-gray-500 mb-4">
-          <a href="/" className="hover:text-lego-blue">
-            Inicio
-          </a>
-          <span className="mx-2">/</span>
-          <span className="text-gray-900">{categoryName}</span>
-        </nav>
+      <Breadcrumbs items={[{ label: category.name }]} />
 
-        <h1 className="text-3xl font-bold">{categoryName}</h1>
-        <p className="text-gray-600 mt-2">
-          {categoryProducts.length} productos encontrados
+      <header className="mb-8">
+        <h1 className="text-headline">{category.name}</h1>
+        <p className="mt-2 text-fg-secondary">
+          {category.description} · {pluralize(options.total, "set")}
         </p>
-      </div>
+      </header>
 
-      {/* Products */}
-      <ProductList products={categoryProducts} />
+      <CatalogView
+        initialPage={firstPage}
+        initialQuery={{}}
+        scope={scope}
+        options={options}
+        initialCounts={counts}
+      />
     </div>
   );
 }

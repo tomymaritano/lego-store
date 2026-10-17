@@ -1,103 +1,106 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
+import { ProductImage } from "./ProductImage";
+import { m, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { useRecentlyViewedStore } from "@/stores/recentlyViewedStore";
-import { useHydration } from "@/hooks/useHydration";
-import { formatPrice } from "@/lib/utils";
+import { staggerDelay, transitions } from "@/lib/motion";
+import { useRecentlyViewedIds, useRecentlyViewedStore, useStoreHydrated } from "@/stores";
+import { useProductsByIds } from "@/hooks/useProductsByIds";
+import { IconButton, Price } from "@/components/ui";
 
-export function RecentlyViewed() {
-  const hydrated = useHydration();
-  const items = useRecentlyViewedStore((state) => state.items);
-  const scrollRef = useRef<HTMLDivElement>(null);
+/**
+ * Records a product visit. Render it on the product page; it records again
+ * whenever the product changes (client-side navigation between products).
+ * It waits for the store to load localStorage: recording earlier would write
+ * a one-item history over the saved one (persist saves on every set), and
+ * on a full page load this effect runs before the root StoreHydrator's.
+ */
+export function TrackRecentlyViewed({ productId }: { productId: string }) {
+  const hydrated = useStoreHydrated(useRecentlyViewedStore);
+  useEffect(() => {
+    if (hydrated) useRecentlyViewedStore.getState().addItem(productId);
+  }, [productId, hydrated]);
+  return null;
+}
 
-  if (!hydrated || items.length === 0) {
-    return null;
-  }
+const SCROLL_STEP = 280;
 
-  const scroll = (direction: "left" | "right") => {
-    if (scrollRef.current) {
-      const scrollAmount = 280;
-      scrollRef.current.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      });
-    }
-  };
+/**
+ * Horizontal strip of the last products the visitor opened. The store keeps
+ * only ids; products come fresh from /api/products/by-ids.
+ */
+export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
+  const ids = useRecentlyViewedIds();
+  const visibleIds = excludeId ? ids.filter((id) => id !== excludeId) : ids;
+  const { products } = useProductsByIds(visibleIds, {
+    onMissing: useRecentlyViewedStore.getState().removeMany,
+  });
+  const scrollRef = useRef<HTMLUListElement>(null);
+  const reduceMotion = useReducedMotion();
+
+  if (products.length === 0) return null;
+
+  const scroll = (direction: -1 | 1) =>
+    scrollRef.current?.scrollBy({ left: direction * SCROLL_STEP, behavior: reduceMotion ? "auto" : "smooth" });
 
   return (
-    <section className="py-12 bg-gray-50">
+    <section aria-labelledby="recently-viewed-title" className="bg-bg-subtle py-12">
       <div className="container-custom">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-lego-blue/10 rounded-xl flex items-center justify-center">
-              <Clock className="w-5 h-5 text-lego-blue" />
-            </div>
+            <span aria-hidden="true" className="flex size-10 items-center justify-center rounded-xl bg-bg-muted text-info">
+              <Clock className="size-5" />
+            </span>
             <div>
-              <h2 className="text-xl font-bold">Vistos Recientemente</h2>
-              <p className="text-sm text-gray-500">Continúa donde lo dejaste</p>
+              <h2 id="recently-viewed-title" className="text-heading">
+                Vistos recientemente
+              </h2>
+              <p className="text-label font-normal text-fg-muted">Continúa donde lo dejaste</p>
             </div>
           </div>
 
           <div className="flex gap-2">
-            <button
-              onClick={() => scroll("left")}
-              className="p-2 rounded-full bg-white border hover:bg-gray-100 transition-colors"
-              aria-label="Anterior"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => scroll("right")}
-              className="p-2 rounded-full bg-white border hover:bg-gray-100 transition-colors"
-              aria-label="Siguiente"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
+            <IconButton label="Desplazar a la izquierda" variant="secondary" onClick={() => scroll(-1)}>
+              <ChevronLeft aria-hidden="true" />
+            </IconButton>
+            <IconButton label="Desplazar a la derecha" variant="secondary" onClick={() => scroll(1)}>
+              <ChevronRight aria-hidden="true" />
+            </IconButton>
           </div>
         </div>
 
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 -mx-4 px-4"
-        >
-          {items.map((product, index) => (
-            <motion.div
+        <ul ref={scrollRef} className="-mx-4 flex gap-4 overflow-x-auto px-4 motion-safe:scroll-smooth pt-1 pb-4 scrollbar-hide">
+          {products.map((product, index) => (
+            <m.li
               key={product.id}
               initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="flex-shrink-0 w-48"
+              animate={{ opacity: 1, x: 0, transition: { ...transitions.base, delay: staggerDelay(index) } }}
+              className="w-48 shrink-0"
             >
-              <Link href={`/item/${product.id}`}>
-                <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
-                  <div className="relative aspect-square bg-gray-50">
-                    <Image
-                      src={product.img}
-                      alt={product.name}
-                      fill
-                      className="object-contain p-3 group-hover:scale-105 transition-transform"
-                    />
-                  </div>
-                  <div className="p-3">
-                    <p className="text-xs text-lego-blue font-semibold uppercase">
-                      {product.theme}
-                    </p>
-                    <h3 className="font-medium text-sm text-gray-900 line-clamp-1 mt-1">
-                      {product.name}
-                    </h3>
-                    <p className="font-bold text-gray-900 mt-1">
-                      {formatPrice(product.price)}
-                    </p>
-                  </div>
+              <Link
+                href={`/item/${product.id}`}
+                className="group block overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-[box-shadow,translate] duration-base ease-standard hover:-translate-y-1 hover:shadow-md motion-reduce:hover:translate-y-0"
+              >
+                <div className="relative aspect-square bg-bg-subtle">
+                  <ProductImage
+                    src={product.img}
+                    alt=""
+                    fill
+                    sizes="192px"
+                    className="object-contain p-3 transition-[scale] duration-slow ease-emphasized group-hover:scale-105"
+                  />
+                </div>
+                <div className="p-3">
+                  <p className="text-caption font-semibold text-info uppercase">{product.theme}</p>
+                  <h3 className="mt-1 line-clamp-1 text-label font-medium text-fg">{product.name}</h3>
+                  <Price value={product.price} size="sm" className="mt-1" />
                 </div>
               </Link>
-            </motion.div>
+            </m.li>
           ))}
-        </div>
+        </ul>
       </div>
     </section>
   );

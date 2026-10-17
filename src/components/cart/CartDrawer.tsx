@@ -1,101 +1,195 @@
 "use client";
 
-import Image from "next/image";
+import { useEffect } from "react";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
-import { useCartStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
-import { formatPrice } from "@/lib/utils";
-import { Button, Drawer, QuantitySelector } from "@/components/ui";
+import { AnimatePresence, m } from "motion/react";
+import { ArrowRight, ShoppingCart, Trash2 } from "lucide-react";
+import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
+import { dismissible, fadeIn, transitions } from "@/lib/motion";
+import { quoteShipping } from "@/lib/pricing";
+import { formatPrice, pluralize } from "@/lib/utils";
+import {
+  Button,
+  EmptyState,
+  IconButton,
+  Price,
+  QuantitySelector,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Spinner,
+  toast,
+} from "@/components/ui";
+import { ProductImage } from "@/components/product/ProductImage";
+import { FreeShippingProgress } from "./FreeShippingProgress";
 
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+/**
+ * Mini cart in a right Sheet: lines with quantity and remove (rows animate in,
+ * out and into place), free-shipping progress, subtotal and the CTAs to the
+ * cart page and checkout.
+ */
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
-  const hydrated = useHydration();
-  const cart = useCartStore((state) => state.cart);
+  const hydrated = useStoreHydrated(useCartStore);
+  const cart = useCartItems();
+  const count = useCartCount();
+  const subtotal = useCartSubtotal();
   const removeItem = useCartStore((state) => state.removeItem);
-  const increaseQuantity = useCartStore((state) => state.increaseQuantity);
-  const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
-  const getTotalPrice = useCartStore((state) => state.getTotalPrice);
+  const setQuantity = useCartStore((state) => state.setQuantity);
+  const shipping = quoteShipping(subtotal);
 
-  if (!hydrated) {
-    return (
-      <Drawer isOpen={isOpen} onClose={onClose} title="Carrito">
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lego-yellow" />
-        </div>
-      </Drawer>
-    );
-  }
+  // Toasts sit bottom-right on desktop, over the drawer footer CTAs: clear them when it opens.
+  useEffect(() => {
+    if (isOpen) toast.dismiss();
+  }, [isOpen]);
+
+  const empty = hydrated && cart.length === 0;
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title={`Carrito (${cart.length})`}>
-      {cart.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mb-4">
-            <span className="text-4xl">🛒</span>
-          </div>
-          <h3 className="text-lg font-semibold text-foreground-primary mb-2">Tu carrito está vacío</h3>
-          <p className="text-foreground-muted mb-6">Agrega productos para comenzar</p>
-          <Button onClick={onClose}>Explorar productos</Button>
-        </div>
-      ) : (
-        <>
-          {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {cart.map((item) => (
-              <div key={item.id} className="flex gap-4 p-3 bg-background-secondary rounded-lg" data-testid="cart-item">
-                <div className="relative w-20 h-20 bg-surface rounded-lg overflow-hidden flex-shrink-0">
-                  <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" closeLabel="Cerrar carrito">
+        <SheetHeader>
+          <SheetTitle>{hydrated && count > 0 ? `Carrito (${count})` : "Carrito"}</SheetTitle>
+          {hydrated && count > 0 ? <SheetDescription>{pluralize(count, "producto")} en tu carrito</SheetDescription> : null}
+        </SheetHeader>
+
+        {!hydrated ? (
+          <SheetBody className="flex items-center justify-center" aria-busy="true">
+            <Spinner className="size-8 text-fg-muted" />
+            <span className="sr-only">Cargando carrito…</span>
+          </SheetBody>
+        ) : (
+          <AnimatePresence mode="wait" initial={false}>
+            {empty ? (
+              <m.div key="empty" variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="flex flex-1 items-center justify-center">
+                <EmptyState
+                  icon={<ShoppingCart />}
+                  title="Tu carrito está vacío"
+                  description="Agrega productos para comenzar. ¡Hay sets esperando ser construidos!"
+                  action={
+                    <Button onClick={onClose} render={<Link href="/" />}>
+                      Explorar productos
+                      <ArrowRight aria-hidden="true" />
+                    </Button>
+                  }
+                />
+              </m.div>
+            ) : (
+              <m.div key="lines" variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="flex min-h-0 flex-1 flex-col">
+                <div className="border-b border-border px-4 py-3">
+                  <FreeShippingProgress subtotal={subtotal} />
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate text-foreground-primary">{item.name}</h4>
-                  <p className="text-foreground-primary font-bold mt-1">{formatPrice(item.price)}</p>
+                <SheetBody>
+                  <ul className="space-y-3 p-4" aria-label="Productos en el carrito">
+                    <AnimatePresence initial={false} mode="popLayout">
+                      {cart.map((item) => (
+                        <m.li
+                          key={item.id}
+                          layout
+                          variants={dismissible}
+                          initial="hidden"
+                          animate="visible"
+                          exit="exit"
+                          transition={{ layout: transitions.spring }}
+                          className="flex gap-3 rounded-xl border border-border bg-bg-subtle p-3"
+                          data-testid="cart-item"
+                        >
+                          <Link
+                            href={`/item/${item.id}`}
+                            onClick={onClose}
+                            tabIndex={-1}
+                            aria-hidden="true"
+                            className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-surface"
+                          >
+                            <ProductImage src={item.image} alt="" fill sizes="80px" className="object-contain p-2" />
+                          </Link>
 
-                  <div className="flex items-center justify-between mt-2">
-                    <QuantitySelector
-                      quantity={item.quantity}
-                      onIncrease={() => increaseQuantity(item.id)}
-                      onDecrease={() => decreaseQuantity(item.id)}
-                      max={item.stock}
-                      size="sm"
-                    />
+                          <div className="flex min-w-0 flex-1 flex-col gap-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="line-clamp-2 text-label font-medium text-fg">
+                                <Link
+                                  href={`/item/${item.id}`}
+                                  onClick={onClose}
+                                  className="rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
+                                >
+                                  {item.name}
+                                </Link>
+                              </h3>
+                              <IconButton
+                                label={`Eliminar ${item.name} del carrito`}
+                                size="icon-sm"
+                                onClick={() => removeItem(item.id)}
+                                className="-mt-1 -mr-1 hover:text-danger"
+                              >
+                                <Trash2 aria-hidden="true" />
+                              </IconButton>
+                            </div>
 
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="p-1.5 text-foreground-muted hover:text-lego-red transition-colors"
-                      aria-label="Eliminar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                            <div className="mt-auto flex flex-wrap items-end justify-between gap-2">
+                              <QuantitySelector
+                                value={item.quantity}
+                                onValueChange={(quantity) => setQuantity(item.id, quantity)}
+                                max={item.stock}
+                                size="sm"
+                                label={`Cantidad de ${item.name}`}
+                              />
+                              <div className="text-right">
+                                <Price value={item.price * item.quantity} size="sm" className="justify-end" />
+                                {item.quantity > 1 ? (
+                                  <p className="text-caption text-fg-muted tabular-nums">{formatPrice(item.price)} c/u</p>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </m.li>
+                      ))}
+                    </AnimatePresence>
+                  </ul>
+                </SheetBody>
+
+                <SheetFooter className="gap-4">
+                  <dl className="space-y-1.5 text-label font-normal">
+                    <div className="flex justify-between text-fg-secondary">
+                      <dt>Subtotal</dt>
+                      <dd className="tabular-nums">{formatPrice(subtotal)}</dd>
+                    </div>
+                    <div className="flex justify-between text-fg-secondary">
+                      <dt>Envío</dt>
+                      <dd className={shipping.free ? "font-semibold text-success" : "tabular-nums"}>
+                        {shipping.free ? "Gratis" : formatPrice(shipping.cost)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between border-t border-border pt-2 text-title text-fg">
+                      <dt>Total</dt>
+                      <dd className="tabular-nums" data-testid="cart-drawer-total">
+                        {formatPrice(subtotal + shipping.cost)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button variant="outline" className="w-full" render={<Link href="/cart" onClick={onClose} />}>
+                      Ver carrito
+                    </Button>
+                    <Button className="w-full" data-testid="checkout-btn" render={<Link href="/checkout" onClick={onClose} />}>
+                      Finalizar compra
+                    </Button>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-border p-4 space-y-4">
-            <div className="flex justify-between text-lg font-semibold text-foreground-primary">
-              <span>Total</span>
-              <span>{formatPrice(getTotalPrice())}</span>
-            </div>
-
-            <div className="space-y-2">
-              <Link href="/cart" onClick={onClose}>
-                <Button variant="outline" className="w-full">
-                  Ver carrito
-                </Button>
-              </Link>
-              <Button className="w-full" data-testid="checkout-btn">Finalizar compra</Button>
-            </div>
-          </div>
-        </>
-      )}
-    </Drawer>
+                </SheetFooter>
+              </m.div>
+            )}
+          </AnimatePresence>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -1,36 +1,38 @@
 "use client";
 
-import { useEffect } from "react";
-import { CompareBar } from "@/components/product";
-import { useThemeStore } from "@/stores";
+import type { ReactNode } from "react";
+import { LazyMotion, MotionConfig } from "motion/react";
+import { transitions } from "@/lib/motion";
+import { CompareBar } from "@/components/product/CompareBar";
+import { StoreHydrator } from "@/stores";
+import { ThemeSync } from "./ThemeSync";
 
-export function ClientProviders() {
-  const theme = useThemeStore((state) => state.theme);
+/**
+ * Client-only app shell: loads the persisted stores once (StoreHydrator),
+ * keeps the theme class in sync, and sets the global motion policy
+ * (animations respect prefers-reduced-motion everywhere, and any motion
+ * element without its own transition uses the token timing).
+ *
+ * Motion runs through LazyMotion: components use the light `m.*` elements
+ * and the feature bundle (animation, gestures, layout, drag: domMax, needed
+ * app-wide for the layout animations) is requested from lib/motion-features.
+ * Note: Turbopack currently places domMax's modules in the shared motion
+ * chunk the `m` elements already load (~45 kB gzip in every route's first
+ * load, measured with `npm run size`); switching to domAnimation saves
+ * ~14 kB but drops layout and drag. `strict` makes a stray full `motion.*`
+ * import throw in development.
+ */
+const loadMotionFeatures = () => import("@/lib/motion-features").then((mod) => mod.default);
 
-  // Apply theme on mount and when theme changes
-  useEffect(() => {
-    const applyTheme = (theme: "light" | "dark" | "system") => {
-      const root = document.documentElement;
-      if (theme === "system") {
-        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        root.classList.toggle("dark", systemDark);
-      } else {
-        root.classList.toggle("dark", theme === "dark");
-      }
-    };
-
-    applyTheme(theme);
-
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleChange = () => {
-      if (theme === "system") {
-        applyTheme("system");
-      }
-    };
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
-
-  return <CompareBar />;
+export function ClientProviders({ children }: { children: ReactNode }) {
+  return (
+    <LazyMotion features={loadMotionFeatures} strict>
+      <MotionConfig reducedMotion="user" transition={transitions.base}>
+        <StoreHydrator />
+        <ThemeSync />
+        {children}
+        <CompareBar />
+      </MotionConfig>
+    </LazyMotion>
+  );
 }
