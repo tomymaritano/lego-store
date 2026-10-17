@@ -8,7 +8,11 @@ import { playwright } from "@vitest/browser-playwright";
 const dirname =
   typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
-const alias = { "@": path.resolve(dirname, "./src") };
+const alias = {
+  "@": path.resolve(dirname, "./src"),
+  // lib/api is marked server-only; tests run it directly, outside a React Server environment.
+  "server-only": path.resolve(dirname, "./node_modules/server-only/empty.js"),
+};
 
 // Two projects:
 // - unit: jsdom tests in __tests__ and src/**/*.test.*
