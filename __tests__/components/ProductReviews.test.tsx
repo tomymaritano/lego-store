@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ProductReviews, sortReviews } from "@/components/product/ProductReviews";
 import { mockReviews, useReviewStore } from "@/stores/reviewStore";
@@ -33,10 +33,15 @@ describe("sortReviews", () => {
 /** Opens the review form; it loads on demand, so wait for its submit button. */
 async function openForm() {
   fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
-  await screen.findByRole("button", { name: "Publicar reseña" });
+  await screen.findByRole("button", { name: "Publicar reseña" }, { timeout: 5000 });
 }
 
 describe("ProductReviews", () => {
+  // The form is a next/dynamic chunk: warm the module once so a busy parallel run
+  // does not spend the first test's timeout on importing zod and react-hook-form.
+  beforeAll(async () => {
+    await import("@/components/product/reviews/ReviewForm");
+  });
   beforeEach(() => useReviewStore.setState({ reviews: mockReviews }));
 
   it("shows the product's reviews with h2 > h3 headings inside a labelled section", () => {

@@ -1,14 +1,23 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /** Scale of the navbar cart icon (the bump target), 1 when untransformed. */
-/** The cart icon's current scale: the bump animates the `scale` property (Web Animations), older code used transform. */
-const cartIconScale = (page: Page) =>
-  page.getByTestId("cart-button").locator("span").first().evaluate((el) => {
-    const style = getComputedStyle(el);
-    const scale = style.scale === "none" || !style.scale ? 1 : parseFloat(style.scale);
-    const transform = style.transform === "none" ? 1 : new DOMMatrixReadOnly(style.transform).a;
-    return scale * transform;
+/**
+ * Records every scale animation started on the Navbar cart icon (the bump
+ * runs on the Web Animations API), so the test checks what was triggered
+ * instead of sampling a 300 ms animation's computed style under load.
+ */
+const recordCartBumps = (page: Page) =>
+  page.addInitScript(() => {
+    const bumps: number[] = [];
+    (window as unknown as { __cartBumps: number[] }).__cartBumps = bumps;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      const scales = (Array.isArray(keyframes) ? [] : ((keyframes as PropertyIndexedKeyframes)?.scale ?? [])) as number[];
+      if (this.closest("[data-testid='cart-button']") && scales.length) bumps.push(Math.max(...scales.map(Number)));
+      return animate.call(this, keyframes, options);
+    };
   });
+const cartBumps = (page: Page) => page.evaluate(() => (window as unknown as { __cartBumps: number[] }).__cartBumps);
 
 test.describe("Stale persisted ids", () => {
   test("compare drops ids the catalogue no longer has, freeing their slots", async ({ page }) => {
@@ -86,6 +95,7 @@ test.describe("Product card keyboard flow", () => {
 
 test.describe("Navbar cart feedback", () => {
   test("names the cart in correct Spanish and bumps only on a new add", async ({ page }) => {
+    await recordCartBumps(page);
     await page.goto("/search?q=star");
     await page.getByTestId("product-card").first().getByTestId("add-to-cart-btn").click();
     await expect(page.getByRole("button", { name: "Carrito, 1 producto" })).toBeVisible();
@@ -93,16 +103,12 @@ test.describe("Navbar cart feedback", () => {
     // Full reload with a non-empty cart: the icon must stay still.
     await page.reload();
     await expect(page.getByRole("button", { name: "Carrito, 1 producto" })).toBeVisible();
-    const samples: number[] = [];
-    for (let i = 0; i < 10; i++) {
-      samples.push(await cartIconScale(page));
-      await page.waitForTimeout(50);
-    }
-    expect(Math.max(...samples)).toBeLessThan(1.01);
+    await page.waitForTimeout(500);
+    expect(await cartBumps(page)).toEqual([]);
 
     // A real add does bump it.
     await page.getByTestId("product-card").nth(1).getByTestId("add-to-cart-btn").click();
-    await expect.poll(() => cartIconScale(page), { intervals: [10], timeout: 2000 }).toBeGreaterThan(1.05);
+    await expect.poll(async () => Math.max(0, ...(await cartBumps(page)))).toBeGreaterThan(1.05);
     await expect(page.getByRole("button", { name: "Carrito, 2 productos" })).toBeVisible();
   });
 });
