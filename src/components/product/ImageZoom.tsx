@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "motion/react";
-import { fadeIn, scaleIn } from "@/lib/motion";
-import { ZoomIn, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "motion/react";
+import { ZoomIn } from "lucide-react";
+import { scaleIn } from "@/lib/motion";
+import { PLACEHOLDER_IMAGE, cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui";
 
 interface ImageZoomProps {
   src: string;
@@ -13,127 +14,90 @@ interface ImageZoomProps {
   className?: string;
 }
 
+const LENS = 128;
+
+/**
+ * Main product picture. With a mouse, a round lens magnifies the spot under
+ * the pointer; any click, tap or Enter opens the picture full size in a
+ * Dialog (focus trap, Escape, focus return). A missing file falls back to
+ * the store placeholder, and then the lens is skipped.
+ */
 export function ImageZoom({ src, alt, className }: ImageZoomProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isHovering, setIsHovering] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [zoomPosition, setZoomPosition] = useState({ x: 50, y: 50 });
+  const containerRef = useRef<HTMLButtonElement>(null);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
+  const shown = failed ? PLACEHOLDER_IMAGE : src;
+  const [lens, setLens] = useState<{ x: number; y: number; px: number; py: number } | null>(null);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
-
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-    setMousePosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setZoomPosition({ x, y });
-  }, []);
-
-  const handleMouseEnter = () => setIsHovering(true);
-  const handleMouseLeave = () => setIsHovering(false);
+  const handleMouseMove = (event: MouseEvent<HTMLButtonElement>) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || failed) return;
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    setLens({ x, y, px: (x / rect.width) * 100, py: (y / rect.height) * 100 });
+  };
 
   return (
-    <>
-      {/* Main Container with Hover Zoom */}
-      <div
+    <Dialog>
+      <DialogTrigger
         ref={containerRef}
-        className={cn("relative overflow-hidden cursor-zoom-in group", className)}
+        aria-label={`Ampliar imagen: ${alt}`}
+        className={cn(
+          "group relative block cursor-zoom-in overflow-hidden rounded-[inherit] outline-none",
+          "focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset",
+          className
+        )}
         onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={() => setIsModalOpen(true)}
+        onMouseLeave={() => setLens(null)}
       >
-        {/* Original Image */}
         <Image
-          src={src}
+          src={shown}
           alt={alt}
           fill
-          className="object-contain p-8 transition-transform duration-slow ease-emphasized group-hover:scale-105"
+          sizes="(min-width: 1024px) 50vw, 100vw"
+          className="object-contain p-8 transition-[scale] duration-slow ease-emphasized group-hover:scale-105 motion-reduce:group-hover:scale-100"
+          onError={() => setFailedSrc(src)}
           preload
         />
 
-        {/* Zoom Lens (visible on hover) */}
         <AnimatePresence>
-          {isHovering && (
-            <motion.div
+          {lens && (
+            <motion.span
+              aria-hidden="true"
               variants={scaleIn}
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="absolute w-32 h-32 border-2 border-white rounded-full pointer-events-none shadow-lg overflow-hidden"
-              style={{
-                left: mousePosition.x - 64,
-                top: mousePosition.y - 64,
-              }}
+              className="pointer-events-none absolute size-32 overflow-hidden rounded-full border-2 border-surface bg-surface shadow-lg"
+              style={{ left: lens.x - LENS / 2, top: lens.y - LENS / 2 }}
             >
-              <div
-                className="absolute w-[400%] h-[400%]"
+              <span
+                className="absolute size-[400%] bg-cover bg-no-repeat"
                 style={{
-                  backgroundImage: `url(${src})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                  backgroundImage: `url(${shown})`,
+                  backgroundPosition: `${lens.px}% ${lens.py}%`,
                   transform: "translate(-37.5%, -37.5%)",
                 }}
               />
-            </motion.div>
+            </motion.span>
           )}
         </AnimatePresence>
 
-        {/* Zoom Icon Hint */}
-        <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="bg-black/60 text-white px-3 py-1.5 rounded-full text-sm flex items-center gap-1.5">
-            <ZoomIn className="w-4 h-4" />
-            Click para ampliar
-          </div>
+        <span
+          aria-hidden="true"
+          className="absolute right-4 bottom-4 flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1.5 text-sm font-medium text-fg shadow-md transition-opacity duration-base ease-standard pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:opacity-100"
+        >
+          <ZoomIn className="size-4" />
+          Ampliar
+        </span>
+      </DialogTrigger>
+
+      <DialogContent className="h-[calc(100dvh-2rem)] max-w-5xl p-4 sm:p-6" closeLabel="Cerrar imagen ampliada">
+        <DialogTitle className="sr-only">{alt}</DialogTitle>
+        <div className="relative min-h-0 flex-1">
+          <Image src={shown} alt={alt} fill sizes="100vw" className="object-contain" />
         </div>
-      </div>
-
-      {/* Fullscreen Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <motion.div
-            variants={fadeIn}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
-            onClick={() => setIsModalOpen(false)}
-          >
-            {/* Close Button */}
-            <button
-              className="absolute top-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-              onClick={() => setIsModalOpen(false)}
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Zoomed Image */}
-            <motion.div
-              variants={scaleIn}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="relative w-full h-full max-w-4xl max-h-[85vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Image
-                src={src}
-                alt={alt}
-                fill
-                className="object-contain"
-                sizes="100vw"
-              />
-            </motion.div>
-
-            {/* Instructions */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm">
-              Click fuera de la imagen para cerrar
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }

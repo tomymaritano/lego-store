@@ -10,9 +10,8 @@
 
    Three tiers:
    1. Primitives (raw palette). Plain CSS vars, NOT exposed as Tailwind
-      utilities, so components cannot reach for them directly. (Exception:
-      the transitional aliases at the end of @theme inline, which ESLint
-      flags on every use until pages migrate.)
+      utilities, so components cannot reach for them directly. (ESLint still
+      flags the old lego-* / gray-* alias names should anyone re-add them.)
    2. Semantic tokens (what a colour is for). Defined in :root and overridden
       in .dark. Only this tier changes between themes.
    3. Component tokens, only where a component needs a colour no semantic
@@ -229,14 +228,6 @@
   --shadow-lg: var(--elevation-lg);
   --shadow-xl: var(--elevation-xl);
   --shadow-card: var(--elevation-card);
-
-  /* ---- Transitional aliases (delete once pages use semantic names) ----
-     These DO expose primitives as utilities, so ESLint flags every use
-     (warning in app code, error in src/components/ui). Each points at a
-     primitive or semantic var: no raw hex here. */
-  --color-lego-yellow: var(--yellow-400);
-  --color-lego-blue: var(--blue-500);
-  --color-lego-black: var(--stone-925);
 }
 
 @theme {
@@ -293,17 +284,6 @@
       background-position: -200% 0;
     }
   }
-
-  /*
-   * Transitional: Tailwind 3 palette values for raw colours still used by
-   * pages. Delete together with the raw classes (guardrail warns on them).
-   */
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-amber-400: #fbbf24;
 }
 
 /* Motion duration utilities backed by the tokens above. */
