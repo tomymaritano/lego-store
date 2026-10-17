@@ -1,21 +1,5 @@
-import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
-
-const AXE_PATH = path.join(process.cwd(), "node_modules", "axe-core", "axe.min.js");
-
-/** Runs axe (WCAG 2.1 A/AA) on the page and returns the serious/critical rule ids. */
-async function seriousAxeViolations(page: Page) {
-  if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ path: AXE_PATH });
-  return page.evaluate(async () => {
-    const axe = (window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ violations: { id: string; impact: string; nodes: { target: string[] }[] }[] }> } }).axe;
-    const { violations } = await axe.run(document, {
-      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"] },
-    });
-    return violations
-      .filter((v) => v.impact === "serious" || v.impact === "critical")
-      .map((v) => `${v.id} :: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
-  });
-}
+import { seriousAxeViolations } from "./helpers/axe";
 
 const seedCart = (page: Page, cart: unknown[]) =>
   page.addInitScript((lines) => {
