@@ -1,5 +1,7 @@
 import { ChevronDown } from "lucide-react";
+import { linesSubtotal } from "@/lib/pricing";
 import { formatPrice, pluralize } from "@/lib/utils";
+import { OrderTotals } from "@/components/cart/OrderTotals";
 import { ProductImage } from "@/components/product/ProductImage";
 import type { CartItem } from "@/types";
 
@@ -24,15 +26,16 @@ export function OrderLines({ lines, label }: { lines: readonly CartItem[]; label
 }
 
 /**
- * Phones and tablets: the order total and its lines, collapsed above the form
- * so the amount is visible before the visitor fills anything in. The full
- * summary card still follows the form (and is the sidebar on desktop).
+ * Phones and tablets: the order summary, collapsed above the form so the
+ * amount is visible before the visitor fills anything in; opened, it lists
+ * the lines and the subtotal / shipping / total. It replaces the summary
+ * card, which only shows as the desktop sidebar (no summary twice).
  */
 export function MobileSummaryBar({ lines, total }: { lines: readonly CartItem[]; total: number }) {
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
   return (
     <details className="disclosure group mb-6 rounded-2xl border border-border bg-surface shadow-card lg:hidden">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-label focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none [&::-webkit-details-marker]:hidden">
         <span className="font-semibold text-fg">
           Ver resumen <span className="font-normal text-fg-muted">({pluralize(count, "producto")})</span>
         </span>
@@ -44,8 +47,14 @@ export function MobileSummaryBar({ lines, total }: { lines: readonly CartItem[];
           />
         </span>
       </summary>
-      <div className="border-t border-border px-4 py-3">
+      <div className="space-y-4 border-t border-border px-4 py-3">
         <OrderLines lines={lines} label="Productos a comprar" />
+        <OrderTotals
+          subtotal={linesSubtotal(lines)}
+          count={count}
+          testIdPrefix="checkout-mobile"
+          className="border-t border-border pt-4"
+        />
       </div>
     </details>
   );

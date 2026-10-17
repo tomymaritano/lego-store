@@ -38,7 +38,8 @@ async function fillShipping(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("option", { name: "Córdoba" }));
 }
 
-describe("Checkout", () => {
+// Form flows type a lot: slow when the whole suite runs in parallel, so every test here gets room.
+describe("Checkout", { timeout: 20_000 }, () => {
   beforeAll(async () => {
     // The validators load on demand (lib/validations/lazy): warm the module so a
     // busy parallel run does not spend the first test's timeout importing zod.
@@ -94,6 +95,9 @@ describe("Checkout", () => {
     expect(summary).toHaveTextContent("(3 productos)");
     expect(summary).toHaveTextContent(formatPrice(2746));
     expect(within(summary.parentElement!).getByRole("list", { name: "Productos a comprar", hidden: true })).toHaveTextContent("Set 1");
+    // Opened, it carries the whole breakdown: the card summary is the desktop sidebar only.
+    expect(within(summary.parentElement!).getByTestId("checkout-mobile-total")).toHaveTextContent(formatPrice(2746));
+    expect(screen.getByRole("region", { name: "Resumen del pedido" })).toHaveClass("hidden", "lg:block");
   });
 
   it("goes through every step, keeps only a card summary and confirms the order", async () => {
@@ -149,7 +153,7 @@ describe("Checkout", () => {
     expect(useCartStore.getState().cart).toHaveLength(0);
     expect(screen.getByRole("link", { name: /Seguir comprando/ })).toHaveAttribute("href", "/");
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
-  }, 20_000); // a lot of typing: slow when the whole suite runs in parallel
+  });
 
   it("goes back from payment to shipping keeping the address", async () => {
     const user = userEvent.setup();

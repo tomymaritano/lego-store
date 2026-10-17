@@ -177,6 +177,20 @@ test.describe("Checkout", () => {
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
     await expect(page.getByText("Ingresa el número de tarjeta")).toBeVisible();
   });
+  test("phones show the order summary once, collapsed above the form", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/checkout");
+    await expect(page.getByRole("region", { name: "Resumen del pedido" })).toBeHidden();
+    const summary = page.locator("summary", { hasText: "Ver resumen" });
+    await expect(summary).toContainText("2.746");
+    await summary.click();
+    await expect(page.getByTestId("checkout-mobile-total")).toBeVisible();
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.getByRole("region", { name: "Resumen del pedido" })).toBeVisible();
+    await expect(summary).toBeHidden();
+  });
+
   test("placing the order keeps the layout still until the review has faded out", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/checkout");

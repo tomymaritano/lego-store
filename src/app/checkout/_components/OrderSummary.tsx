@@ -43,7 +43,8 @@ function useOverflowsY<T extends HTMLElement>(contentKey: unknown) {
 }
 
 /**
- * Checkout sidebar: the lines being bought and the same totals block the cart
+ * Checkout sidebar (desktop only: phones and tablets get MobileSummaryBar
+ * above the form instead): the lines being bought and the same totals block the cart
  * page shows (OrderTotals, lib/pricing), so the amounts always agree.
  */
 export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps) {
@@ -51,7 +52,7 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
   const [listRef, listScrolls] = useOverflowsY<HTMLUListElement>(lines.length);
 
   return (
-    <Card role="region" aria-labelledby="checkout-summary-title" className="lg:sticky lg:top-24">
+    <Card role="region" aria-labelledby="checkout-summary-title" className="hidden lg:sticky lg:top-24 lg:block">
       <CardHeader>
         <h2 id="checkout-summary-title" className="text-title text-fg">
           Resumen del pedido
