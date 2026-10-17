@@ -42,6 +42,24 @@ const flagged: Array<[string, string]> = [
   ["alias status-*", jsx(`<span className="text-status-error" />`)],
   ["alias border-subtle", jsx(`<span className="border-border-subtle" />`)],
   ["numeric motion duration", jsx(`<div transition={{ duration: 0.6 }} />`)],
+  ["hoisted variants duration", `const v = { visible: { transition: { duration: 0.6 } } };\nvoid v;\n`],
+  ["hoisted transition const", `const fadeTransition = { duration: 0.6 };\nvoid fadeTransition;\n`],
+  [
+    "typed Variants duration",
+    `import type { Variants } from "motion/react";\nconst v: Variants = { visible: { opacity: 1, duration: 0.6 } };\nvoid v;\n`,
+  ],
+  ["tailwind duration-500", jsx(`<div className="transition-all duration-500" />`)],
+  ["tailwind ease-in-out", jsx(`<div className="transition-opacity ease-in-out" />`)],
+  ["tailwind hover:duration-300", jsx(`<div className="hover:duration-300" />`)],
+  ["transition-[transform] with scale", jsx(`<div className="transition-[opacity,transform] scale-95" />`)],
+  ["svg fill hex", jsx(`<svg><path fill="#ff0000" /></svg>`)],
+  ["svg stopColor hex", jsx(`<svg><stop stopColor="#ff0000" /></svg>`)],
+  ["svg stroke rgb", jsx(`<svg><path stroke={"rgb(255 0 0)"} /></svg>`)],
+  ["style shorthand hex", jsx(`<div style={{ border: "1px solid #ff0000" }} />`)],
+  ["style template hex", jsx("<div style={{ color: `#ff0000` }} />")],
+  ["style template rgb", jsx("<div style={{ boxShadow: `0 0 4px rgba(0,0,0,${index})` }} />")],
+  ["named arbitrary colour", jsx(`<div className="bg-[red] text-[white]" />`)],
+  ["named arbitrary color:", jsx(`<div className="border-[color:navy]" />`)],
 ];
 
 const clean: Array<[string, string]> = [
@@ -50,6 +68,14 @@ const clean: Array<[string, string]> = [
   ["style with var()", jsx(`<div style={{ color: "var(--fg)" }} />`)],
   ["motion preset", `import { transitions } from "@/lib/motion";\n${jsx(`<div transition={transitions.fast} />`)}`],
   ["text-display token", jsx(`<h1 className="text-display" />`)],
+  ["motion timing tokens", jsx(`<div className="transition-[opacity,scale] duration-fast ease-standard ease-emphasized ease-exit" />`)],
+  ["transition-transform", jsx(`<div className="transition-transform duration-base" />`)],
+  ["svg currentColor / none", jsx(`<svg><path fill="currentColor" stroke="none" /></svg>`)],
+  ["svg fill var()", jsx(`<svg><stop stopColor="var(--primary)" /></svg>`)],
+  ["style template var()", jsx("<div style={{ width: `${index}%`, color: `var(--fg)` }} />")],
+  ["arbitrary keyword colours", jsx(`<div className="bg-[transparent] text-[inherit] fill-[currentColor]" />`)],
+  ["non-colour arbitrary", jsx(`<div className="text-[length:13px] bg-[url(/a.png)]" />`)],
+  ["sonner duration option", `export const opts = { duration: 3000 };\n`],
 ];
 
 describe("design-system guardrails", () => {

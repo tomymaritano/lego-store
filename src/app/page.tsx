@@ -90,7 +90,7 @@ export default function HomePage() {
                   src="https://www.lego.com/cdn/cs/set/assets/bltde62e4576a817dd4/75349.png"
                   alt="LEGO Captain Rex Helmet"
                   fill
-                  className="object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
+                  className="object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-slow ease-emphasized"
                   preload
                 />
               </div>
@@ -151,7 +151,7 @@ export default function HomePage() {
             {categories.map((cat) => (
               <motion.div key={cat.name} variants={staggerItem}>
                 <Link href={cat.href}>
-                  <div className="group relative bg-surface rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-border">
+                  <div className="group relative bg-surface rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-slow ease-standard border border-border">
                     <div className={`absolute inset-0 bg-linear-to-br/srgb ${cat.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
 
                     <div className="relative h-48 bg-background-tertiary">
@@ -159,7 +159,7 @@ export default function HomePage() {
                         src={cat.image}
                         alt={cat.name}
                         fill
-                        className="object-contain p-6 group-hover:scale-110 transition-transform duration-500"
+                        className="object-contain p-6 group-hover:scale-110 transition-transform duration-slow ease-emphasized"
                       />
                     </div>
 

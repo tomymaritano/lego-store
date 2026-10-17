@@ -50,7 +50,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
           src={src}
           alt={alt}
           fill
-          className="object-contain p-8 transition-transform duration-300 group-hover:scale-105"
+          className="object-contain p-8 transition-transform duration-slow ease-emphasized group-hover:scale-105"
           preload
         />
 

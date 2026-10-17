@@ -21,8 +21,16 @@ const DARK_VARIANT = "(^|[\\s\"'`:])dark:";
 // names as utilities, so every use is flagged until pages move to semantic tokens.
 const LEGACY_ALIAS =
   "-(lego-[a-z]+(-dark)?|brand-\\d\\d\\d?|background(-(primary|secondary|tertiary))?|foreground(-(primary|secondary|muted))?|status-(success|error|warning|info)|border-subtle)\\b";
-// Hex / functional colours in JSX style objects: style={{ color: "#f00" }}.
-const STYLE_COLOR = "^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?[(]|okl(ch|ab)[(])";
+// Named arbitrary colours: bg-[red], text-[white], border-[color:navy]. CSS keywords stay allowed.
+const NAMED_ARBITRARY_COLOR =
+  "\\b(bg|text|border(-[trblxy])?|ring|ring-offset|from|via|to|fill|stroke|outline|divide|decoration|accent|caret|shadow|placeholder)-[[](color:)?(?!(inherit|transparent|current[cC]olor|initial|unset|none|auto)\\])[a-zA-Z]+\\]";
+// Hex / functional colours anywhere in a JSX style value: style={{ border: "1px solid #f00" }}.
+const STYLE_COLOR = "(#[0-9a-fA-F]{3,8}\\b|(rgb|hsl)a?[(]|okl(ch|ab)[(])";
+// SVG presentation attributes: <path fill="#f00" />, <stop stopColor="rgb(...)" />.
+const SVG_COLOR_ATTRS = "^(fill|stroke|stopColor|floodColor|lightingColor|color)$";
+const SVG_COLOR = "^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?[(]|okl(ch|ab)[(])";
+// Tailwind numeric timing / stock easing: duration-300, ease-in-out. Use duration-fast/base/slow + ease-standard/emphasized/exit.
+const TW_TIMING = "(^|[\\s\"'`:])(duration-\\d+|ease-(in|out|in-out|linear))(?![\\w-])";
 // Motion props that take timing values.
 const MOTION_PROPS = "^(transition|animate|initial|exit|whileHover|whileTap|whileInView|whileFocus|variants)$";
 
@@ -34,6 +42,10 @@ const darkMessage =
   "No uses `dark:` fuera de src/components/ui: los tokens semánticos ya cambian con el tema.";
 const motionMessage =
   "Usá los presets de @/lib/motion (transitions.fast/base/slow, fadeInUp, staggerItem…) en vez de duraciones numéricas sueltas.";
+const twTimingMessage =
+  "Usá los tokens de movimiento (duration-fast/base/slow, ease-standard/emphasized/exit) en vez de duration-300 / ease-in-out.";
+const transitionScaleMessage =
+  "En Tailwind v4 scale-*/rotate-*/translate-* usan sus propias propiedades CSS: listá scale/rotate/translate en transition-[...], no `transform`.";
 
 const literal = (pattern, message) => [
   { selector: `Literal[value=/${pattern}/]`, message },
@@ -44,18 +56,27 @@ const rawColorSelectors = [
   ...literal(PALETTE, rawColorMessage),
   ...literal(WHITE_BLACK, rawColorMessage),
   ...literal(ARBITRARY_COLOR, rawColorMessage),
-  {
-    selector: `JSXAttribute[name.name='style'] Property > Literal[value=/${STYLE_COLOR}/]`,
-    message: rawColorMessage,
-  },
+  ...literal(NAMED_ARBITRARY_COLOR, rawColorMessage),
+  { selector: `JSXAttribute[name.name='style'] Property Literal[value=/${STYLE_COLOR}/]`, message: rawColorMessage },
+  { selector: `JSXAttribute[name.name='style'] TemplateElement[value.raw=/${STYLE_COLOR}/]`, message: rawColorMessage },
+  { selector: `JSXAttribute[name.name=/${SVG_COLOR_ATTRS}/] Literal[value=/${SVG_COLOR}/]`, message: rawColorMessage },
 ];
 const aliasSelectors = literal(LEGACY_ALIAS, aliasMessage);
 const darkSelectors = literal(DARK_VARIANT, darkMessage);
+const DURATION = "Property[key.name='duration'][value.type='Literal']";
 const motionSelectors = [
+  // Inline in a motion prop: transition={{ duration: 0.6 }}.
+  { selector: `JSXAttribute[name.name=/${MOTION_PROPS}/] ${DURATION}`, message: motionMessage },
+  // Hoisted: const v = { visible: { transition: { duration: 0.6 } } }.
+  { selector: `Property[key.name='transition'] ${DURATION}`, message: motionMessage },
+  // Hoisted by name or type: const transition = { duration: 0.6 }, const v: Variants = {...}.
+  { selector: `VariableDeclarator[id.name=/(transition|variants)$/i] ${DURATION}`, message: motionMessage },
   {
-    selector: `JSXAttribute[name.name=/${MOTION_PROPS}/] Property[key.name='duration'][value.type='Literal']`,
+    selector: `VariableDeclarator[id.typeAnnotation.typeAnnotation.typeName.name=/^(Variants|Transition)$/] ${DURATION}`,
     message: motionMessage,
   },
+  ...literal(TW_TIMING, twTimingMessage),
+  ...literal("transition-[[][a-z,-]*\\btransform\\b", transitionScaleMessage),
 ];
 
 export default defineConfig([

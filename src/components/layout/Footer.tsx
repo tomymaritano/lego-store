@@ -153,7 +153,7 @@ export function Footer() {
                 <a
                   key={social.name}
                   href={social.href}
-                  className={`w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center transition-all duration-300 hover:scale-110 ${social.color}`}
+                  className={`w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center transition-all duration-base ease-standard hover:scale-110 ${social.color}`}
                   aria-label={social.name}
                 >
                   <social.icon className="w-5 h-5" />
@@ -174,7 +174,7 @@ export function Footer() {
                     <Link
                       href={link.href}
                       prefetch={false}
-                      className="text-gray-400 hover:text-lego-yellow transition-colors text-sm inline-block hover:translate-x-1 duration-200"
+                      className="text-gray-400 hover:text-lego-yellow transition-[color,translate] duration-base ease-standard text-sm inline-block hover:translate-x-1"
                     >
                       {link.name}
                     </Link>
@@ -189,7 +189,7 @@ export function Footer() {
         <div className="mt-12 pt-8 border-t border-gray-800">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h4 className="font-bold text-lg mb-1">Suscríbete al Newsletter</h4>
+              <h4 className="font-bold text-white text-lg mb-1">Suscríbete al Newsletter</h4>
               <p className="text-gray-400 text-sm">
                 Recibe ofertas exclusivas y novedades directamente en tu correo.
               </p>

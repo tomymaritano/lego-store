@@ -94,7 +94,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
       data-testid="product-card"
     >
       <Link href={`/item/${product.id}`}>
-        <div className="group bg-surface rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 h-full flex flex-col border border-border">
+        <div className="group bg-surface rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-slow ease-standard h-full flex flex-col border border-border">
           {/* Image Container */}
           <div className="relative aspect-square bg-linear-to-br/srgb from-background-secondary to-background-tertiary overflow-hidden">
             {/* Badges */}
@@ -123,7 +123,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
 
             {/* Action Buttons */}
             <div className={cn(
-              "absolute top-3 right-3 z-10 flex flex-col gap-2 transition-all duration-300",
+              "absolute top-3 right-3 z-10 flex flex-col gap-2 transition-all duration-base ease-standard",
               isHovered ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
             )}>
               <button
@@ -166,7 +166,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
                 alt={product.name}
                 fill
                 className={cn(
-                  "object-contain transition-all duration-500",
+                  "object-contain transition-all duration-slow ease-emphasized",
                   isHovered ? "scale-110" : "scale-100"
                 )}
                 onError={() => setImageError(true)}
