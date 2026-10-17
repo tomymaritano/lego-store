@@ -170,8 +170,18 @@ test.describe("Accounts", () => {
     await page.getByRole("button", { name: "Cambiar contraseña" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Cambiamos tu contraseña." })).toBeVisible();
 
+    await expect(page).toHaveURL(/\/account$/);
+
+    // The confirmation is a one-time flash: gone on reload, and no link can fake it.
+    await expect
+      .poll(async () => (await page.context().cookies()).some((cookie) => cookie.name === "password-changed"))
+      .toBe(false);
     await page.reload();
     await expect(page.getByRole("heading", { level: 1, name: "Mi cuenta" })).toBeVisible();
+    await expect(page.getByText("Cambiamos tu contraseña.", { exact: false })).toHaveCount(0);
+    await page.goto("/account?password-changed=1");
+    await expect(page.getByRole("heading", { level: 1, name: "Mi cuenta" })).toBeVisible();
+    await expect(page.getByText("Cambiamos tu contraseña.", { exact: false })).toHaveCount(0);
 
     // The signed-out device asks Auth.js to refresh its token (any client may call this
     // endpoint): the revoked session must stay revoked.

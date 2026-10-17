@@ -8,6 +8,7 @@ import { formText, type FormState } from "@/lib/auth/form-state";
 import { requireUser } from "@/lib/auth/session";
 import { waitMessage } from "@/lib/rate-limit";
 import { changePasswordSchema, fieldErrors, profileSchema } from "@/lib/validations/auth";
+import { clearPasswordChangedFlash, setPasswordChangedFlash } from "./flash";
 
 /*
  * /account Server Actions. Each one checks the session itself (requireUser):
@@ -15,9 +16,6 @@ import { changePasswordSchema, fieldErrors, profileSchema } from "@/lib/validati
  */
 
 type PasswordField = "currentPassword" | "newPassword" | "confirmPassword";
-
-/** /account?password-changed=1: the password was just changed. */
-const PASSWORD_CHANGED_PARAM = "password-changed";
 
 export async function updateProfileAction(_previous: FormState<"name">, formData: FormData): Promise<FormState<"name">> {
   const user = await requireUser();
@@ -66,6 +64,12 @@ export async function changePasswordAction(
   if (renewal) await renewSession(renewal);
   // Redirect (post/redirect/get) instead of returning a state: re-rendering this request would
   // still read the old token from the request headers (Auth.js reads headers(), not the cookie
-  // just set) and treat this session as signed out. The page shows the confirmation.
-  redirect(`/account?${PASSWORD_CHANGED_PARAM}=1`);
+  // just set) and treat this session as signed out. The page shows the confirmation (flash.ts).
+  await setPasswordChangedFlash(user.id);
+  redirect("/account");
+}
+
+/** Called by the password form once it has shown the confirmation: a reload does not show it again. */
+export async function dismissPasswordNoticeAction(): Promise<void> {
+  await clearPasswordChangedFlash();
 }

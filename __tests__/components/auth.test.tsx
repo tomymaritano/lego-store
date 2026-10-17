@@ -118,6 +118,16 @@ describe("PasswordForm", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Cambiamos tu contraseña.");
   });
 
+  it("clears the one-time notice once shown, and keeps showing it when the page refreshes without it", async () => {
+    const onNoticeShown = vi.fn(async () => {});
+    const action = stubAction({}).action;
+    const { rerender } = render(<PasswordForm action={action} notice="Cambiamos tu contraseña." onNoticeShown={onNoticeShown} />);
+    await waitFor(() => expect(onNoticeShown).toHaveBeenCalledTimes(1));
+    rerender(<PasswordForm action={action} onNoticeShown={onNoticeShown} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Cambiamos tu contraseña.");
+    expect(onNoticeShown).toHaveBeenCalledTimes(1);
+  });
+
   it("shows a wrong current password on its field", async () => {
     const user = userEvent.setup();
     const { action } = stubAction<"currentPassword">({

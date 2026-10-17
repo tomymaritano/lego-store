@@ -7,7 +7,8 @@ import { ProfileForm } from "@/components/account/ProfileForm";
 import { PasswordForm } from "@/components/account/PasswordForm";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
 import { logoutAction } from "../(auth)/actions";
-import { changePasswordAction, updateProfileAction } from "./actions";
+import { changePasswordAction, dismissPasswordNoticeAction, updateProfileAction } from "./actions";
+import { hasPasswordChangedFlash } from "./flash";
 
 export const metadata: Metadata = {
   title: "Mi cuenta",
@@ -25,14 +26,10 @@ function SectionTitle({ id, icon, children }: { id: string; icon: React.ReactNod
   );
 }
 
-interface AccountPageProps {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
-
 /** /account: profile, password and session. Per-user, so rendered on every request. */
-export default async function AccountPage({ searchParams }: AccountPageProps) {
+export default async function AccountPage() {
   const user = await requireUser({ callbackUrl: "/account" });
-  const passwordChanged = (await searchParams)["password-changed"] === "1";
+  const passwordChanged = await hasPasswordChangedFlash(user.id);
   const firstName = user.name?.split(/\s+/)[0];
 
   return (
@@ -73,6 +70,7 @@ export default async function AccountPage({ searchParams }: AccountPageProps) {
                 <PasswordForm
                   action={changePasswordAction}
                   notice={passwordChanged ? "Cambiamos tu contraseña. Cerramos la sesión en tus otros dispositivos." : undefined}
+                  onNoticeShown={dismissPasswordNoticeAction}
                 />
               ) : (
                 <p className="text-fg-secondary">Ingresas con Google, así que tu cuenta no tiene contraseña propia.</p>

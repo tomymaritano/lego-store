@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import type { FormState } from "@/lib/auth/form-state";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-rules";
 import { Button, Field } from "@/components/ui";
@@ -14,6 +14,11 @@ export interface PasswordFormProps {
   action: (state: FormState<PasswordField>, formData: FormData) => Promise<FormState<PasswordField>>;
   /** Confirmation after a successful change (the action redirects back with it). */
   notice?: string;
+  /**
+   * Called once after `notice` is shown, to clear the one-time value behind it
+   * (src/app/account/flash.ts). The form keeps showing the notice it mounted with.
+   */
+  onNoticeShown?: () => Promise<void>;
 }
 
 /**
@@ -21,8 +26,14 @@ export interface PasswordFormProps {
  * signs out every other device; the form says so before and after. On
  * success the action redirects back here and the page passes `notice`.
  */
-export function PasswordForm({ action, notice }: PasswordFormProps) {
+export function PasswordForm({ action, notice: initialNotice, onNoticeShown }: PasswordFormProps) {
   const [state, formAction, pending] = useActionState(action, {});
+  // Latched: clearing the flash refreshes the page without it, and the notice should stay.
+  const [notice, setNotice] = useState(initialNotice);
+  if (initialNotice && initialNotice !== notice) setNotice(initialNotice);
+  useEffect(() => {
+    if (initialNotice && onNoticeShown) void onNoticeShown();
+  }, [initialNotice, onNoticeShown]);
   const formRef = useFocusFirstInvalid(state);
   const errors = state.fieldErrors ?? {};
 
