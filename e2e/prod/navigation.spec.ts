@@ -69,6 +69,13 @@ test.describe("Production navigation", () => {
 });
 
 test.describe("Production status codes", () => {
+  test("an unknown product is a real 404, a known one is 200", async ({ request }) => {
+    expect((await request.get("/item/nope")).status()).toBe(404);
+    const ok = await request.get("/item/1");
+    expect(ok.status()).toBe(200);
+    expect(await ok.text()).toContain("application/ld+json");
+  });
+
   test("an unknown category is a real 404, a known one is 200", async ({ request }) => {
     expect((await request.get("/category/nope")).status()).toBe(404);
     expect((await request.get("/category/nope?theme=Marvel")).status()).toBe(404);
