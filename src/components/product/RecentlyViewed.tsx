@@ -6,15 +6,22 @@ import { ProductImage } from "./ProductImage";
 import { motion, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { transitions } from "@/lib/motion";
-import { useRecentlyViewedIds, useRecentlyViewedStore } from "@/stores";
+import { useRecentlyViewedIds, useRecentlyViewedStore, useStoreHydrated } from "@/stores";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { IconButton, Price } from "@/components/ui";
 
-/** Records a product visit. Render it on the product page; re-runs per product. */
+/**
+ * Records a product visit. Render it on the product page; it records again
+ * whenever the product changes (client-side navigation between products).
+ * It waits for the store to load localStorage: recording earlier would write
+ * a one-item history over the saved one (persist saves on every set), and
+ * on a full page load this effect runs before the root StoreHydrator's.
+ */
 export function TrackRecentlyViewed({ productId }: { productId: string }) {
+  const hydrated = useStoreHydrated(useRecentlyViewedStore);
   useEffect(() => {
-    useRecentlyViewedStore.getState().addItem(productId);
-  }, [productId]);
+    if (hydrated) useRecentlyViewedStore.getState().addItem(productId);
+  }, [productId, hydrated]);
   return null;
 }
 
