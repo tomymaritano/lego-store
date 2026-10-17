@@ -36,12 +36,10 @@ function SearchContent() {
           <p className="text-foreground-muted mb-8">
             Usa la barra de búsqueda para encontrar tus sets LEGO favoritos.
           </p>
-          <Link href="/">
-            <Button size="lg">
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Volver a la tienda
-            </Button>
-          </Link>
+          <Button size="lg" render={<Link href="/" />}>
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Volver a la tienda
+          </Button>
         </div>
       </div>
     );
@@ -79,9 +77,7 @@ function SearchContent() {
           <p className="text-foreground-muted mb-6">
             Intenta con otras palabras clave o explora nuestras categorías.
           </p>
-          <Link href="/">
-            <Button>Ver todos los productos</Button>
-          </Link>
+          <Button render={<Link href="/" />}>Ver todos los productos</Button>
         </div>
       )}
     </div>

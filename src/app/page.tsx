@@ -70,17 +70,13 @@ export default function HomePage() {
                 Cada pieza cuenta una historia.
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
-                <Link href="#products">
-                  <Button size="lg" className="shadow-lg hover:shadow-xl">
-                    Explorar Productos
-                    <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
-                </Link>
-                <Link href="/category/helmet">
-                  <Button variant="outline" size="lg">
-                    Ver Helmets
-                  </Button>
-                </Link>
+                <Button size="lg" className="shadow-lg hover:shadow-xl" render={<Link href="#products" />}>
+                  Explorar Productos
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+                <Button variant="outline" size="lg" render={<Link href="/category/helmet" />}>
+                  Ver Helmets
+                </Button>
               </div>
             </motion.div>
 

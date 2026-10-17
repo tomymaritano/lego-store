@@ -27,18 +27,14 @@ export default function NotFound() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/">
-            <Button size="lg">
-              <Home className="w-4 h-4 mr-2" />
-              Ir al inicio
-            </Button>
-          </Link>
-          <Link href="/search">
-            <Button variant="outline" size="lg">
-              <Search className="w-4 h-4 mr-2" />
-              Buscar productos
-            </Button>
-          </Link>
+          <Button size="lg" render={<Link href="/" />}>
+            <Home className="w-4 h-4 mr-2" />
+            Ir al inicio
+          </Button>
+          <Button variant="outline" size="lg" render={<Link href="/search" />}>
+            <Search className="w-4 h-4 mr-2" />
+            Buscar productos
+          </Button>
         </div>
       </div>
     </div>

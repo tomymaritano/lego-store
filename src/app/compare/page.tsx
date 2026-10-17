@@ -41,12 +41,10 @@ export default function ComparePage() {
             <p className="text-foreground-muted mb-8">
               Agrega productos a la comparación para ver sus características lado a lado.
             </p>
-            <Link href="/">
-              <Button size="lg">
-                <ChevronLeft className="w-4 h-4 mr-2" />
-                Explorar productos
-              </Button>
-            </Link>
+            <Button size="lg" render={<Link href="/" />}>
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Explorar productos
+            </Button>
           </div>
         </div>
       </PageTransition>
@@ -209,11 +207,9 @@ export default function ComparePage() {
                         <ShoppingCart className="w-4 h-4 mr-2" />
                         Agregar
                       </Button>
-                      <Link href={`/item/${item.id}`}>
-                        <Button variant="outline" size="sm" className="w-full">
-                          Ver detalles
-                        </Button>
-                      </Link>
+                      <Button variant="outline" size="sm" className="w-full" render={<Link href={`/item/${item.id}`} />}>
+                        Ver detalles
+                      </Button>
                     </div>
                   </td>
                 ))}

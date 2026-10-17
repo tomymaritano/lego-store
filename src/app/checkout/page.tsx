@@ -427,12 +427,10 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
         </div>
 
         <div className="flex justify-between pt-4">
-          <Link href="/cart">
-            <Button variant="ghost" type="button">
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Volver al carrito
-            </Button>
-          </Link>
+          <Button variant="ghost" render={<Link href="/cart" />}>
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Volver al carrito
+          </Button>
           <Button type="submit" size="lg" disabled={isSubmitting}>
             Continuar al pago
           </Button>
@@ -719,11 +717,9 @@ function ConfirmationStep({ orderId, onContinueShopping }: ConfirmationStepProps
         <Button size="lg" className="w-full" onClick={onContinueShopping}>
           Continuar comprando
         </Button>
-        <Link href="/" className="block">
-          <Button variant="outline" className="w-full">
-            Volver al inicio
-          </Button>
-        </Link>
+        <Button variant="outline" className="w-full" render={<Link href="/" />}>
+          Volver al inicio
+        </Button>
       </div>
     </motion.div>
   );

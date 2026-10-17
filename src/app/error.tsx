@@ -54,12 +54,10 @@ export default function Error({ error, reset }: ErrorProps) {
             <RefreshCw className="w-4 h-4 mr-2" />
             Intentar de nuevo
           </Button>
-          <Link href="/">
-            <Button variant="outline" size="lg">
-              <Home className="w-4 h-4 mr-2" />
-              Ir al inicio
-            </Button>
-          </Link>
+          <Button variant="outline" size="lg" render={<Link href="/" />}>
+            <Home className="w-4 h-4 mr-2" />
+            Ir al inicio
+          </Button>
         </div>
       </div>
     </div>

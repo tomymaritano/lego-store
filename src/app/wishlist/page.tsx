@@ -43,12 +43,10 @@ export default function WishlistPage() {
           <p className="text-foreground-muted mb-8">
             Guarda tus productos favoritos para comprarlos más tarde.
           </p>
-          <Link href="/">
-            <Button size="lg">
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Explorar productos
-            </Button>
-          </Link>
+          <Button size="lg" render={<Link href="/" />}>
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Explorar productos
+          </Button>
         </div>
       </div>
     );
