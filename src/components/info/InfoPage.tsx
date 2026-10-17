@@ -56,7 +56,7 @@ export function Prose({ className, ...props }: ComponentProps<"div">) {
 /** Highlighted fact tile ("Envío gratis desde $5.000"). */
 export function FactCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
   return (
-    <li className="flex gap-4 rounded-2xl border border-border bg-surface p-5 shadow-card transition-[translate,box-shadow] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-lg motion-reduce:hover:translate-y-0">
+    <li className="flex gap-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
       <span
         aria-hidden="true"
         className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-bg-muted text-info [&_svg]:size-5"
