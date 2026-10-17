@@ -50,6 +50,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright Chromium (Storybook browser tests)
+        run: npx playwright install --with-deps chromium
+
       - name: Run tests
         run: npm run test -- --run --coverage
 
