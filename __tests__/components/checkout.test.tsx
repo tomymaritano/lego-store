@@ -74,6 +74,14 @@ describe("Checkout", () => {
     expect(screen.getByTestId("checkout-total")).toHaveTextContent(formatPrice(2746));
   });
 
+  it("shows the checkout h1 and breadcrumb while buying; a list that does not scroll is no tab stop", () => {
+    render(<CheckoutFlow />);
+    expect(screen.getByRole("heading", { level: 1, name: "Finalizar compra" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Ruta de navegación" })).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Productos del pedido" });
+    expect(list).not.toHaveAttribute("tabindex");
+  });
+
   it("goes through every step, keeps only a card summary and confirms the order", async () => {
     const user = userEvent.setup();
     render(<CheckoutFlow />);
@@ -116,7 +124,10 @@ describe("Checkout", () => {
     expect(within(confirmation).getByTestId("order-id").textContent).toMatch(/^LEGO-/);
     expect(confirmation).toHaveTextContent(formatPrice(2746));
     expect(confirmation).toHaveTextContent("ana@example.com");
-    await waitFor(() => expect(screen.getByRole("heading", { name: "¡Gracias por tu compra!" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toHaveFocus());
+    // The order is done: the "Finalizar compra" heading and the checkout breadcrumb are gone.
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
     expect(useCartStore.getState().cart).toHaveLength(0);
     expect(screen.getByRole("link", { name: /Seguir comprando/ })).toHaveAttribute("href", "/");
   }, 20_000); // a lot of typing: slow when the whole suite runs in parallel

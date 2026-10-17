@@ -36,6 +36,7 @@ function useOverflowsY<T extends HTMLElement>(contentKey: unknown) {
     if (!el) return;
     const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
     measure();
+    if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     for (const child of Array.from(el.children)) observer.observe(child);
