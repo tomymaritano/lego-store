@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { AnimatePresence, motion, type PanInfo } from "motion/react";
+import { AnimatePresence, motion, useIsPresent, type PanInfo } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { gallerySlide } from "@/lib/motion";
 import { calculateDiscount, cn } from "@/lib/utils";
@@ -124,7 +124,7 @@ export function ProductGallery({ product }: { product: Product }) {
             onClickCapture={swallowClickAfterDrag}
             style={touch && count > 1 ? { touchAction: "pan-y" } : undefined}
           >
-            <ImageZoom src={gallery.selectedSrc} alt={product.name} className="absolute inset-0" />
+            <Slide src={gallery.selectedSrc} alt={product.name} />
           </motion.div>
         </AnimatePresence>
 
@@ -168,6 +168,16 @@ export function ProductGallery({ product }: { product: Product }) {
         onImageError={gallery.markFailed}
         productName={product.name}
       />
+    </div>
+  );
+}
+
+/** The zoomable picture; while it slides out it is inert, so only the incoming one can take focus or clicks. */
+function Slide({ src, alt }: { src: string; alt: string }) {
+  const present = useIsPresent();
+  return (
+    <div inert={!present} className="absolute inset-0">
+      <ImageZoom src={src} alt={alt} className="absolute inset-0" />
     </div>
   );
 }

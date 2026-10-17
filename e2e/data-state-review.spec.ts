@@ -27,6 +27,8 @@ test.describe("Product page", () => {
   test("reviews sit inside the page gutter and use h3 titles", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/item/1");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("tab", { name: /Reseñas/ }).click();
     const heading = page.getByRole("heading", { level: 2, name: "Reseñas de clientes" });
     await heading.scrollIntoViewIfNeeded();
     const box = await heading.boundingBox();
