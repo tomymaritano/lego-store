@@ -176,11 +176,12 @@ scripts/               Presupuesto de JS y capturas del README
   a la versión nueva exige una renovación firmada con `AUTH_SECRET` que arma la
   acción de cambio de contraseña para su propia sesión (`session-token.ts`). El rol
   también sale siempre de la base, nunca del token.
-- **Roles** USER / ADMIN: el email de `ADMIN_EMAIL` recibe ADMIN en el seed, al
-  registrarse y al entrar por primera vez con Google (solo con el email verificado
-  por Google). Como no hay verificación de email, si `ADMIN_EMAIL` está definida
-  sembrá esa cuenta antes de publicar el sitio: si no, quien se registre primero con
-  ese email sería admin. Los emails se guardan siempre en minúsculas (`CHECK` en la
+- **Roles** USER / ADMIN: el email de `ADMIN_EMAIL` recibe ADMIN en el seed y al
+  entrar por primera vez con Google (solo con el email verificado por Google). El
+  formulario de registro **no** acepta `ADMIN_EMAIL` (responde como si ya existiera
+  la cuenta): como no hay verificación de email, quien se registrara primero con esa
+  dirección en una base nueva sería admin. Esto se aparta del spec («recibe ADMIN…
+  al registrarse»); la cuenta admin sale solo del seed. Los emails se guardan siempre en minúsculas (`CHECK` en la
   base); `normalizeEmail()` corre antes de cada escritura y búsqueda, incluido el
   adapter de OAuth.
 - **Protección en dos capas**: `src/proxy.ts` manda a `/login?callbackUrl=…` a quien

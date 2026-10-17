@@ -38,10 +38,10 @@ async function create(name: string, email: string) {
 
 beforeAll(async () => {
   await resetDatabase();
-  vi.stubEnv("ADMIN_EMAIL", "jefa@tienda.test");
   customer = await create("Ana", "ana@tienda.test");
+  // Admins never come from registration (the seed makes them): promote directly.
   admin = await create("Jefa", "jefa@tienda.test");
-  vi.unstubAllEnvs();
+  await testDb.user.update({ where: { id: admin.id }, data: { role: "ADMIN" } });
 });
 
 beforeEach(() => {

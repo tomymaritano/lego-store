@@ -89,6 +89,14 @@ describe("registerAction", () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
+  it("does not let anyone register ADMIN_EMAIL (it would be an unverified admin)", async () => {
+    vi.stubEnv("ADMIN_EMAIL", "duena@tienda.test");
+    const state = await registerAction({}, signUp({ email: "DUENA@tienda.test" }));
+    expect(state.fieldErrors?.email).toMatch(/^Ya existe una cuenta con ese email/);
+    expect(await testDb.user.count({ where: { email: "duena@tienda.test" } })).toBe(0);
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
   it(`limits new accounts per IP (${rateLimits.registerIp.limit} per hour)`, async () => {
     await testDb.rateLimit.create({
       data: { key: "register-ip:203.0.113.50", count: rateLimits.registerIp.limit, resetAt: new Date(Date.now() + 30 * 60_000) },

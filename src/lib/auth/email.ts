@@ -10,9 +10,10 @@ export function normalizeEmail(email: string): string {
 }
 
 /**
- * Role for a new account: ADMIN when the email is ADMIN_EMAIL (compared
- * normalised), USER otherwise. Used by registration and by the OAuth adapter;
- * the seed gives the same account the same role.
+ * Role for an email: ADMIN when it is ADMIN_EMAIL (compared normalised), USER
+ * otherwise. The OAuth adapter uses it for addresses Google verified; password
+ * registration uses it only to refuse ADMIN_EMAIL (registerUser), since only
+ * the seed creates that account.
  */
 export function roleForEmail(email: string, adminEmail: string | undefined = process.env.ADMIN_EMAIL): Role {
   const admin = adminEmail?.trim() ? normalizeEmail(adminEmail) : null;

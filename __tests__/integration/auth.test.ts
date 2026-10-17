@@ -48,9 +48,10 @@ describe("registerUser", () => {
     expect(await verifyPassword(PASSWORD, row.passwordHash!)).toBe(true);
   });
 
-  it("gives ADMIN_EMAIL the ADMIN role, whatever the casing", async () => {
+  it("refuses to register ADMIN_EMAIL (unverified), whatever the casing: only the seed creates it", async () => {
     const result = await registerUser({ name: "Jefa", email: "JEFA@Tienda.test", password: PASSWORD });
-    expect(result).toMatchObject({ ok: true, user: { email: "jefa@tienda.test", role: "ADMIN" } });
+    expect(result).toEqual({ ok: false, reason: "email_taken" });
+    expect(await testDb.user.count({ where: { email: "jefa@tienda.test" } })).toBe(0);
   });
 
   it("refuses a second account for the same email, even with other casing", async () => {

@@ -28,13 +28,23 @@ const accountSelect = { id: true, name: true, email: true, role: true, sessionVe
 
 export type RegisterResult = { ok: true; user: AccountUser } | { ok: false; reason: "email_taken" };
 
-/** Creates a password account. ADMIN_EMAIL gets the ADMIN role, like in the seed. */
+/**
+ * Creates a password account, always as USER.
+ *
+ * ADMIN_EMAIL cannot be registered here at all (answered like a taken email):
+ * nobody verifies the address, so whoever registered it first, say on a fresh
+ * database, would become admin. That account comes only from the seed
+ * (`npm run db:seed` with ADMIN_EMAIL / ADMIN_PASSWORD) or from a Google
+ * sign-in with an address Google has verified (adapter.ts).
+ */
 export async function registerUser(input: { name: string; email: string; password: string }): Promise<RegisterResult> {
   const email = normalizeEmail(input.email);
+  // Hashed first either way, so refusing the admin address takes as long as a registration.
   const passwordHash = await hashPassword(input.password);
+  if (roleForEmail(email) === "ADMIN") return { ok: false, reason: "email_taken" };
   try {
     const user = await getDb().user.create({
-      data: { name: input.name.trim(), email, passwordHash, role: roleForEmail(email) },
+      data: { name: input.name.trim(), email, passwordHash, role: "USER" },
       select: accountSelect,
     });
     return { ok: true, user };
