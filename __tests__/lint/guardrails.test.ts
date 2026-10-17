@@ -10,9 +10,12 @@ const APP_FILE = "src/app/zz-guardrail-fixture/page.tsx";
 const UI_FILE = "src/components/ui/ZzGuardrailFixture.tsx";
 
 let eslint: ESLint;
-beforeAll(() => {
+// Loading the flat config and typed plugins is slow on a cold, busy worker:
+// warm up here so that cost is not charged to the first fixture's 5s budget.
+beforeAll(async () => {
   eslint = new ESLint({ cwd: process.cwd() });
-});
+  await eslint.lintText("export {};\n", { filePath: APP_FILE });
+}, 60_000);
 
 async function guardrailHits(code: string, filePath: string) {
   const [result] = await eslint.lintText(code, { filePath });
