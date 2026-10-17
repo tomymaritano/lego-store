@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { ProductSummary, WishlistItem } from "@/types";
 import { PLACEHOLDER_IMAGE, isRecord, persistStorage } from "./persist";
+import { insertAt, type RestorePosition } from "./restorePosition";
 
 interface WishlistState {
   wishlist: WishlistItem[];
@@ -12,8 +13,8 @@ interface WishlistState {
   clearWishlist: () => void;
   /** Drops products the catalogue no longer knows (see useProductsByIds). */
   removeMany: (ids: string[]) => void;
-  /** Puts a removed item back (undo), at `index` when given. No-op if it is already saved. */
-  restoreItem: (item: WishlistItem, index?: number) => void;
+  /** Puts a removed item back (undo), at `at` when given. No-op if it is already saved. */
+  restoreItem: (item: WishlistItem, at?: RestorePosition) => void;
 }
 
 const snapshot = ({ id, name, price, img, stock }: ProductSummary): WishlistItem => ({
@@ -49,13 +50,12 @@ export const useWishlistStore = create<WishlistState>()(
 
       removeMany: (ids) => set((state) => ({ wishlist: state.wishlist.filter((item) => !ids.includes(item.id)) })),
 
-      restoreItem: (item, index) =>
-        set((state) => {
-          if (state.wishlist.some((saved) => saved.id === item.id)) return state;
-          const wishlist = [...state.wishlist];
-          wishlist.splice(index ?? wishlist.length, 0, item);
-          return { wishlist };
-        }),
+      restoreItem: (item, at) =>
+        set((state) =>
+          state.wishlist.some((saved) => saved.id === item.id)
+            ? state
+            : { wishlist: insertAt(state.wishlist, item, (saved) => saved.id, at) }
+        ),
     }),
     {
       name: "lego-wishlist-storage",

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { CartItem, ProductSummary } from "@/types";
 import { PLACEHOLDER_IMAGE, isRecord, persistStorage } from "./persist";
+import { insertAt, type RestorePosition } from "./restorePosition";
 
 interface CartState {
   cart: CartItem[];
@@ -14,10 +15,10 @@ interface CartState {
   setQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   /**
-   * Puts a removed line back (undo), at `index` when given. No-op when the
-   * product already has a line again.
+   * Puts a removed line back (undo), at `at` when given (see RestorePosition).
+   * No-op when the product already has a line again.
    */
-  restoreItem: (line: CartItem, index?: number) => void;
+  restoreItem: (line: CartItem, at?: RestorePosition) => void;
 }
 
 const clamp = (quantity: number, stock: number) => Math.min(stock, Math.max(1, Math.round(quantity)));
@@ -72,13 +73,12 @@ export const useCartStore = create<CartState>()(
 
       clearCart: () => set({ cart: [] }),
 
-      restoreItem: (line, index) =>
-        set((state) => {
-          if (state.cart.some((item) => item.id === line.id)) return state;
-          const cart = [...state.cart];
-          cart.splice(index ?? cart.length, 0, line);
-          return { cart };
-        }),
+      restoreItem: (line, at) =>
+        set((state) =>
+          state.cart.some((item) => item.id === line.id)
+            ? state
+            : { cart: insertAt(state.cart, line, (item) => item.id, at) }
+        ),
     }),
     {
       name: "lego-cart-storage",

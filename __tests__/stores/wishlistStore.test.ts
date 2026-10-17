@@ -79,8 +79,8 @@ describe("wishlistStore", () => {
     addToWishlist({ id: "2", name: "Leia", price: 649, img: "/leia.png", stock: 1 });
     const saved = useWishlistStore.getState().wishlist[0];
     removeFromWishlist("1");
-    restoreItem(saved, 0);
-    restoreItem(saved, 0);
+    restoreItem(saved, { index: 0, before: "2" });
+    restoreItem(saved, { index: 0 });
     expect(useWishlistStore.getState().wishlist.map((item) => item.id)).toEqual(["1", "2"]);
   });
 });

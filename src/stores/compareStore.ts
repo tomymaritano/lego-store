@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { idsFrom, isRecord, persistStorage } from "./persist";
+import { insertAt, type RestorePosition } from "./restorePosition";
 
 export const MAX_COMPARE_ITEMS = 4;
 
@@ -16,8 +17,8 @@ interface CompareState {
   clearCompare: () => void;
   /** Drops ids the catalogue no longer knows (see useProductsByIds). */
   removeMany: (ids: string[]) => void;
-  /** Puts a removed id back (undo) at `index`, unless it is already there or the list is full. */
-  restoreId: (id: string, index?: number) => void;
+  /** Puts a removed id back (undo) at `at`, unless it is already there or the list is full. */
+  restoreId: (id: string, at?: RestorePosition) => void;
 }
 
 export const useCompareStore = create<CompareState>()(
@@ -46,13 +47,12 @@ export const useCompareStore = create<CompareState>()(
 
       removeMany: (ids) => set((state) => ({ ids: state.ids.filter((item) => !ids.includes(item)) })),
 
-      restoreId: (id, index) =>
-        set((state) => {
-          if (state.ids.includes(id) || state.ids.length >= MAX_COMPARE_ITEMS) return state;
-          const ids = [...state.ids];
-          ids.splice(index ?? ids.length, 0, id);
-          return { ids };
-        }),
+      restoreId: (id, at) =>
+        set((state) =>
+          state.ids.includes(id) || state.ids.length >= MAX_COMPARE_ITEMS
+            ? state
+            : { ids: insertAt(state.ids, id, (item) => item, at) }
+        ),
     }),
     {
       name: "lego-compare-storage",

@@ -126,7 +126,7 @@ describe("cartStore", () => {
       addItem(leia);
       const line = useCartStore.getState().cart[0];
       removeItem("1");
-      restoreItem(line, 0);
+      restoreItem(line, { index: 0, before: "2" });
       expect(useCartStore.getState().cart.map((l) => [l.id, l.quantity])).toEqual([
         ["1", 2],
         ["2", 1],
@@ -138,7 +138,7 @@ describe("cartStore", () => {
       addItem(leia);
       const line = { id: "1", name: "Captain Rex Helmet", price: 899, image: "/rex.png", quantity: 1, stock: 3 };
       restoreItem(line);
-      restoreItem(line, 0);
+      restoreItem(line, { index: 0 });
       expect(useCartStore.getState().cart.map((l) => l.id)).toEqual(["2", "1"]);
     });
   });

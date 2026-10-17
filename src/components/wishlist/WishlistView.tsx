@@ -7,13 +7,21 @@ import { ArrowRight, Heart, ShoppingCart, Trash2 } from "lucide-react";
 import { fadeIn, fadeInUp, gridItem, transitions } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
 import { cn, pluralize } from "@/lib/utils";
-import { useCartStore, useIsInCart, useStoreHydrated, useWishlistItems, useWishlistStore } from "@/stores";
+import {
+  positionIn,
+  useCartItems,
+  useCartQuantity,
+  useCartStore,
+  useStoreHydrated,
+  useWishlistItems,
+  useWishlistStore,
+} from "@/stores";
 import { productActionCopy } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, EmptyState, IconButton, Price, Skeleton, cardVariants, showToast } from "@/components/ui";
 import { ProductImage } from "@/components/product/ProductImage";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
-import type { Product, ProductSummary, WishlistItem } from "@/types";
+import type { CartItem, Product, ProductSummary, WishlistItem } from "@/types";
 
 /** What a saved row shows: fresh catalogue data when loaded, the stored snapshot until then. */
 interface SavedProduct extends ProductSummary {
@@ -45,15 +53,20 @@ function focusAfterRemoval(neighbourId: string | undefined) {
   });
 }
 
+const atCartLimit = "Ya tienes el máximo disponible en el carrito";
+
 /** Takes an item out of the wishlist, remembering where it was so undo can put it back. */
 function takeOut(id: string) {
   const { wishlist, removeFromWishlist, restoreItem } = useWishlistStore.getState();
-  const index = wishlist.findIndex((item) => item.id === id);
-  const item = wishlist[index];
-  const neighbour = wishlist[index + 1] ?? wishlist[index - 1];
+  const at = positionIn(
+    wishlist.map((item) => item.id),
+    id
+  );
+  const item = wishlist[at.index];
+  const neighbour = wishlist[at.index + 1] ?? wishlist[at.index - 1];
   removeFromWishlist(id);
   focusAfterRemoval(neighbour?.id);
-  return () => item && restoreItem(item, index);
+  return () => item && restoreItem(item, at);
 }
 
 function remove(product: SavedProduct) {
@@ -61,24 +74,88 @@ function remove(product: SavedProduct) {
   showToast.undo(productActionCopy.removedFromWishlist(product.name), undo);
 }
 
-/** Adds one unit to the cart and drops the product from the wishlist; undo reverts both. */
+/** The cart line already holds all the stock (the line's own, or the fresh catalogue figure). */
+const isFull = (line: CartItem, product: SavedProduct) => line.quantity >= Math.min(line.stock, product.stock);
+
+const cartQuantity = (id: string) => useCartStore.getState().cart.find((line) => line.id === id)?.quantity ?? 0;
+
+/** Adds one unit; returns how many units the cart really took (0 at the stock limit). */
+function addOne(product: SavedProduct) {
+  const before = cartQuantity(product.id);
+  useCartStore.getState().addItem(product, 1);
+  return cartQuantity(product.id) - before;
+}
+
+/**
+ * Takes back `added` units of `id` (undo). Works on the cart as it is now, so
+ * other lines, and changes made since, are kept.
+ */
+function takeBackFromCart(id: string, added: number) {
+  const { setQuantity, removeItem } = useCartStore.getState();
+  const current = cartQuantity(id);
+  if (current === 0) return;
+  if (current - added <= 0) removeItem(id);
+  else setQuantity(id, current - added);
+}
+
+/**
+ * Adds one unit to the cart and drops the product from the wishlist; undo
+ * reverts both. When the cart already holds all the stock nothing is added,
+ * so the product stays saved. Returns whether it moved.
+ */
 function moveToCart(product: SavedProduct) {
-  const cart = useCartStore.getState();
-  const before = cart.cart.find((line) => line.id === product.id)?.quantity;
-  cart.addItem(product, 1);
+  const added = addOne(product);
+  if (added === 0) {
+    showToast.info(atCartLimit);
+    return false;
+  }
   const undoWishlist = takeOut(product.id);
   showToast.undo(productActionCopy.movedToCart(product.name), () => {
     undoWishlist();
-    const { setQuantity, removeItem } = useCartStore.getState();
-    if (before) setQuantity(product.id, before);
-    else removeItem(product.id);
+    takeBackFromCart(product.id, added);
+  });
+  return true;
+}
+
+/**
+ * Moves every product the cart can still take. Undo takes back only those
+ * units and puts only those items back in the list, so anything added to
+ * either list since then stays.
+ */
+function moveAllToCart(products: SavedProduct[]) {
+  const moved = products.flatMap((product) => {
+    const added = addOne(product);
+    return added > 0 ? [{ id: product.id, added }] : [];
+  });
+  if (moved.length === 0) {
+    showToast.info(atCartLimit);
+    return;
+  }
+
+  const { wishlist, removeMany } = useWishlistStore.getState();
+  const ids = wishlist.map((item) => item.id);
+  const saved = moved.flatMap(({ id }) => {
+    const item = wishlist.find((entry) => entry.id === id);
+    return item ? [{ item, at: positionIn(ids, id) }] : [];
+  });
+  removeMany(moved.map(({ id }) => id));
+  focusAfterRemoval(useWishlistStore.getState().wishlist[0]?.id);
+
+  showToast.undo(productActionCopy.movedAllToCart(moved.length), () => {
+    moved.forEach(({ id, added }) => takeBackFromCart(id, added));
+    const { restoreItem } = useWishlistStore.getState();
+    saved.forEach(({ item, at }) => restoreItem(item, at));
   });
 }
 
 function SavedCard({ product, index, ref }: { product: SavedProduct; index: number; ref?: Ref<HTMLLIElement> }) {
   const imageRef = useRef<HTMLSpanElement>(null);
-  const inCart = useIsInCart(product.id);
+  const inCart = useCartQuantity(product.id);
   const available = product.stock > 0;
+  const atLimit = useCartStore((state) => {
+    const line = state.cart.find((entry) => entry.id === product.id);
+    return available && !!line && isFull(line, product);
+  });
   const titleId = `saved-${product.id}-title`;
 
   return (
@@ -133,21 +210,26 @@ function SavedCard({ product, index, ref }: { product: SavedProduct; index: numb
             {product.name}
           </Link>
         </h2>
+        {/* Above the price, so price and CTA stay on one line across the row. */}
+        {inCart > 0 ? (
+          <p className="text-caption text-fg-muted" data-testid="saved-in-cart">
+            {atLimit ? atCartLimit : `Ya tienes ${pluralize(inCart, "unidad", "unidades")} en el carrito`}
+          </p>
+        ) : null}
         <Price value={product.price} originalValue={product.originalPrice} size="md" className="mt-auto pt-1" />
         <Button
           size="sm"
           className="mt-2 w-full"
-          disabled={!available}
+          disabled={!available || atLimit}
           onClick={() => {
-            flyToCart(imageRef.current, product.img);
-            moveToCart(product);
+            const image = imageRef.current;
+            if (moveToCart(product)) flyToCart(image, product.img);
           }}
           data-testid="move-to-cart-btn"
         >
           <ShoppingCart aria-hidden="true" />
-          {available ? "Mover al carrito" : "Agotado"}
+          {!available ? "Agotado" : atLimit ? "Máximo en el carrito" : "Mover al carrito"}
         </Button>
-        {inCart ? <p className="text-center text-caption text-fg-muted">Ya tienes este set en el carrito</p> : null}
       </div>
     </motion.li>
   );
@@ -168,27 +250,24 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
   );
   const fresh = new Map(products.map((p) => [p.id, p]));
   const saved = wishlist.map((item) => toSaved(item, fresh.get(item.id)));
-  const available = saved.filter((p) => p.stock > 0);
+  const cart = useCartItems();
+  const lines = new Map(cart.map((line) => [line.id, line]));
+  // What "Mover todo" can move: in stock and not already at the limit in the cart.
+  const movable = saved.filter((p) => {
+    const line = lines.get(p.id);
+    return p.stock > 0 && !(line && isFull(line, p));
+  });
   const empty = hydrated && wishlist.length === 0;
 
-  const moveAll = () => {
-    const cartBefore = useCartStore.getState().cart;
-    const wishlistBefore = useWishlistStore.getState().wishlist;
-    const { addItem } = useCartStore.getState();
-    available.forEach((product) => addItem(product, 1));
-    useWishlistStore.getState().removeMany(available.map((p) => p.id));
-    focusAfterRemoval(useWishlistStore.getState().wishlist[0]?.id);
-    showToast.undo(productActionCopy.movedAllToCart(available.length), () => {
-      useCartStore.setState({ cart: cartBefore });
-      useWishlistStore.setState({ wishlist: wishlistBefore });
-    });
-  };
-
+  /** Undo puts back only the cleared items; anything saved since then stays. */
   const clearAll = () => {
     const before = useWishlistStore.getState().wishlist;
     useWishlistStore.getState().clearWishlist();
     focusAfterRemoval(undefined);
-    showToast.undo(productActionCopy.wishlistCleared(), () => useWishlistStore.setState({ wishlist: before }));
+    showToast.undo(productActionCopy.wishlistCleared(), () => {
+      const { restoreItem } = useWishlistStore.getState();
+      before.forEach((item, index) => restoreItem(item, { index }));
+    });
   };
 
   return (
@@ -210,8 +289,8 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
               <Trash2 aria-hidden="true" />
               Vaciar lista
             </Button>
-            {available.length > 1 ? (
-              <Button variant="secondary" size="sm" onClick={moveAll}>
+            {movable.length > 1 ? (
+              <Button variant="secondary" size="sm" onClick={() => moveAllToCart(movable)}>
                 <ShoppingCart aria-hidden="true" />
                 Mover todo al carrito
               </Button>

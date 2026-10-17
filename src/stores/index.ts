@@ -8,6 +8,7 @@ export {
   MAX_COMPARE_ITEMS,
   type CompareResult,
 } from "./compareStore";
+export { positionIn, type RestorePosition } from "./restorePosition";
 export { useRecentlyViewedStore, useRecentlyViewedIds } from "./recentlyViewedStore";
 export { useCheckoutStore, summarizePayment } from "./checkoutStore";
 export { useThemeStore } from "./themeStore";

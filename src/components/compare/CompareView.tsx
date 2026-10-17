@@ -7,7 +7,7 @@ import { ArrowRight, ChevronsLeftRight, Plus, Scale, X } from "lucide-react";
 import { fadeIn, fadeInUp, gridItem, transitions } from "@/lib/motion";
 import { COMPARE_ROWS, differingRows, type CompareRowKey } from "@/lib/compare";
 import { cn } from "@/lib/utils";
-import { MAX_COMPARE_ITEMS, useCompareIds, useCompareStore, useStoreHydrated } from "@/stores";
+import { MAX_COMPARE_ITEMS, positionIn, useCompareIds, useCompareStore, useStoreHydrated } from "@/stores";
 import { productActionCopy } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, Checkbox, EmptyState, IconButton, Price, Rating, Skeleton, showToast } from "@/components/ui";
@@ -54,17 +54,21 @@ function focusAfterRemoval(neighbourId: string | undefined) {
 
 function remove(product: Product) {
   const { ids, removeFromCompare, restoreId } = useCompareStore.getState();
-  const index = ids.indexOf(product.id);
+  const at = positionIn(ids, product.id);
   removeFromCompare(product.id);
-  focusAfterRemoval(ids[index + 1] ?? ids[index - 1]);
-  showToast.undo(productActionCopy.removedFromCompare(product.name), () => restoreId(product.id, index));
+  focusAfterRemoval(ids[at.index + 1] ?? ids[at.index - 1]);
+  showToast.undo(productActionCopy.removedFromCompare(product.name), () => restoreId(product.id, at));
 }
 
+/** Undo puts back only the cleared ids; ids added since then stay (up to the limit). */
 function clearAll() {
-  const before = useCompareStore.getState().ids;
-  useCompareStore.getState().clearCompare();
+  const { ids: before, clearCompare } = useCompareStore.getState();
+  clearCompare();
   focusAfterRemoval(undefined);
-  showToast.undo(productActionCopy.compareCleared(), () => useCompareStore.setState({ ids: before }));
+  showToast.undo(productActionCopy.compareCleared(), () => {
+    const { restoreId } = useCompareStore.getState();
+    before.forEach((id, index) => restoreId(id, { index }));
+  });
 }
 
 /** Cells move to their new column when a product is removed. */

@@ -80,11 +80,11 @@ describe("compareStore", () => {
     useCompareStore.setState({ ids: ["1", "2", "3"] });
     const { removeFromCompare, restoreId } = useCompareStore.getState();
     removeFromCompare("2");
-    restoreId("2", 1);
-    restoreId("2", 0);
+    restoreId("2", { index: 1, before: "3" });
+    restoreId("2", { index: 0 });
     expect(useCompareStore.getState().ids).toEqual(["1", "2", "3"]);
     useCompareStore.setState({ ids: ["1", "2", "3", "4"] });
-    restoreId("5", 0);
+    restoreId("5", { index: 0 });
     expect(useCompareStore.getState().ids).toEqual(["1", "2", "3", "4"]);
   });
 });

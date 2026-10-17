@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, ChevronLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { fadeIn, fadeInUp } from "@/lib/motion";
 import { pluralize } from "@/lib/utils";
-import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
+import { positionIn, useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { productActionCopy } from "@/hooks/useProductActions";
 import { Button, EmptyState, Skeleton, showToast } from "@/components/ui";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
@@ -26,11 +26,14 @@ function focusAfterRemoval(neighbourId: string | undefined) {
 
 function removeLine(item: CartItem) {
   const { cart, removeItem, restoreItem } = useCartStore.getState();
-  const index = cart.findIndex((line) => line.id === item.id);
-  const neighbour = cart[index + 1] ?? cart[index - 1];
+  const at = positionIn(
+    cart.map((line) => line.id),
+    item.id
+  );
+  const neighbour = cart[at.index + 1] ?? cart[at.index - 1];
   removeItem(item.id);
   focusAfterRemoval(neighbour?.id);
-  showToast.undo(productActionCopy.removedFromCart(item.name), () => restoreItem(item, index));
+  showToast.undo(productActionCopy.removedFromCart(item.name), () => restoreItem(item, at));
 }
 
 function clearAll() {
@@ -38,7 +41,9 @@ function clearAll() {
   const snapshot = cart;
   clearCart();
   focusAfterRemoval(undefined);
-  showToast.undo(productActionCopy.cartCleared(), () => snapshot.forEach((line, index) => restoreItem(line, index)));
+  showToast.undo(productActionCopy.cartCleared(), () =>
+    snapshot.forEach((line, index) => restoreItem(line, { index }))
+  );
 }
 
 function CartSkeleton() {
