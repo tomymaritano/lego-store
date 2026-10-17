@@ -76,7 +76,7 @@ const features = [
 
 export function Footer() {
   return (
-    <footer className="bg-linear-to-b from-lego-black to-gray-900 text-white mt-auto">
+    <footer className="bg-linear-to-b/srgb from-lego-black to-gray-900 text-white mt-auto">
       {/* Features Banner */}
       <div className="border-b border-gray-800">
         <div className="container-custom py-6">
@@ -242,7 +242,7 @@ export function Footer() {
                 {paymentMethods.map((method) => (
                   <div
                     key={method}
-                    className="px-2 py-1 bg-gray-800 rounded-sm text-xs text-gray-400 font-medium"
+                    className="px-2 py-1 bg-gray-800 rounded-xs text-xs text-gray-400 font-medium"
                   >
                     {method}
                   </div>

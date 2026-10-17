@@ -10,8 +10,8 @@ export function Badge({ className, variant = "default", children, ...props }: Ba
     default: "bg-background-secondary text-foreground-primary",
     new: "bg-lego-blue text-white shadow-sm",
     sale: "bg-lego-red text-white shadow-sm",
-    limited: "bg-linear-to-r from-orange-500 to-amber-500 text-white shadow-sm",
-    exclusive: "bg-linear-to-r from-purple-500 to-pink-500 text-white shadow-sm",
+    limited: "bg-linear-to-r/srgb from-orange-500 to-amber-500 text-white shadow-sm",
+    exclusive: "bg-linear-to-r/srgb from-purple-500 to-pink-500 text-white shadow-sm",
     success: "bg-status-success text-white shadow-sm",
     warning: "bg-status-warning text-white shadow-sm",
   };

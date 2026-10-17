@@ -47,7 +47,7 @@ export default function HomePage() {
   return (
     <PageTransition className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative bg-linear-to-br from-lego-yellow via-brand-300 to-brand-400 overflow-hidden">
+      <section className="relative bg-linear-to-br/srgb from-lego-yellow via-brand-300 to-brand-400 overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iNCIvPjwvZz48L2c+PC9zdmc+')] opacity-30" />
 
         <div className="container-custom relative z-10">
@@ -160,7 +160,7 @@ export default function HomePage() {
               >
                 <Link href={cat.href}>
                   <div className="group relative bg-surface rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-border">
-                    <div className={`absolute inset-0 bg-linear-to-br ${cat.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                    <div className={`absolute inset-0 bg-linear-to-br/srgb ${cat.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
 
                     <div className="relative h-48 bg-background-tertiary">
                       <Image
@@ -220,7 +220,7 @@ export default function HomePage() {
                     <div className="group bg-surface rounded-xl overflow-hidden border border-border shadow-sm hover:shadow-lg transition-shadow">
                       <div className="relative aspect-square bg-background-secondary">
                         {product.isOnSale && (
-                          <span className="absolute top-3 left-3 z-10 bg-lego-red text-white text-xs font-bold px-2 py-1 rounded-sm">
+                          <span className="absolute top-3 left-3 z-10 bg-lego-red text-white text-xs font-bold px-2 py-1 rounded-xs">
                             OFERTA
                           </span>
                         )}
@@ -277,7 +277,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA Banner */}
-      <section className="py-16 bg-linear-to-r from-lego-blue to-blue-600">
+      <section className="py-16 bg-linear-to-r/srgb from-lego-blue to-lego-blue-dark">
         <div className="container-custom">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
             <div className="text-white text-center lg:text-left">

@@ -127,7 +127,7 @@ export default function CheckoutPage() {
                     {index < steps.length - 1 && (
                       <div
                         className={cn(
-                          "w-12 h-1 mx-2 rounded-sm",
+                          "w-12 h-1 mx-2 rounded-xs",
                           isCompleted ? "bg-status-success" : "bg-background-tertiary"
                         )}
                       />

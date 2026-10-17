@@ -215,7 +215,7 @@ function FilterContent({
             type="checkbox"
             checked={filters.onSale}
             onChange={(e) => onFilterChange({ ...filters, onSale: e.target.checked })}
-            className="w-4 h-4 rounded-sm border-gray-300 text-lego-yellow focus:ring-lego-yellow"
+            className="w-4 h-4 rounded-xs border-gray-300 text-lego-yellow focus:ring-lego-yellow"
           />
           <span className="text-sm">En oferta</span>
         </label>
@@ -224,7 +224,7 @@ function FilterContent({
             type="checkbox"
             checked={filters.inStock}
             onChange={(e) => onFilterChange({ ...filters, inStock: e.target.checked })}
-            className="w-4 h-4 rounded-sm border-gray-300 text-lego-yellow focus:ring-lego-yellow"
+            className="w-4 h-4 rounded-xs border-gray-300 text-lego-yellow focus:ring-lego-yellow"
           />
           <span className="text-sm">En stock</span>
         </label>
@@ -287,7 +287,7 @@ function FilterContent({
                 type="checkbox"
                 checked={filters.themes.includes(theme)}
                 onChange={() => handleThemeToggle(theme)}
-                className="w-4 h-4 rounded-sm border-gray-300 text-lego-yellow focus:ring-lego-yellow"
+                className="w-4 h-4 rounded-xs border-gray-300 text-lego-yellow focus:ring-lego-yellow"
               />
               <span className="text-sm">{theme}</span>
             </label>

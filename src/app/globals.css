@@ -89,6 +89,7 @@
   --color-lego-yellow: #ffd44a;
   --color-lego-red: #e53935;
   --color-lego-blue: #1e88e5;
+  --color-lego-blue-dark: #2563eb;
   --color-lego-green: #43a047;
   --color-lego-orange: #ff9800;
   --color-lego-black: #1d1d1d;
@@ -110,6 +111,52 @@
   --color-status-error: var(--color-error);
   --color-status-warning: var(--color-warning);
   --color-status-info: var(--color-info);
+
+  /*
+   * Tailwind 3 palette values for the built-in colors still used by
+   * components. v4 ships more saturated oklch values; pinning these keeps
+   * the upgrade visually identical until components move to brand tokens.
+   */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
+  --color-red-50: #fef2f2;
+  --color-red-100: #fee2e2;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-900: #7f1d1d;
+  --color-red-950: #450a0a;
+  --color-amber-100: #fef3c7;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+  --color-green-50: #f0fdf4;
+  --color-green-100: #dcfce7;
+  --color-green-500: #22c55e;
+  --color-green-600: #16a34a;
+  --color-green-700: #15803d;
+  --color-green-900: #14532d;
+  --color-blue-50: #eff6ff;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-950: #172554;
+  --color-orange-500: #f97316;
+  --color-yellow-400: #facc15;
+  --color-purple-500: #a855f7;
+  --color-pink-500: #ec4899;
+  --color-pink-600: #db2777;
+  --color-sky-500: #0ea5e9;
+  --color-cyan-500: #06b6d4;
 
   /* Shadows (same names and values as the Tailwind 3 config) */
   --shadow-sm: var(--elevation-sm);

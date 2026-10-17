@@ -99,7 +99,7 @@ export default function ItemPage({ params }: ItemPageProps) {
               key={selectedImage}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="relative aspect-square bg-linear-to-br from-background-secondary to-background-tertiary rounded-2xl overflow-hidden"
+              className="relative aspect-square bg-linear-to-br/srgb from-background-secondary to-background-tertiary rounded-2xl overflow-hidden"
             >
               {/* Badges */}
               <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
