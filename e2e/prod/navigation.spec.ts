@@ -84,6 +84,19 @@ test.describe("Production status codes", () => {
     expect(await ok.text()).toContain("Helmets");
   });
 
+  test("a category page is prerendered and applies the URL's filters after hydration", async ({ page, request }) => {
+    const html = await (await request.get("/category/helmet?onSale=1")).text();
+    // The static HTML is the unfiltered category…
+    expect(html).toContain("Tusken Raider");
+    // …and the client narrows it to what the URL asks for.
+    await page.goto("/category/helmet?onSale=1");
+    await expect(page.getByTestId("result-count")).toContainText("2 productos");
+    await expect(page.getByRole("region", { name: "Filtros activos" })).toBeVisible();
+    await page.getByRole("button", { name: /^Quitar filtro/ }).first().click();
+    await expect(page).toHaveURL(/\/category\/helmet$/);
+    await expect(page.getByTestId("result-count")).toContainText("5 productos");
+  });
+
   test("an unknown category still shows the not-found page", async ({ page }) => {
     const response = await page.goto("/category/nope");
     expect(response?.status()).toBe(404);

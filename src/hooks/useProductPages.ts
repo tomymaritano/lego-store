@@ -43,11 +43,11 @@ export function useProductPages({ query, initialPage, initialQuery = query }: Us
     products: pages.flatMap((page) => page.items),
     total: pages[0]?.total ?? 0,
     pageSize: initialPage.limit,
-    /** Showing the previous query's results while the new ones load. */
-    isStale: result.isPlaceholderData,
+    /** Showing other results (the previous query's, or the server's first page) while these load. */
+    isStale: result.isPlaceholderData || (!isInitial && result.isPending),
     isError: result.isError && !result.data,
     refetch: result.refetch,
-    hasNextPage: result.hasNextPage && !result.isPlaceholderData,
+    hasNextPage: result.hasNextPage && !result.isPlaceholderData && !result.isPending,
     fetchNextPage: result.fetchNextPage,
     isFetchingNextPage: result.isFetchingNextPage,
     isFetchNextPageError: result.isFetchNextPageError,

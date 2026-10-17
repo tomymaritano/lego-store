@@ -138,8 +138,8 @@ describe("ActiveFilters", () => {
 
 describe("useCatalogQuery", () => {
   beforeEach(() => {
-    nav.search = "q=star&theme=Marvel&page=3&sort=rating";
     nav.pathname = "/search";
+    window.history.replaceState(null, "", "/search?q=star&theme=Marvel&page=3&sort=rating");
   });
 
   it("reads the URL without paging and pushes changes to history", async () => {
@@ -156,9 +156,19 @@ describe("useCatalogQuery", () => {
     push.mockRestore();
   });
 
+  it("follows Back/Forward (popstate)", async () => {
+    const { useCatalogQuery } = await import("@/hooks/useCatalogQuery");
+    const { result } = renderHook(() => useCatalogQuery());
+    act(() => {
+      window.history.replaceState(null, "", "/search?q=lego");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(result.current.query).toEqual({ q: "lego" });
+  });
+
   it("ignores the route's scope keys (a stray ?category= on a category page)", async () => {
-    nav.search = "category=technic&theme=Marvel";
     nav.pathname = "/category/helmet";
+    window.history.replaceState(null, "", "/category/helmet?category=technic&theme=Marvel");
     const { useCatalogQuery } = await import("@/hooks/useCatalogQuery");
     const push = vi.spyOn(window.history, "pushState");
     const { result } = renderHook(() => useCatalogQuery(["category"]));

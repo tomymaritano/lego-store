@@ -3,15 +3,17 @@ import { notFound } from "next/navigation";
 import { getCategories, getCategoryById, getFacetCounts, getFilterOptions, getPaginatedProducts } from "@/lib/api";
 import { Breadcrumbs } from "@/components/ui";
 import { CatalogView } from "@/components/product/CatalogView";
-import { parseProductQuery } from "@/lib/productQuery";
 import { pluralize } from "@/lib/utils";
 import { pageMetadata } from "@/lib/metadata";
 
 interface CategoryPageProps {
   params: Promise<{ categoryId: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+/**
+ * Every category is prerendered. Filters and sort in the URL are read on the
+ * client by CatalogView, so they never make this route render on demand.
+ */
 export async function generateStaticParams() {
   return (await getCategories()).map((category) => ({ categoryId: category.id }));
 }
@@ -27,21 +29,18 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   });
 }
 
-export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
+export default async function CategoryPage({ params }: CategoryPageProps) {
   const { categoryId } = await params;
   const category = await getCategoryById(categoryId);
   if (!category) notFound();
 
-  // The category comes from the path; the URL carries filters and sort only.
-  const { category: _ignored, page: _page, limit: _limit, ...urlQuery } = parseProductQuery(await searchParams);
-  void _ignored;
-  void _page;
-  void _limit;
+  // The category comes from the path; the server renders it unfiltered and
+  // CatalogView applies any filters or sort in the URL after hydration.
   const scope = { category: category.id };
   const [firstPage, options, counts] = await Promise.all([
-    getPaginatedProducts({ ...urlQuery, ...scope }),
+    getPaginatedProducts(scope),
     getFilterOptions(scope),
-    getFacetCounts({ ...urlQuery, ...scope }),
+    getFacetCounts(scope),
   ]);
 
   return (
@@ -57,7 +56,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
       <CatalogView
         initialPage={firstPage}
-        initialQuery={urlQuery}
+        initialQuery={{}}
         scope={scope}
         options={options}
         initialCounts={counts}

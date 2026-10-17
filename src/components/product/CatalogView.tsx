@@ -60,7 +60,10 @@ export function CatalogView({
   showCategories = false,
 }: CatalogViewProps) {
   // The route's scope (the category in the path) is not a URL filter.
-  const { query, update, setQuery, clear } = useCatalogQuery(scope ? (Object.keys(scope) as (keyof ProductQuery)[]) : []);
+  const { query, update, setQuery, clear } = useCatalogQuery(
+    scope ? (Object.keys(scope) as (keyof ProductQuery)[]) : [],
+    initialQuery
+  );
   const apiQuery = { ...query, ...scope };
   const scopedInitialQuery = { ...initialQuery, ...scope };
   const pages = useProductPages({ query: apiQuery, initialPage, initialQuery: scopedInitialQuery });
