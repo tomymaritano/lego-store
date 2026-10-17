@@ -1,10 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /** Scale of the navbar cart icon (the bump target), 1 when untransformed. */
+/** The cart icon's current scale: the bump animates the `scale` property (Web Animations), older code used transform. */
 const cartIconScale = (page: Page) =>
   page.getByTestId("cart-button").locator("span").first().evaluate((el) => {
-    const t = getComputedStyle(el).transform;
-    return t === "none" ? 1 : new DOMMatrixReadOnly(t).a;
+    const style = getComputedStyle(el);
+    const scale = style.scale === "none" || !style.scale ? 1 : parseFloat(style.scale);
+    const transform = style.transform === "none" ? 1 : new DOMMatrixReadOnly(style.transform).a;
+    return scale * transform;
   });
 
 test.describe("Stale persisted ids", () => {
