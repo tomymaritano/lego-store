@@ -100,6 +100,10 @@ export function RatingInput({
       data-slot="rating-input"
       className={cn("flex flex-col gap-1.5", className)}
       disabled={disabled}
+      // role=radiogroup (not the implicit group) so aria-invalid/aria-required are supported states.
+      role="radiogroup"
+      aria-invalid={error ? true : undefined}
+      aria-required={required || undefined}
       aria-describedby={errorId}
     >
       <legend className={cn("mb-1.5 text-label text-fg", hideLabel && "sr-only")}>
@@ -127,8 +131,6 @@ export function RatingInput({
                 checked={value === option}
                 onChange={() => onValueChange(option)}
                 required={required}
-                // aria-invalid is not supported on role=group, so each radio carries it.
-                aria-invalid={error ? true : undefined}
                 aria-describedby={errorId}
                 className="peer sr-only"
               />
