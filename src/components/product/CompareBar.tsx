@@ -81,7 +81,9 @@ export function CompareBar() {
                     transition={transitions.spring}
                     className="relative size-10 overflow-hidden rounded-full border-2 border-surface-raised bg-bg-muted"
                   >
-                    <ProductImage src={product.img} alt="" fill sizes="40px" className="object-contain p-1" />
+                    {/* Eager: the bar is fixed in view, and a lazy copy of a picture that is also the
+                        page LCP made next/image report the LCP as lazily loaded. */}
+                    <ProductImage src={product.img} alt="" fill sizes="40px" loading="eager" className="object-contain p-1" />
                   </m.li>
                 ))}
               </AnimatePresence>
