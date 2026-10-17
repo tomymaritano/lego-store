@@ -163,6 +163,9 @@ export async function getRelatedProducts(productId: string, limit = 4): Promise<
     .map(({ p }) => p);
 }
 
+/** Thresholds offered by the rating filter, highest first. */
+const RATING_THRESHOLDS = [4.5, 4, 3] as const;
+
 /** Leading number of "12+", "501-1000", "2001+" for natural ordering. */
 const leadingNumber = (value: string) => Number.parseInt(value, 10) || 0;
 
@@ -201,6 +204,16 @@ export async function getFilterOptions(
     pieces: facet(list, (p) => [p.pieces], "numeric"),
     highlights: facet(list, (p) => [p.highlight]),
     price: { min: prices.length ? Math.min(...prices) : 0, max: prices.length ? Math.max(...prices) : 0 },
+    ratings: RATING_THRESHOLDS.map((stars) => ({
+      value: String(stars),
+      label: `${String(stars).replace(".", ",")} estrellas o más`,
+      count: list.filter((p) => p.rating >= stars).length,
+    })).filter((option) => option.count > 0),
+    flags: {
+      onSale: list.filter((p) => p.isOnSale).length,
+      inStock: list.filter((p) => p.stock > 0).length,
+      isNew: list.filter((p) => p.isNew).length,
+    },
     total: list.length,
   };
 }

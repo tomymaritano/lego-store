@@ -241,6 +241,24 @@ describe("lib/api", () => {
       const none = await getFilterOptions({ q: "zzzz" });
       expect(none).toMatchObject({ total: 0, themes: [], price: { min: 0, max: 0 } });
     });
+
+    it("counts rating thresholds and availability flags", async () => {
+      const options = await getFilterOptions();
+      const all = await getProducts();
+      expect(options.ratings.map((o) => o.value)).toEqual(["4.5", "4", "3"]);
+      expect(options.ratings[0]).toMatchObject({
+        label: "4,5 estrellas o más",
+        count: all.filter((p) => p.rating >= 4.5).length,
+      });
+      expect(options.flags).toEqual({
+        onSale: all.filter((p) => p.isOnSale).length,
+        inStock: all.filter((p) => p.stock > 0).length,
+        isNew: all.filter((p) => p.isNew).length,
+      });
+      const none = await getFilterOptions({ q: "zzzz" });
+      expect(none.ratings).toEqual([]);
+      expect(none.flags).toEqual({ onSale: 0, inStock: 0, isNew: 0 });
+    });
   });
 
   describe("featured, sale and categories", () => {

@@ -119,6 +119,10 @@ export interface FilterOptions {
   pieces: FilterOption[];
   highlights: FilterOption[];
   price: { min: number; max: number };
+  /** Minimum-rating thresholds ("4" = 4 stars or more) with how many products reach them. */
+  ratings: FilterOption[];
+  /** How many products in scope are on sale, in stock and new. */
+  flags: { onSale: number; inStock: number; isNew: number };
   /** Products in scope, before any filter is applied. */
   total: number;
 }
