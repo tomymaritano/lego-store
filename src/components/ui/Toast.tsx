@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Toaster as SonnerToaster, toast } from "sonner";
 import { CheckCircle2, XCircle, AlertTriangle, Info, ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -101,6 +101,17 @@ export const showToast = {
           <ShoppingCart className="size-4" />
         </span>
       ),
+    });
+  },
+  /**
+   * Confirms a removal with a "Deshacer" action. Stays longer than the
+   * default (and Sonner pauses it on hover/focus) so there is time to undo.
+   */
+  undo: (message: string, onUndo: () => void, { icon = <Info aria-hidden="true" className={cn(iconClass, "text-info")} /> }: { icon?: ReactNode } = {}) => {
+    toast(message, {
+      icon,
+      duration: 6000,
+      action: { label: "Deshacer", onClick: onUndo },
     });
   },
   wishlist: (message: string, added: boolean) => {

@@ -118,4 +118,28 @@ describe("cartStore", () => {
       expect(JSON.parse(localStorage.getItem("lego-cart-storage")!).version).toBe(1);
     });
   });
+
+  describe("restoreItem (undo)", () => {
+    it("puts a removed line back at its old position", () => {
+      const { addItem, removeItem, restoreItem } = useCartStore.getState();
+      addItem(rex, 2);
+      addItem(leia);
+      const line = useCartStore.getState().cart[0];
+      removeItem("1");
+      restoreItem(line, 0);
+      expect(useCartStore.getState().cart.map((l) => [l.id, l.quantity])).toEqual([
+        ["1", 2],
+        ["2", 1],
+      ]);
+    });
+
+    it("appends without an index and never duplicates a line", () => {
+      const { addItem, restoreItem } = useCartStore.getState();
+      addItem(leia);
+      const line = { id: "1", name: "Captain Rex Helmet", price: 899, image: "/rex.png", quantity: 1, stock: 3 };
+      restoreItem(line);
+      restoreItem(line, 0);
+      expect(useCartStore.getState().cart.map((l) => l.id)).toEqual(["2", "1"]);
+    });
+  });
 });

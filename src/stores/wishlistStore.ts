@@ -12,6 +12,8 @@ interface WishlistState {
   clearWishlist: () => void;
   /** Drops products the catalogue no longer knows (see useProductsByIds). */
   removeMany: (ids: string[]) => void;
+  /** Puts a removed item back (undo), at `index` when given. No-op if it is already saved. */
+  restoreItem: (item: WishlistItem, index?: number) => void;
 }
 
 const snapshot = ({ id, name, price, img, stock }: ProductSummary): WishlistItem => ({
@@ -46,6 +48,14 @@ export const useWishlistStore = create<WishlistState>()(
       clearWishlist: () => set({ wishlist: [] }),
 
       removeMany: (ids) => set((state) => ({ wishlist: state.wishlist.filter((item) => !ids.includes(item.id)) })),
+
+      restoreItem: (item, index) =>
+        set((state) => {
+          if (state.wishlist.some((saved) => saved.id === item.id)) return state;
+          const wishlist = [...state.wishlist];
+          wishlist.splice(index ?? wishlist.length, 0, item);
+          return { wishlist };
+        }),
     }),
     {
       name: "lego-wishlist-storage",

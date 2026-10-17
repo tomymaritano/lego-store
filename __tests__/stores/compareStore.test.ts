@@ -75,4 +75,16 @@ describe("compareStore", () => {
     expect(useCompareStore.getState().ids).toEqual(["1"]);
     expect(useCompareStore.getState().addToCompare("2")).toBe(true);
   });
+
+  it("restores a removed id at its old position, never past the limit", () => {
+    useCompareStore.setState({ ids: ["1", "2", "3"] });
+    const { removeFromCompare, restoreId } = useCompareStore.getState();
+    removeFromCompare("2");
+    restoreId("2", 1);
+    restoreId("2", 0);
+    expect(useCompareStore.getState().ids).toEqual(["1", "2", "3"]);
+    useCompareStore.setState({ ids: ["1", "2", "3", "4"] });
+    restoreId("5", 0);
+    expect(useCompareStore.getState().ids).toEqual(["1", "2", "3", "4"]);
+  });
 });

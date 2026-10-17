@@ -24,6 +24,11 @@ export const productActionCopy = {
   addedToCompare: (name: string) => `${name} agregado a la comparación`,
   removedFromCompare: (name: string) => `${name} eliminado de la comparación`,
   compareFull: () => `Puedes comparar hasta ${MAX_COMPARE_ITEMS} productos`,
+  cartCleared: () => "Vaciaste el carrito",
+  movedToCart: (name: string) => `${name} movido al carrito`,
+  movedAllToCart: (count: number) => (count === 1 ? "1 producto movido al carrito" : `${count} productos movidos al carrito`),
+  wishlistCleared: () => "Vaciaste tu lista de deseos",
+  compareCleared: () => "Vaciaste la comparación",
 };
 
 /**

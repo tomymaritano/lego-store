@@ -13,6 +13,11 @@ interface CartState {
   /** Sets an exact quantity, clamped to [1, stock]. */
   setQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  /**
+   * Puts a removed line back (undo), at `index` when given. No-op when the
+   * product already has a line again.
+   */
+  restoreItem: (line: CartItem, index?: number) => void;
 }
 
 const clamp = (quantity: number, stock: number) => Math.min(stock, Math.max(1, Math.round(quantity)));
@@ -66,6 +71,14 @@ export const useCartStore = create<CartState>()(
         })),
 
       clearCart: () => set({ cart: [] }),
+
+      restoreItem: (line, index) =>
+        set((state) => {
+          if (state.cart.some((item) => item.id === line.id)) return state;
+          const cart = [...state.cart];
+          cart.splice(index ?? cart.length, 0, line);
+          return { cart };
+        }),
     }),
     {
       name: "lego-cart-storage",

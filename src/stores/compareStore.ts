@@ -16,6 +16,8 @@ interface CompareState {
   clearCompare: () => void;
   /** Drops ids the catalogue no longer knows (see useProductsByIds). */
   removeMany: (ids: string[]) => void;
+  /** Puts a removed id back (undo) at `index`, unless it is already there or the list is full. */
+  restoreId: (id: string, index?: number) => void;
 }
 
 export const useCompareStore = create<CompareState>()(
@@ -43,6 +45,14 @@ export const useCompareStore = create<CompareState>()(
       clearCompare: () => set({ ids: [] }),
 
       removeMany: (ids) => set((state) => ({ ids: state.ids.filter((item) => !ids.includes(item)) })),
+
+      restoreId: (id, index) =>
+        set((state) => {
+          if (state.ids.includes(id) || state.ids.length >= MAX_COMPARE_ITEMS) return state;
+          const ids = [...state.ids];
+          ids.splice(index ?? ids.length, 0, id);
+          return { ids };
+        }),
     }),
     {
       name: "lego-compare-storage",
