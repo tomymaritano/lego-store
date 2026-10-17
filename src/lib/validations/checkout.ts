@@ -1,65 +1,64 @@
 import { z } from "zod";
 import type { PaymentInfo, ShippingInfo } from "@/types";
+import { ARGENTINA_PROVINCES, SHIPPING_COUNTRY } from "@/lib/argentina";
+import { cardLength, cvvLength, detectCardBrand, isExpiryInFuture, onlyDigits, passesLuhn } from "@/lib/card";
 
 /**
  * Checkout form schemas (react-hook-form + zodResolver). The data shapes are
  * declared once in @/types; `satisfies` keeps each schema in step with them.
  */
 
-// Shipping Information Schema
+const text = (label: string, min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, `Ingresa ${label}`)
+    .min(min, `${label[0].toUpperCase()}${label.slice(1)} debe tener al menos ${min} caracteres`)
+    .max(max, `${label[0].toUpperCase()}${label.slice(1)} no puede superar ${max} caracteres`);
+
 export const shippingSchema = z.object({
-  firstName: z
-    .string()
-    .min(2, "El nombre debe tener al menos 2 caracteres")
-    .max(50, "El nombre no puede exceder 50 caracteres"),
-  lastName: z
-    .string()
-    .min(2, "El apellido debe tener al menos 2 caracteres")
-    .max(50, "El apellido no puede exceder 50 caracteres"),
-  email: z
-    .string()
-    .email("Ingresa un email válido"),
+  firstName: text("tu nombre", 2, 50),
+  lastName: text("tu apellido", 2, 50),
+  email: z.string().trim().min(1, "Ingresa tu email").pipe(z.email("Ingresa un email válido")),
   phone: z
     .string()
-    .min(10, "El teléfono debe tener al menos 10 dígitos")
-    .regex(/^[0-9+\-\s()]+$/, "Ingresa un teléfono válido"),
-  address: z
-    .string()
-    .min(5, "La dirección debe tener al menos 5 caracteres")
-    .max(200, "La dirección no puede exceder 200 caracteres"),
-  city: z
-    .string()
-    .min(2, "La ciudad debe tener al menos 2 caracteres"),
-  state: z
-    .string()
-    .min(2, "El estado debe tener al menos 2 caracteres"),
+    .trim()
+    .min(1, "Ingresa tu teléfono")
+    .regex(/^\+?[\d\s()-]+$/, "Usa solo números, espacios, guiones o +")
+    .refine((value) => onlyDigits(value).length >= 10 && onlyDigits(value).length <= 13, {
+      message: "El teléfono debe tener entre 10 y 13 dígitos (con código de área)",
+    }),
+  address: text("la dirección", 5, 200),
+  city: text("la ciudad", 2, 80),
+  state: z.string().refine((value) => (ARGENTINA_PROVINCES as readonly string[]).includes(value), "Elige una provincia"),
   zipCode: z
     .string()
-    .min(4, "El código postal debe tener al menos 4 caracteres")
-    .max(10, "El código postal no puede exceder 10 caracteres"),
-  country: z
-    .string()
-    .min(2, "El país debe tener al menos 2 caracteres"),
+    .trim()
+    .min(1, "Ingresa el código postal")
+    .regex(/^(\d{4}|[A-Za-z]\d{4}[A-Za-z]{3})$/, "Usa 4 dígitos (1425) o el formato CPA (C1425ABC)"),
+  country: z.string().refine((value) => value === SHIPPING_COUNTRY, `Por ahora solo enviamos a ${SHIPPING_COUNTRY}`),
 }) satisfies z.ZodType<ShippingInfo>;
 
-// Payment Information Schema
-export const paymentSchema = z.object({
-  cardNumber: z
-    .string()
-    .min(16, "El número de tarjeta debe tener 16 dígitos")
-    .max(19, "Número de tarjeta inválido") // With spaces: "1234 5678 9012 3456"
-    .regex(/^[\d\s]+$/, "Solo se permiten números"),
-  cardName: z
-    .string()
-    .min(3, "El nombre debe tener al menos 3 caracteres")
-    .max(100, "El nombre no puede exceder 100 caracteres"),
-  expiryDate: z
-    .string()
-    .regex(/^(0[1-9]|1[0-2])\/([0-9]{2})$/, "Formato inválido (MM/AA)"),
-  cvv: z
-    .string()
-    .min(3, "El CVV debe tener 3-4 dígitos")
-    .max(4, "El CVV debe tener 3-4 dígitos")
-    .regex(/^\d+$/, "Solo se permiten números"),
-}) satisfies z.ZodType<PaymentInfo>;
-
+export const paymentSchema = z
+  .object({
+    cardNumber: z.string().min(1, "Ingresa el número de tarjeta"),
+    cardName: text("el nombre de la tarjeta", 3, 100),
+    expiryDate: z
+      .string()
+      .min(1, "Ingresa el vencimiento")
+      .regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "Usa el formato MM/AA")
+      .refine((value) => isExpiryInFuture(value), "La tarjeta está vencida"),
+    cvv: z.string().min(1, "Ingresa el código de seguridad").regex(/^\d+$/, "Usa solo números"),
+  })
+  .superRefine(({ cardNumber, cvv }, ctx) => {
+    const brand = detectCardBrand(cardNumber);
+    const digits = onlyDigits(cardNumber);
+    if (digits.length > 0 && digits.length !== cardLength(brand)) {
+      ctx.addIssue({ code: "custom", path: ["cardNumber"], message: `El número debe tener ${cardLength(brand)} dígitos` });
+    } else if (digits.length > 0 && !passesLuhn(digits)) {
+      ctx.addIssue({ code: "custom", path: ["cardNumber"], message: "Revisa el número: no es una tarjeta válida" });
+    }
+    if (/^\d+$/.test(cvv) && cvv.length !== cvvLength(brand)) {
+      ctx.addIssue({ code: "custom", path: ["cvv"], message: `El código de seguridad tiene ${cvvLength(brand)} dígitos` });
+    }
+  }) satisfies z.ZodType<PaymentInfo>;
