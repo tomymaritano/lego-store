@@ -1,0 +1,313 @@
+// Data model of the store (docs/superpowers/specs/2026-10-17-backend-completo-design.md).
+//
+// Conventions
+// - Money is integer pesos (ARS), like the prices in the UI. Stripe gets centavos (x100).
+// - Check constraints (stock >= 0, quantity > 0, rating 1..5, totals that add up…)
+//   are written by hand in the first migration: Prisma's schema language has no
+//   syntax for them. Keep them there when you add a migration that rebuilds a table.
+// - Product.searchText / searchName are maintained by the app (see
+//   src/lib/api/search.ts, productSearchColumns): every write to a product's
+//   name, theme, category or description recomputes them.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Users and auth (Auth.js v5 Prisma adapter shape: User, Account, Session,
+// VerificationToken). Sessions are JWT, so Session stays empty unless a
+// database-session provider is added; the adapter still expects the table.
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  /// Always stored lowercased: the app normalises it before every write and lookup.
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  /// bcrypt hash (src/lib/auth/password.ts). Null for OAuth-only users.
+  passwordHash  String?
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  reviews       Review[]
+  helpfulVotes  ReviewHelpful[]
+  orders        Order[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue
+// ---------------------------------------------------------------------------
+
+model Category {
+  /// URL slug, e.g. "helmet" (Product.categoryId, /category/<id>).
+  id          String    @id
+  name        String
+  description String
+  image       String
+  /// Navigation order.
+  position    Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products Product[]
+
+  @@index([position])
+}
+
+model Product {
+  /// Seeded products keep their historical ids ("1"…"22") so /item/1 keeps working.
+  id               String   @id @default(cuid())
+  name             String
+  /// Price in pesos (ARS).
+  price            Int
+  /// Pre-discount price; set exactly when isOnSale.
+  originalPrice    Int?
+  isNew            Boolean  @default(false)
+  isOnSale         Boolean  @default(false)
+  /// Cached average of the product's reviews (0 when it has none), one decimal.
+  rating           Float    @default(0)
+  /// Cached number of reviews.
+  reviewCount      Int      @default(0)
+  categoryId       String
+  type             String
+  age              String
+  theme            String
+  interests        String[]
+  pieces           String
+  highlight        String
+  img              String
+  imageSecondary   String?
+  images           String[]
+  stock            Int      @default(0)
+  shortDescription String
+  description      String
+  /// Lowercase, accent-free name + theme + category (slug and name) + description: what search matches.
+  searchText       String
+  /// Lowercase, accent-free name: search ranking and the A-Z sort.
+  searchName       String
+  /// Catalogue order ("Destacados") is creation order; newest sorts by it too.
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  reviews       Review[]
+  orderItems    OrderItem[]
+
+  @@index([categoryId])
+  @@index([theme])
+  @@index([createdAt])
+  @@index([price])
+  @@index([rating])
+}
+
+// ---------------------------------------------------------------------------
+// Per-user lists (visitors keep theirs in localStorage; merged on login)
+// ---------------------------------------------------------------------------
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  /// > 0 (check constraint); capped by stock when the server writes it.
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model WishlistItem {
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Reviews
+// ---------------------------------------------------------------------------
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  /// 1..5 (check constraint).
+  rating    Int
+  title     String
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  helpfulVotes ReviewHelpful[]
+
+  @@unique([userId, productId])
+  @@index([productId, createdAt])
+}
+
+model ReviewHelpful {
+  userId    String
+  reviewId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@id([userId, reviewId])
+  @@index([reviewId])
+}
+
+// ---------------------------------------------------------------------------
+// Orders and payments
+// ---------------------------------------------------------------------------
+
+/// PENDING -> PAID -> SHIPPED -> DELIVERED; PENDING | PAID -> CANCELLED.
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id                    String      @id @default(cuid())
+  /// Null for guest checkouts (never linked to an account created later).
+  userId                String?
+  /// Contact email from the shipping form (lowercased).
+  email                 String
+  status                OrderStatus @default(PENDING)
+
+  // Shipping address, as entered (snapshot).
+  firstName             String
+  lastName              String
+  phone                 String
+  address               String
+  city                  String
+  state                 String
+  zipCode               String
+  country               String
+
+  // Amounts in pesos, computed on the server: total = subtotal + shipping (check constraint).
+  subtotal              Int
+  shipping              Int
+  total                 Int
+  currency              String      @default("ars")
+
+  stripePaymentIntentId String?     @unique
+  stripeRefundId        String?     @unique
+  /// What the review step and the order page show ("visa", "4242"); never card data.
+  paymentBrand          String?
+  paymentLast4          String?
+
+  paidAt                DateTime?
+  shippedAt             DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+  cancelReason          String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  user  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items OrderItem[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  /// Null once the product is deleted; the snapshot below keeps the line readable.
+  productId String?
+  // Snapshot at order time.
+  name      String
+  unitPrice Int
+  image     String
+  /// > 0 (check constraint).
+  quantity  Int
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, productId])
+  @@index([productId])
+}
+
+/// Stripe webhook idempotency: an event id is processed at most once.
+model ProcessedStripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+}
