@@ -2,12 +2,17 @@ import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 // Teach tailwind-merge our custom theme keys so e.g. `text-label text-fg`
-// keeps both classes (size + colour) instead of treating both as colours.
+// keeps both classes (size + colour) instead of treating both as colours,
+// and `duration-fast duration-base` resolves to the last one.
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
       "font-size": [{ text: ["caption", "label", "body", "title", "display"] }],
       shadow: [{ shadow: ["card"] }],
+      // Motion tokens from globals.css, so `cn(base, className)` overrides them.
+      duration: [{ duration: ["fast", "base", "slow"] }],
+      ease: [{ ease: ["standard", "emphasized", "exit"] }],
+      animate: [{ animate: ["shimmer"] }],
     },
   },
 });
