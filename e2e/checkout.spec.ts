@@ -1,4 +1,21 @@
+import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
+
+const AXE_PATH = path.join(process.cwd(), "node_modules", "axe-core", "axe.min.js");
+
+/** Runs axe (WCAG 2.1 A/AA) on the page and returns the serious/critical rule ids. */
+async function seriousAxeViolations(page: Page) {
+  await page.addScriptTag({ path: AXE_PATH });
+  return page.evaluate(async () => {
+    const axe = (window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ violations: { id: string; impact: string; nodes: { target: string[] }[] }[] }> } }).axe;
+    const { violations } = await axe.run(document, {
+      runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"] },
+    });
+    return violations
+      .filter((v) => v.impact === "serious" || v.impact === "critical")
+      .map((v) => `${v.id} :: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
+  });
+}
 
 const seedCart = (page: Page, cart: unknown[]) =>
   page.addInitScript((lines) => {
@@ -77,7 +94,11 @@ test.describe("Checkout", () => {
 
     const confirmation = page.getByTestId("order-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("heading", { name: "¡Gracias por tu compra!" })).toBeFocused();
+    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeFocused();
+    // The purchase is finished: no "Finalizar compra" heading or checkout breadcrumb above it.
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "Finalizar compra" })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
     await expect(confirmation.getByTestId("order-id")).toHaveText(/^LEGO-[A-Z0-9]+$/);
     await expect(confirmation).toContainText("ana@example.com");
     await expect(confirmation).toContainText(/2\.746/);
@@ -150,6 +171,52 @@ test.describe("Checkout", () => {
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
     await expect(page.getByText("Ingresa el número de tarjeta")).toBeVisible();
   });
+});
+
+test.describe("Checkout summary with a long cart", () => {
+  test.beforeEach(async ({ page }) => {
+    await seedCart(
+      page,
+      Array.from({ length: 6 }, (_, i) => line(String(i + 1), `Set de prueba ${i + 1}`, 1000 + i * 100, i === 0 ? 2 : 1))
+    );
+  });
+
+  test("the scrolling line list is keyboard reachable, badges are not clipped, and axe passes", async ({ page }) => {
+    await page.goto("/checkout");
+    const list = page.getByTestId("checkout-lines");
+    await expect(page.getByTestId("checkout-line")).toHaveCount(6);
+
+    // Scrollable, so it is a named tab stop that the keyboard can scroll.
+    await expect(list).toHaveAttribute("tabindex", "0");
+    await expect(list).toHaveAccessibleName("Productos del pedido");
+    await list.focus();
+    await page.keyboard.press("End");
+    await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+    // The first quantity badge sits fully inside the scroll container.
+    const clipped = await list.evaluate((el) => {
+      el.scrollTo({ top: 0, behavior: "instant" });
+      const badge = el.querySelector("[data-testid='checkout-line'] .rounded-full")!;
+      const listTop = el.getBoundingClientRect().top;
+      const badgeTop = badge.getBoundingClientRect().top;
+      return listTop - badgeTop;
+    });
+    expect(clipped).toBeLessThanOrEqual(0);
+
+    expect(await seriousAxeViolations(page)).toEqual([]);
+
+    // Validation errors on the shipping step do not add violations either.
+    await page.getByRole("button", { name: /Continuar al pago/ }).click();
+    await expect(page.getByText("Ingresa tu nombre")).toBeVisible();
+    expect(await seriousAxeViolations(page)).toEqual([]);
+  });
+});
+
+test("a short summary list that does not scroll is not a tab stop", async ({ page }) => {
+  await seedCart(page, [line("1", "Captain Rex Helmet", 899)]);
+  await page.goto("/checkout");
+  await expect(page.getByTestId("checkout-line")).toHaveCount(1);
+  await expect(page.getByTestId("checkout-lines")).not.toHaveAttribute("tabindex");
 });
 
 test("an empty cart redirects from checkout to the cart", async ({ page }) => {
