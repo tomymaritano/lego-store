@@ -55,7 +55,7 @@ export default async function RootLayout({
   const categories = (await getCategories()).map(({ id, name }) => ({ id, name }));
 
   return (
-    <html lang="es" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="es" className="motion-safe:scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Applies the saved theme before first paint (no light/dark flash). See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />

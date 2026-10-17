@@ -386,8 +386,16 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      /* Smooth scrolling (scroll-smooth) is motion too; JS scrollBy picks its own behavior. */
+      scroll-behavior: auto !important;
     }
   }
+}
+
+/* While the floating compare bar is shown (CompareBar sets the attribute),
+   reserve room under the page so it never covers the last CTAs or fields. */
+html[data-compare-bar] body {
+  padding-bottom: --spacing(28);
 }
 
 /* Sonner: unstyled toasts. Sonner only hides the content of collapsed

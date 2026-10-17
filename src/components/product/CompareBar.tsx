@@ -1,6 +1,6 @@
 "use client";
 
-import { ProductImage } from "./ProductImage";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -9,14 +9,28 @@ import { slideUp, transitions } from "@/lib/motion";
 import { MAX_COMPARE_ITEMS, useCompareIds, useCompareStore } from "@/stores";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Button } from "@/components/ui";
+import { ProductImage } from "./ProductImage";
 
-/** Floating bar while products are queued for comparison (hidden on /compare). */
+/** Routes where the bar would sit over the page's own primary actions or form fields. */
+const HIDDEN_ON = ["/compare", "/cart", "/checkout"];
+
+/**
+ * Floating bar while products are queued for comparison. Hidden on /compare,
+ * /cart and /checkout; elsewhere it flags <html> so globals.css reserves room
+ * under the page and the bar never covers interactive content.
+ */
 export function CompareBar() {
   const pathname = usePathname();
   const ids = useCompareIds();
   const clearCompare = useCompareStore((state) => state.clearCompare);
   const { products } = useProductsByIds(ids, { onMissing: useCompareStore.getState().removeMany });
-  const visible = ids.length > 0 && pathname !== "/compare";
+  const visible = ids.length > 0 && !HIDDEN_ON.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute("data-compare-bar", visible);
+    return () => root.removeAttribute("data-compare-bar");
+  }, [visible]);
 
   return (
     <AnimatePresence>

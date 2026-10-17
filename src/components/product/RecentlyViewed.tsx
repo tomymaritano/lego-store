@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ProductImage } from "./ProductImage";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { transitions } from "@/lib/motion";
 import { useRecentlyViewedIds, useRecentlyViewedStore } from "@/stores";
@@ -33,11 +33,12 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
     onMissing: useRecentlyViewedStore.getState().removeMany,
   });
   const scrollRef = useRef<HTMLUListElement>(null);
+  const reduceMotion = useReducedMotion();
 
   if (products.length === 0) return null;
 
   const scroll = (direction: -1 | 1) =>
-    scrollRef.current?.scrollBy({ left: direction * SCROLL_STEP, behavior: "smooth" });
+    scrollRef.current?.scrollBy({ left: direction * SCROLL_STEP, behavior: reduceMotion ? "auto" : "smooth" });
 
   return (
     <section aria-labelledby="recently-viewed-title" className="bg-bg-subtle py-12">
@@ -65,7 +66,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
           </div>
         </div>
 
-        <ul ref={scrollRef} className="-mx-4 flex gap-4 overflow-x-auto scroll-smooth px-4 pt-1 pb-4 scrollbar-hide">
+        <ul ref={scrollRef} className="-mx-4 flex gap-4 overflow-x-auto px-4 motion-safe:scroll-smooth pt-1 pb-4 scrollbar-hide">
           {products.map((product, index) => (
             <motion.li
               key={product.id}
