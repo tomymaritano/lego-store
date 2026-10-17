@@ -58,19 +58,27 @@ export type CredentialsResult =
  * (Google only) and wrong passwords are all just "invalid", and take about as
  * long as a real check, so the answer does not reveal which accounts exist.
  *
- * Rate limited per account and per client IP; every attempt counts, and a
- * successful login clears the account's counter.
+ * Rate limited per account and IP (tight), per account (roomier, against
+ * guessing from many IPs) and per IP (against guessing across accounts).
+ * Every attempt counts; a successful login clears the account-and-IP counter.
  */
 export async function verifyCredentials(rawEmail: string, password: string, ip: string): Promise<CredentialsResult> {
   const email = normalizeEmail(rawEmail);
-  const limited = firstRefusal(await Promise.all([rateLimits.loginEmail.consume(email), rateLimits.loginIp.consume(ip)]));
+  const accountIp = `${email}|${ip}`;
+  const limited = firstRefusal(
+    await Promise.all([
+      rateLimits.loginAccountIp.consume(accountIp),
+      rateLimits.loginAccount.consume(email),
+      rateLimits.loginIp.consume(ip),
+    ])
+  );
   if (limited) return { ok: false, reason: "rate_limited", retryAfterSeconds: limited.retryAfterSeconds };
 
   const user = await getDb().user.findUnique({ where: { email }, select: { ...accountSelect, passwordHash: true } });
   const valid = await verifyPassword(password, user?.passwordHash ?? (await dummyHash()));
   if (!user?.passwordHash || !valid) return { ok: false, reason: "invalid" };
 
-  await rateLimits.loginEmail.reset(email);
+  await rateLimits.loginAccountIp.reset(accountIp);
   return { ok: true, user: { id: user.id, name: user.name, email: user.email, role: user.role, sessionVersion: user.sessionVersion } };
 }
 

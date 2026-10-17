@@ -92,29 +92,39 @@ describe("verifyCredentials", () => {
     expect(await verifyCredentials(google, PASSWORD, IP)).toEqual({ ok: false, reason: "invalid" });
   });
 
-  it(`locks an account after ${rateLimits.loginEmail.limit} attempts, even for the right password`, async () => {
+  it(`locks an account on one IP after ${rateLimits.loginAccountIp.limit} attempts, even for the right password`, async () => {
     const address = email();
     await registerUser({ name: "Ana", email: address, password: PASSWORD });
-    for (let i = 0; i < rateLimits.loginEmail.limit; i++) {
+    for (let i = 0; i < rateLimits.loginAccountIp.limit; i++) {
       expect((await verifyCredentials(address, `mala-${i}`, IP)).ok).toBe(false);
     }
     const locked = await verifyCredentials(address, PASSWORD, IP);
     expect(locked).toMatchObject({ ok: false, reason: "rate_limited" });
     expect(locked.ok === false && locked.reason === "rate_limited" && locked.retryAfterSeconds).toBeGreaterThan(800);
 
-    // The lock is per account (another IP does not help) and only for this account.
-    expect((await verifyCredentials(address, PASSWORD, "198.51.100.1")).ok).toBe(false);
+    // A stranger guessing from their IP does not lock the owner out on theirs.
+    expect((await verifyCredentials(address, PASSWORD, "198.51.100.1")).ok).toBe(true);
+    // Other accounts on the same IP are unaffected.
     const other = email();
     await registerUser({ name: "Bruno", email: other, password: PASSWORD });
     expect((await verifyCredentials(other, PASSWORD, IP)).ok).toBe(true);
   });
 
-  it("a successful login clears the account's failed attempts", async () => {
+  it(`limits one account to ${rateLimits.loginAccount.limit} attempts an hour from all IPs together`, async () => {
     const address = email();
     await registerUser({ name: "Ana", email: address, password: PASSWORD });
-    for (let i = 0; i < rateLimits.loginEmail.limit - 1; i++) await verifyCredentials(address, "mala", IP);
+    await testDb.rateLimit.create({
+      data: { key: `login-account:${address}`, count: rateLimits.loginAccount.limit, resetAt: new Date(Date.now() + 60_000) },
+    });
+    expect(await verifyCredentials(address, PASSWORD, "198.51.100.2")).toMatchObject({ ok: false, reason: "rate_limited" });
+  });
+
+  it("a successful login clears the account's failed attempts on that IP", async () => {
+    const address = email();
+    await registerUser({ name: "Ana", email: address, password: PASSWORD });
+    for (let i = 0; i < rateLimits.loginAccountIp.limit - 1; i++) await verifyCredentials(address, "mala", IP);
     expect((await verifyCredentials(address, PASSWORD, IP)).ok).toBe(true);
-    expect(await testDb.rateLimit.findUnique({ where: { key: `login-email:${address}` } })).toBeNull();
+    expect(await testDb.rateLimit.findUnique({ where: { key: `login-account-ip:${address}|${IP}` } })).toBeNull();
     expect((await verifyCredentials(address, "mala", IP)).ok).toBe(false);
     expect((await verifyCredentials(address, PASSWORD, IP)).ok).toBe(true);
   });

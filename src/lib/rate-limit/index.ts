@@ -21,8 +21,14 @@ const limiter = (name: string, limit: number, windowMs: number): RateLimiter =>
   createRateLimiter({ name, limit, windowMs, store });
 
 export const rateLimits = {
-  /** Login attempts per account (email). Cleared by a successful login. */
-  loginEmail: limiter("login-email", 5, 15 * MINUTE),
+  /**
+   * Login attempts per account from one IP: the tight limit. Keyed by both so
+   * a stranger cannot lock someone out of their account by guessing wrong.
+   * Cleared by a successful login.
+   */
+  loginAccountIp: limiter("login-account-ip", 5, 15 * MINUTE),
+  /** Login attempts per account from anywhere: slows down guessing spread over many IPs. */
+  loginAccount: limiter("login-account", 30, HOUR),
   /**
    * Login attempts per client IP, any account: slows down guessing across
    * accounts. Roomier than per account: many people can share one IP (offices,
