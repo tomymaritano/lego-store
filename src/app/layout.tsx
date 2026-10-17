@@ -6,6 +6,7 @@ import { CategoriesProvider } from "@/providers/CategoriesProvider";
 import { ClientProviders, Footer, Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui";
 import { getCategories } from "@/lib/api";
+import { getCurrentUser } from "@/lib/auth/session";
 import { THEME_SCRIPT } from "@/lib/theme";
 import { siteConfig } from "@/config/site";
 
@@ -65,7 +66,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const categories = (await getCategories()).map(({ id, name }) => ({ id, name }));
+  // The session makes every page render per request (see README, «Rendimiento»); the
+  // catalogue reads stay in the data cache, so this costs one session check and one query.
+  const [categories, user] = await Promise.all([
+    getCategories().then((list) => list.map(({ id, name }) => ({ id, name }))),
+    getCurrentUser(),
+  ]);
+  const account = user ? { name: user.name, email: user.email, role: user.role } : null;
 
   return (
     <html lang="es-AR" className={`${barlow.variable} motion-safe:scroll-smooth`} data-scroll-behavior="smooth" suppressHydrationWarning>
@@ -83,7 +90,7 @@ export default async function RootLayout({
         <QueryProvider>
           <CategoriesProvider categories={categories}>
             <ClientProviders>
-              <Navbar categories={categories} />
+              <Navbar categories={categories} account={account} />
               <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
                 {children}
               </main>

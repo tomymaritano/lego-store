@@ -1,0 +1,112 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { KeyRound, LayoutDashboard, LogOut, UserRound } from "lucide-react";
+import { requireUser } from "@/lib/auth/session";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { ProfileForm } from "@/components/account/ProfileForm";
+import { PasswordForm } from "@/components/account/PasswordForm";
+import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { logoutAction } from "../(auth)/actions";
+import { changePasswordAction, updateProfileAction } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Mi cuenta",
+  robots: { index: false, follow: false },
+};
+
+function SectionTitle({ id, icon, children }: { id: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <h2 id={id} className="flex items-center gap-2.5 text-title">
+      <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-lg bg-primary/20 text-fg [&_svg]:size-5">
+        {icon}
+      </span>
+      {children}
+    </h2>
+  );
+}
+
+interface AccountPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/** /account: profile, password and session. Per-user, so rendered on every request. */
+export default async function AccountPage({ searchParams }: AccountPageProps) {
+  const user = await requireUser({ callbackUrl: "/account" });
+  const passwordChanged = (await searchParams)["password-changed"] === "1";
+  const firstName = user.name?.split(/\s+/)[0];
+
+  return (
+    <div className="container-custom py-8 md:py-12">
+      <PageHeader
+        title="Mi cuenta"
+        description={
+          <>
+            {firstName ? `Hola, ${firstName}. ` : null}Ingresaste como <strong className="font-semibold text-fg">{user.email}</strong>.
+          </>
+        }
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <SectionTitle id="profile-title" icon={<UserRound />}>
+                Tus datos
+              </SectionTitle>
+            </CardHeader>
+            <CardContent>
+              <ProfileForm action={updateProfileAction} name={user.name ?? ""} email={user.email} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <SectionTitle id="password-title" icon={<KeyRound />}>
+                Contraseña
+              </SectionTitle>
+              {user.hasPassword ? (
+                <p className="text-fg-muted">Al cambiarla, se cierra la sesión en tus otros dispositivos.</p>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {user.hasPassword ? (
+                <PasswordForm
+                  action={changePasswordAction}
+                  notice={passwordChanged ? "Cambiamos tu contraseña. Cerramos la sesión en tus otros dispositivos." : undefined}
+                />
+              ) : (
+                <p className="text-fg-secondary">Ingresas con Google, así que tu cuenta no tiene contraseña propia.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card elevation="flat" className="bg-bg-subtle lg:sticky lg:top-24">
+          <CardContent className="space-y-4">
+            <h2 className="text-title">Sesión</h2>
+            <dl className="space-y-1">
+              <dt className="sr-only">Email</dt>
+              <dd className="truncate font-semibold">{user.email}</dd>
+              <dt className="sr-only">Tipo de cuenta</dt>
+              <dd>
+                <Badge variant={user.role === "ADMIN" ? "exclusive" : "neutral"}>{user.role === "ADMIN" ? "Administrador" : "Cliente"}</Badge>
+              </dd>
+            </dl>
+            {user.role === "ADMIN" ? (
+              <Button variant="secondary" className="w-full" render={<Link href="/admin" />}>
+                <LayoutDashboard aria-hidden="true" />
+                Panel de administración
+              </Button>
+            ) : null}
+            <form action={logoutAction}>
+              <Button type="submit" variant="outline" className="w-full">
+                <LogOut aria-hidden="true" />
+                Cerrar sesión
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

@@ -7,6 +7,8 @@ import { themeLinks, type NavItem } from "@/config/navigation";
 import { SearchAutocomplete } from "@/components/search";
 import type { Category } from "@/types";
 import { NavLink } from "./NavLink";
+import { logoutAction } from "@/app/(auth)/actions";
+import type { NavAccount } from "./AccountMenu";
 import { NavbarActions } from "./NavbarActions";
 import { ThemesMenu } from "./ThemesMenu";
 
@@ -19,9 +21,11 @@ const navLinkClasses =
 /**
  * Site header. Server Component: the promo strip, logo and links render on
  * the server; NavLink (aria-current), ThemesMenu, SearchAutocomplete and
- * NavbarActions (counts, drawers, menus) are the client islands.
+ * NavbarActions (counts, drawers, menus, account) are the client islands.
+ * The root layout reads the session and passes `account`, so the signed-in
+ * state is in the server HTML (no flash after hydration).
  */
-export function Navbar({ categories }: { categories: Pick<Category, "id" | "name">[] }) {
+export function Navbar({ categories, account }: { categories: Pick<Category, "id" | "name">[]; account: NavAccount | null }) {
   const links: NavItem[] = [
     { name: "Todos", href: "/" },
     ...categories.map((c) => ({ name: c.name, href: `/category/${c.id}` })),
@@ -67,7 +71,7 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
             <SearchAutocomplete className="w-full max-w-md" />
           </div>
 
-          <NavbarActions links={links} themes={themeLinks} />
+          <NavbarActions links={links} themes={themeLinks} account={account} logoutAction={logoutAction} />
         </div>
       </header>
     </>

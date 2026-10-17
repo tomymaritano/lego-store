@@ -1,0 +1,52 @@
+"use client";
+
+import { useActionState } from "react";
+import type { FormState } from "@/lib/auth/form-state";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-rules";
+import { Button, Field } from "@/components/ui";
+import { FormAlert } from "@/components/auth/FormAlert";
+import { PasswordInput } from "@/components/auth/PasswordInput";
+import { useFocusFirstInvalid } from "@/components/auth/useFormFeedback";
+
+type PasswordField = "currentPassword" | "newPassword" | "confirmPassword";
+
+export interface PasswordFormProps {
+  action: (state: FormState<PasswordField>, formData: FormData) => Promise<FormState<PasswordField>>;
+  /** Confirmation after a successful change (the action redirects back with it). */
+  notice?: string;
+}
+
+/**
+ * /account: change the password (the current one is required). Saving it
+ * signs out every other device; the form says so before and after. On
+ * success the action redirects back here and the page passes `notice`.
+ */
+export function PasswordForm({ action, notice }: PasswordFormProps) {
+  const [state, formAction, pending] = useActionState(action, {});
+  const formRef = useFocusFirstInvalid(state);
+  const errors = state.fieldErrors ?? {};
+
+  return (
+    <form ref={formRef} action={formAction} noValidate aria-labelledby="password-title" className="space-y-5">
+      {state.message ? (
+        <FormAlert>{state.message}</FormAlert>
+      ) : notice && !state.status ? (
+        <FormAlert tone="success">{notice}</FormAlert>
+      ) : null}
+      <Field label="Contraseña actual" error={errors.currentPassword} required>
+        <PasswordInput name="currentPassword" autoComplete="current-password" />
+      </Field>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label="Nueva contraseña" error={errors.newPassword} hint={`Al menos ${MIN_PASSWORD_LENGTH} caracteres.`} required>
+          <PasswordInput name="newPassword" autoComplete="new-password" />
+        </Field>
+        <Field label="Repite la nueva contraseña" error={errors.confirmPassword} required>
+          <PasswordInput name="confirmPassword" autoComplete="new-password" />
+        </Field>
+      </div>
+      <Button type="submit" loading={pending}>
+        {pending ? "Cambiando…" : "Cambiar contraseña"}
+      </Button>
+    </form>
+  );
+}

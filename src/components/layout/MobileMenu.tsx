@@ -2,10 +2,12 @@
 
 import type { ReactNode } from "react";
 import { m } from "motion/react";
-import { Heart, Scale, ShoppingCart } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Heart, LayoutDashboard, LogIn, LogOut, Scale, ShoppingCart, UserPlus, UserRound } from "lucide-react";
 import { STAGGER, STAGGER_DELAY, staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { helpLinks, type NavItem } from "@/config/navigation";
+import { loginHref } from "@/lib/auth/callback-url";
 import {
   Button,
   Sheet,
@@ -17,6 +19,7 @@ import {
   ThemeToggle,
 } from "@/components/ui";
 import { NavLink } from "./NavLink";
+import { accountInitial, type NavAccount } from "./AccountMenu";
 
 interface MobileMenuProps {
   open: boolean;
@@ -25,6 +28,8 @@ interface MobileMenuProps {
   themes: NavItem[];
   counts: { cart: number; wishlist: number; compare: number };
   onOpenCart: () => void;
+  account: NavAccount | null;
+  logoutAction: () => Promise<void>;
 }
 
 const itemClasses =
@@ -48,9 +53,10 @@ function Count({ value }: { value: number }) {
   );
 }
 
-/** Phone/tablet navigation in a left Sheet: categories, themes, saved items and help. */
-export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCart }: MobileMenuProps) {
+/** Phone/tablet navigation in a left Sheet: account, categories, themes, saved items and help. */
+export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCart, account, logoutAction }: MobileMenuProps) {
   const close = () => onOpenChange(false);
+  const pathname = usePathname() ?? "/";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -66,6 +72,59 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
             animate="visible"
             className="space-y-6 px-2 py-4"
           >
+            <Group title="Tu cuenta">
+              {account ? (
+                <>
+                  <li className="flex items-center gap-3 px-4 py-2">
+                    <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary font-bold text-on-primary">
+                      {accountInitial(account)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-fg">{account.name?.trim() || account.email}</span>
+                      {account.name ? <span className="block truncate text-caption text-fg-muted">{account.email}</span> : null}
+                    </span>
+                  </li>
+                  <li>
+                    <NavLink href="/account" onClick={close} className={itemClasses}>
+                      <UserRound aria-hidden="true" className="size-5" />
+                      Mi cuenta
+                    </NavLink>
+                  </li>
+                  {account.role === "ADMIN" ? (
+                    <li>
+                      <NavLink href="/admin" onClick={close} className={itemClasses}>
+                        <LayoutDashboard aria-hidden="true" className="size-5" />
+                        Administración
+                      </NavLink>
+                    </li>
+                  ) : null}
+                  <li>
+                    <form action={logoutAction}>
+                      <Button type="submit" variant="ghost" className={cn(itemClasses, "h-auto w-full justify-start text-body")}>
+                        <LogOut aria-hidden="true" className="size-5" />
+                        Cerrar sesión
+                      </Button>
+                    </form>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    <NavLink href={loginHref(pathname)} matchPath={false} onClick={close} className={itemClasses}>
+                      <LogIn aria-hidden="true" className="size-5" />
+                      Iniciar sesión
+                    </NavLink>
+                  </li>
+                  <li>
+                    <NavLink href={loginHref(pathname, "/register")} matchPath={false} onClick={close} className={itemClasses}>
+                      <UserPlus aria-hidden="true" className="size-5" />
+                      Crear cuenta
+                    </NavLink>
+                  </li>
+                </>
+              )}
+            </Group>
+
             <Group title="Categorías" columns={2}>
               {links.map((item) => (
                 <li key={item.href}>
