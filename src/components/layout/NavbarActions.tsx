@@ -67,6 +67,13 @@ export interface NavbarActionsProps {
 export function NavbarActions({ links, themes, account, logoutAction }: NavbarActionsProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // Logging out from inside the mobile menu re-renders it signed out: close it instead of leaving it open.
+  const accountKey = account?.email ?? null;
+  const [menuAccountKey, setMenuAccountKey] = useState(accountKey);
+  if (menuAccountKey !== accountKey) {
+    setMenuAccountKey(accountKey);
+    setIsMenuOpen(false);
+  }
   const isCartOpen = useCartDrawerOpen();
   const setIsCartOpen = useUiStore((state) => state.setCartDrawerOpen);
 
