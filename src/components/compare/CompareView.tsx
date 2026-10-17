@@ -32,7 +32,7 @@ function renderValue(product: Product, key: CompareRowKey) {
     case "category":
       return <CategoryName id={product.category} />;
     case "rating":
-      return <Rating value={product.rating} showValue size="sm" className="justify-center" />;
+      return <Rating value={product.rating} unrated={product.reviewCount === 0} showValue size="sm" className="justify-center" />;
     case "availability":
       return product.stock > 0 ? (
         <Badge variant="success">{product.stock} disponibles</Badge>

@@ -166,7 +166,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
           </Link>
         </h3>
 
-        <Rating value={product.rating} showValue size="sm" />
+        <Rating value={product.rating} unrated={product.reviewCount === 0} showValue size="sm" />
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           <Price value={product.price} originalValue={discounted} size="md" data-testid="product-price" />

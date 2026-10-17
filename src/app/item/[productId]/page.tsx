@@ -104,8 +104,8 @@ export default async function ItemPage({ params }: ItemPageProps) {
                 <h1 className="text-headline text-balance">{product.name}</h1>
                 {/* Catalogue rating (same as the product cards), labelled as such; the link counts the reviews in the tab. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label font-normal">
-                  <Rating value={product.rating} showValue />
-                  <span className="text-fg-muted">valoración general</span>
+                  <Rating value={product.rating} unrated={product.reviewCount === 0} showValue />
+                  {product.reviewCount > 0 ? <span className="text-fg-muted">valoración general</span> : null}
                   <span aria-hidden="true" className="text-fg-muted">
                     ·
                   </span>

@@ -22,11 +22,23 @@ export interface RatingProps extends Omit<React.ComponentProps<"div">, "children
   count?: number;
   /** Also print the numeric value. */
   showValue?: boolean;
+  /**
+   * No reviews yet: shows "Sin reseñas" instead of empty stars and a 0 that
+   * would read as a 0-star rating. Implied by `count={0}`.
+   */
+  unrated?: boolean;
   size?: keyof typeof sizes;
 }
 
 /** Read-only star rating. Exposed to assistive tech as one image with a text label. */
-export function Rating({ value, count, showValue = false, size = "md", className, ...props }: RatingProps) {
+export function Rating({ value, count, showValue = false, unrated = false, size = "md", className, ...props }: RatingProps) {
+  if (unrated || count === 0) {
+    return (
+      <div data-slot="rating" className={cn("inline-flex items-center text-caption text-fg-muted", className)} {...props}>
+        Sin reseñas
+      </div>
+    );
+  }
   const clamped = Math.max(0, Math.min(MAX, value));
   const label = `Valoración: ${formatRating(clamped)} de ${MAX}${count !== undefined ? `, ${count} reseñas` : ""}`;
 

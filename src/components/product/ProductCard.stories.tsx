@@ -118,6 +118,10 @@ export const LowStock: Story = {
   args: { product: { ...baseProduct, stock: 3 } },
 };
 
+export const NoReviews: Story = {
+  args: { product: { ...baseProduct, id: "11", rating: 0, reviewCount: 0 } },
+};
+
 export const Dark: Story = {
   args: { product: { ...baseProduct, isNew: true, isOnSale: true, originalPrice: 999 } },
   globals: { theme: "dark" },

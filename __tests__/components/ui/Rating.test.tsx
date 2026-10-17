@@ -75,3 +75,15 @@ describe("RatingInput", () => {
     }
   });
 });
+
+describe("Rating without reviews", () => {
+  it.each([
+    ["unrated", { unrated: true }],
+    ["a count of 0", { count: 0 }],
+  ])("says Sin reseñas instead of a 0-star rating when %s", (_label, props) => {
+    render(<Rating value={0} showValue {...props} />);
+    expect(screen.getByText("Sin reseñas")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+});
