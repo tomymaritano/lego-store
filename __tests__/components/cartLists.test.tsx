@@ -11,14 +11,19 @@ import type { Product } from "@/types";
 
 const formatPrice = (value: number) => format(value).replace(/\s/g, " ");
 
-const undo = vi.hoisted(() => ({ last: undefined as undefined | { message: string; onUndo: () => void } }));
+const undo = vi.hoisted(() => ({
+  last: undefined as undefined | { message: string; onUndo: () => void },
+  info: undefined as undefined | string,
+}));
 vi.mock("@/components/ui/Toast", () => ({
   showToast: {
     undo: (message: string, onUndo: () => void) => {
       undo.last = { message, onUndo };
     },
     cart: () => {},
-    info: () => {},
+    info: (message: string) => {
+      undo.info = message;
+    },
     success: () => {},
     error: () => {},
     warning: () => {},
@@ -68,6 +73,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   undo.last = undefined;
+  undo.info = undefined;
   useCartStore.setState({ cart: [] });
   useWishlistStore.setState({ wishlist: [] });
   useCompareStore.setState({ ids: [] });
@@ -119,6 +125,20 @@ describe("CartView", () => {
     ]);
   });
 
+  it("keeps the order when two removals are undone in reverse", async () => {
+    const user = userEvent.setup();
+    useCartStore.setState({ cart: [line("1", 1000), line("2", 500), line("3", 300)] });
+    renderWithQuery(<CartView recommended={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "Eliminar Set 1 del carrito" }));
+    const undoFirst = undo.last!.onUndo;
+    await user.click(screen.getByRole("button", { name: "Eliminar Set 2 del carrito" }));
+    const undoSecond = undo.last!.onUndo;
+    act(() => undoFirst());
+    act(() => undoSecond());
+    expect(useCartStore.getState().cart.map((l) => l.id)).toEqual(["1", "2", "3"]);
+  });
+
   it("changes quantities within the stock", async () => {
     const user = userEvent.setup();
     useCartStore.setState({ cart: [line("1", 1000, 1, 2)] });
@@ -166,6 +186,67 @@ describe("WishlistView", () => {
     expect(useWishlistStore.getState().wishlist.map((i) => i.id)).toEqual(["1", "2"]);
   });
 
+  it("undoing 'Mover todo' keeps what was added to the cart afterwards", async () => {
+    const user = userEvent.setup();
+    mockFetch(() => ({ items: [product("1", { theme: "Marvel" }), product("2")] }));
+    useCartStore.setState({ cart: [line("2", 1000, 2)] });
+    useWishlistStore.setState({
+      wishlist: [
+        { id: "1", name: "Set 1", price: 1000, image: "/images/lego.png", stock: 5 },
+        { id: "2", name: "Set 2", price: 1000, image: "/images/lego.png", stock: 5 },
+      ],
+    });
+    renderWithQuery(<WishlistView recommended={[]} />);
+    await screen.findByText("Marvel");
+
+    await user.click(screen.getByRole("button", { name: "Mover todo al carrito" }));
+    expect(undo.last?.message).toBe("2 productos movidos al carrito");
+    expect(useCartStore.getState().cart.map((l) => [l.id, l.quantity])).toEqual([
+      ["2", 3],
+      ["1", 1],
+    ]);
+
+    act(() => useCartStore.getState().addItem({ id: "9", name: "Set 9", price: 10, img: "/x.png", stock: 3 }));
+    act(() => undo.last!.onUndo());
+    expect(useCartStore.getState().cart.map((l) => [l.id, l.quantity])).toEqual([
+      ["2", 2],
+      ["9", 1],
+    ]);
+    expect(useWishlistStore.getState().wishlist.map((i) => i.id)).toEqual(["1", "2"]);
+  });
+
+  it("does not move a set the cart already holds at the stock limit", async () => {
+    const user = userEvent.setup();
+    mockFetch(() => ({ items: [product("1", { stock: 3, theme: "Marvel" }), product("2"), product("3")] }));
+    useCartStore.setState({ cart: [line("1", 1000, 3, 3)] });
+    const saved = ["1", "2", "3"].map((id) => ({ id, name: `Set ${id}`, price: 1000, image: "/images/lego.png", stock: 5 }));
+    useWishlistStore.setState({ wishlist: saved });
+    renderWithQuery(<WishlistView recommended={[]} />);
+    await screen.findByText("Marvel");
+
+    const card = screen.getAllByTestId("wishlist-item")[0];
+    expect(within(card).getByTestId("move-to-cart-btn")).toBeDisabled();
+    expect(within(card).getByTestId("move-to-cart-btn")).toHaveTextContent("Máximo en el carrito");
+    expect(within(card).getByTestId("saved-in-cart")).toHaveTextContent("Ya tienes el máximo disponible en el carrito");
+
+    await user.click(screen.getByRole("button", { name: "Mover todo al carrito" }));
+    expect(undo.last?.message).toBe("2 productos movidos al carrito");
+    expect(useWishlistStore.getState().wishlist.map((i) => i.id)).toEqual(["1"]);
+    expect(useCartStore.getState().cart.find((l) => l.id === "1")?.quantity).toBe(3);
+  });
+
+  it("undoing 'Vaciar lista' keeps items saved afterwards", async () => {
+    const user = userEvent.setup();
+    mockFetch(() => ({ items: [product("1")] }));
+    useWishlistStore.setState({ wishlist: [{ id: "1", name: "Set 1", price: 1000, image: "/images/lego.png", stock: 5 }] });
+    renderWithQuery(<WishlistView recommended={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "Vaciar lista" }));
+    act(() => useWishlistStore.getState().addToWishlist({ id: "7", name: "Set 7", price: 1, img: "/x.png", stock: 1 }));
+    act(() => undo.last!.onUndo());
+    expect(useWishlistStore.getState().wishlist.map((i) => i.id)).toEqual(["1", "7"]);
+  });
+
   it("disables moving a sold-out product", async () => {
     mockFetch(() => ({ items: [product("1", { stock: 0 })] }));
     useWishlistStore.setState({ wishlist: [{ id: "1", name: "Set 1", price: 1000, image: "/images/lego.png", stock: 5 }] });
@@ -202,6 +283,8 @@ describe("CompareView", () => {
     expect(within(table).getByRole("rowheader", { name: /^Precio\s*\(valores distintos\)$/ })).toBeInTheDocument();
     expect(within(table).getByRole("rowheader", { name: /^Tema\s*\(valores distintos\)$/ })).toBeInTheDocument();
     expect(within(table).getByRole("rowheader", { name: "Edad" })).toBeInTheDocument();
+    expect(within(table).getByTestId("compare-row-price").querySelector("td")).toHaveClass("bg-row-highlight");
+    expect(within(table).getByTestId("compare-row-age").querySelector("td")).not.toHaveClass("bg-row-highlight");
   });
 
   it("removes a product with undo", async () => {
@@ -214,6 +297,20 @@ describe("CompareView", () => {
     expect(useCompareStore.getState().ids).toEqual(["2"]);
     act(() => undo.last!.onUndo());
     expect(useCompareStore.getState().ids).toEqual(["1", "2"]);
+  });
+
+  it("undoing 'Limpiar todo' keeps ids added afterwards", async () => {
+    const user = userEvent.setup();
+    mockFetch(() => ({ items: [product("1"), product("2")] }));
+    useCompareStore.setState({ ids: ["1", "2"] });
+    renderWithQuery(<CompareView />);
+
+    await user.click(await screen.findByRole("button", { name: "Limpiar todo" }));
+    act(() => {
+      useCompareStore.getState().addToCompare("5");
+    });
+    act(() => undo.last!.onUndo());
+    expect(useCompareStore.getState().ids).toEqual(["1", "2", "5"]);
   });
 
   it("shows the empty state without products", () => {

@@ -28,6 +28,19 @@ const storedCart = (page: Page) =>
     )
   );
 
+/** WCAG contrast ratio between two computed `rgb(r, g, b)` colours. */
+function contrastRatio(a: string, b: string) {
+  const luminance = (rgb: string) => {
+    const [r, g, bl] = rgb.match(/\d+(\.\d+)?/g)!.slice(0, 3).map((c) => {
+      const v = Number(c) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 test.describe("Cart page", () => {
   test("updates totals, shipping progress and free shipping as quantities change", async ({ page }) => {
     await seed(page, "lego-cart-storage", { cart: [cartLine("1", "Captain Rex Helmet", 2000, 1)] });
@@ -146,6 +159,45 @@ test.describe("Wishlist page", () => {
     await expect(page.getByRole("heading", { name: "Tu lista de deseos está vacía" })).toBeVisible();
     await expect(page.getByTestId("cart-count")).toHaveText("2");
   });
+
+  test("undoing 'Mover todo' keeps a recommended product added in the meantime", async ({ page }) => {
+    await seed(page, "lego-wishlist-storage", { wishlist: saved });
+    await page.goto("/wishlist");
+    await expect(page.getByTestId("wishlist-item")).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Mover todo al carrito" }).click();
+    const recommended = page.getByRole("region", { name: "Te puede interesar" });
+    await recommended.locator("[data-testid=add-to-cart-btn]:not([data-in-cart])").first().click();
+    await expect(page.getByTestId("cart-count")).toHaveText("3");
+    const withRecommended = await storedCart(page);
+    const added = withRecommended.find((entry) => !["1x1", "2x1"].includes(entry))!;
+    expect(added).toBeTruthy();
+
+    // Sonner stacks toasts; hovering the stack expands it so the older one's action is reachable.
+    const moved = page.locator("[data-sonner-toast]").filter({ hasText: "2 productos movidos al carrito" });
+    await moved.hover();
+    await moved.getByRole("button", { name: "Deshacer" }).click();
+
+    await expect(page.getByTestId("wishlist-item")).toHaveCount(2);
+    await expect(page.getByTestId("cart-count")).toHaveText("1");
+    expect(await storedCart(page)).toEqual([added]);
+  });
+
+  test("a set already at its stock limit in the cart stays saved", async ({ page }) => {
+    await seed(page, "lego-cart-storage", { cart: [cartLine("1", "Captain Rex Helmet", 899, 10, 10)] });
+    await seed(page, "lego-wishlist-storage", { wishlist: saved });
+    await page.goto("/wishlist");
+
+    const rex = page.getByTestId("wishlist-item").filter({ hasText: "Captain Rex Helmet" });
+    await expect(rex.getByTestId("move-to-cart-btn")).toBeDisabled();
+    await expect(rex.getByTestId("move-to-cart-btn")).toHaveText(/Máximo en el carrito/);
+    await expect(page.getByRole("button", { name: "Mover todo al carrito" })).toHaveCount(0);
+
+    // Price and CTA line up across the row, with or without the in-cart note.
+    const leia = page.getByTestId("wishlist-item").filter({ hasText: "Princess Leia Helmet" });
+    const [a, b] = await Promise.all([rex, leia].map((card) => card.getByTestId("move-to-cart-btn").boundingBox()));
+    expect(Math.abs(a!.y - b!.y)).toBeLessThan(1);
+  });
 });
 
 test.describe("Compare page", () => {
@@ -171,6 +223,23 @@ test.describe("Compare page", () => {
 
     await table.getByTestId("add-to-cart-btn").first().click();
     await expect(page.getByTestId("cart-count")).toHaveText("1");
+  });
+
+  test("highlighted rows are tinted visibly in dark mode, and stock counts are compared", async ({ page }) => {
+    await seed(page, "lego-compare-storage", { ids: ["1", "3", "11", "15"] });
+    await page.goto("/compare");
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
+    const table = page.getByRole("table");
+    await expect(table.getByTestId("compare-column")).toHaveCount(4);
+    await page.getByRole("checkbox", { name: "Resaltar diferencias" }).click();
+
+    await expect(table.getByRole("rowheader", { name: /Disponibilidad.*valores distintos/ })).toBeVisible();
+    const [marked, surface] = await Promise.all([
+      table.getByTestId("compare-row-price").locator("td").first().evaluate((el) => getComputedStyle(el).backgroundColor),
+      page.getByTestId("compare-scroller").evaluate((el) => getComputedStyle(el).backgroundColor),
+    ]);
+    // The old bg-muted tint measured about 1.0:1 against the surface in dark mode.
+    expect(contrastRatio(marked, surface)).toBeGreaterThanOrEqual(1.1);
   });
 
   test("scrolls sideways on phones while the labels stay in view", async ({ page }) => {
