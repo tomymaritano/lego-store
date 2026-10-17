@@ -94,27 +94,34 @@ export async function updateUserName(id: string, name: string): Promise<void> {
 }
 
 export type ChangePasswordResult =
-  | { ok: true }
-  | { ok: false; reason: "wrong_password" | "no_password" }
+  /** The account's session version before and after the change (to renew the caller's own session). */
+  | { ok: true; sessionVersion: { from: number; to: number } }
+  | { ok: false; reason: "wrong_password" | "no_password" | "conflict" }
   | { ok: false; reason: "rate_limited"; retryAfterSeconds: number };
 
 /**
  * Replaces the password after checking the current one, and bumps the
  * session version: every other session of this account stops working (the
- * caller refreshes its own token, see session.ts).
+ * caller renews its own token with sessionRenewal(), see session-token.ts).
  */
 export async function changeUserPassword(id: string, currentPassword: string, newPassword: string): Promise<ChangePasswordResult> {
   const limit = await rateLimits.passwordChange.consume(id);
   if (!limit.ok) return { ok: false, reason: "rate_limited", retryAfterSeconds: limit.retryAfterSeconds };
 
-  const user = await getDb().user.findUnique({ where: { id }, select: { passwordHash: true } });
+  const user = await getDb().user.findUnique({ where: { id }, select: { passwordHash: true, sessionVersion: true } });
   if (!user?.passwordHash) return { ok: false, reason: "no_password" };
   if (!(await verifyPassword(currentPassword, user.passwordHash))) return { ok: false, reason: "wrong_password" };
 
   const passwordHash = await hashPassword(newPassword);
-  await getDb().user.update({ where: { id }, data: { passwordHash, sessionVersion: { increment: 1 } } });
+  // Only from the version just read: if another change landed in between, this one loses
+  // (and must not hand out a renewal that skips the other change's revocation).
+  const { count } = await getDb().user.updateMany({
+    where: { id, sessionVersion: user.sessionVersion },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+  });
+  if (count === 0) return { ok: false, reason: "conflict" };
   await rateLimits.passwordChange.reset(id);
-  return { ok: true };
+  return { ok: true, sessionVersion: { from: user.sessionVersion, to: user.sessionVersion + 1 } };
 }
 
 function firstRefusal(results: RateLimitResult[]): RateLimitResult | undefined {

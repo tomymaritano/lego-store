@@ -1,8 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { updateSession } from "@/lib/auth";
+import { renewSession, updateSession } from "@/lib/auth";
 import { changeUserPassword, updateUserName } from "@/lib/auth/accounts";
+import { sessionRenewal } from "@/lib/auth/session-token";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { requireUser } from "@/lib/auth/session";
 import { waitMessage } from "@/lib/rate-limit";
@@ -49,6 +50,8 @@ export async function changePasswordAction(
         return { status: "error", fieldErrors: { currentPassword: "La contraseña actual no es correcta" } };
       case "no_password":
         return { status: "error", message: "Tu cuenta ingresa con Google y no tiene contraseña." };
+      case "conflict":
+        return { status: "error", message: "Tu contraseña cambió desde otro lugar mientras tanto. Recarga la página e inténtalo de nuevo." };
       case "rate_limited":
         return {
           status: "error",
@@ -57,8 +60,10 @@ export async function changePasswordAction(
     }
   }
 
-  // The password change bumped the session version: renew this session's token so it stays signed in.
-  await updateSession({});
+  // The password change bumped the session version: renew this session's token so it stays
+  // signed in. Only a renewal made here can move a token to the new version (session-token.ts).
+  const renewal = sessionRenewal(user.id, result.sessionVersion.from, result.sessionVersion.to);
+  if (renewal) await renewSession(renewal);
   // Redirect (post/redirect/get) instead of returning a state: re-rendering this request would
   // still read the old token from the request headers (Auth.js reads headers(), not the cookie
   // just set) and treat this session as signed out. The page shows the confirmation.

@@ -161,6 +161,20 @@ test.describe("Accounts", () => {
 
     await page.reload();
     await expect(page.getByRole("heading", { level: 1, name: "Mi cuenta" })).toBeVisible();
+
+    // The signed-out device asks Auth.js to refresh its token (any client may call this
+    // endpoint): the revoked session must stay revoked.
+    const refresh = await other.evaluate(async () => {
+      const { csrfToken } = (await (await fetch("/api/auth/csrf")).json()) as { csrfToken: string };
+      const response = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ csrfToken, data: {} }),
+      });
+      return response.json() as Promise<{ sessionVersion?: number } | null>;
+    });
+    expect(refresh?.sessionVersion).toBeUndefined();
+
     await other.goto("/account");
     await expect(other).toHaveURL(/\/login\?callbackUrl=%2Faccount$/);
     await otherContext.close();

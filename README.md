@@ -170,8 +170,12 @@ scripts/               Presupuesto de JS y capturas del README
   página). Lo que un JWT no tiene, revocación inmediata, se cubre en el servidor:
   el token lleva la `sessionVersion` del usuario y `getCurrentUser()` la compara
   con la base en cada página, acción y ruta protegida. Cambiar la contraseña la
-  incrementa, así que se cierran las sesiones de los otros dispositivos (la actual
-  se renueva). El rol también sale siempre de la base, nunca del token.
+  incrementa, así que se cierran las sesiones de los otros dispositivos. Un token
+  viejo no puede revivir pidiendo un refresh (`POST /api/auth/session` está abierto
+  a cualquier cliente): el refresh solo copia nombre, email y rol de la base, y pasar
+  a la versión nueva exige una renovación firmada con `AUTH_SECRET` que arma la
+  acción de cambio de contraseña para su propia sesión (`session-token.ts`). El rol
+  también sale siempre de la base, nunca del token.
 - **Roles** USER / ADMIN: el email de `ADMIN_EMAIL` recibe ADMIN en el seed, al
   registrarse y al entrar por primera vez con Google (solo con el email verificado
   por Google). Como no hay verificación de email, si `ADMIN_EMAIL` está definida

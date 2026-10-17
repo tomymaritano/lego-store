@@ -1,14 +1,15 @@
 import "server-only";
 
-import NextAuth, { CredentialsSignin, type DefaultSession, type NextAuthConfig } from "next-auth";
+import NextAuth, { CredentialsSignin, type DefaultSession, type NextAuthConfig, type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import type { Role } from "@/generated/prisma/enums";
 import { getDb } from "@/lib/db";
 import { clientIp } from "@/lib/rate-limit/client-ip";
 import { loginSchema } from "@/lib/validations/auth";
-import { getAccountUser, verifyCredentials } from "./accounts";
+import { verifyCredentials } from "./accounts";
 import { prismaAuthAdapter } from "./adapter";
+import { refreshSessionToken, type SessionRenewal } from "./session-token";
 
 /*
  * Auth.js (next-auth v5) configuration.
@@ -21,7 +22,8 @@ import { prismaAuthAdapter } from "./adapter";
  *   carries the account's sessionVersion, and getCurrentUser() (session.ts)
  *   checks it and the current role against the database on every protected
  *   page and action. Changing the password bumps the version, so every other
- *   session stops counting.
+ *   session stops counting, and a refresh never moves a token to a newer
+ *   version on its own (session-token.ts).
  *
  * Google sign-in is optional: the provider (and its button) exists only when
  * AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET are both set.
@@ -89,22 +91,16 @@ export const authConfig = {
       if (account?.provider === "google") return profile?.email_verified === true;
       return true;
     },
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger, session }) {
       if (user?.id) {
         token.sub = user.id;
         token.role = user.role ?? "USER";
         token.sv = user.sessionVersion ?? 0;
       }
-      // unstable_update() after a profile or password change: reload what the token repeats
-      // from the database (never from the request: the client can call this endpoint too).
-      if (trigger === "update" && token.sub) {
-        const fresh = await getAccountUser(token.sub);
-        if (!fresh) return null;
-        token.name = fresh.name;
-        token.email = fresh.email;
-        token.role = fresh.role;
-        token.sv = fresh.sessionVersion;
-      }
+      // unstable_update() after a profile or password change, but also any client that POSTs
+      // /api/auth/session: reload what the token repeats from the database. A stale token
+      // stays dead unless the server renewed it (session-token.ts).
+      if (trigger === "update") return refreshSessionToken(token, session);
       return token;
     },
     session({ session, token }) {
@@ -125,3 +121,13 @@ export const authConfig = {
 } satisfies NextAuthConfig;
 
 export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth(authConfig);
+
+/**
+ * Re-issues this request's session token after a password change bumped the
+ * account's session version, so this device stays signed in. `renewal` comes
+ * from sessionRenewal() (session-token.ts), made on the server.
+ */
+export async function renewSession(renewal: SessionRenewal): Promise<void> {
+  // unstable_update() is typed for session fields; the jwt callback reads `renewal` from its data.
+  await updateSession({ renewal } as Partial<Session>);
+}

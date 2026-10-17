@@ -154,7 +154,7 @@ describe("profile and password", () => {
     expect(await changeUserPassword(user.id, "no-es", "nueva-clave-99")).toEqual({ ok: false, reason: "wrong_password" });
     expect((await getAccountUser(user.id))!.sessionVersion).toBe(0);
 
-    expect(await changeUserPassword(user.id, PASSWORD, "nueva-clave-99")).toEqual({ ok: true });
+    expect(await changeUserPassword(user.id, PASSWORD, "nueva-clave-99")).toEqual({ ok: true, sessionVersion: { from: 0, to: 1 } });
     expect((await getAccountUser(user.id))!.sessionVersion).toBe(1);
     expect((await verifyCredentials(address, PASSWORD, IP)).ok).toBe(false);
     expect((await verifyCredentials(address, "nueva-clave-99", IP)).ok).toBe(true);
