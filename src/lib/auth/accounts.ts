@@ -41,7 +41,11 @@ export async function registerUser(input: { name: string; email: string; passwor
   const email = normalizeEmail(input.email);
   // Hashed first either way, so refusing the admin address takes as long as a registration.
   const passwordHash = await hashPassword(input.password);
-  if (roleForEmail(email) === "ADMIN") return { ok: false, reason: "email_taken" };
+  if (roleForEmail(email) === "ADMIN") {
+    // The visitor only sees "email taken"; the operator who forgot to seed sees why here.
+    console.warn("[auth] Registration refused for ADMIN_EMAIL: create the admin with `npm run db:seed` (ADMIN_PASSWORD).");
+    return { ok: false, reason: "email_taken" };
+  }
   try {
     const user = await getDb().user.create({
       data: { name: input.name.trim(), email, passwordHash, role: "USER" },
