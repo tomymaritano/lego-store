@@ -210,6 +210,7 @@ export function CompareView() {
                                   alt=""
                                   fill
                                   sizes="128px"
+                                  loading="eager"
                                   className="object-contain p-2 transition-[scale] duration-slow ease-emphasized group-hover:scale-105"
                                 />
                               </span>

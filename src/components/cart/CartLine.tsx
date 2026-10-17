@@ -15,6 +15,8 @@ interface CartLineProps {
   item: CartItem;
   onQuantityChange: (quantity: number) => void;
   onRemove: () => void;
+  /** Eager-load the picture (the first lines, above the fold). */
+  priority?: boolean;
   /** Forwarded so AnimatePresence's popLayout can measure the row as it leaves. */
   ref?: Ref<HTMLLIElement>;
 }
@@ -26,7 +28,7 @@ interface CartLineProps {
  * the quantity changes. On phones the picture shrinks and the controls wrap
  * under the name, so nothing overflows at 320px.
  */
-export function CartLine({ item, onQuantityChange, onRemove, ref }: CartLineProps) {
+export function CartLine({ item, onQuantityChange, onRemove, priority = false, ref }: CartLineProps) {
   const lineTotal = item.price * item.quantity;
   const titleId = `cart-line-${item.id}`;
 
@@ -54,6 +56,7 @@ export function CartLine({ item, onQuantityChange, onRemove, ref }: CartLineProp
           alt=""
           fill
           sizes="(max-width: 640px) 80px, 112px"
+          loading={priority ? "eager" : "lazy"}
           className="object-contain p-2 transition-[scale] duration-slow ease-emphasized group-hover:scale-105"
         />
       </Link>

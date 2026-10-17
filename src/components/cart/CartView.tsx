@@ -127,10 +127,11 @@ export function CartView({ recommended }: { recommended: Product[] }) {
             >
               <ul className="space-y-3 sm:space-y-4 lg:col-span-2" aria-label="Productos en el carrito">
                 <AnimatePresence mode="popLayout" initial={false}>
-                  {cart.map((item) => (
+                  {cart.map((item, index) => (
                     <CartLine
                       key={item.id}
                       item={item}
+                      priority={index < 3}
                       onQuantityChange={(quantity) => setQuantity(item.id, quantity)}
                       onRemove={() => removeLine(item)}
                     />
