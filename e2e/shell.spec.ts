@@ -200,6 +200,61 @@ test.describe("Footer and info pages", () => {
   });
 });
 
+test.describe("Shell review fixes", () => {
+  test("home offers one newsletter sign-up and one set of store promises", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("form", { name: /newsletter|Nuevo en LEGO/i })).toHaveCount(1);
+    await expect(page.getByText(/^Envío gratis$/)).toHaveCount(1);
+  });
+
+  for (const [path, title] of [
+    ["/search?q=star", 'Resultados para "star"'],
+    ["/cart", "Carrito de Compras"],
+    ["/compare", "Comparar Productos"],
+    ["/wishlist", "Lista de Deseos"],
+    ["/checkout", "Checkout"],
+  ] as const) {
+    test(`${path} shares its own title on social cards`, async ({ page }) => {
+      await page.goto(path);
+      const fullTitle = `${title} | LEGO Store`;
+      await expect(page).toHaveTitle(fullTitle);
+      await expect(page.locator("meta[property='og:title']")).toHaveAttribute("content", fullTitle);
+      await expect(page.locator("meta[name='twitter:title']")).toHaveAttribute("content", fullTitle);
+      await expect(page.locator("meta[property='og:url']")).toHaveAttribute("content", /^https?:\/\//);
+      await expect(page.locator("link[rel='canonical']")).toHaveCount(1);
+      await expect(page.locator("meta[name='robots']")).toHaveAttribute("content", /noindex/);
+    });
+  }
+
+  test("the compare bar's reserved room sits inside the footer, not below it", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("lego-compare-storage", JSON.stringify({ state: { ids: ["1"] }, version: 1 }));
+    });
+    await page.goto("/envios");
+    await expect(page.locator("html")).toHaveAttribute("data-compare-bar", "");
+    const layout = await page.evaluate(() => {
+      const bottom = document.querySelector("[data-footer-bottom]")!;
+      return {
+        bodyPadding: parseFloat(getComputedStyle(document.body).paddingBottom),
+        footerPadding: parseFloat(getComputedStyle(bottom).paddingBottom),
+        gapBelowFooter: document.documentElement.scrollHeight - (bottom.getBoundingClientRect().bottom + window.scrollY),
+      };
+    });
+    expect(layout.bodyPadding).toBe(0);
+    expect(layout.footerPadding).toBeGreaterThan(80);
+    expect(Math.abs(layout.gapBelowFooter)).toBeLessThan(2);
+  });
+
+  test("info fact cards do not pretend to be interactive", async ({ page }) => {
+    await page.goto("/envios");
+    const card = page.locator("main li").filter({ hasText: "Envío gratis" }).first();
+    const before = await card.evaluate((el) => `${getComputedStyle(el).translate} ${getComputedStyle(el).boxShadow}`);
+    await card.hover();
+    await page.waitForTimeout(400); // longer than any hover transition
+    expect(await card.evaluate((el) => `${getComputedStyle(el).translate} ${getComputedStyle(el).boxShadow}`)).toBe(before);
+  });
+});
+
 test.describe("Not found", () => {
   test("unknown routes get the designed 404 with a way home", async ({ page }) => {
     const response = await page.goto("/esto-no-existe");
