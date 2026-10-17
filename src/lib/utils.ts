@@ -35,3 +35,11 @@ export function calculateDiscount(originalPrice: number, currentPrice: number): 
 
 /** Fallback product image (a broken or missing URL). */
 export const PLACEHOLDER_IMAGE = "/images/lego.png";
+
+/**
+ * "1 producto", "3 productos". Spanish plural for UI copy; pass the plural
+ * when it is not just singular + "s".
+ */
+export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}

@@ -56,7 +56,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       </header>
 
       {firstPage.total > 0 ? (
-        <ProductList key={serializeProductQuery(listQuery).toString()} initialPage={firstPage} query={listQuery} />
+        <section aria-labelledby="search-results-title">
+          <h2 id="search-results-title" className="sr-only">
+            Productos
+          </h2>
+          <ProductList key={serializeProductQuery(listQuery).toString()} initialPage={firstPage} query={listQuery} />
+        </section>
       ) : (
         <EmptyState
           icon={<SearchX />}

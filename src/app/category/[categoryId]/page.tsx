@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCategories, getCategoryById, getPaginatedProducts } from "@/lib/api";
 import { Breadcrumbs } from "@/components/ui";
 import { ProductList } from "@/components/product";
+import { pluralize } from "@/lib/utils";
 
 interface CategoryPageProps {
   params: Promise<{ categoryId: string }>;
@@ -36,11 +37,16 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       <header className="mb-8">
         <h1 className="text-3xl md:text-4xl">{category.name}</h1>
         <p className="mt-2 text-fg-secondary">
-          {category.description} · {firstPage.total} {firstPage.total === 1 ? "producto" : "productos"}
+          {category.description} · {pluralize(firstPage.total, "producto")}
         </p>
       </header>
 
-      <ProductList initialPage={firstPage} query={query} />
+      <section aria-labelledby="category-products-title">
+        <h2 id="category-products-title" className="sr-only">
+          Productos
+        </h2>
+        <ProductList initialPage={firstPage} query={query} />
+      </section>
     </div>
   );
 }

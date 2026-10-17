@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { dismissible, transitions } from "@/lib/motion";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, pluralize } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { productActionCopy } from "@/hooks/useProductActions";
@@ -143,7 +143,7 @@ export default function CartPage() {
 
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <dt className="text-fg-muted">Subtotal ({count} productos)</dt>
+                <dt className="text-fg-muted">Subtotal ({pluralize(count, "producto")})</dt>
                 <dd className="text-fg tabular-nums">{formatPrice(subtotal)}</dd>
               </div>
               <div className="flex justify-between">
