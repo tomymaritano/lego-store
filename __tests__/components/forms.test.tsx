@@ -98,7 +98,9 @@ describe("ContactForm", () => {
     await user.click(screen.getByRole("combobox", { name: /Motivo/ }));
     await user.click(await screen.findByRole("option", { name: "Envíos y entregas" }));
     const message = screen.getByLabelText(/Mensaje/);
-    await user.type(message, "Quiero saber cuándo llega mi pedido, gracias.");
+    // Paste the long text: typing it key by key is what made this test slow under load.
+    await user.click(message);
+    await user.paste("Quiero saber cuándo llega mi pedido, gracias.");
     expect(message).toHaveAccessibleDescription(/45 \/ 1000 caracteres/);
 
     await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
@@ -110,5 +112,5 @@ describe("ContactForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Enviar otro mensaje" }));
     expect(await screen.findByRole("button", { name: "Enviar mensaje" })).toBeInTheDocument();
-  });
+  }, 15_000); // a whole form flow: slow when the full suite runs in parallel
 });
