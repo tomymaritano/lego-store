@@ -6,9 +6,8 @@ import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Badge, Button, Price } from "@/components/ui";
 import { ProductImage, ProductList } from "@/components/product";
-import { PageTransition } from "@/components/layout";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
-import { NewsletterForm } from "@/components/home/NewsletterForm";
+import { NewsletterForm } from "@/components/forms";
 
 const features = [
   {
@@ -37,7 +36,7 @@ export default async function HomePage() {
   const categories = allCategories.slice(0, FEATURED_CATEGORIES);
 
   return (
-    <PageTransition className="min-h-screen">
+    <div className="min-h-screen">
       {/* Hero */}
       <section className="relative overflow-hidden bg-linear-to-br from-primary to-primary-hover text-on-primary">
         <div aria-hidden="true" className={`absolute inset-0 ${studs}`} />
@@ -164,7 +163,7 @@ export default async function HomePage() {
 
       {/* Sale */}
       {saleProducts.length > 0 && (
-        <section aria-labelledby="sale-title" className="bg-bg-muted py-16">
+        <section id="ofertas" aria-labelledby="sale-title" className="scroll-mt-20 bg-bg-muted py-16">
           <div className="container-custom">
             <div className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between">
               <div>
@@ -241,6 +240,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-    </PageTransition>
+    </div>
   );
 }

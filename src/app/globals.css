@@ -234,11 +234,7 @@
      These DO expose primitives as utilities, so ESLint flags every use
      (warning in app code, error in src/components/ui). Each points at a
      primitive or semantic var: no raw hex here. */
-  --color-background-secondary: var(--bg-subtle);
-  --color-foreground-primary: var(--fg);
-  --color-foreground-muted: var(--fg-muted);
   --color-lego-yellow: var(--yellow-400);
-  --color-lego-red: var(--red-500);
   --color-lego-blue: var(--blue-500);
   --color-lego-black: var(--stone-925);
 }
@@ -275,6 +271,19 @@
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
   --animate-shimmer: shimmer 1.6s infinite linear;
+  /* 404 bricks dropping into place (staggered with animation-delay). */
+  --animate-brick-drop: brick-drop var(--duration-slow) var(--ease-emphasized) both;
+
+  @keyframes brick-drop {
+    from {
+      opacity: 0;
+      translate: 0 -1.5rem;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
 
   @keyframes shimmer {
     0% {
@@ -294,10 +303,6 @@
   --color-gray-300: #d1d5db;
   --color-gray-500: #6b7280;
   --color-gray-600: #4b5563;
-  --color-red-100: #fee2e2;
-  --color-red-400: #f87171;
-  --color-red-600: #dc2626;
-  --color-red-900: #7f1d1d;
   --color-amber-400: #fbbf24;
 }
 
@@ -416,4 +421,23 @@ html[data-compare-bar] body {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Native <details> disclosures (FAQ accordion): animate the panel height
+   where ::details-content is supported; elsewhere they just open. The
+   reduced-motion rule above zeroes the duration. */
+:root {
+  interpolate-size: allow-keywords;
+}
+
+.disclosure::details-content {
+  block-size: 0;
+  overflow-y: clip;
+  transition:
+    block-size var(--duration-base) var(--ease-standard),
+    content-visibility var(--duration-base) allow-discrete;
+}
+
+.disclosure[open]::details-content {
+  block-size: auto;
 }

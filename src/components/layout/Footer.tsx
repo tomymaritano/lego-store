@@ -1,207 +1,202 @@
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Heart, Mail, MapPin, Phone, Shield, Truck } from "lucide-react";
+import { Clock, Mail, MapPin, Phone, RotateCcw, Shield, Truck } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
-import { Stagger, StaggerItem } from "@/components/motion/Reveal";
-import { NewsletterForm } from "@/components/home/NewsletterForm";
-import { FacebookIcon, InstagramIcon, TwitterIcon, YoutubeIcon } from "@/components/icons/SocialIcons";
+import { companyLinks, helpLinks, legalLinks, themeLinks, type NavItem } from "@/config/navigation";
+import { NewsletterForm } from "@/components/forms";
+import { socialIcons } from "@/components/icons/SocialIcons";
+import type { Category } from "@/types";
 
-const footerLinks = [
-  {
-    title: "Comprar",
-    links: [
-      { name: "Todos los sets", href: "/" },
-      { name: "Helmets", href: "/category/helmet" },
-      { name: "Brickheadz", href: "/category/brickheadz" },
-      { name: "Vehículos", href: "/category/cars" },
-      { name: "Ofertas", href: "/?sale=true" },
-    ],
-  },
-  {
-    title: "Temas",
-    links: [
-      { name: "Star Wars", href: "/?theme=Star+Wars" },
-      { name: "Marvel", href: "/?theme=Marvel" },
-      { name: "Disney", href: "/?theme=Disney" },
-      { name: "Harry Potter", href: "/?theme=Harry+Potter" },
-    ],
-  },
-  {
-    title: "Ayuda",
-    links: [
-      { name: "Preguntas frecuentes", href: "/faq" },
-      { name: "Envíos y entregas", href: "/shipping" },
-      { name: "Devoluciones", href: "/returns" },
-      { name: "Contacto", href: "/contact" },
-    ],
-  },
-  {
-    title: "Nosotros",
-    links: [
-      { name: "Sobre LEGO Store", href: "/about" },
-      { name: "Blog", href: "/blog" },
-      { name: "Trabaja con nosotros", href: "/careers" },
-      { name: "Prensa", href: "/press" },
-    ],
-  },
-];
-
-const socialLinks = [
-  { name: "Facebook", icon: FacebookIcon, href: "#" },
-  { name: "Twitter", icon: TwitterIcon, href: "#" },
-  { name: "Instagram", icon: InstagramIcon, href: "#" },
-  { name: "YouTube", icon: YoutubeIcon, href: "#" },
-];
-
-const legalLinks = [
-  { name: "Privacidad", href: "/privacy" },
-  { name: "Términos", href: "/terms" },
-  { name: "Cookies", href: "/cookies" },
-  { name: "Accesibilidad", href: "/accessibility" },
-];
-
-const paymentMethods = ["Visa", "Mastercard", "Amex", "PayPal"];
+const { commerce, contact } = siteConfig;
 
 const features = [
-  { icon: Truck, text: `Envío gratis desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}` },
-  { icon: Shield, text: "Compra segura" },
-  { icon: CreditCard, text: "MSI disponibles" },
+  {
+    icon: Truck,
+    title: "Envío gratis",
+    text: `En compras desde ${formatPrice(commerce.freeShippingThreshold)}`,
+    href: "/envios",
+  },
+  { icon: RotateCcw, title: `${commerce.returnDays} días para devolver`, text: "Cambios simples y sin costo", href: "/devoluciones" },
+  { icon: Shield, title: "Compra segura", text: "Productos originales con garantía", href: "/faq" },
 ];
 
-const linkClasses =
-  "rounded-sm text-fg-secondary transition-colors duration-fast ease-standard hover:text-fg focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none";
+const paymentMethods = ["Visa", "Mastercard", "American Express"];
 
-/** Site footer. Server Component; only the stagger wrapper and the newsletter form hydrate. */
-export function Footer() {
+const linkClasses =
+  "rounded-sm text-fg-secondary transition-colors duration-fast ease-standard hover:text-fg hover:underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none";
+
+function LinkColumn({ title, links }: { title: string; links: NavItem[] }) {
+  const id = `footer-${title.toLowerCase().replace(/\s+/g, "-")}`;
+  return (
+    <section aria-labelledby={id}>
+      <h2 id={id} className="mb-4 text-sm font-bold tracking-wider text-fg uppercase">
+        {title}
+      </h2>
+      <ul className="space-y-3 text-sm">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link href={link.href} className={`inline-block ${linkClasses}`}>
+              {link.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Site footer. Server Component; only the newsletter form hydrates.
+ * Every link resolves to a page (see config/navigation.ts and its test).
+ */
+export function Footer({ categories }: { categories: Pick<Category, "id" | "name">[] }) {
+  const shopLinks: NavItem[] = [
+    { name: "Todos los sets", href: "/" },
+    ...categories.slice(0, 4).map((c) => ({ name: c.name, href: `/category/${c.id}` })),
+    { name: "Ofertas", href: "/#ofertas" },
+  ];
+
   return (
     <footer className="mt-auto border-t border-border bg-bg-subtle text-fg">
-      {/* Features */}
+      {/* Store promises */}
       <div className="border-b border-border">
-        <div className="container-custom py-6">
-          <Stagger as="ul" inView className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {features.map((feature) => (
-              <StaggerItem as="li" key={feature.text} className="flex items-center justify-center gap-3 py-2">
+        <ul className="container-custom grid grid-cols-1 gap-3 py-6 md:grid-cols-3 md:gap-6">
+          {features.map((feature) => (
+            <li key={feature.title}>
+              <Link
+                href={feature.href}
+                className="group flex items-center gap-4 rounded-2xl p-3 transition-colors duration-base ease-standard hover:bg-bg-muted focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
+              >
                 <span
                   aria-hidden="true"
-                  className="flex size-10 items-center justify-center rounded-full bg-primary text-on-primary"
+                  className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-on-primary shadow-sm transition-[rotate,scale] duration-base ease-emphasized group-hover:scale-110 group-hover:-rotate-6 motion-reduce:group-hover:scale-100 motion-reduce:group-hover:rotate-0"
                 >
-                  <feature.icon className="size-5" />
+                  <feature.icon className="size-6" />
                 </span>
-                <span className="text-sm font-medium text-fg-secondary">{feature.text}</span>
-              </StaggerItem>
-            ))}
-          </Stagger>
-        </div>
+                <span>
+                  <span className="block font-semibold text-fg">{feature.title}</span>
+                  <span className="block text-sm text-fg-secondary">{feature.text}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="container-custom py-12 lg:py-16">
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-6 lg:gap-12">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-4 lg:grid-cols-6 lg:gap-12">
           {/* Brand */}
-          <div className="col-span-2 md:col-span-3 lg:col-span-2">
-            <Link href="/" className="mb-6 inline-block rounded-sm focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none">
-              <Image src="/images/lego.png" alt="LEGO Store, inicio" width={120} height={60} className="h-12 w-auto" />
+          <div className="col-span-2 md:col-span-4 lg:col-span-2">
+            <Link
+              href="/"
+              className="mb-5 inline-block rounded-sm focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
+            >
+              <Image
+                src="/images/lego.png"
+                alt={`${siteConfig.name}, inicio`}
+                width={120}
+                height={60}
+                className="h-12 w-auto"
+                style={{ width: "auto" }}
+              />
             </Link>
 
             <p className="mb-6 max-w-sm text-sm leading-relaxed text-fg-secondary">
-              Tu tienda favorita de LEGO. Construye mundos increíbles pieza a pieza. Productos originales con garantía
-              oficial.
+              Tu tienda favorita de LEGO. Construye mundos increíbles pieza a pieza, con productos originales y
+              garantía oficial.
             </p>
 
             <address className="mb-6 space-y-3 text-sm not-italic">
-              <a href="mailto:hola@legostore.com" className={`flex w-fit items-center gap-3 ${linkClasses}`}>
-                <Mail aria-hidden="true" className="size-4" />
-                hola@legostore.com
+              <a href={`mailto:${contact.email}`} className={`flex w-fit items-center gap-3 ${linkClasses}`}>
+                <Mail aria-hidden="true" className="size-4 shrink-0" />
+                {contact.email}
               </a>
-              <a href="tel:+525512345678" className={`flex w-fit items-center gap-3 ${linkClasses}`}>
-                <Phone aria-hidden="true" className="size-4" />
-                +52 55 1234 5678
+              <a href={contact.phoneHref} className={`flex w-fit items-center gap-3 ${linkClasses}`}>
+                <Phone aria-hidden="true" className="size-4 shrink-0" />
+                {contact.phone}
               </a>
               <p className="flex items-center gap-3 text-fg-secondary">
-                <MapPin aria-hidden="true" className="size-4" />
-                Ciudad de México, México
+                <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                {contact.address}
+              </p>
+              <p className="flex items-center gap-3 text-fg-secondary">
+                <Clock aria-hidden="true" className="size-4 shrink-0" />
+                {contact.hours}
               </p>
             </address>
 
-            <ul className="flex gap-2" aria-label="Redes sociales">
-              {socialLinks.map((social) => (
-                <li key={social.name}>
-                  <a
-                    href={social.href}
-                    aria-label={social.name}
-                    className="flex size-10 items-center justify-center rounded-xl border border-border bg-surface text-fg-secondary transition-[color,background-color,scale] duration-base ease-standard hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none motion-safe:hover:scale-110"
-                  >
-                    <social.icon className="size-5" />
-                  </a>
-                </li>
-              ))}
+            <ul className="flex gap-2" aria-label="LEGO en redes sociales">
+              {siteConfig.social.map((social) => {
+                const Icon = socialIcons[social.name];
+                return (
+                  <li key={social.name}>
+                    <a
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${social.name} (se abre en una pestaña nueva)`}
+                      title={social.name}
+                      className="flex size-10 items-center justify-center rounded-xl border border-border bg-surface text-fg-secondary transition-[color,background-color,border-color,translate] duration-base ease-standard hover:-translate-y-0.5 hover:border-primary hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none motion-reduce:hover:translate-y-0"
+                    >
+                      <Icon className="size-5" />
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
-          {/* Link columns */}
-          {footerLinks.map((section) => (
-            <div key={section.title}>
-              <h2 id={`footer-${section.title}`} className="mb-4 text-sm font-bold tracking-wider text-fg uppercase">
-                {section.title}
-              </h2>
-              <ul className="space-y-3 text-sm">
-                {section.links.map((link) => (
-                  <li key={link.name}>
-                    <Link href={link.href} prefetch={false} className={`inline-block ${linkClasses}`}>
-                      {link.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <nav aria-label="Pie de página" className="col-span-2 grid grid-cols-2 gap-x-8 gap-y-10 md:col-span-4 md:grid-cols-4 lg:gap-12">
+            <LinkColumn title="Comprar" links={shopLinks} />
+            <LinkColumn title="Temas" links={themeLinks} />
+            <LinkColumn title="Ayuda" links={helpLinks} />
+            <LinkColumn title="La tienda" links={[...companyLinks, ...legalLinks]} />
+          </nav>
         </div>
 
         {/* Newsletter */}
-        <div className="mt-12 border-t border-border pt-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="mb-1 text-lg font-bold text-fg">Suscríbete al newsletter</h2>
-              <p className="text-sm text-fg-secondary">Recibe ofertas exclusivas y novedades directamente en tu correo.</p>
-            </div>
-            <NewsletterForm />
+        <section
+          aria-labelledby="footer-newsletter-title"
+          className="mt-12 flex flex-col gap-6 rounded-2xl border border-border bg-surface p-6 shadow-card lg:flex-row lg:items-center lg:justify-between lg:p-8"
+        >
+          <div>
+            <h2 id="footer-newsletter-title" className="text-title text-fg">
+              Suscríbete al newsletter
+            </h2>
+            <p className="mt-1 text-sm text-fg-secondary">
+              Ofertas exclusivas y novedades en tu correo. Te regalamos 10% en tu primera compra.
+            </p>
           </div>
-        </div>
+          <NewsletterForm />
+        </section>
       </div>
 
       {/* Bottom bar */}
       <div className="border-t border-border bg-bg-muted">
-        <div className="container-custom flex flex-col items-center justify-between gap-4 py-6 md:flex-row">
-          <p className="flex items-center gap-2 text-sm text-fg-secondary">
-            <span>© {new Date().getFullYear()} LEGO Store.</span>
-            <span aria-hidden="true" className="hidden sm:inline">
-              •
-            </span>
-            <span className="hidden items-center gap-1.5 sm:inline-flex">
-              Hecho con
-              <Heart aria-hidden="true" className="size-4 fill-sale text-sale" />
-              <span className="sr-only">amor</span>
-              para portafolio
-            </span>
-          </p>
+        <div className="container-custom flex flex-col items-center justify-between gap-4 py-6 text-center md:flex-row md:text-left">
+          <div className="text-sm text-fg-secondary">
+            <p>© {new Date().getFullYear()} {siteConfig.name}. Proyecto de portafolio.</p>
+            <p className="text-caption text-fg-muted">LEGO® es una marca de The LEGO Group, que no patrocina esta tienda.</p>
+          </div>
 
           <ul className="flex flex-wrap justify-center gap-4 text-sm" aria-label="Legal">
             {legalLinks.map((link) => (
-              <li key={link.name}>
-                <Link href={link.href} prefetch={false} className={linkClasses}>
+              <li key={link.href}>
+                <Link href={link.href} className={linkClasses}>
                   {link.name}
                 </Link>
               </li>
             ))}
           </ul>
 
-          <div className="flex items-center gap-3">
-            <span className="text-caption text-fg-secondary">Métodos de pago:</span>
-            <ul className="flex gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span className="text-caption text-fg-secondary">Medios de pago:</span>
+            <ul className="flex flex-wrap gap-2" aria-label="Medios de pago">
               {paymentMethods.map((method) => (
                 <li
                   key={method}
-                  className="rounded-sm border border-border bg-surface px-2 py-1 text-caption font-medium text-fg-secondary"
+                  className="rounded-md border border-border bg-surface px-2 py-1 text-caption font-medium text-fg-secondary"
                 >
                   {method}
                 </li>
