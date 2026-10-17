@@ -113,3 +113,20 @@ test.describe("Cart drawer", () => {
     await expect(toast).toHaveCount(0);
   });
 });
+
+test.describe("In-cart state after a full load", () => {
+  test("cards of products already in the persisted cart read 'Ver carrito'", async ({ page }) => {
+    await page.addInitScript(() => {
+      const line = { id: "1", name: "Captain Rex Helmet", price: 899, image: "/images/lego.png", quantity: 1, stock: 10 };
+      localStorage.setItem("lego-cart-storage", JSON.stringify({ state: { cart: [line] }, version: 1 }));
+    });
+    for (const path of ["/search?q=star", "/category/helmet"]) {
+      await page.goto(path);
+      const inCart = page.locator("[data-testid='add-to-cart-btn'][data-in-cart]").first();
+      await expect(inCart).toHaveText("Ver carrito");
+      await expect(page.locator("[data-testid='add-to-cart-btn']:not([data-in-cart]):not([disabled])").first()).toHaveText(
+        /Agregar/
+      );
+    }
+  });
+});
