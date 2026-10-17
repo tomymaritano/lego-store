@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { GET as getProducts } from "@/app/api/products/route";
 import { GET as getByIds } from "@/app/api/products/by-ids/route";
 import { GET as getSearch } from "@/app/api/search/route";
+import { proxy } from "@/proxy";
 
 const request = (path: string) => new NextRequest(new URL(path, "http://localhost"));
 
@@ -35,5 +36,19 @@ describe("Route Handlers", () => {
 
     const empty = await (await getSearch(request("/api/search?q="))).json();
     expect(empty).toEqual({ items: [], total: 0 });
+  });
+});
+
+describe("proxy (real 404 status)", () => {
+  it.each(["/item/1", "/category/helmet"])("lets %s through", async (path) => {
+    const res = await proxy(request(path));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
+  it.each(["/item/nope", "/item/%E0%A4%A", "/category/nope"])("rewrites %s to the not-found page with a 404", async (path) => {
+    const res = await proxy(request(path));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-middleware-rewrite")).toMatch(/\/not-found\/__missing$/);
   });
 });
