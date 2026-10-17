@@ -1,5 +1,16 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// Teach tailwind-merge our custom theme keys so e.g. `text-label text-fg`
+// keeps both classes (size + colour) instead of treating both as colours.
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["caption", "label", "body", "title", "display"] }],
+      shadow: [{ shadow: ["card"] }],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

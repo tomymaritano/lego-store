@@ -5,117 +5,304 @@
 /* Dark mode is class based: <html class="dark"> */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ===========================================
+/* ===========================================================================
    LEGO STORE DESIGN TOKENS
-   =========================================== */
+
+   Three tiers:
+   1. Primitives (raw palette). Plain CSS vars, NOT exposed as Tailwind
+      utilities, so components cannot reach for them directly.
+   2. Semantic tokens (what a colour is for). Defined in :root and overridden
+      in .dark. Only this tier changes between themes.
+   3. Component tokens, only where a component needs a colour no semantic
+      token describes (badge brand fills).
+
+   Tiers 2 and 3 are exposed to Tailwind through `@theme inline` below
+   (bg-bg, text-fg, text-fg-muted, bg-primary, text-on-primary, ...).
+   Contrast is checked numerically by __tests__/design/tokens.test.ts.
+   =========================================================================== */
 
 :root {
-  /* Brand Colors */
-  --lego-yellow: #ffd44a;
-  --lego-red: #e53935;
-  --lego-blue: #1e88e5;
-  --lego-green: #43a047;
-  --lego-orange: #ff9800;
-  --lego-black: #1d1d1d;
+  /* ---- 1. Primitives ---------------------------------------------------- */
+  --yellow-50: #fff9e6;
+  --yellow-100: #ffefb3;
+  --yellow-200: #ffe580;
+  --yellow-300: #ffdb4d;
+  --yellow-400: #ffd44a; /* LEGO yellow */
+  --yellow-500: #f5c400;
+  --yellow-600: #d4a600;
+  --yellow-700: #9e7b00;
+  --yellow-800: #6b5300;
+  --yellow-900: #3d2f00;
 
-  /* Backgrounds - Light Mode */
-  --bg-primary: #ffffff;
-  --bg-secondary: #faf9f7;
-  --bg-tertiary: #f5f3f0;
+  --red-50: #fdecea;
+  --red-100: #fbd0cc;
+  --red-200: #f5a39b;
+  --red-300: #f28b82;
+  --red-400: #ec6b62;
+  --red-500: #e53935; /* LEGO red */
+  --red-600: #c62828;
+  --red-700: #a51d1d;
+  --red-800: #7f1717;
+  --red-900: #4c0f0f;
 
-  /* Text - Light Mode */
-  --text-primary: #1d1d1d;
-  --text-secondary: #57534e;
-  --text-muted: #a8a29e;
+  --blue-50: #e8f2fc;
+  --blue-100: #c5ddf7;
+  --blue-200: #93c1f1;
+  --blue-300: #64a6ea;
+  --blue-400: #3d93e6;
+  --blue-500: #1e88e5; /* LEGO blue */
+  --blue-600: #1565c0;
+  --blue-700: #0d4f9e;
+  --blue-800: #0a3a75;
+  --blue-900: #06234a;
 
-  /* Surfaces - Light Mode */
-  --surface-elevated: #ffffff;
-  --surface-overlay: rgba(255, 255, 255, 0.95);
+  /* Warm stone neutrals */
+  --stone-0: #ffffff;
+  --stone-50: #faf9f7;
+  --stone-100: #f5f3f0;
+  --stone-200: #e7e5e4;
+  --stone-300: #d6d3d1;
+  --stone-400: #a8a29e;
+  --stone-500: #78716c;
+  --stone-550: #6b645f;
+  --stone-600: #57534e;
+  --stone-700: #44403c;
+  --stone-750: #353029;
+  --stone-800: #292524;
+  --stone-850: #262320;
+  --stone-900: #1e1b18;
+  --stone-925: #1c1917;
+  --stone-950: #171412;
 
-  /* Borders - Light Mode */
-  --border-default: #e7e5e4;
-  --border-subtle: #f5f5f4;
+  --green-300: #86efac;
+  --green-400: #4ade80;
+  --green-700: #15803d;
+  --green-950: #052e16;
+  --amber-400: #fbbf24;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+  --orange-700: #c2410c;
+  --purple-700: #7e22ce;
 
-  /* Status Colors */
-  --color-success: #22c55e;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-info: #1e88e5;
+  /* ---- 2. Semantic (light) ---------------------------------------------- */
+  --bg: var(--stone-0);
+  --bg-subtle: var(--stone-50);
+  --bg-muted: var(--stone-100);
+  --surface: var(--stone-0);
+  --surface-raised: var(--stone-0);
+  --overlay: rgb(23 20 18 / 0.6);
 
-  /* Elevation (exposed as shadow-sm/md/lg/xl) */
-  --elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --elevation-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --elevation-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  --elevation-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  --fg: var(--stone-925);
+  --fg-secondary: var(--stone-600);
+  --fg-muted: var(--stone-550);
+
+  --border: var(--stone-200);
+  --border-strong: var(--stone-500);
+
+  --primary: var(--yellow-400);
+  --primary-hover: var(--yellow-500);
+  --on-primary: var(--stone-925);
+
+  --danger: var(--red-600);
+  --on-danger: var(--stone-0);
+  --success: var(--green-700);
+  --on-success: var(--stone-0);
+  --warning: var(--amber-700);
+  --on-warning: var(--stone-0);
+  --info: var(--blue-600);
+  --on-info: var(--stone-0);
+
+  --focus-ring: var(--blue-600);
+  --rating: var(--amber-600);
+  --sale: var(--red-600);
+  --on-sale: var(--stone-0);
+
+  /* ---- 3. Component ------------------------------------------------------ */
+  /* Brand fills for product badges; they sit on photos, so they stay the
+     same in both themes and always carry white text. */
+  --badge-limited: var(--orange-700);
+  --on-badge-limited: var(--stone-0);
+  --badge-exclusive: var(--purple-700);
+  --on-badge-exclusive: var(--stone-0);
+  --badge-neutral: var(--stone-100);
+
+  /* ---- Elevation (dark-aware) ------------------------------------------- */
+  --shadow-color: 28 25 23;
+  --elevation-sm: 0 1px 2px rgb(var(--shadow-color) / 0.06);
+  --elevation-md: 0 4px 6px -1px rgb(var(--shadow-color) / 0.1), 0 2px 4px -2px rgb(var(--shadow-color) / 0.06);
+  --elevation-lg: 0 10px 15px -3px rgb(var(--shadow-color) / 0.1), 0 4px 6px -4px rgb(var(--shadow-color) / 0.06);
+  --elevation-xl: 0 20px 25px -5px rgb(var(--shadow-color) / 0.12), 0 8px 10px -6px rgb(var(--shadow-color) / 0.08);
+  --elevation-card: 0 2px 8px rgb(var(--shadow-color) / 0.08);
+
+  /* ---- Motion ------------------------------------------------------------ */
+  /* Mirrored in src/lib/motion.ts (a unit test keeps them in sync). */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
 }
 
-/* Dark Mode - Warm LEGO Grays */
+/* Dark mode: only semantic and elevation tokens change. */
 .dark {
-  --bg-primary: #171412;
-  --bg-secondary: #1e1b18;
-  --bg-tertiary: #262320;
+  --bg: var(--stone-950);
+  --bg-subtle: var(--stone-900);
+  --bg-muted: var(--stone-850);
+  --surface: var(--stone-800);
+  --surface-raised: var(--stone-750);
+  --overlay: rgb(0 0 0 / 0.7);
 
-  --text-primary: #fafaf9;
-  --text-secondary: #d6d3d1;
-  --text-muted: #a8a29e;
+  --fg: #fafaf9;
+  --fg-secondary: var(--stone-300);
+  --fg-muted: var(--stone-400);
 
-  --surface-elevated: #292524;
-  --surface-overlay: rgba(23, 20, 18, 0.95);
+  --border: var(--stone-700);
+  --border-strong: #8f8780;
 
-  --border-default: #44403c;
-  --border-subtle: #292524;
+  --primary: var(--yellow-400);
+  --primary-hover: var(--yellow-300);
+  --on-primary: var(--stone-925);
 
-  --elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --elevation-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
-  --elevation-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-  --elevation-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+  --danger: var(--red-300);
+  --on-danger: var(--stone-950);
+  --success: var(--green-400);
+  --on-success: var(--green-950);
+  --warning: var(--amber-400);
+  --on-warning: var(--stone-925);
+  --info: var(--blue-300);
+  --on-info: var(--stone-950);
+
+  --focus-ring: var(--yellow-400);
+  --rating: var(--amber-400);
+  --sale: var(--red-300);
+  --on-sale: var(--stone-950);
+
+  --badge-neutral: var(--stone-750);
+
+  --shadow-color: 0 0 0;
+  --elevation-sm: 0 1px 2px rgb(var(--shadow-color) / 0.3);
+  --elevation-md: 0 4px 6px -1px rgb(var(--shadow-color) / 0.4);
+  --elevation-lg: 0 10px 15px -3px rgb(var(--shadow-color) / 0.5);
+  --elevation-xl: 0 20px 25px -5px rgb(var(--shadow-color) / 0.6);
+  --elevation-card: 0 2px 8px rgb(var(--shadow-color) / 0.35);
+}
+
+/* Semantic + component tokens as Tailwind utilities. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-muted: var(--bg-muted);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-overlay: var(--overlay);
+  --color-fg: var(--fg);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-danger: var(--danger);
+  --color-on-danger: var(--on-danger);
+  --color-success: var(--success);
+  --color-on-success: var(--on-success);
+  --color-warning: var(--warning);
+  --color-on-warning: var(--on-warning);
+  --color-info: var(--info);
+  --color-on-info: var(--on-info);
+  --color-focus-ring: var(--focus-ring);
+  --color-rating: var(--rating);
+  --color-sale: var(--sale);
+  --color-on-sale: var(--on-sale);
+  --color-badge-limited: var(--badge-limited);
+  --color-on-badge-limited: var(--on-badge-limited);
+  --color-badge-exclusive: var(--badge-exclusive);
+  --color-on-badge-exclusive: var(--on-badge-exclusive);
+  --color-badge-neutral: var(--badge-neutral);
+
+  /* Shadows */
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+  --shadow-xl: var(--elevation-xl);
+  --shadow-card: var(--elevation-card);
+
+  /* ---- Transitional aliases (delete once pages use semantic names) ---- */
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-background-primary: var(--bg);
+  --color-background-secondary: var(--bg-subtle);
+  --color-background-tertiary: var(--bg-muted);
+  --color-foreground-primary: var(--fg);
+  --color-foreground-secondary: var(--fg-secondary);
+  --color-foreground-muted: var(--fg-muted);
+  --color-border-subtle: var(--bg-muted);
+  --color-status-success: var(--success);
+  --color-status-error: var(--danger);
+  --color-status-warning: var(--warning);
+  --color-status-info: var(--info);
+  --color-lego-yellow: var(--yellow-400);
+  --color-lego-red: var(--red-500);
+  --color-lego-blue: var(--blue-500);
+  --color-lego-blue-dark: #2563eb;
+  --color-lego-green: #43a047;
+  --color-lego-orange: #ff9800;
+  --color-lego-black: var(--stone-925);
+  --color-brand-50: var(--yellow-50);
+  --color-brand-100: var(--yellow-100);
+  --color-brand-200: var(--yellow-200);
+  --color-brand-300: var(--yellow-300);
+  --color-brand-400: var(--yellow-400);
+  --color-brand-500: var(--yellow-500);
+  --color-brand-600: var(--yellow-600);
+  --color-brand-700: var(--yellow-700);
+  --color-brand-800: var(--yellow-800);
+  --color-brand-900: var(--yellow-900);
 }
 
 @theme {
   --font-sans: "Barlow", system-ui, sans-serif;
 
-  /* Brand */
-  --color-brand-50: #fff9e6;
-  --color-brand-100: #ffefb3;
-  --color-brand-200: #ffe580;
-  --color-brand-300: #ffdb4d;
-  --color-brand-400: #ffd44a;
-  --color-brand-500: #e6b100;
-  --color-brand-600: #b38800;
-  --color-brand-700: #806000;
-  --color-brand-800: #4d3800;
-  --color-brand-900: #1f1000;
+  /* Radius scale. xl/2xl keep the values of the Tailwind 3 config. */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
 
-  --color-lego-yellow: #ffd44a;
-  --color-lego-red: #e53935;
-  --color-lego-blue: #1e88e5;
-  --color-lego-blue-dark: #2563eb;
-  --color-lego-green: #43a047;
-  --color-lego-orange: #ff9800;
-  --color-lego-black: #1d1d1d;
+  /* Type scale (text-caption, text-label, text-body, text-title, text-display) */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--font-weight: 700;
+  --text-display: 3rem;
+  --text-display--line-height: 1.05;
+  --text-display--font-weight: 800;
 
-  /* Semantic (switch with .dark through the vars above) */
-  --color-background: var(--bg-primary);
-  --color-foreground: var(--text-primary);
-  --color-background-primary: var(--bg-primary);
-  --color-background-secondary: var(--bg-secondary);
-  --color-background-tertiary: var(--bg-tertiary);
-  --color-foreground-primary: var(--text-primary);
-  --color-foreground-secondary: var(--text-secondary);
-  --color-foreground-muted: var(--text-muted);
-  --color-surface: var(--surface-elevated);
-  --color-border: var(--border-default);
-  --color-border-subtle: var(--border-subtle);
+  /* Easings (ease-standard, ease-emphasized, ease-exit) */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
-  --color-status-success: var(--color-success);
-  --color-status-error: var(--color-error);
-  --color-status-warning: var(--color-warning);
-  --color-status-info: var(--color-info);
+  --animate-shimmer: shimmer 1.6s infinite linear;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
 
   /*
-   * Tailwind 3 palette values for the built-in colors still used by
-   * components. v4 ships more saturated oklch values; pinning these keeps
-   * the upgrade visually identical until components move to brand tokens.
+   * Transitional: Tailwind 3 palette values for raw colours still used by
+   * pages. Delete together with the raw classes (guardrail warns on them).
    */
   --color-gray-50: #f9fafb;
   --color-gray-100: #f3f4f6;
@@ -157,28 +344,17 @@
   --color-pink-600: #db2777;
   --color-sky-500: #0ea5e9;
   --color-cyan-500: #06b6d4;
+}
 
-  /* Shadows (same names and values as the Tailwind 3 config) */
-  --shadow-sm: var(--elevation-sm);
-  --shadow-md: var(--elevation-md);
-  --shadow-lg: var(--elevation-lg);
-  --shadow-xl: var(--elevation-xl);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-  /* Radius overrides kept from the Tailwind 3 config */
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-
-  --animate-shimmer: shimmer 2s infinite linear;
-
-  @keyframes shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
+/* Motion duration utilities backed by the tokens above. */
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
+}
+@utility duration-base {
+  transition-duration: var(--duration-base);
+}
+@utility duration-slow {
+  transition-duration: var(--duration-slow);
 }
 
 @layer base {
@@ -186,10 +362,9 @@
     @apply border-border;
   }
 
-  /* Tailwind 3 defaults that v4 changed */
   input::placeholder,
   textarea::placeholder {
-    color: var(--color-gray-400);
+    color: var(--fg-muted);
   }
 
   button:not(:disabled),
@@ -198,33 +373,34 @@
   }
 
   body {
-    color: var(--text-primary);
-    background: var(--bg-primary);
+    color: var(--fg);
+    background: var(--bg);
     font-family: "Barlow", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition:
-      background-color 0.2s ease,
-      color 0.2s ease;
+      background-color var(--duration-base) ease,
+      color var(--duration-base) ease;
   }
 
   ::selection {
-    background-color: var(--lego-yellow);
-    color: var(--lego-black);
+    background-color: var(--yellow-400);
+    color: var(--stone-925);
   }
 
   :focus-visible {
-    outline: 2px solid var(--lego-yellow);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
+  /* Heading defaults */
   h1,
   h2,
   h3,
   h4,
   h5,
   h6 {
-    @apply font-bold tracking-tight text-foreground-primary;
+    @apply font-bold tracking-tight text-fg;
   }
 
   h1 {
@@ -244,7 +420,7 @@
   }
 
   a {
-    @apply transition-colors duration-200;
+    @apply transition-colors duration-base;
   }
 
   /* Reduced motion */
