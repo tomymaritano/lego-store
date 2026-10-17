@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
@@ -35,7 +35,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
 
   const discounted = product.isOnSale && product.originalPrice ? product.originalPrice : undefined;
   const lowStock = product.stock > 0 && product.stock <= 5;
-  const titleId = `product-${product.id}-title`;
+  const titleId = `${useId()}-title`;
 
   return (
     <motion.article

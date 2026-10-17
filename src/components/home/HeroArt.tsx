@@ -63,7 +63,7 @@ export function HeroArt({ src, alt }: HeroArtProps) {
             src={src}
             alt={alt}
             fill
-            sizes="(max-width: 1024px) 0px, 512px"
+            sizes="(max-width: 1023px) 0px, 512px"
             className="object-contain drop-shadow-2xl transition-[scale] duration-slow ease-emphasized hover:scale-105 motion-reduce:hover:scale-100"
             preload
           />

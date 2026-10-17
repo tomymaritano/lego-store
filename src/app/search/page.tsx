@@ -54,8 +54,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <h1 className="text-3xl md:text-4xl">Catálogo</h1>
         )}
         <p className="mt-2 text-fg-secondary">
+          {/* With a search, the live count (after filters) is CatalogView's alone. */}
           {q
-            ? `${pluralize(options.total, "set encontrado", "sets encontrados")} para tu búsqueda`
+            ? options.total > 0
+              ? "Sets que coinciden con tu búsqueda. Usa los filtros para afinar los resultados."
+              : "Ningún set coincide con tu búsqueda."
             : `${pluralize(options.total, "set")} para armar, regalar y coleccionar`}
         </p>
       </header>
