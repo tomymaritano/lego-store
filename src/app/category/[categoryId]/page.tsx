@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCategories, getCategoryById, getPaginatedProducts } from "@/lib/api";
+import { getCategories, getCategoryById, getFilterOptions, getPaginatedProducts } from "@/lib/api";
 import { Breadcrumbs } from "@/components/ui";
-import { ProductList } from "@/components/product";
+import { CatalogView } from "@/components/product";
+import { parseProductQuery } from "@/lib/productQuery";
 import { pluralize } from "@/lib/utils";
 import { pageMetadata } from "@/lib/metadata";
 
 interface CategoryPageProps {
   params: Promise<{ categoryId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export async function generateStaticParams() {
@@ -17,20 +19,29 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const category = await getCategoryById((await params).categoryId);
   if (!category) return { title: "Categoría no encontrada" };
+  // Filtered views share the category's canonical URL.
   return pageMetadata({
     title: category.name,
-    description: `Explora nuestra colección de ${category.name} LEGO: ${category.description.toLowerCase()}.`,
+    description: `Explora nuestra colección de ${category.name} LEGO: ${category.description.toLowerCase()}. ${pluralize(category.productCount, "set")} con envío a todo el país.`,
     path: `/category/${category.id}`,
   });
 }
 
-export default async function CategoryPage({ params }: CategoryPageProps) {
+export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
   const { categoryId } = await params;
   const category = await getCategoryById(categoryId);
   if (!category) notFound();
 
-  const query = { category: category.id };
-  const firstPage = await getPaginatedProducts(query);
+  // The category comes from the path; the URL carries filters and sort only.
+  const { category: _ignored, page: _page, limit: _limit, ...urlQuery } = parseProductQuery(await searchParams);
+  void _ignored;
+  void _page;
+  void _limit;
+  const scope = { category: category.id };
+  const [firstPage, options] = await Promise.all([
+    getPaginatedProducts({ ...urlQuery, ...scope }),
+    getFilterOptions(scope),
+  ]);
 
   return (
     <div className="container-custom py-8">
@@ -39,16 +50,11 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       <header className="mb-8">
         <h1 className="text-3xl md:text-4xl">{category.name}</h1>
         <p className="mt-2 text-fg-secondary">
-          {category.description} · {pluralize(firstPage.total, "producto")}
+          {category.description} · {pluralize(options.total, "set")}
         </p>
       </header>
 
-      <section aria-labelledby="category-products-title">
-        <h2 id="category-products-title" className="sr-only">
-          Productos
-        </h2>
-        <ProductList initialPage={firstPage} query={query} />
-      </section>
+      <CatalogView initialPage={firstPage} initialQuery={urlQuery} scope={scope} options={options} />
     </div>
   );
 }

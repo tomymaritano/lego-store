@@ -105,6 +105,36 @@ export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
 /** Child of `staggerContainer`. */
 export const staggerItem: Variants = fadeInUp;
 
+/** Seconds between grid cards, and the cap that keeps a full page within the motion budget. */
+export const GRID_STAGGER = 0.04;
+export const GRID_MAX_DELAY = 0.24;
+
+/**
+ * Product grid cells. `custom` is the cell's index within the batch that
+ * arrived together (a page, a filter result), so each batch staggers on its
+ * own. Cells that leave (filtered out) shrink away while the rest reflow
+ * with `layout`.
+ */
+export const gridItem: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: (index = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { ...transitions.slow, delay: Math.min(index * GRID_STAGGER, GRID_MAX_DELAY) },
+  }),
+  exit: { opacity: 0, scale: 0.96, transition: transitions.exit },
+};
+
+/**
+ * Above-the-fold entrance that never hides content: it only moves (no
+ * opacity), so server HTML is readable before hydration and the hero text
+ * counts for LCP straight away. Use with a stagger container.
+ */
+export const riseIn: Variants = {
+  hidden: { y: 16 },
+  visible: { y: 0, transition: transitions.slow },
+};
+
 /**
  * Hover lift for cards and other containers. Spread on a motion element:
  * <motion.article {...hoverLift}>. Hover only: a container is not a control.

@@ -1,37 +1,32 @@
 "use client";
 
 import { SORT_OPTIONS } from "@/lib/productQuery";
+import { cn } from "@/lib/utils";
 import { Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import type { SortOption } from "@/types";
 
 interface ProductSortProps {
   value: SortOption;
   onChange: (value: SortOption) => void;
-  productCount: number;
+  className?: string;
 }
 
-/** Result count + sort select (options and labels from lib/productQuery). */
-export function ProductSort({ value, onChange, productCount }: ProductSortProps) {
+/** "Ordenar por" select (options and labels from lib/productQuery). */
+export function ProductSort({ value, onChange, className }: ProductSortProps) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <p className="text-sm text-fg-secondary" aria-live="polite">
-        <span className="font-semibold text-fg">{productCount}</span> {productCount === 1 ? "producto" : "productos"}
-      </p>
-
-      <Field label="Ordenar por" className="w-60">
-        <Select items={SORT_OPTIONS} value={value} onValueChange={(next) => next && onChange(next as SortOption)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-    </div>
+    <Field label="Ordenar por" className={cn("w-full sm:w-56", className)}>
+      <Select items={SORT_OPTIONS} value={value} onValueChange={(next) => next && onChange(next as SortOption)}>
+        <SelectTrigger data-testid="product-sort">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SORT_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 }

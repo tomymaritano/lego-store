@@ -1,6 +1,7 @@
-import { ProductListSkeleton, Skeleton } from "@/components/ui";
+import { Skeleton } from "@/components/ui";
+import { CatalogSkeleton } from "@/components/product/CatalogSkeleton";
 
-/** Category placeholder: breadcrumbs, title + count, product grid. */
+/** Category placeholder: breadcrumbs, title + count, filters and product grid. */
 export default function CategoryLoading() {
   return (
     <div className="container-custom py-8" aria-busy="true">
@@ -12,7 +13,7 @@ export default function CategoryLoading() {
         <Skeleton className="h-10 w-56" />
         <Skeleton className="h-5 w-80 max-w-full" />
       </div>
-      <ProductListSkeleton count={8} />
+      <CatalogSkeleton />
     </div>
   );
 }

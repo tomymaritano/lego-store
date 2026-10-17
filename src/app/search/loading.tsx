@@ -1,6 +1,7 @@
-import { ProductListSkeleton, Skeleton } from "@/components/ui";
+import { Skeleton } from "@/components/ui";
+import { CatalogSkeleton } from "@/components/product/CatalogSkeleton";
 
-/** Search results placeholder. */
+/** Search / catalogue placeholder. */
 export default function SearchLoading() {
   return (
     <div className="container-custom py-8" aria-busy="true">
@@ -12,7 +13,7 @@ export default function SearchLoading() {
         <Skeleton className="h-10 w-72 max-w-full" />
         <Skeleton className="h-5 w-48" />
       </div>
-      <ProductListSkeleton count={8} />
+      <CatalogSkeleton />
     </div>
   );
 }

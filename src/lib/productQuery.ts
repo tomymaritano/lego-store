@@ -107,3 +107,64 @@ export function serializeProductQuery(query: ProductQuery): URLSearchParams {
   if (query.sort) params.set("sort", query.sort);
   return params;
 }
+
+// ---------------------------------------------------------------------------
+// Active filters (chips, "clear all")
+// ---------------------------------------------------------------------------
+
+export type ListFilterField = keyof typeof LIST_KEYS;
+
+/** One removable filter of a query. Price is one chip for its min and max. */
+export type ActiveFilter =
+  | { field: "category"; value: string }
+  | { field: ListFilterField; value: string }
+  | { field: "price"; min?: number; max?: number }
+  | { field: "minRating"; value: number }
+  | { field: (typeof BOOLEAN_KEYS)[number] };
+
+/** The filters set in a query, in display order. Search text and sort are not filters. */
+export function listActiveFilters(query: ProductQuery): ActiveFilter[] {
+  const active: ActiveFilter[] = [];
+  for (const field of BOOLEAN_KEYS) if (query[field]) active.push({ field });
+  if (query.category) active.push({ field: "category", value: query.category });
+  for (const field of Object.keys(LIST_KEYS) as ListFilterField[]) {
+    for (const value of query[field] ?? []) active.push({ field, value });
+  }
+  if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+    active.push({ field: "price", min: query.minPrice, max: query.maxPrice });
+  }
+  if (query.minRating !== undefined) active.push({ field: "minRating", value: query.minRating });
+  return active;
+}
+
+/** The query without one filter. */
+export function removeFilter(query: ProductQuery, filter: ActiveFilter): ProductQuery {
+  const next = { ...query };
+  switch (filter.field) {
+    case "price":
+      delete next.minPrice;
+      delete next.maxPrice;
+      return next;
+    case "category":
+    case "minRating":
+    case "inStock":
+    case "onSale":
+    case "isNew":
+      delete next[filter.field];
+      return next;
+    default: {
+      const rest = (query[filter.field] ?? []).filter((value) => value !== filter.value);
+      if (rest.length) next[filter.field] = rest;
+      else delete next[filter.field];
+      return next;
+    }
+  }
+}
+
+/** The query with every filter removed: keeps the search text and the sort. */
+export function withoutFilters(query: ProductQuery): ProductQuery {
+  const next: ProductQuery = {};
+  if (query.q) next.q = query.q;
+  if (query.sort) next.sort = query.sort;
+  return next;
+}
