@@ -23,7 +23,6 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
           eyebrow="Colecciones"
           title="Explora por categoría"
           description="Encuentra tu colección perfecta"
-          align="center"
         />
 
         <Stagger as="ul" inView className="grid gap-6 md:grid-cols-3">
@@ -67,7 +66,7 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
 
         {more.length > 0 ? (
           <nav aria-label="Más categorías" className="mt-8">
-            <Stagger as="ul" inView className="flex flex-wrap justify-center gap-2">
+            <Stagger as="ul" inView className="flex flex-wrap gap-2">
               {more.map((category) => (
                 <StaggerItem as="li" effect="pop" key={category.id}>
                   <Button

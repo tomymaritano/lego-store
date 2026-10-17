@@ -177,7 +177,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
       {related.length > 0 && (
         <section aria-labelledby="related-title" className="border-t border-border py-12">
           <div className="container-custom">
-            <h2 id="related-title" className="mb-6 text-title">
+            <h2 id="related-title" className="mb-6 text-heading">
               También te puede gustar
             </h2>
             <ProductGrid products={related} reveal="in-view" label="Productos relacionados" />

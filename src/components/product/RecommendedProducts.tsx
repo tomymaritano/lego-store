@@ -26,10 +26,10 @@ export function RecommendedProducts({
   return (
     <section aria-labelledby={titleId} className="mt-12 border-t border-border pt-10" data-testid="recommended-products">
       <div className="mb-6">
-        <h2 id={titleId} className="text-title text-fg md:text-2xl">
+        <h2 id={titleId} className="text-heading">
           {title}
         </h2>
-        <p className="mt-1 text-sm text-fg-muted">{description}</p>
+        <p className="mt-1 text-fg-secondary">{description}</p>
       </div>
       <ProductGrid products={products} reveal="in-view" columns={4} label={title} />
     </section>

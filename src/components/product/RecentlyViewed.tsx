@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ProductImage } from "./ProductImage";
 import { m, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
-import { transitions } from "@/lib/motion";
+import { staggerDelay, transitions } from "@/lib/motion";
 import { useRecentlyViewedIds, useRecentlyViewedStore, useStoreHydrated } from "@/stores";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { IconButton, Price } from "@/components/ui";
@@ -26,8 +26,6 @@ export function TrackRecentlyViewed({ productId }: { productId: string }) {
 }
 
 const SCROLL_STEP = 280;
-const STAGGER = 0.04;
-const MAX_STAGGER = 0.2;
 
 /**
  * Horizontal strip of the last products the visitor opened. The store keeps
@@ -56,10 +54,10 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
               <Clock className="size-5" />
             </span>
             <div>
-              <h2 id="recently-viewed-title" className="text-title">
+              <h2 id="recently-viewed-title" className="text-heading">
                 Vistos recientemente
               </h2>
-              <p className="text-sm text-fg-muted">Continúa donde lo dejaste</p>
+              <p className="text-label font-normal text-fg-muted">Continúa donde lo dejaste</p>
             </div>
           </div>
 
@@ -78,7 +76,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
             <m.li
               key={product.id}
               initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0, transition: { ...transitions.base, delay: Math.min(index * STAGGER, MAX_STAGGER) } }}
+              animate={{ opacity: 1, x: 0, transition: { ...transitions.base, delay: staggerDelay(index) } }}
               className="w-48 shrink-0"
             >
               <Link
@@ -96,7 +94,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
                 </div>
                 <div className="p-3">
                   <p className="text-caption font-semibold text-info uppercase">{product.theme}</p>
-                  <h3 className="mt-1 line-clamp-1 text-sm font-medium text-fg">{product.name}</h3>
+                  <h3 className="mt-1 line-clamp-1 text-label font-medium text-fg">{product.name}</h3>
                   <Price value={product.price} size="sm" className="mt-1" />
                 </div>
               </Link>
