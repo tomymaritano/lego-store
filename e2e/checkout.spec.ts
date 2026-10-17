@@ -171,6 +171,71 @@ test.describe("Checkout", () => {
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
     await expect(page.getByText("Ingresa el número de tarjeta")).toBeVisible();
   });
+  test("placing the order keeps the layout still until the review has faded out", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/checkout");
+    await fillShipping(page);
+    await page.getByRole("button", { name: /Continuar al pago/ }).click();
+    await fillPayment(page);
+    await page.getByRole("button", { name: /Revisar pedido/ }).click();
+    await expect(page.getByRole("heading", { name: "Revisa tu pedido" })).toBeFocused();
+
+    // Sample every frame from the click until the confirmation shows up.
+    await page.evaluate(() => {
+      const samples: { width: number; summary: boolean; stepper: boolean }[] = [];
+      (window as unknown as { samples: typeof samples }).samples = samples;
+      const tick = () => {
+        const review = document.querySelector("section[aria-labelledby='review-title']");
+        if (review) {
+          samples.push({
+            width: review.getBoundingClientRect().width,
+            summary: !!document.querySelector("[aria-labelledby='checkout-summary-title']"),
+            stepper: !!document.querySelector("nav[aria-label='Pasos del checkout']"),
+          });
+        }
+        if (!document.querySelector("[data-testid='order-confirmation']")) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    const before = await page.locator("section[aria-labelledby='review-title']").evaluate((el) => el.getBoundingClientRect().width);
+
+    await page.getByRole("button", { name: /Confirmar pedido/ }).click();
+    await expect(page.getByTestId("order-confirmation")).toBeVisible({ timeout: 10_000 });
+
+    const samples = await page.evaluate(() => (window as unknown as { samples: { width: number; summary: boolean; stepper: boolean }[] }).samples);
+    expect(samples.length).toBeGreaterThan(10);
+    for (const sample of samples) {
+      expect(Math.abs(sample.width - before)).toBeLessThanOrEqual(1);
+      expect(sample).toMatchObject({ summary: true, stepper: true });
+    }
+    // The confirmation enters at the top of the page, its h1 in view.
+    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeFocused();
+    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
+  test("leaving while the payment runs cancels the order and keeps the cart", async ({ page }) => {
+    await page.goto("/checkout");
+    await fillShipping(page);
+    await page.getByRole("button", { name: /Continuar al pago/ }).click();
+    await fillPayment(page);
+    await page.getByRole("button", { name: /Revisar pedido/ }).click();
+    await page.getByRole("button", { name: /Confirmar pedido/ }).click();
+    await expect(page.getByTestId("place-order")).toHaveAttribute("aria-busy", "true");
+
+    await page.getByRole("navigation", { name: "Ruta de navegación" }).getByRole("link", { name: "Carrito" }).click();
+    await expect(page).toHaveURL(/\/cart$/);
+    await expect(page.getByText(/Cancelamos el pago porque saliste del checkout/)).toBeVisible();
+    // Past the mock payment's delay: still no order, the cart is intact.
+    await page.waitForTimeout(1_500);
+    await expect(page.getByText("Tu carrito está vacío")).toHaveCount(0);
+    await expect(page.getByTestId("cart-count")).toHaveText("3");
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/checkout$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Finalizar compra" })).toBeVisible();
+    await expect(page.getByTestId("order-confirmation")).toHaveCount(0);
+  });
 });
 
 test.describe("Checkout summary with a long cart", () => {

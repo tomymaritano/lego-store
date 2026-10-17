@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { fadeIn } from "@/lib/motion";
 import { orderTotals } from "@/lib/pricing";
 import { useCartItems, useCartStore, useCheckoutStore, useStoreHydrated } from "@/stores";
 import { Breadcrumbs, Skeleton, showToast } from "@/components/ui";
@@ -18,6 +19,11 @@ import { stepIndex } from "./steps";
 
 const checkout = useCheckoutStore.getState;
 
+const isAbort = (error: unknown) => error instanceof Error && error.name === "AbortError";
+
+/** The confirmation enters from the top of the page, not from wherever the review was scrolled. */
+const scrollToTop = () => window.scrollTo({ top: 0, behavior: "instant" });
+
 /** Breadcrumbs and h1 while the purchase is in progress (not on the confirmation). */
 function CheckoutHeader() {
   return (
@@ -32,6 +38,10 @@ function CheckoutHeader() {
  * The checkout wizard (client island). Steps slide in the direction of
  * travel and focus moves to each new step's heading. The card number and CVV
  * stay inside PaymentStep's form; the store only keeps a summary.
+ *
+ * Placing the order swaps the whole checkout layout (header, stepper, step
+ * and summary) for the confirmation as one unit, so nothing reflows while the
+ * review fades out. Leaving the page while the payment runs cancels it.
  */
 export function CheckoutFlow() {
   const router = useRouter();
@@ -48,6 +58,11 @@ export function CheckoutFlow() {
   const [direction, setDirection] = useState(1);
   // Focus follows the step only after the visitor moved: not on page load.
   const [moved, setMoved] = useState(false);
+  // The order being paid, so leaving the page can cancel it.
+  const pendingOrder = useRef<AbortController | null>(null);
+  // A confirmation already in the store when this page mounted belongs to an
+  // earlier visit: it is cleared (below) and never shown again.
+  const [staleOrderId] = useState(() => (checkout().currentStep === "confirmation" ? checkout().orderId : null));
 
   // Nothing to check out: back to the cart (unless the order just went through).
   useEffect(() => {
@@ -55,12 +70,25 @@ export function CheckoutFlow() {
   }, [hydrated, cart.length, currentStep, router]);
 
   // Leaving the confirmation ends this checkout: the next visit starts fresh.
-  useEffect(
-    () => () => {
+  // Leaving while paying cancels the order, and the cart stays as it was.
+  useEffect(() => {
+    if (checkout().currentStep === "confirmation") checkout().resetCheckout();
+    return () => {
+      if (pendingOrder.current && checkout().isProcessing) {
+        pendingOrder.current.abort();
+        showToast.info("Cancelamos el pago porque saliste del checkout. Tu carrito sigue igual.");
+      }
       if (checkout().currentStep === "confirmation") checkout().resetCheckout();
-    },
-    []
-  );
+    };
+  }, []);
+
+  // Closing or reloading the tab mid-payment asks first.
+  useEffect(() => {
+    if (!isProcessing) return;
+    const confirmLeave = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", confirmLeave);
+    return () => window.removeEventListener("beforeunload", confirmLeave);
+  }, [isProcessing]);
 
   // A step whose data is missing (the store is in memory only) restarts at shipping.
   const step: CheckoutStep =
@@ -89,16 +117,23 @@ export function CheckoutFlow() {
 
   const handlePlaceOrder = async () => {
     if (checkout().isProcessing) return;
+    const controller = new AbortController();
+    pendingOrder.current = controller;
     try {
       setDirection(1);
-      await checkout().processOrder({ total: totals.total });
+      await checkout().processOrder({ total: totals.total }, { signal: controller.signal });
       useCartStore.getState().clearCart();
-    } catch {
-      showToast.error("No pudimos procesar el pago. Inténtalo de nuevo.");
+    } catch (error) {
+      // Cancelled because the visitor left: the unmount already told them.
+      if (!isAbort(error)) showToast.error("No pudimos procesar el pago. Inténtalo de nuevo.");
+    } finally {
+      if (pendingOrder.current === controller) pendingOrder.current = null;
     }
   };
 
-  if (!hydrated || (cart.length === 0 && step !== "confirmation")) {
+  const confirmed = step === "confirmation" && orderId !== null && orderId !== staleOrderId;
+
+  if (!hydrated || (cart.length === 0 && !confirmed)) {
     return (
       <>
         <CheckoutHeader />
@@ -113,54 +148,55 @@ export function CheckoutFlow() {
     );
   }
 
-  const confirmed = step === "confirmation" && orderId;
-
   return (
     <StepDirectionContext.Provider value={direction}>
-      {/* On the confirmation, its "¡Gracias por tu compra!" is the page's h1. */}
-      {!confirmed && <CheckoutHeader />}
-      {!confirmed && (
-        <div className="mb-8">
-          <Stepper current={step} />
-        </div>
-      )}
+      <AnimatePresence mode="wait" initial={false} onExitComplete={scrollToTop}>
+        {confirmed ? (
+          // Its "¡Gracias por tu compra!" is the page's h1.
+          <ConfirmationStep key="confirmation" orderId={orderId} total={orderTotal} email={shippingInfo?.email ?? null} />
+        ) : (
+          <motion.div key="checkout" variants={fadeIn} initial="hidden" animate="visible" exit="exit">
+            <CheckoutHeader />
+            <div className="mb-8">
+              <Stepper current={step} />
+            </div>
 
-      <div className={confirmed ? "" : "grid items-start gap-6 lg:grid-cols-3 lg:gap-8"}>
-        <div className={confirmed ? "" : "min-w-0 lg:col-span-2"}>
-          <AnimatePresence mode="wait" custom={direction} initial={false}>
-            {step === "shipping" && (
-              <ShippingStep key="shipping" initialData={shippingInfo} focusHeading={moved} onSubmit={handleShippingSubmit} />
-            )}
-            {step === "payment" && (
-              <PaymentStep
-                key="payment"
-                summary={paymentSummary}
-                focusHeading={moved}
-                onSubmit={handlePaymentSubmit}
-                onBack={() => goTo("shipping")}
-              />
-            )}
-            {step === "review" && shippingInfo && paymentSummary && (
-              <ReviewStep
-                key="review"
-                shippingInfo={shippingInfo}
-                payment={paymentSummary}
-                total={totals.total}
-                focusHeading={moved}
-                isProcessing={isProcessing}
-                onEditShipping={() => goTo("shipping")}
-                onEditPayment={() => goTo("payment")}
-                onPlaceOrder={handlePlaceOrder}
-              />
-            )}
-            {confirmed && (
-              <ConfirmationStep key="confirmation" orderId={orderId} total={orderTotal} email={shippingInfo?.email ?? null} />
-            )}
-          </AnimatePresence>
-        </div>
+            <div className="grid items-start gap-6 lg:grid-cols-3 lg:gap-8">
+              <div className="min-w-0 lg:col-span-2">
+                <AnimatePresence mode="wait" custom={direction} initial={false}>
+                  {step === "shipping" && (
+                    <ShippingStep key="shipping" initialData={shippingInfo} focusHeading={moved} onSubmit={handleShippingSubmit} />
+                  )}
+                  {step === "payment" && (
+                    <PaymentStep
+                      key="payment"
+                      summary={paymentSummary}
+                      focusHeading={moved}
+                      onSubmit={handlePaymentSubmit}
+                      onBack={() => goTo("shipping")}
+                    />
+                  )}
+                  {step === "review" && shippingInfo && paymentSummary && (
+                    <ReviewStep
+                      key="review"
+                      shippingInfo={shippingInfo}
+                      payment={paymentSummary}
+                      total={totals.total}
+                      focusHeading={moved}
+                      isProcessing={isProcessing}
+                      onEditShipping={() => goTo("shipping")}
+                      onEditPayment={() => goTo("payment")}
+                      onPlaceOrder={handlePlaceOrder}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
 
-        {!confirmed && <OrderSummary lines={cart} isProcessing={isProcessing} />}
-      </div>
+              <OrderSummary lines={cart} isProcessing={isProcessing} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </StepDirectionContext.Provider>
   );
 }

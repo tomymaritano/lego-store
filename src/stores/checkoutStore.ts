@@ -20,8 +20,12 @@ interface CheckoutState {
   setShippingInfo: (info: ShippingInfo) => void;
   /** Stores only the summary of the card; the full data is dropped here. */
   setPaymentInfo: (info: PaymentInfo) => void;
-  /** Mock payment: resolves with the order id and moves to the confirmation. */
-  processOrder: (order: { total: number }) => Promise<string>;
+  /**
+   * Mock payment: resolves with the order id and moves to the confirmation.
+   * Aborting `signal` (the visitor left the page) cancels the order: it
+   * rejects with an AbortError and the checkout stays where it was.
+   */
+  processOrder: (order: { total: number }, options?: { signal?: AbortSignal }) => Promise<string>;
   resetCheckout: () => void;
 }
 
@@ -49,10 +53,26 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
 
   setPaymentInfo: (info) => set({ paymentSummary: summarizePayment(info) }),
 
-  processOrder: async ({ total }) => {
+  processOrder: async ({ total }, { signal } = {}) => {
+    signal?.throwIfAborted();
     set({ isProcessing: true });
-    // Mock payment gateway.
-    await new Promise((resolve) => setTimeout(resolve, ORDER_DELAY_MS));
+    try {
+      // Mock payment gateway.
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, ORDER_DELAY_MS);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          },
+          { once: true }
+        );
+      });
+    } catch (error) {
+      set({ isProcessing: false });
+      throw error;
+    }
     const orderId = `LEGO-${Date.now().toString(36).toUpperCase()}`;
     set({ orderId, orderTotal: total, isProcessing: false, currentStep: "confirmation", paymentSummary: null });
     return orderId;

@@ -57,4 +57,17 @@ describe("checkoutStore", () => {
       paymentSummary: null,
     });
   });
+
+  it("cancels the order when its signal aborts: no order id, no confirmation", async () => {
+    vi.useFakeTimers();
+    useCheckoutStore.getState().setStep("review");
+    useCheckoutStore.getState().setPaymentInfo(card);
+    const controller = new AbortController();
+    const pending = useCheckoutStore.getState().processOrder({ total: 1198 }, { signal: controller.signal });
+    const outcome = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    controller.abort();
+    await outcome;
+    await vi.runAllTimersAsync();
+    expect(useCheckoutStore.getState()).toMatchObject({ currentStep: "review", isProcessing: false, orderId: null });
+  });
 });

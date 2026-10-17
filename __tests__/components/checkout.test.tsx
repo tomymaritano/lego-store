@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { CheckoutFlow } from "@/app/checkout/_components/CheckoutFlow";
 import { Stepper } from "@/app/checkout/_components/Stepper";
 import { useCartStore, useCheckoutStore } from "@/stores";
+import { showToast } from "@/components/ui/Toast";
 import { formatPrice as format } from "@/lib/utils";
 
 const formatPrice = (value: number) => format(value).replace(/\s/g, " ");
@@ -40,6 +41,8 @@ async function fillShipping(user: ReturnType<typeof userEvent.setup>) {
 describe("Checkout", () => {
   beforeAll(async () => {
     await useCartStore.persist.rehydrate();
+    // jsdom has no scrolling; the confirmation scrolls to the top before it enters.
+    window.scrollTo = vi.fn() as typeof window.scrollTo;
   });
 
   beforeEach(() => {
@@ -130,6 +133,7 @@ describe("Checkout", () => {
     expect(screen.queryByRole("navigation", { name: "Ruta de navegación" })).toBeNull();
     expect(useCartStore.getState().cart).toHaveLength(0);
     expect(screen.getByRole("link", { name: /Seguir comprando/ })).toHaveAttribute("href", "/");
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "instant" });
   }, 20_000); // a lot of typing: slow when the whole suite runs in parallel
 
   it("goes back from payment to shipping keeping the address", async () => {
@@ -164,5 +168,47 @@ describe("Checkout", () => {
     expect(await screen.findByText(/no es una tarjeta válida/)).toBeInTheDocument();
     expect(screen.getByText("Ingresa el vencimiento")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Número de tarjeta/)).toHaveFocus();
+  });
+
+  const shipping = {
+    firstName: "Ana",
+    lastName: "Pérez",
+    email: "ana@example.com",
+    phone: "1155551234",
+    address: "Av. Corrientes 1234",
+    city: "CABA",
+    state: "Córdoba",
+    zipCode: "1043",
+    country: "Argentina",
+  };
+  const summary = { brand: "visa" as const, last4: "4242", cardName: "ANA PEREZ", expiryDate: `12/${nextYear}` };
+
+  it("leaving while the payment runs cancels the order and keeps the cart", async () => {
+    useCheckoutStore.setState({ currentStep: "review", shippingInfo: shipping, paymentSummary: summary });
+    const user = userEvent.setup();
+    vi.mocked(showToast.error).mockClear();
+    vi.mocked(showToast.info).mockClear();
+    const { unmount } = render(<CheckoutFlow />);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await user.click(screen.getByRole("button", { name: /Confirmar pedido/ }));
+      expect(useCheckoutStore.getState().isProcessing).toBe(true);
+      unmount();
+      await vi.runAllTimersAsync();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(showToast.info).toHaveBeenCalledWith(expect.stringContaining("Cancelamos el pago"));
+    expect(showToast.error).not.toHaveBeenCalled();
+    expect(useCartStore.getState().cart).toHaveLength(2);
+    expect(useCheckoutStore.getState()).toMatchObject({ currentStep: "review", isProcessing: false, orderId: null });
+  });
+
+  it("a confirmation left from an earlier visit is not shown again", async () => {
+    useCartStore.setState({ cart: [] });
+    useCheckoutStore.setState({ currentStep: "confirmation", orderId: "LEGO-OLD", orderTotal: 1198, shippingInfo: shipping });
+    render(<CheckoutFlow />);
+    expect(screen.queryByTestId("order-confirmation")).toBeNull();
+    await waitFor(() => expect(useCheckoutStore.getState()).toMatchObject({ currentStep: "shipping", orderId: null }));
   });
 });
