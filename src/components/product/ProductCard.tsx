@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
-import { Check, Eye, Heart, Scale, ShoppingCart } from "lucide-react";
-import { pressable, transitions } from "@/lib/motion";
+import { motion } from "motion/react";
+import { Eye, Heart, Scale } from "lucide-react";
+import { hoverLift } from "@/lib/motion";
 import { PLACEHOLDER_IMAGE, calculateDiscount, cn } from "@/lib/utils";
 import { useProductActions } from "@/hooks/useProductActions";
-import { Badge, Button, IconButton, Price, Rating } from "@/components/ui";
+import { Badge, IconButton, Price, Rating } from "@/components/ui";
+import { AddToCartButton } from "./AddToCartButton";
 import type { Product } from "@/types";
 
 interface ProductCardProps {
@@ -25,8 +26,7 @@ interface ProductCardProps {
  * always visible on touch screens.
  */
 export function ProductCard({ product, onQuickView, priority = false }: ProductCardProps) {
-  const { inCart, inWishlist, inCompare, isAvailable, addToCart, toggleWishlist, toggleCompare } =
-    useProductActions(product);
+  const { inWishlist, inCompare, isAvailable, toggleWishlist, toggleCompare } = useProductActions(product);
   const [imageError, setImageError] = useState(false);
   const [secondaryError, setSecondaryError] = useState(false);
   const showSecondary = Boolean(product.imageSecondary) && !imageError && !secondaryError;
@@ -37,9 +37,9 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
 
   return (
     <motion.article
-      {...pressable}
+      {...hoverLift}
       aria-labelledby={titleId}
-      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card transition-shadow duration-base ease-standard hover:shadow-xl focus-within:shadow-xl"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card transition-[box-shadow,scale] duration-base ease-standard hover:shadow-xl focus-within:shadow-xl motion-safe:has-[[data-testid=product-name]:active]:scale-98"
       data-testid="product-card"
     >
       {/* Image */}
@@ -154,28 +154,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
           {lowStock && <span className="text-caption font-semibold text-warning">¡Solo quedan {product.stock}!</span>}
         </div>
 
-        <Button
-          onClick={() => addToCart()}
-          disabled={!isAvailable || inCart}
-          size="sm"
-          variant={inCart ? "secondary" : "primary"}
-          className="relative z-10 mt-2 w-full"
-          data-testid="add-to-cart-btn"
-        >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={inCart ? "in" : "out"}
-              className="inline-flex items-center gap-2"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={transitions.fast}
-            >
-              {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
-              {inCart ? "En el carrito" : isAvailable ? "Agregar al carrito" : "Agotado"}
-            </motion.span>
-          </AnimatePresence>
-        </Button>
+        <AddToCartButton product={product} className="relative z-10 mt-2 w-full" />
       </div>
     </motion.article>
   );

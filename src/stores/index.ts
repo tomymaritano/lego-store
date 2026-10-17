@@ -13,3 +13,4 @@ export { useCheckoutStore, summarizePayment } from "./checkoutStore";
 export { useThemeStore } from "./themeStore";
 export { useReviewStore } from "./reviewStore";
 export { StoreHydrator, useStoresHydrated, useStoreHydrated } from "./hydration";
+export { useUiStore, useCartDrawerOpen, openCartDrawer } from "./uiStore";

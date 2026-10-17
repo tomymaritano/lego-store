@@ -5,7 +5,7 @@ import { getCategories, getPaginatedProducts, getSaleProducts } from "@/lib/api"
 import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { Badge, Button, Price } from "@/components/ui";
-import { ProductList } from "@/components/product";
+import { ProductImage, ProductList } from "@/components/product";
 import { PageTransition } from "@/components/layout";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { NewsletterForm } from "@/components/home/NewsletterForm";
@@ -190,7 +190,7 @@ export default async function HomePage() {
                       <Badge variant="sale" className="absolute top-3 left-3 z-10">
                         Oferta
                       </Badge>
-                      <Image
+                      <ProductImage
                         src={product.img}
                         alt=""
                         fill

@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
@@ -15,7 +15,7 @@ export function CompareBar() {
   const pathname = usePathname();
   const ids = useCompareIds();
   const clearCompare = useCompareStore((state) => state.clearCompare);
-  const { products } = useProductsByIds(ids);
+  const { products } = useProductsByIds(ids, { onMissing: useCompareStore.getState().removeMany });
   const visible = ids.length > 0 && pathname !== "/compare";
 
   return (
@@ -51,7 +51,7 @@ export function CompareBar() {
                     transition={transitions.spring}
                     className="relative size-10 overflow-hidden rounded-full border-2 border-surface-raised bg-bg-muted"
                   >
-                    <Image src={product.img} alt="" fill sizes="40px" className="object-contain p-1" />
+                    <ProductImage src={product.img} alt="" fill sizes="40px" className="object-contain p-1" />
                   </motion.li>
                 ))}
               </AnimatePresence>

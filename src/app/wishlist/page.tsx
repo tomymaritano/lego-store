@@ -1,20 +1,20 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronLeft, Heart, ShoppingCart, Trash2 } from "lucide-react";
+import { ChevronLeft, Heart, Trash2 } from "lucide-react";
 import { scaleIn, transitions } from "@/lib/motion";
 import { useStoreHydrated, useWishlistItems, useWishlistStore } from "@/stores";
 import { useProductActions } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Button, EmptyState, IconButton, Price, Skeleton } from "@/components/ui";
+import { AddToCartButton, ProductImage } from "@/components/product";
 import type { Product, WishlistItem } from "@/types";
 
 /** One saved product: fresh catalogue data when loaded, the stored snapshot until then. */
 function WishlistCard({ item, product }: { item: WishlistItem; product?: Product }) {
   const summary = product ?? { id: item.id, name: item.name, price: item.price, img: item.image, stock: item.stock };
-  const { inCart, isAvailable, addToCart, toggleWishlist } = useProductActions(summary);
+  const { isAvailable, toggleWishlist } = useProductActions(summary);
 
   return (
     <motion.li
@@ -27,7 +27,7 @@ function WishlistCard({ item, product }: { item: WishlistItem; product?: Product
       className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card"
     >
       <div className="relative aspect-square bg-bg-subtle">
-        <Image src={summary.img} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain p-4" />
+        <ProductImage src={summary.img} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain p-4" />
         <IconButton
           label={`Quitar ${summary.name} de favoritos`}
           variant="secondary"
@@ -55,16 +55,7 @@ function WishlistCard({ item, product }: { item: WishlistItem; product?: Product
         />
         {!isAvailable && <p className="text-sm font-medium text-danger">Producto agotado</p>}
 
-        <Button
-          onClick={() => addToCart()}
-          disabled={!isAvailable || inCart}
-          variant={inCart ? "secondary" : "primary"}
-          size="sm"
-          className="relative z-10 mt-auto w-full"
-        >
-          {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
-          {inCart ? "En el carrito" : "Agregar al carrito"}
-        </Button>
+        <AddToCartButton product={summary} className="relative z-10 mt-auto w-full" />
       </div>
     </motion.li>
   );
@@ -74,7 +65,10 @@ export default function WishlistPage() {
   const hydrated = useStoreHydrated(useWishlistStore);
   const wishlist = useWishlistItems();
   const clearWishlist = useWishlistStore((state) => state.clearWishlist);
-  const { products } = useProductsByIds(wishlist.map((item) => item.id));
+  const { products } = useProductsByIds(
+    wishlist.map((item) => item.id),
+    { onMissing: useWishlistStore.getState().removeMany }
+  );
   const fresh = new Map(products.map((p) => [p.id, p]));
 
   if (!hydrated) {

@@ -106,8 +106,18 @@ export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
 export const staggerItem: Variants = fadeInUp;
 
 /**
- * Hover lift + press for interactive cards. Spread on a motion element:
- * <motion.article {...pressable}>.
+ * Hover lift for cards and other containers. Spread on a motion element:
+ * <motion.article {...hoverLift}>. Hover only: a container is not a control.
+ */
+export const hoverLift = {
+  whileHover: { y: -4 },
+  transition: transitions.fast,
+} as const;
+
+/**
+ * Hover lift + press, for elements that are themselves controls (a motion
+ * button or link). Never spread on a container: `whileTap` makes Motion add
+ * tabindex="0", turning the container into an empty keyboard stop.
  */
 export const pressable = {
   whileHover: { y: -4 },

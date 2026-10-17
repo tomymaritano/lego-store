@@ -1,4 +1,6 @@
 export { ProductCard } from "./ProductCard";
+export { AddToCartButton } from "./AddToCartButton";
+export { ProductImage } from "./ProductImage";
 export { ProductList } from "./ProductList";
 export { ProductFilters, type FilterState } from "./ProductFilters";
 export { ProductSort } from "./ProductSort";

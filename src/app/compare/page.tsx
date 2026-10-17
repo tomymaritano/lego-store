@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { Check, ChevronLeft, Plus, Scale, ShoppingCart, X } from "lucide-react";
+import { ChevronLeft, Plus, Scale, X } from "lucide-react";
 import { fadeInUp } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { MAX_COMPARE_ITEMS, useCompareIds, useCompareStore, useStoreHydrated } from "@/stores";
@@ -11,6 +10,7 @@ import { useProductActions } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, EmptyState, IconButton, Price, Rating, Skeleton } from "@/components/ui";
 import { PageTransition } from "@/components/layout";
+import { AddToCartButton, ProductImage } from "@/components/product";
 import type { Product } from "@/types";
 
 const specs: { label: string; render: (p: Product) => React.ReactNode }[] = [
@@ -41,7 +41,7 @@ function ProductHeader({ product }: { product: Product }) {
       </IconButton>
       <Link href={`/item/${product.id}`} className="group block rounded-xl">
         <span className="relative mx-auto mb-3 block size-32 rounded-xl bg-bg-subtle">
-          <Image src={product.img} alt="" fill sizes="128px" className="object-contain p-2" />
+          <ProductImage src={product.img} alt="" fill sizes="128px" className="object-contain p-2" />
         </span>
         <span className="line-clamp-2 text-sm font-semibold text-fg group-hover:text-info">{product.name}</span>
       </Link>
@@ -50,13 +50,9 @@ function ProductHeader({ product }: { product: Product }) {
 }
 
 function ProductActions({ product }: { product: Product }) {
-  const { inCart, isAvailable, addToCart } = useProductActions(product);
   return (
     <div className="flex flex-col gap-2">
-      <Button onClick={() => addToCart()} disabled={!isAvailable || inCart} size="sm" className="w-full">
-        {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
-        {inCart ? "En el carrito" : "Agregar"}
-      </Button>
+      <AddToCartButton product={product} addLabel="Agregar" className="w-full" />
       <Button variant="secondary" size="sm" className="w-full" render={<Link href={`/item/${product.id}`} />}>
         Ver detalles
       </Button>
@@ -68,7 +64,7 @@ export default function ComparePage() {
   const hydrated = useStoreHydrated(useCompareStore);
   const ids = useCompareIds();
   const clearCompare = useCompareStore((state) => state.clearCompare);
-  const { products, isLoading } = useProductsByIds(ids);
+  const { products, isLoading } = useProductsByIds(ids, { onMissing: useCompareStore.getState().removeMany });
 
   if (!hydrated || isLoading) {
     return (

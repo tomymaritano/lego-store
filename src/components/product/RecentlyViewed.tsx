@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { transitions } from "@/lib/motion";
@@ -29,7 +29,9 @@ const MAX_STAGGER = 0.2;
 export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
   const ids = useRecentlyViewedIds();
   const visibleIds = excludeId ? ids.filter((id) => id !== excludeId) : ids;
-  const { products } = useProductsByIds(visibleIds);
+  const { products } = useProductsByIds(visibleIds, {
+    onMissing: useRecentlyViewedStore.getState().removeMany,
+  });
   const scrollRef = useRef<HTMLUListElement>(null);
 
   if (products.length === 0) return null;
@@ -76,7 +78,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
                 className="group block overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-[box-shadow,translate] duration-base ease-standard hover:-translate-y-1 hover:shadow-md motion-reduce:hover:translate-y-0"
               >
                 <div className="relative aspect-square bg-bg-subtle">
-                  <Image
+                  <ProductImage
                     src={product.img}
                     alt=""
                     fill
