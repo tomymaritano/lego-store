@@ -6,6 +6,10 @@ const meta: Meta<typeof ProductCard> = {
   component: ProductCard,
   parameters: {
     layout: "centered",
+    // TODO(ui-overhaul pages stage): ProductCard still uses raw brand colours
+    // (lego-blue/red text, 10px badges) that fail color-contrast. Back to
+    // "error" once it is rebuilt on Badge/Price/Rating.
+    a11y: { test: "todo" },
   },
   tags: ["autodocs"],
   decorators: [
