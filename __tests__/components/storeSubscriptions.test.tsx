@@ -3,14 +3,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ProductCard } from "@/components/product/ProductCard";
 import { QuickViewModal } from "@/components/product/QuickViewModal";
 import { useWishlistStore, useCartStore, useUiStore } from "@/stores";
-import { getProductById } from "@/lib/api";
+import { fixtureProduct } from "../helpers/catalog";
 import type { Product } from "@/types";
 
 let product: Product;
 
 describe("ProductCard store subscriptions", () => {
-  beforeEach(async () => {
-    product = (await getProductById("1"))!;
+  beforeEach(() => {
+    product = fixtureProduct("1");
     act(() => {
       useWishlistStore.setState({ wishlist: [] });
       useCartStore.setState({ cart: [] });
@@ -70,8 +70,8 @@ describe("ProductCard store subscriptions", () => {
 });
 
 describe("QuickViewModal", () => {
-  beforeEach(async () => {
-    product = (await getProductById("1"))!;
+  beforeEach(() => {
+    product = fixtureProduct("1");
   });
 
   it("calls onClose when Escape is pressed while open", () => {

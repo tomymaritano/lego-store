@@ -1,10 +1,10 @@
 import type { Category } from "@/types";
 
 /**
- * Mock category metadata (display name, blurb, cover image), keyed by the
- * slug used in Product.category. Product counts are computed by lib/api.
- * Order is the navigation order. (Buildings, ships and robots have no working
- * product photo in the mock data yet, so they use the store logo.)
+ * Seed category metadata (display name, blurb, cover image), keyed by the
+ * slug used in Product.category; prisma/seed writes it to the Category table.
+ * Order is the navigation order (Category.position). Cars, buildings and ships
+ * have no working product photo yet, so they use the neutral placeholder.
  */
 export const categories: Omit<Category, "productCount">[] = [
   {

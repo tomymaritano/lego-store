@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { mockReviews, useReviewStore } from "@/stores/reviewStore";
+import { fixtureProducts } from "../helpers/catalog";
 
 describe("Review Store", () => {
   beforeEach(() => {
     useReviewStore.setState({ reviews: mockReviews });
   });
 
-  it("seed reviews point at real catalogue products", async () => {
-    const { getProducts } = await import("@/lib/api");
-    const ids = new Set((await getProducts()).map((p) => p.id));
+  it("seed reviews point at real catalogue products", () => {
+    const ids = new Set(fixtureProducts.map((p) => p.id));
     expect(mockReviews.every((r) => ids.has(r.productId))).toBe(true);
     expect(useReviewStore.getState().getProductReviews("1")).toHaveLength(2);
   });

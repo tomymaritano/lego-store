@@ -112,19 +112,19 @@ export default defineConfig([
       "no-restricted-syntax": ["error", ...rawColorSelectors, ...aliasSelectors, ...motionSelectors],
     },
   },
-  // Data access goes through src/lib/api (server-only): the catalogue must never
-  // be imported by pages or client components directly.
+  // src/data is only the seed's source (prisma/seed): the app reads the catalogue
+  // from the database through src/lib/api, never from these files.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/api/**", "src/data/**"],
+    ignores: ["src/data/**"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@/data", "@/data/*", "**/data/products"],
-              message: "Leé los datos vía @/lib/api, no importes @/data/* directamente.",
+              group: ["@/data", "@/data/*", "**/data/products", "**/data/categories"],
+              message: "src/data es solo la fuente del seed: leé el catálogo vía @/lib/api (base de datos).",
             },
           ],
         },

@@ -1,10 +1,14 @@
-// @vitest-environment node
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as getProducts } from "@/app/api/products/route";
 import { GET as getByIds } from "@/app/api/products/by-ids/route";
 import { GET as getSearch } from "@/app/api/search/route";
 import { proxy } from "@/proxy";
+import { resetAndSeed } from "./setup/db";
+
+beforeAll(async () => {
+  await resetAndSeed();
+});
 
 const request = (path: string) => new NextRequest(new URL(path, "http://localhost"));
 

@@ -143,7 +143,13 @@ export const n = products.length;
       return result.messages.filter((m) => m.ruleId === "no-restricted-imports");
     };
 
-    it.each([APP_FILE, UI_FILE, "src/components/product/ZzFixture.tsx", "src/stores/zzFixture.ts"])(
+    it.each([
+      APP_FILE,
+      UI_FILE,
+      "src/components/product/ZzFixture.tsx",
+      "src/stores/zzFixture.ts",
+      "src/lib/api/zzFixture.ts",
+    ])(
       "is an error to import @/data in %s",
       async (filePath) => {
         const hits = await restricted(filePath);
@@ -152,8 +158,9 @@ export const n = products.length;
       }
     );
 
-    it("is allowed inside src/lib/api", async () => {
-      expect(await restricted("src/lib/api/zzFixture.ts")).toEqual([]);
+    it("is allowed for the seed and the tests", async () => {
+      expect(await restricted("prisma/seed/zzFixture.ts")).toEqual([]);
+      expect(await restricted("__tests__/helpers/zzFixture.ts")).toEqual([]);
     });
   });
 });

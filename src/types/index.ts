@@ -16,7 +16,10 @@ export interface Product {
   originalPrice?: number;
   isNew: boolean;
   isOnSale: boolean;
+  /** Average of the product's reviews, one decimal; 0 when it has none (see reviewCount). */
   rating: number;
+  reviewCount: number;
+  /** Category slug (Category.id). */
   category: string;
   type: string;
   age: string;

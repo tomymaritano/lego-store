@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import {
   getCategories,
   getCategoryById,
@@ -14,9 +14,18 @@ import {
   getSearchSuggestions,
   searchProducts,
 } from "@/lib/api";
-import { normalizeText, tokenize } from "@/lib/api/search";
+import { resetAndSeed } from "./setup/db";
+
+/*
+ * lib/api against the seeded test database. Read-only: the catalogue is
+ * seeded once for the file.
+ */
 
 const ids = (list: { id: string }[]) => list.map((p) => p.id);
+
+beforeAll(async () => {
+  await resetAndSeed();
+});
 
 describe("lib/api", () => {
   describe("getProducts / getProductById", () => {
@@ -52,12 +61,6 @@ describe("lib/api", () => {
   });
 
   describe("search", () => {
-    it("normalises case, accents and whitespace", () => {
-      expect(normalizeText("  Vehículos   ÁRBOL ")).toBe("vehiculos arbol");
-      expect(tokenize("Star  WARS star")).toEqual(["star", "wars"]);
-      expect(tokenize("   ")).toEqual([]);
-    });
-
     it("requires every term to match", async () => {
       const results = await searchProducts("star wars helmet");
       expect(results.length).toBeGreaterThan(0);
@@ -314,5 +317,38 @@ describe("lib/api", () => {
       expect((await getCategoryById("cars"))?.name).toBe("Vehículos");
       expect(await getCategoryById("nope")).toBeNull();
     });
+  });
+});
+
+describe("lib/api on Postgres specifics", () => {
+  it("treats LIKE wildcards in a search as literal characters", async () => {
+    expect(await searchProducts("%")).toEqual([]);
+    expect(await searchProducts("_")).toEqual([]);
+    expect((await getSearchSuggestions("%", 5)).total).toBe(0);
+  });
+
+  it("matches list filter values from the URL ignoring case and accents", async () => {
+    const exact = await getPaginatedProducts({ types: ["Decoración del hogar"], limit: 48 });
+    const loose = await getPaginatedProducts({ types: ["DECORACION DEL HOGAR"], limit: 48 });
+    expect(ids(loose.items)).toEqual(ids(exact.items));
+    expect(await getPaginatedProducts({ themes: ["no existe"] })).toMatchObject({ total: 0, items: [] });
+    const robots = await getPaginatedProducts({ interests: ["robots"], limit: 48 });
+    expect(robots.total).toBeGreaterThan(0);
+  });
+
+  it("orders sale products by discount and resolves categories ignoring case", async () => {
+    const sale = await getSaleProducts();
+    const discount = (p: { price: number; originalPrice?: number }) => (p.originalPrice! - p.price) / p.originalPrice!;
+    for (let i = 1; i < sale.length; i++) expect(discount(sale[i - 1])).toBeGreaterThanOrEqual(discount(sale[i]));
+    expect((await getCategoryById("CARS"))?.id).toBe("cars");
+  });
+
+  it("returns plain serialisable products with their review count", async () => {
+    const product = (await getProductById("2"))!;
+    expect(JSON.parse(JSON.stringify(product))).toEqual(product);
+    expect(product).not.toHaveProperty("originalPrice");
+    expect(product).not.toHaveProperty("searchText");
+    expect(product.reviewCount).toBeGreaterThan(0);
+    expect((await getProductById("1"))?.originalPrice).toBe(999);
   });
 });

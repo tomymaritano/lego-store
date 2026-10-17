@@ -1,12 +1,16 @@
-import type { Product } from "@/types";
-
 /**
  * The one search algorithm of the store: every term of the query has to
  * appear (as a substring) somewhere in the product's name, theme, category
  * (slug and display name) or description. Case- and accent-insensitive, so
  * "vehiculos" finds "Vehículos" and "STAR wars" finds "Star Wars".
  *
- * Results are ranked by how many terms hit the name, then catalogue order.
+ * The database does the matching: each product stores that text already
+ * normalised (Product.searchText, built by productSearchColumns), and the
+ * query's terms are normalised the same way, so a plain LIKE per term is
+ * accent-insensitive without a Postgres extension. Results are ranked by how
+ * many terms hit the name (Product.searchName), then catalogue order.
+ *
+ * Pure functions: lib/api, the seed and the admin writes all use them.
  */
 
 /** Lowercase, strip diacritics, collapse whitespace. */
@@ -24,33 +28,38 @@ export function tokenize(query: string): string[] {
   return normalized ? Array.from(new Set(normalized.split(" "))) : [];
 }
 
-function haystack(product: Product, categoryName?: string): string {
-  return normalizeText(
-    [product.name, product.theme, product.category, categoryName ?? "", product.description].join(" ")
-  );
+interface SearchableProduct {
+  name: string;
+  theme: string;
+  /** Category slug. */
+  categoryId: string;
+  /** Category display name ("Vehículos" for "cars"). */
+  categoryName: string;
+  description: string;
 }
 
 /**
- * Filters and ranks `products` for `query`. An empty query returns [] (there is
- * nothing to search for); callers that want "everything" skip the search.
+ * The derived search columns of a product. Recompute them on every write that
+ * touches one of the inputs (create, admin edit, category rename).
  */
-export function search(
-  products: Product[],
-  query: string,
-  categoryName: (slug: string) => string | undefined = () => undefined
-): Product[] {
-  const terms = tokenize(query);
-  if (terms.length === 0) return [];
+export function productSearchColumns(product: SearchableProduct): { searchText: string; searchName: string } {
+  return {
+    searchText: normalizeText(
+      [product.name, product.theme, product.categoryId, product.categoryName, product.description].join(" ")
+    ),
+    searchName: normalizeText(product.name),
+  };
+}
 
-  return products
-    .map((product, index) => {
-      const text = haystack(product, categoryName(product.category));
-      if (!terms.every((term) => text.includes(term))) return null;
-      const name = normalizeText(product.name);
-      const score = terms.filter((term) => name.includes(term)).length;
-      return { product, index, score };
-    })
-    .filter((hit): hit is { product: Product; index: number; score: number } => hit !== null)
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map((hit) => hit.product);
+/**
+ * A term as a literal LIKE pattern: Prisma's `contains` does not escape the
+ * LIKE wildcards, so "%" would otherwise match every product.
+ */
+export function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/** How many of the (normalised) terms appear in a normalised name. */
+export function nameHits(searchName: string, terms: string[]): number {
+  return terms.filter((term) => searchName.includes(term)).length;
 }

@@ -27,6 +27,17 @@ test.describe("Search", () => {
     // Should be on the search page with the query
     await expect(page).toHaveURL(/\/search\?q=star/);
   });
+
+  test("matches every term without accents, across category names (database search)", async ({ page }) => {
+    // "vehiculos" is the display name of the cars category ("Vehículos"), "porsche" narrows it to one set.
+    await page.goto("/search?q=vehiculos%20PORSCHE");
+    const cards = page.getByTestId("product-card");
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toContainText("Porsche 911 GT3 RS");
+
+    await page.goto("/search?q=vehiculos");
+    await expect(page.getByTestId("product-card")).toHaveCount(5);
+  });
 });
 
 test.describe("Search combobox focus", () => {

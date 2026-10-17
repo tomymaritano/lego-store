@@ -48,6 +48,7 @@ const product = (id: string, overrides: Partial<Product> = {}): Product => ({
   isNew: false,
   isOnSale: false,
   rating: 4.5,
+  reviewCount: 2,
   category: "helmet",
   type: "Set",
   age: "18+",

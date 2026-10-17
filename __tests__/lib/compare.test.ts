@@ -9,6 +9,7 @@ const base: Product = {
   isNew: false,
   isOnSale: false,
   rating: 4.5,
+  reviewCount: 4,
   category: "helmet",
   type: "Set",
   age: "18+",

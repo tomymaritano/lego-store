@@ -18,6 +18,7 @@ const product: Product = {
   isNew: false,
   isOnSale: false,
   rating: 4.4,
+  reviewCount: 5,
   category: "brickheadz",
   type: "Sets",
   age: "16+",
