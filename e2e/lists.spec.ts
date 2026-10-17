@@ -237,6 +237,12 @@ test.describe("Compare page", () => {
     await expect(highlight).toBeChecked();
     await expect(table.getByRole("rowheader", { name: /Precio.*valores distintos/ })).toBeVisible();
     await expect(table.getByRole("rowheader", { name: /^Categoría$/ })).toBeVisible();
+    // The empty "Agregar producto" column carries the tint too, so the band spans the whole row.
+    const priceRow = table.getByTestId("compare-row-price");
+    const bg = (cell: ReturnType<typeof table.locator>) => cell.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await expect
+      .poll(async () => (await bg(priceRow.getByTestId("compare-filler-cell"))) === (await bg(priceRow.locator("td").first())))
+      .toBe(true);
 
     await page.getByRole("button", { name: /^Quitar .+ de la comparación$/ }).first().click();
     await expect(table.getByTestId("compare-column")).toHaveCount(2);

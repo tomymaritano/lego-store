@@ -273,7 +273,16 @@ export function CompareView() {
                               {renderValue(product, row.key)}
                             </motion.td>
                           ))}
-                          {canAddMore ? <td className={cn(VALUE_CELL, "border-b border-border")} /> : null}
+                          {canAddMore ? (
+                            <td
+                              data-testid="compare-filler-cell"
+                              className={cn(
+                                VALUE_CELL,
+                                "border-b border-border transition-colors duration-base",
+                                marked && "bg-row-highlight"
+                              )}
+                            />
+                          ) : null}
                         </tr>
                       );
                     })}
