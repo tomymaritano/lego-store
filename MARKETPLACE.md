@@ -1,8 +1,8 @@
-# E-commerce Template - Next.js 14
+# E-commerce Template - Next.js 16
 
 ## Product Description
 
-A modern, production-ready e-commerce template built with Next.js 14, TypeScript, and Tailwind CSS. Perfect for launching your online store quickly without starting from scratch.
+A modern, production-ready e-commerce template built with Next.js 16, React 19, TypeScript, and Tailwind CSS. Perfect for launching your online store quickly without starting from scratch.
 
 ### Why Choose This Template?
 
@@ -26,7 +26,7 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
 
 ### User Experience
 - Dark/Light mode with system detection
-- Smooth animations (Framer Motion)
+- Smooth animations (Motion)
 - Loading skeletons for perceived performance
 - Toast notifications
 - Quick view modals
@@ -61,11 +61,11 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
 
 | Category | Technology |
 |----------|------------|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 16 (App Router) + React 19 |
 | Language | TypeScript 5 |
-| Styling | Tailwind CSS 3.4 |
+| Styling | Tailwind CSS 4 |
 | State | Zustand |
-| Animations | Framer Motion |
+| Animations | Motion |
 | Forms | React Hook Form + Zod |
 | Testing | Vitest, Playwright, Storybook |
 | Icons | Lucide React |
@@ -96,13 +96,12 @@ lego-store/
 ## Quick Customization
 
 ### 1. Brand Colors
-Edit `tailwind.config.ts`:
-```typescript
-colors: {
-  brand: {
-    primary: "#your-color",
-    secondary: "#your-color",
-  }
+Edit the `@theme` block in `src/app/globals.css`:
+```css
+@theme {
+  --color-lego-yellow: #your-color;
+  --color-lego-red: #your-color;
+  --color-lego-blue: #your-color;
 }
 ```
 

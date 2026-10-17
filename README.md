@@ -109,15 +109,13 @@ export const siteConfig = {
 
 ### 2. Theme Colors
 
-Update brand colors in `tailwind.config.ts`:
+Brand colors live in the Tailwind 4 `@theme` block in `src/app/globals.css`:
 
-```typescript
-colors: {
-  brand: {
-    yellow: "#ffd44a",
-    red: "#e53935",
-    blue: "#1e88e5",
-  },
+```css
+@theme {
+  --color-lego-yellow: #ffd44a;
+  --color-lego-red: #e53935;
+  --color-lego-blue: #1e88e5;
 }
 ```
 
