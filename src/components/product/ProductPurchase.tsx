@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Heart, PackageCheck, Scale, Share2, ShoppingCart } from "lucide-react";
-import { fadeIn, transitions } from "@/lib/motion";
+import { collapse, transitions } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
 import { cn } from "@/lib/utils";
 import { useProductActions } from "@/hooks/useProductActions";
@@ -103,106 +103,105 @@ export function ProductPurchase({ product }: { product: Product }) {
   }[ctaState];
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-2">
+    <div>
+      <div className="space-y-5">
         <StockStatus stock={product.stock} />
-        <AnimatePresence initial={false}>
-          {inCartQuantity > 0 && (
-            <motion.p
-              key="in-cart"
-              variants={fadeIn}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="flex items-center gap-2 text-sm text-fg-secondary"
+
+        {/* Stays (disabled) once the whole stock is in the cart, so the CTA below does not jump up. */}
+        {isAvailable && (
+          <div className="flex items-center gap-4">
+            <span className="text-label text-fg-secondary">Cantidad</span>
+            <QuantitySelector
+              value={quantity}
+              onValueChange={setRequested}
+              max={Math.max(1, remaining)}
+              disabled={maxedOut}
+              label={`Cantidad de ${product.name}`}
+            />
+          </div>
+        )}
+
+        {/* Mobile: full-width CTA with the three secondary actions in their own row; sm+: one row. */}
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Button
+            onClick={handleAddToCart}
+            disabled={soldOut || maxedOut}
+            size="lg"
+            className={cn("w-full sm:w-auto sm:flex-1", justAdded && "bg-success text-on-success hover:bg-success")}
+            data-testid="add-to-cart-btn"
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={ctaState}
+                className="inline-flex items-center gap-2"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={transitions.fast}
+              >
+                {ctaState === "added" || ctaState === "more" ? (
+                  <Check aria-hidden="true" />
+                ) : (
+                  <ShoppingCart aria-hidden="true" />
+                )}
+                {ctaLabel}
+              </motion.span>
+            </AnimatePresence>
+          </Button>
+
+          <div className="grid grid-cols-3 gap-3 sm:flex">
+            <IconButton
+              label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
+              aria-pressed={inWishlist}
+              variant="secondary"
+              className={cn(secondaryAction, inWishlist && "border-sale text-sale")}
+              onClick={() => {
+                toggleWishlist();
+                setHeartPops((n) => n + 1);
+              }}
             >
-              <PackageCheck aria-hidden="true" className="size-4 text-info" />
+              <motion.span
+                key={heartPops}
+                initial={heartPops ? { scale: 0.6 } : false}
+                animate={{ scale: 1 }}
+                transition={transitions.spring}
+                className="inline-flex"
+              >
+                <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
+              </motion.span>
+            </IconButton>
+            <IconButton
+              label={inCompare ? "Quitar de la comparación" : "Agregar a la comparación"}
+              aria-pressed={inCompare}
+              variant="secondary"
+              className={cn(secondaryAction, inCompare && "border-info text-info")}
+              onClick={toggleCompare}
+            >
+              <Scale aria-hidden="true" />
+            </IconButton>
+            <IconButton label="Compartir" variant="secondary" className={secondaryAction} onClick={handleShare}>
+              <Share2 aria-hidden="true" />
+            </IconButton>
+          </div>
+        </div>
+      </div>
+
+      {/* Below the actions, with an animated height: the CTA never moves under the pointer that just added. */}
+      <AnimatePresence initial={false}>
+        {inCartQuantity > 0 && (
+          <motion.div key="in-cart" variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden">
+            <p className="flex items-center gap-2 pt-4 text-sm text-fg-secondary">
+              <PackageCheck aria-hidden="true" className="size-4 shrink-0 text-info" />
               <span>
                 Tienes {inCartQuantity} en tu carrito ·{" "}
                 <Link href="/cart" className="font-semibold text-info underline-offset-4 hover:underline">
                   Ver carrito
                 </Link>
               </span>
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {isAvailable && remaining > 0 && (
-        <div className="flex items-center gap-4">
-          <span className="text-label text-fg-secondary">Cantidad</span>
-          <QuantitySelector
-            value={quantity}
-            onValueChange={setRequested}
-            max={remaining}
-            label={`Cantidad de ${product.name}`}
-          />
-        </div>
-      )}
-
-      {/* Mobile: full-width CTA with the three secondary actions in their own row; sm+: one row. */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Button
-          onClick={handleAddToCart}
-          disabled={soldOut || maxedOut}
-          size="lg"
-          className={cn("w-full sm:w-auto sm:flex-1", justAdded && "bg-success text-on-success hover:bg-success")}
-          data-testid="add-to-cart-btn"
-        >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={ctaState}
-              className="inline-flex items-center gap-2"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={transitions.fast}
-            >
-              {ctaState === "added" || ctaState === "more" ? (
-                <Check aria-hidden="true" />
-              ) : (
-                <ShoppingCart aria-hidden="true" />
-              )}
-              {ctaLabel}
-            </motion.span>
-          </AnimatePresence>
-        </Button>
-
-        <div className="grid grid-cols-3 gap-3 sm:flex">
-          <IconButton
-            label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
-            aria-pressed={inWishlist}
-            variant="secondary"
-            className={cn(secondaryAction, inWishlist && "border-sale text-sale")}
-            onClick={() => {
-              toggleWishlist();
-              setHeartPops((n) => n + 1);
-            }}
-          >
-            <motion.span
-              key={heartPops}
-              initial={heartPops ? { scale: 0.6 } : false}
-              animate={{ scale: 1 }}
-              transition={transitions.spring}
-              className="inline-flex"
-            >
-              <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
-            </motion.span>
-          </IconButton>
-          <IconButton
-            label={inCompare ? "Quitar de la comparación" : "Agregar a la comparación"}
-            aria-pressed={inCompare}
-            variant="secondary"
-            className={cn(secondaryAction, inCompare && "border-info text-info")}
-            onClick={toggleCompare}
-          >
-            <Scale aria-hidden="true" />
-          </IconButton>
-          <IconButton label="Compartir" variant="secondary" className={secondaryAction} onClick={handleShare}>
-            <Share2 aria-hidden="true" />
-          </IconButton>
-        </div>
-      </div>
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
