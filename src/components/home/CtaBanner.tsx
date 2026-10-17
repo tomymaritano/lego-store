@@ -10,7 +10,7 @@ export function CtaBanner() {
   return (
     <section aria-labelledby="cta-title" className="bg-bg pb-16 md:pb-20">
       <div className="container-custom">
-        <Reveal className="relative overflow-hidden rounded-3xl bg-info px-6 py-12 text-on-info shadow-card md:px-12 md:py-16">
+        <Reveal className="relative overflow-hidden rounded-3xl bg-info-surface px-6 py-12 text-on-info-surface shadow-card md:px-12 md:py-16">
           {/* LEGO studs, decorative */}
           <div
             aria-hidden="true"
@@ -22,7 +22,7 @@ export function CtaBanner() {
                 <Truck aria-hidden="true" className="size-5" />
                 Envío gratis desde {formatPrice(siteConfig.commerce.freeShippingThreshold)}
               </p>
-              <h2 id="cta-title" className="mt-3 text-on-info">
+              <h2 id="cta-title" className="mt-3 text-on-info-surface">
                 Arma tu próxima aventura
               </h2>
               <p className="mt-3 text-lg">
@@ -40,7 +40,7 @@ export function CtaBanner() {
               <Button
                 size="lg"
                 variant="outline"
-                className="border-on-info text-on-info hover:bg-on-info hover:text-info"
+                className="border-on-info-surface text-on-info-surface hover:bg-on-info-surface hover:text-info-surface"
                 render={<Link href="/search?isNew=1" />}
               >
                 Ver novedades

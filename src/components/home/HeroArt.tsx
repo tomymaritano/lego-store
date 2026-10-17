@@ -45,7 +45,7 @@ export function HeroArt({ src, alt }: HeroArtProps) {
           transition={{ ...transitions.spring, delay: transitions.slow.duration }}
           className="absolute top-6 left-2"
         >
-          <Brick className="bg-sale text-on-sale" />
+          <Brick className="bg-brand-red text-on-brand-red" />
         </motion.div>
         <motion.div
           initial={{ opacity: 0, rotate: 24, scale: 0.6 }}
@@ -53,7 +53,7 @@ export function HeroArt({ src, alt }: HeroArtProps) {
           transition={{ ...transitions.spring, delay: transitions.slow.duration + transitions.fast.duration }}
           className="absolute right-4 bottom-10"
         >
-          <Brick className="bg-info text-on-info" />
+          <Brick className="bg-info-surface text-on-info-surface" />
         </motion.div>
       </motion.div>
 

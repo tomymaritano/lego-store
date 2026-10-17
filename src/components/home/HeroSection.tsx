@@ -29,14 +29,14 @@ export function HeroSection({ productCount, saleCount }: HeroSectionProps) {
         <div className="grid min-h-[30rem] items-center gap-8 pt-12 pb-24 lg:grid-cols-2 lg:pt-16 lg:pb-32">
           <Stagger stagger={0.06}>
             <StaggerItem effect="lift">
-              <Badge variant="sale" className="mb-4 px-3 py-1 text-label">
+              <Badge variant="sale" className="mb-4 bg-brand-red px-3 py-1 text-label text-on-brand-red">
                 Nueva colección
               </Badge>
             </StaggerItem>
             <StaggerItem effect="lift">
               <h1 id="hero-title" className="text-display text-on-primary">
                 Construye tu{" "}
-                <span className="mt-2 inline-block -rotate-1 rounded-2xl bg-sale px-4 pb-1 text-on-sale shadow-lg">
+                <span className="mt-2 inline-block -rotate-1 rounded-2xl bg-brand-red px-4 pb-1 text-on-brand-red shadow-lg">
                   universo LEGO
                 </span>
               </h1>
@@ -78,7 +78,7 @@ export function HeroSection({ productCount, saleCount }: HeroSectionProps) {
       </div>
 
       {/* Wave divider into the next band */}
-      <div aria-hidden="true" className="absolute right-0 bottom-0 left-0 text-bg-subtle">
+      <div aria-hidden="true" className="absolute right-0 -bottom-px left-0 text-bg-subtle">
         <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="block w-full">
           <path
             d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z"
