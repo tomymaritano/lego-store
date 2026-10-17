@@ -34,12 +34,12 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <div aria-hidden="true" className="relative hidden h-full min-h-[32rem] overflow-hidden rounded-3xl bg-primary p-10 text-on-primary shadow-card lg:flex lg:flex-col lg:justify-between">
         <div className="flex flex-1 flex-col-reverse items-center justify-center">
           {bricks.map((brick, index) => (
-            <div
-              key={brick.className}
-              className={cn("animate-brick-drop", brick.offset)}
-              style={{ animationDelay: `calc(var(--duration-fast) * ${index})` }}
-            >
-              <Brick className={brick.className} studs={brick.studs} />
+            // The offset sits on a wrapper: brick-drop animates `translate` (fill-mode both), which
+            // would override a translate utility on the same element.
+            <div key={brick.className} className={brick.offset}>
+              <div className="animate-brick-drop" style={{ animationDelay: `calc(var(--duration-fast) * ${index})` }}>
+                <Brick className={brick.className} studs={brick.studs} />
+              </div>
             </div>
           ))}
         </div>
