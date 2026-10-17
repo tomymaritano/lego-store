@@ -11,11 +11,21 @@ import { cn } from "@/lib/utils";
 import { newsletterSchema, type NewsletterInput } from "@/lib/validations";
 import { Button, Field, Input, showToast } from "@/components/ui";
 
+interface NewsletterFormProps {
+  className?: string;
+  /**
+   * Id of the heading that names the form. Each placement (Footer, home)
+   * passes its own section heading, so two forms on one page never share a
+   * landmark name; without it the form stays an unnamed (non-landmark) form.
+   */
+  labelledBy?: string;
+}
+
 /**
  * Newsletter sign-up (mock: validates, simulates the request and confirms
  * with a toast plus an inline message). Used by the Footer and the home page.
  */
-export function NewsletterForm({ className }: { className?: string }) {
+export function NewsletterForm({ className, labelledBy }: NewsletterFormProps) {
   const [subscribed, setSubscribed] = useState<string | null>(null);
   const {
     register,
@@ -36,7 +46,7 @@ export function NewsletterForm({ className }: { className?: string }) {
       <form
         onSubmit={handleSubmit(onSubmit)}
         noValidate
-        aria-label="Suscripción al newsletter"
+        aria-labelledby={labelledBy}
         className="flex w-full flex-col gap-3 sm:flex-row sm:items-start"
       >
         <Field label="Tu email" hideLabel error={errors.email?.message} className="sm:min-w-72">

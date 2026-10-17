@@ -31,6 +31,19 @@ describe("NewsletterForm", () => {
     expect(toast.success).not.toHaveBeenCalled();
   });
 
+  it("takes its accessible name from the heading it is given (unique landmarks per placement)", () => {
+    render(
+      <>
+        <h2 id="a-title">Suscríbete al newsletter</h2>
+        <NewsletterForm labelledBy="a-title" />
+        <h2 id="b-title">¿Nuevo en LEGO?</h2>
+        <NewsletterForm labelledBy="b-title" />
+      </>
+    );
+    expect(screen.getByRole("form", { name: "Suscríbete al newsletter" })).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "¿Nuevo en LEGO?" })).toBeInTheDocument();
+  });
+
   it("asks for an email when empty", async () => {
     const user = userEvent.setup();
     render(<NewsletterForm />);

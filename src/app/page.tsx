@@ -235,7 +235,7 @@ export default async function HomePage() {
               <p className="mt-2 text-lg">Suscríbete y obtén 10% de descuento en tu primera compra</p>
             </div>
             <div className="w-full rounded-2xl bg-surface p-4 text-fg shadow-lg lg:w-auto">
-              <NewsletterForm />
+              <NewsletterForm labelledBy="newsletter-title" />
             </div>
           </div>
         </div>

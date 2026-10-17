@@ -95,10 +95,10 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
               <Image
                 src="/images/lego.png"
                 alt={`${siteConfig.name}, inicio`}
-                width={120}
-                height={60}
-                className="h-12 w-auto"
-                style={{ width: "auto" }}
+                // The logo file is square: matching dimensions avoid a resized-image warning and layout shift.
+                width={48}
+                height={48}
+                className="size-12"
               />
             </Link>
 
@@ -168,7 +168,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
               Ofertas exclusivas y novedades en tu correo. Te regalamos 10% en tu primera compra.
             </p>
           </div>
-          <NewsletterForm />
+          <NewsletterForm labelledBy="footer-newsletter-title" />
         </section>
       </div>
 
@@ -179,16 +179,6 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
             <p>© {new Date().getFullYear()} {siteConfig.name}. Proyecto de portafolio.</p>
             <p className="text-caption text-fg-muted">LEGO® es una marca de The LEGO Group, que no patrocina esta tienda.</p>
           </div>
-
-          <ul className="flex flex-wrap justify-center gap-4 text-sm" aria-label="Legal">
-            {legalLinks.map((link) => (
-              <li key={link.href}>
-                <Link href={link.href} className={linkClasses}>
-                  {link.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
 
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span className="text-caption text-fg-secondary">Medios de pago:</span>

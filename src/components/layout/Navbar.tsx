@@ -42,10 +42,10 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
         </p>
       </aside>
 
-      <header className="sticky top-0 z-40 border-b border-border bg-surface/90 shadow-sm backdrop-blur-md">
+      <header data-site-header className="sticky top-0 z-40 border-b border-border bg-surface/90 shadow-sm backdrop-blur-md">
         <div className="container-custom flex h-16 items-center gap-2 lg:gap-4">
           <Link href="/" className="shrink-0 rounded-lg transition-[scale] duration-fast ease-standard hover:scale-105 motion-reduce:hover:scale-100">
-            <Image src="/images/lego.png" alt={`${siteConfig.name}, inicio`} width={80} height={40} className="h-10 w-auto" preload />
+            <Image src="/images/lego.png" alt={`${siteConfig.name}, inicio`} width={40} height={40} className="size-10" preload />
           </Link>
 
           <nav aria-label="Principal" className="hidden lg:block">

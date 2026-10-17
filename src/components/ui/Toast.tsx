@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Toaster as SonnerToaster, toast } from "sonner";
 import { CheckCircle2, XCircle, AlertTriangle, Info, ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,17 +9,57 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 const PHONE_QUERY = "(max-width: 639px)";
 
 /**
+ * Phones: toasts drop in just below the site header (the element marked
+ * `data-site-header`), so they never cover its actions (cart badge, menu,
+ * search). The header is sticky and has a promo bar above it until the page
+ * scrolls, so its bottom edge is tracked into `--site-header-bottom`.
+ */
+const PHONE_TOP_OFFSET = "calc(var(--site-header-bottom, 4rem) + 0.5rem)";
+
+function useSiteHeaderBottom(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const root = document.documentElement;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const header = document.querySelector("[data-site-header]");
+      const bottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+      root.style.setProperty("--site-header-bottom", `${Math.round(bottom)}px`);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      root.style.removeProperty("--site-header-bottom");
+    };
+  }, [enabled]);
+}
+
+/**
  * Sonner, themed with design tokens (no richColors: our tokens carry contrast).
  * `unstyled` drops Sonner's rule that hides the content of collapsed back
  * toasts; globals.css restores it (see "Sonner: unstyled toasts").
  */
 export function Toaster() {
   // Phones: toasts drop from the top so they never sit over the docked
-  // compare bar or a sheet's footer CTAs at the bottom of the screen.
+  // compare bar or a sheet's footer CTAs at the bottom of the screen, and
+  // below the sticky header so its actions stay visible and tappable.
   const isPhone = useMediaQuery(PHONE_QUERY);
+  useSiteHeaderBottom(isPhone);
   return (
     <SonnerToaster
       position={isPhone ? "top-center" : "bottom-right"}
+      // Sonner switches to its mobile layout at 600px; our phone range ends at
+      // 639px, so the top offset is set for both layouts.
+      offset={isPhone ? { top: PHONE_TOP_OFFSET } : undefined}
+      mobileOffset={{ top: PHONE_TOP_OFFSET }}
       duration={3000}
       containerAriaLabel="Notificaciones"
       toastOptions={{

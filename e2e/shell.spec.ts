@@ -106,6 +106,33 @@ test.describe("Mobile shell", () => {
     await expect(sheet).toBeHidden();
   });
 
+  for (const scrolled of [false, true]) {
+    test(`toasts drop in below the sticky header, leaving the cart button hittable (scrolled: ${scrolled})`, async ({
+      page,
+    }) => {
+      await page.goto("/category/helmet");
+      const card = page.getByTestId("product-card").nth(scrolled ? 3 : 0);
+      await card.scrollIntoViewIfNeeded();
+      // Scrolled: the promo bar is gone and the header sits stuck at top: 0.
+      if (scrolled) await page.evaluate(() => window.scrollBy(0, 300));
+      await card.getByTestId("add-to-cart-btn").click();
+      const toast = page.locator("[data-sonner-toast]").first();
+      await expect(toast).toBeVisible();
+
+      const header = (await page.locator("[data-site-header]").boundingBox())!;
+      if (scrolled) expect(header.y).toBe(0);
+      // Let the toast settle into place before probing.
+      await expect.poll(async () => (await toast.boundingBox())!.y).toBeGreaterThanOrEqual(header.y + header.height);
+
+      const box = (await page.getByTestId("cart-button").boundingBox())!;
+      const hitsCart = await page.evaluate(
+        ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('[data-testid="cart-button"]'),
+        { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+      );
+      expect(hitsCart).toBe(true);
+    });
+  }
+
   test("no horizontal scroll on the shell and info pages", async ({ page }) => {
     for (const path of ["/", "/contacto", "/envios"]) {
       await page.goto(path);
@@ -164,7 +191,7 @@ test.describe("Footer and info pages", () => {
 
   test("newsletter in the footer validates and confirms", async ({ page }) => {
     await page.goto("/faq");
-    const form = page.getByRole("form", { name: "Suscripción al newsletter" });
+    const form = page.getByRole("form", { name: "Suscríbete al newsletter" });
     await form.getByRole("button", { name: "Suscribirse" }).click();
     await expect(form.getByText("Ingresa tu email")).toBeVisible();
     await form.getByLabel("Tu email").fill("fan@lego.com");
