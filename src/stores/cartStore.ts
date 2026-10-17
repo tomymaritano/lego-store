@@ -17,6 +17,8 @@ interface CartState {
   removeItem: (id: string) => void;
   increaseQuantity: (id: string) => void;
   decreaseQuantity: (id: string) => void;
+  /** Sets an exact quantity, clamped to [1, stock]. */
+  setQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   isInCart: (id: string) => boolean;
   getTotalQuantity: () => number;
@@ -77,6 +79,14 @@ export const useCartStore = create<CartState>()(
             item.id === id && item.quantity > 1
               ? { ...item, quantity: item.quantity - 1 }
               : item
+          ),
+        }));
+      },
+
+      setQuantity: (id: string, quantity: number) => {
+        set((state) => ({
+          cart: state.cart.map((item) =>
+            item.id === id ? { ...item, quantity: Math.min(item.stock, Math.max(1, Math.round(quantity))) } : item
           ),
         }));
       },

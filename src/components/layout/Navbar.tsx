@@ -7,7 +7,7 @@ import { Search, ShoppingCart, Heart, Menu, User, ChevronDown } from "lucide-rea
 import { motion, AnimatePresence } from "motion/react";
 import { useCartStore, useWishlistStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
-import { Drawer, ThemeToggle } from "@/components/ui";
+import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, ThemeToggle } from "@/components/ui";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { SearchAutocomplete } from "@/components/search";
 import { cn } from "@/lib/utils";
@@ -171,7 +171,7 @@ export function Navbar() {
               <button
                 className="lg:hidden p-2.5 rounded-full hover:bg-background-secondary transition-colors ml-1"
                 onClick={() => setIsMobileMenuOpen(true)}
-                aria-label="Menu"
+                aria-label="Abrir menú"
               >
                 <Menu className="w-5 h-5 text-foreground-secondary" />
               </button>
@@ -200,47 +200,54 @@ export function Navbar() {
       </nav>
 
       {/* Mobile Menu Drawer */}
-      <Drawer isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} position="left" title="Menú">
-        <div className="p-4">
-          {/* Categories */}
-          <div className="mb-6">
-            <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-              Categorías
-            </h3>
-            <div className="space-y-1">
-              {categories.map((cat) => (
-                <Link
-                  key={cat.href}
-                  href={cat.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block py-3 px-4 rounded-xl font-medium text-foreground-secondary hover:bg-background-secondary transition-colors"
-                >
-                  {cat.name}
-                </Link>
-              ))}
-            </div>
-          </div>
+      <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+        <SheetContent side="left">
+          <SheetHeader>
+            <SheetTitle>Menú</SheetTitle>
+          </SheetHeader>
+          <SheetBody>
+            <nav aria-label="Menú móvil" className="p-4">
+              {/* Categories */}
+              <div className="mb-6">
+                <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
+                  Categorías
+                </h3>
+                <div className="space-y-1">
+                  {categories.map((cat) => (
+                    <Link
+                      key={cat.href}
+                      href={cat.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="block py-3 px-4 rounded-xl font-medium text-foreground-secondary hover:bg-background-secondary transition-colors"
+                    >
+                      {cat.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
 
-          {/* Themes */}
-          <div>
-            <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-              Temas
-            </h3>
-            <div className="space-y-1">
-              {themes.map((theme) => (
-                <Link
-                  key={theme.name}
-                  href={theme.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block py-3 px-4 rounded-xl font-medium text-foreground-secondary hover:bg-background-secondary transition-colors"
-                >
-                  {theme.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Drawer>
+              {/* Themes */}
+              <div>
+                <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
+                  Temas
+                </h3>
+                <div className="space-y-1">
+                  {themes.map((theme) => (
+                    <Link
+                      key={theme.name}
+                      href={theme.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="block py-3 px-4 rounded-xl font-medium text-foreground-secondary hover:bg-background-secondary transition-colors"
+                    >
+                      {theme.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </nav>
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
 
       {/* Cart Drawer */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />

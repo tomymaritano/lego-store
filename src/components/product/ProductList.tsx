@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { Package, Loader2 } from "lucide-react";
 import type { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { ProductListSkeleton, QuickViewModal, Button } from "@/components/ui";
+import { ProductListSkeleton, Button } from "@/components/ui";
+import { QuickViewModal } from "./QuickViewModal";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 
 interface ProductListProps {

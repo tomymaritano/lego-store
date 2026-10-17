@@ -2,11 +2,25 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { ShoppingCart, Trash2 } from "lucide-react";
 import { useCartStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice } from "@/lib/utils";
-import { Button, Drawer, QuantitySelector } from "@/components/ui";
+import { transitions } from "@/lib/motion";
+import {
+  Button,
+  EmptyState,
+  IconButton,
+  QuantitySelector,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Spinner,
+} from "@/components/ui";
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -17,85 +31,96 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const hydrated = useHydration();
   const cart = useCartStore((state) => state.cart);
   const removeItem = useCartStore((state) => state.removeItem);
-  const increaseQuantity = useCartStore((state) => state.increaseQuantity);
-  const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
-  const getTotalPrice = useCartStore((state) => state.getTotalPrice);
-
-  if (!hydrated) {
-    return (
-      <Drawer isOpen={isOpen} onClose={onClose} title="Carrito">
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-lego-yellow" />
-        </div>
-      </Drawer>
-    );
-  }
+  const setQuantity = useCartStore((state) => state.setQuantity);
+  const totalPrice = useCartStore((state) => state.cart.reduce((acc, item) => acc + item.quantity * item.price, 0));
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title={`Carrito (${cart.length})`}>
-      {cart.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mb-4">
-            <span className="text-4xl">🛒</span>
-          </div>
-          <h3 className="text-lg font-semibold text-foreground-primary mb-2">Tu carrito está vacío</h3>
-          <p className="text-foreground-muted mb-6">Agrega productos para comenzar</p>
-          <Button onClick={onClose}>Explorar productos</Button>
-        </div>
-      ) : (
-        <>
-          {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {cart.map((item) => (
-              <div key={item.id} className="flex gap-4 p-3 bg-background-secondary rounded-lg" data-testid="cart-item">
-                <div className="relative w-20 h-20 bg-surface rounded-lg overflow-hidden shrink-0">
-                  <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
-                </div>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle>{hydrated ? `Carrito (${cart.length})` : "Carrito"}</SheetTitle>
+        </SheetHeader>
 
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate text-foreground-primary">{item.name}</h4>
-                  <p className="text-foreground-primary font-bold mt-1">{formatPrice(item.price)}</p>
-
-                  <div className="flex items-center justify-between mt-2">
-                    <QuantitySelector
-                      quantity={item.quantity}
-                      onIncrease={() => increaseQuantity(item.id)}
-                      onDecrease={() => decreaseQuantity(item.id)}
-                      max={item.stock}
-                      size="sm"
-                    />
-
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="p-1.5 text-foreground-muted hover:text-lego-red transition-colors"
-                      aria-label="Eliminar"
+        {!hydrated ? (
+          <SheetBody className="flex items-center justify-center" aria-busy="true">
+            <Spinner className="size-8 text-fg-muted" />
+            <span className="sr-only">Cargando carrito…</span>
+          </SheetBody>
+        ) : cart.length === 0 ? (
+          <SheetBody className="flex items-center justify-center">
+            <EmptyState
+              icon={<ShoppingCart />}
+              title="Tu carrito está vacío"
+              description="Agrega productos para comenzar"
+              action={<Button onClick={onClose}>Explorar productos</Button>}
+            />
+          </SheetBody>
+        ) : (
+          <>
+            <SheetBody>
+              <ul className="space-y-3 p-4">
+                <AnimatePresence initial={false}>
+                  {cart.map((item) => (
+                    <motion.li
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: 24 }}
+                      transition={transitions.spring}
+                      className="flex gap-4 rounded-xl bg-bg-subtle p-3"
+                      data-testid="cart-item"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+                      <div className="relative size-20 shrink-0 overflow-hidden rounded-lg bg-surface">
+                        <Image src={item.image} alt="" fill className="object-contain p-2" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-medium text-fg">{item.name}</h3>
+                        <p className="mt-1 font-bold text-fg">{formatPrice(item.price)}</p>
+
+                        <div className="mt-2 flex items-center justify-between">
+                          <QuantitySelector
+                            value={item.quantity}
+                            onValueChange={(quantity) => setQuantity(item.id, quantity)}
+                            max={item.stock}
+                            size="sm"
+                            label={`Cantidad de ${item.name}`}
+                          />
+                          <IconButton
+                            label={`Eliminar ${item.name} del carrito`}
+                            size="icon-sm"
+                            onClick={() => removeItem(item.id)}
+                            className="hover:text-danger"
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </IconButton>
+                        </div>
+                      </div>
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+              </ul>
+            </SheetBody>
+
+            <SheetFooter className="gap-4">
+              <div className="flex justify-between text-lg font-semibold text-fg">
+                <span>Total</span>
+                <span className="tabular-nums">{formatPrice(totalPrice)}</span>
               </div>
-            ))}
-          </div>
 
-          {/* Footer */}
-          <div className="border-t border-border p-4 space-y-4">
-            <div className="flex justify-between text-lg font-semibold text-foreground-primary">
-              <span>Total</span>
-              <span>{formatPrice(getTotalPrice())}</span>
-            </div>
-
-            <div className="space-y-2">
-              <Link href="/cart" onClick={onClose}>
-                <Button variant="outline" className="w-full">
+              <div className="flex flex-col gap-2">
+                <Button variant="outline" className="w-full" render={<Link href="/cart" onClick={onClose} />}>
                   Ver carrito
                 </Button>
-              </Link>
-              <Button className="w-full" data-testid="checkout-btn">Finalizar compra</Button>
-            </div>
-          </div>
-        </>
-      )}
-    </Drawer>
+                <Button className="w-full" data-testid="checkout-btn" render={<Link href="/checkout" onClick={onClose} />}>
+                  Finalizar compra
+                </Button>
+              </div>
+            </SheetFooter>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }

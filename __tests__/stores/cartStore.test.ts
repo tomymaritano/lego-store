@@ -113,6 +113,22 @@ describe("cartStore", () => {
     expect(result.current.cart[0].quantity).toBe(2);
   });
 
+  it("should set an exact quantity clamped to [1, stock]", () => {
+    const { result } = renderHook(() => useCartStore());
+
+    act(() => {
+      result.current.addItem(mockProduct, 1);
+      result.current.setQuantity("1", 4);
+    });
+    expect(result.current.cart[0].quantity).toBe(4);
+
+    act(() => result.current.setQuantity("1", 50));
+    expect(result.current.cart[0].quantity).toBe(10);
+
+    act(() => result.current.setQuantity("1", 0));
+    expect(result.current.cart[0].quantity).toBe(1);
+  });
+
   it("should not decrease quantity below 1", () => {
     const { result } = renderHook(() => useCartStore());
 

@@ -1,62 +1,112 @@
 "use client";
 
-import { forwardRef, type ButtonHTMLAttributes } from "react";
+import * as React from "react";
+import { Button as BaseButton } from "@base-ui/react/button";
+import { useRender } from "@base-ui/react/use-render";
+import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { Spinner } from "./Spinner";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
-  size?: "sm" | "md" | "lg" | "icon";
-  isLoading?: boolean;
-}
-
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", isLoading, children, disabled, ...props }, ref) => {
-    const baseStyles =
-      "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-primary disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] hover:shadow-md";
-
-    const variants = {
-      primary: "bg-lego-yellow text-lego-black hover:bg-yellow-400 focus:ring-lego-yellow shadow-sm",
-      secondary: "bg-background-secondary text-foreground-primary hover:bg-background-tertiary focus:ring-foreground-muted",
-      outline: "border-2 border-lego-yellow text-foreground-primary hover:bg-lego-yellow hover:text-lego-black focus:ring-lego-yellow bg-transparent",
-      ghost: "text-foreground-secondary hover:bg-background-secondary hover:text-foreground-primary focus:ring-foreground-muted",
-      danger: "bg-lego-red text-white hover:bg-red-600 focus:ring-lego-red shadow-sm",
-    };
-
-    const sizes = {
-      sm: "px-3 py-1.5 text-sm",
-      md: "px-4 py-2 text-base",
-      lg: "px-6 py-3 text-lg",
-      icon: "p-2",
-    };
-
-    return (
-      <button
-        ref={ref}
-        className={cn(baseStyles, variants[variant], sizes[size], className)}
-        disabled={disabled || isLoading}
-        {...props}
-      >
-        {isLoading ? (
-          <svg
-            className="animate-spin -ml-1 mr-2 h-4 w-4"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-        ) : null}
-        {children}
-      </button>
-    );
+const buttonVariants = cva(
+  [
+    "relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold select-none",
+    "transition-[background-color,color,border-color,box-shadow,transform] duration-fast ease-standard",
+    "outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+    "active:scale-[0.97] motion-reduce:active:scale-100",
+    "disabled:pointer-events-none disabled:opacity-50 data-disabled:pointer-events-none data-disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  ],
+  {
+    variants: {
+      variant: {
+        primary: "bg-primary text-on-primary shadow-sm hover:bg-primary-hover hover:shadow-md",
+        secondary: "border border-border bg-bg-subtle text-fg hover:bg-bg-muted",
+        outline: "border-2 border-primary bg-transparent text-fg hover:bg-primary hover:text-on-primary",
+        ghost: "text-fg-secondary hover:bg-bg-muted hover:text-fg",
+        destructive: "bg-danger text-on-danger shadow-sm hover:opacity-90",
+        link: "text-info underline-offset-4 hover:underline active:scale-100",
+      },
+      size: {
+        sm: "h-9 px-3 text-sm",
+        md: "h-11 px-4 text-base",
+        lg: "h-12 px-6 text-lg [&_svg:not([class*='size-'])]:size-5",
+        icon: "size-10 [&_svg:not([class*='size-'])]:size-5",
+        "icon-sm": "size-8",
+      },
+    },
+    compoundVariants: [{ variant: "link", className: "h-auto px-0" }],
+    defaultVariants: {
+      variant: "primary",
+      size: "md",
+    },
   }
 );
 
-Button.displayName = "Button";
+type BaseButtonProps = Omit<React.ComponentProps<typeof BaseButton>, "className">;
 
-export { Button };
+export interface ButtonProps extends BaseButtonProps, VariantProps<typeof buttonVariants> {
+  className?: string;
+  /** Shows a spinner, disables the button and sets aria-busy. */
+  loading?: boolean;
+}
+
+/**
+ * Button built on Base UI. Render it as a link (no <Link><Button> nesting):
+ *
+ *   <Button render={<Link href="/cart" />}>Ver carrito</Button>
+ *
+ * With `render`, the element keeps its own semantics (a link stays a link:
+ * Base UI's button behaviour would add role="button"). Pass
+ * `nativeButton` when `render` is itself a <button>.
+ */
+function Button({
+  className,
+  variant,
+  size,
+  loading = false,
+  disabled,
+  render,
+  nativeButton,
+  focusableWhenDisabled,
+  children,
+  ...props
+}: ButtonProps) {
+  const classes = cn(buttonVariants({ variant, size }), className);
+  const content = (
+    <>
+      {loading ? <Spinner className="size-4" /> : null}
+      {children}
+    </>
+  );
+
+  const asElement = useRender({
+    enabled: Boolean(render) && !nativeButton,
+    render: render as useRender.RenderProp,
+    props: {
+      ...props,
+      "data-slot": "button",
+      className: classes,
+      "aria-busy": loading || undefined,
+      "aria-disabled": disabled || loading || undefined,
+      children: content,
+    },
+  });
+  if (asElement) return asElement;
+
+  return (
+    <BaseButton
+      data-slot="button"
+      render={render}
+      nativeButton={nativeButton ?? true}
+      focusableWhenDisabled={focusableWhenDisabled}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={classes}
+      {...props}
+    >
+      {content}
+    </BaseButton>
+  );
+}
+
+export { Button, buttonVariants };

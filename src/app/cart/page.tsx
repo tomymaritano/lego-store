@@ -13,8 +13,7 @@ export default function CartPage() {
   const hydrated = useHydration();
   const cart = useCartStore((state) => state.cart);
   const removeItem = useCartStore((state) => state.removeItem);
-  const increaseQuantity = useCartStore((state) => state.increaseQuantity);
-  const decreaseQuantity = useCartStore((state) => state.decreaseQuantity);
+  const setQuantity = useCartStore((state) => state.setQuantity);
   const clearCart = useCartStore((state) => state.clearCart);
   const getTotalPrice = useCartStore((state) => state.getTotalPrice);
   const getTotalQuantity = useCartStore((state) => state.getTotalQuantity);
@@ -46,12 +45,10 @@ export default function CartPage() {
           <p className="text-foreground-muted mb-8">
             Parece que aún no has agregado productos a tu carrito. ¡Explora nuestra tienda!
           </p>
-          <Link href="/">
-            <Button size="lg">
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Explorar productos
-            </Button>
-          </Link>
+          <Button size="lg" render={<Link href="/" />}>
+            <ChevronLeft className="w-4 h-4 mr-2" />
+            Explorar productos
+          </Button>
         </div>
       </div>
     );
@@ -99,11 +96,11 @@ export default function CartPage() {
 
                   <div className="flex items-center justify-between mt-3">
                     <QuantitySelector
-                      quantity={item.quantity}
-                      onIncrease={() => increaseQuantity(item.id)}
-                      onDecrease={() => decreaseQuantity(item.id)}
+                      value={item.quantity}
+                      onValueChange={(quantity) => setQuantity(item.id, quantity)}
                       max={item.stock}
                       size="sm"
+                      label={`Cantidad de ${item.name}`}
                     />
 
                     <div className="flex items-center gap-4">
@@ -152,12 +149,10 @@ export default function CartPage() {
               Finalizar compra
             </Button>
 
-            <Link href="/" className="block mt-4">
-              <Button variant="outline" className="w-full">
-                <ChevronLeft className="w-4 h-4 mr-2" />
-                Seguir comprando
-              </Button>
-            </Link>
+            <Button variant="outline" className="w-full mt-4" render={<Link href="/" />}>
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Seguir comprando
+            </Button>
           </div>
         </div>
       </div>

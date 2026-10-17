@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ProductCard } from "@/components/product/ProductCard";
-import { QuickViewModal } from "@/components/ui/QuickViewModal";
+import { QuickViewModal } from "@/components/product/QuickViewModal";
 import { useWishlistStore, useCartStore } from "@/stores";
 import { products } from "@/data/products";
 

@@ -1,18 +1,21 @@
-"use client";
-
+import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
-interface SkeletonProps {
-  className?: string;
-}
-
-export function Skeleton({ className }: SkeletonProps) {
+/**
+ * Loading placeholder with a single shimmer animation (disabled by the global
+ * reduced-motion rule). Decorative: announce loading on the container instead
+ * (aria-busy or a visually hidden "Cargando…").
+ */
+export function Skeleton({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
+      aria-hidden="true"
+      data-slot="skeleton"
       className={cn(
-        "animate-pulse bg-linear-to-r/srgb from-background-tertiary via-background-secondary to-background-tertiary bg-size-[200%_100%] animate-shimmer rounded-lg",
+        "animate-shimmer rounded-lg bg-linear-to-r/srgb from-bg-muted via-bg-subtle to-bg-muted bg-size-[200%_100%]",
         className
       )}
+      {...props}
     />
   );
 }
@@ -20,7 +23,7 @@ export function Skeleton({ className }: SkeletonProps) {
 export function ProductCardSkeleton() {
   return (
     <div className="bg-surface rounded-2xl overflow-hidden shadow-md border border-border">
-      <div className="aspect-square bg-background-secondary relative">
+      <div className="aspect-square bg-bg-subtle relative">
         <Skeleton className="absolute inset-6 rounded-xl" />
       </div>
       <div className="p-4 space-y-3">
@@ -102,7 +105,7 @@ export function CartItemSkeleton() {
 
 export function CategoryHeaderSkeleton() {
   return (
-    <div className="py-8 bg-background-secondary">
+    <div className="py-8 bg-bg-subtle">
       <div className="container-custom">
         <Skeleton className="h-4 w-48 mb-4" />
         <Skeleton className="h-10 w-64 mb-2" />

@@ -1,149 +1,63 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import Link from "next/link";
+import { Heart, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "./Button";
-import { ShoppingCart, Heart } from "lucide-react";
+import { IconButton } from "./IconButton";
 
-const meta: Meta<typeof Button> = {
+const meta = {
   title: "UI/Button",
   component: Button,
-  parameters: {
-    layout: "centered",
-  },
   tags: ["autodocs"],
+  args: { children: "Agregar al carrito" },
   argTypes: {
-    variant: {
-      control: "select",
-      options: ["primary", "secondary", "outline", "ghost", "danger"],
-    },
-    size: {
-      control: "select",
-      options: ["sm", "md", "lg", "icon"],
-    },
-    isLoading: {
-      control: "boolean",
-    },
-    disabled: {
-      control: "boolean",
-    },
+    variant: { control: "select", options: ["primary", "secondary", "outline", "ghost", "destructive", "link"] },
+    size: { control: "select", options: ["sm", "md", "lg"] },
+    loading: { control: "boolean" },
+    disabled: { control: "boolean" },
   },
-};
+} satisfies Meta<typeof Button>;
 
 export default meta;
-type Story = StoryObj<typeof Button>;
+type Story = StoryObj<typeof meta>;
 
-export const Primary: Story = {
-  args: {
-    children: "Agregar al carrito",
-    variant: "primary",
-    size: "md",
-  },
-};
+export const Playground: Story = {};
 
-export const Secondary: Story = {
-  args: {
-    children: "Cancelar",
-    variant: "secondary",
-    size: "md",
-  },
-};
-
-export const Outline: Story = {
-  args: {
-    children: "Ver más",
-    variant: "outline",
-    size: "md",
-  },
-};
-
-export const Ghost: Story = {
-  args: {
-    children: "Enlace",
-    variant: "ghost",
-    size: "md",
-  },
-};
-
-export const Danger: Story = {
-  args: {
-    children: "Eliminar",
-    variant: "danger",
-    size: "md",
-  },
-};
-
-export const Small: Story = {
-  args: {
-    children: "Pequeño",
-    variant: "primary",
-    size: "sm",
-  },
-};
-
-export const Large: Story = {
-  args: {
-    children: "Grande",
-    variant: "primary",
-    size: "lg",
-  },
-};
-
-export const Loading: Story = {
-  args: {
-    children: "Cargando...",
-    variant: "primary",
-    isLoading: true,
-  },
-};
-
-export const Disabled: Story = {
-  args: {
-    children: "Deshabilitado",
-    variant: "primary",
-    disabled: true,
-  },
-};
-
-export const WithIcon: Story = {
-  args: {
-    children: (
-      <>
-        <ShoppingCart className="w-4 h-4 mr-2" />
-        Agregar al carrito
-      </>
-    ),
-    variant: "primary",
-  },
-};
-
-export const IconButton: Story = {
-  args: {
-    children: <Heart className="w-5 h-5" />,
-    variant: "ghost",
-    size: "icon",
-    "aria-label": "Favorito",
-  },
-};
-
-export const AllVariants: Story = {
-  render: () => (
-    <div className="flex flex-wrap gap-4">
-      <Button variant="primary">Primary</Button>
-      <Button variant="secondary">Secondary</Button>
-      <Button variant="outline">Outline</Button>
-      <Button variant="ghost">Ghost</Button>
-      <Button variant="danger">Danger</Button>
+function Gallery() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button>Primario</Button>
+        <Button variant="secondary">Secundario</Button>
+        <Button variant="outline">Contorno</Button>
+        <Button variant="ghost">Fantasma</Button>
+        <Button variant="destructive">
+          <Trash2 aria-hidden="true" />
+          Eliminar
+        </Button>
+        <Button variant="link">Enlace</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm">Chico</Button>
+        <Button size="md">Mediano</Button>
+        <Button size="lg">
+          <ShoppingCart aria-hidden="true" />
+          Grande
+        </Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button loading>Procesando</Button>
+        <Button disabled>Deshabilitado</Button>
+        <Button render={<Link href="/cart" />}>Ver carrito (enlace)</Button>
+        <IconButton label="Agregar a favoritos">
+          <Heart aria-hidden="true" />
+        </IconButton>
+        <IconButton label="Eliminar" variant="secondary" size="icon-sm">
+          <Trash2 aria-hidden="true" />
+        </IconButton>
+      </div>
     </div>
-  ),
-};
+  );
+}
 
-export const AllSizes: Story = {
-  render: () => (
-    <div className="flex flex-wrap items-center gap-4">
-      <Button size="sm">Small</Button>
-      <Button size="md">Medium</Button>
-      <Button size="lg">Large</Button>
-      <Button size="icon">
-        <Heart className="w-5 h-5" />
-      </Button>
-    </div>
-  ),
-};
+export const Variants: Story = { render: () => <Gallery /> };
+export const VariantsDark: Story = { render: () => <Gallery />, globals: { theme: "dark" } };
