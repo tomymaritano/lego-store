@@ -19,10 +19,13 @@ test.describe("Product page", () => {
     await more.click();
     await expect(quantity).toContainText("3");
 
+    const before = (await buyButton(page).boundingBox())!;
     await buyButton(page).click();
     await expect(buyButton(page)).toHaveText(/Agregado al carrito/);
     await expect(page.getByTestId("cart-count").first()).toHaveText("3");
     await expect(page.getByText("Tienes 3 en tu carrito")).toBeVisible();
+    // The in-cart note appears below the actions: the button never moves under the pointer.
+    expect((await buyButton(page).boundingBox())!.y).toBeCloseTo(before.y, 0);
     await expect
       .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("lego-cart-storage")!).state.cart[0].quantity))
       .toBe(3);
@@ -52,7 +55,8 @@ test.describe("Product page", () => {
   test("the review form validates in Spanish and publishes a review", async ({ page }) => {
     await page.goto("/item/2");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("link", { name: /Ver reseñas/ }).click();
+    // Item 2 has no reviews yet: the link under the title says so instead of promising some.
+    await page.getByRole("link", { name: /Aún sin reseñas/ }).click();
     await expect(page.getByRole("tab", { name: /Reseñas/ })).toHaveAttribute("aria-selected", "true");
 
     await page.getByRole("button", { name: "Escribir reseña" }).click();
@@ -72,6 +76,24 @@ test.describe("Product page", () => {
 
     await expect(page.getByRole("heading", { level: 3, name: "Precioso en la repisa" })).toBeVisible();
     await expect(page.getByRole("tab", { name: /Reseñas/ })).toContainText("1");
+  });
+
+  test("an invalid review submit shows the focused rating group below the sticky header", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 600 });
+    await page.goto("/item/1");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("link", { name: /Ver 2 reseñas/ }).click();
+    await page.getByRole("button", { name: "Escribir reseña" }).click();
+    await page.getByRole("button", { name: "Publicar reseña" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("radio", { name: "1 estrella" })).toBeFocused();
+
+    const headerBottom = await page.locator("[data-site-header]").evaluate((el) => el.getBoundingClientRect().bottom);
+    const group = page.getByRole("radiogroup", { name: /Tu calificación/ });
+    await expect
+      .poll(() => group.evaluate((el) => el.querySelector("legend")!.getBoundingClientRect().top))
+      .toBeGreaterThanOrEqual(headerBottom);
+    await expect(page.getByText("Elige una calificación de 1 a 5 estrellas")).toBeInViewport();
   });
 
   test("gallery: arrow keys and thumbnails change the picture", async ({ page }) => {
