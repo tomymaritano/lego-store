@@ -322,3 +322,23 @@ test.describe("Compare and quick view", () => {
     await expect(page.locator("html")).not.toHaveAttribute("data-compare-bar");
   });
 });
+
+test.describe("Compare bar", () => {
+  test("tucks away while scrolling down and comes back on scroll up", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("lego-compare-storage", JSON.stringify({ state: { ids: ["1"] }, version: 1 }));
+    });
+    await page.goto("/category/helmet");
+    const bar = page.getByRole("complementary", { name: "Comparación de productos" });
+    await expect(bar).toBeVisible();
+    await expect(bar).not.toHaveAttribute("data-tucked");
+
+    await page.mouse.wheel(0, 400);
+    await expect(bar).toHaveAttribute("data-tucked", "true");
+    await expect(bar).toHaveAttribute("inert", "");
+
+    await page.mouse.wheel(0, -200);
+    await expect(bar).not.toHaveAttribute("data-tucked");
+    await expect(bar.getByRole("link", { name: "Comparar" })).toBeVisible();
+  });
+});
