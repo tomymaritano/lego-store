@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ArrowRight, Clock, Search, TrendingUp, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { dropDown, fadeIn } from "@/lib/motion";
-import { cn, formatPrice } from "@/lib/utils";
-import { highlightMatches } from "@/lib/highlight";
+import { cn } from "@/lib/utils";
 import { fetchSearchSuggestions } from "@/lib/api-client";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Button, IconButton, Input, Spinner } from "@/components/ui";
-import { ProductImage } from "@/components/product/ProductImage";
+import { IconButton, Input, Spinner } from "@/components/ui";
+import { SuggestionPanel } from "./SuggestionPanel";
+import { useListboxNavigation } from "./useListboxNavigation";
+import { useRecentSearches } from "./useRecentSearches";
 
 interface SearchAutocompleteProps {
   onClose?: () => void;
@@ -26,52 +26,9 @@ interface SearchAutocompleteProps {
   variant?: "popover" | "inline";
 }
 
-const POPULAR_SEARCHES = ["Star Wars", "Marvel", "Batman", "Harry Potter", "Technic"];
 const MAX_SUGGESTIONS = 5;
-const MAX_RECENT = 5;
 const MIN_QUERY = 2;
 const DEBOUNCE_MS = 250;
-const RECENT_KEY = "lego-recent-searches";
-
-function readRecent(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string").slice(0, MAX_RECENT) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecent(query: string) {
-  try {
-    const next = [query, ...readRecent().filter((s) => s.toLowerCase() !== query.toLowerCase())].slice(0, MAX_RECENT);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  } catch {
-    // Storage unavailable (private mode): recent searches are a nicety.
-  }
-}
-
-/** The query's words in bold + underlined inside a suggestion. */
-function Highlight({ text, query }: { text: string; query: string }) {
-  return (
-    <>
-      {highlightMatches(text, query).map((segment, index) =>
-        segment.match ? (
-          <mark
-            key={index}
-            className="bg-transparent font-bold text-fg underline decoration-primary decoration-2 underline-offset-2"
-          >
-            {segment.text}
-          </mark>
-        ) : (
-          <span key={index}>{segment.text}</span>
-        )
-      )}
-    </>
-  );
-}
-
-const sectionLabel = "flex items-center gap-2 px-3 py-2 text-caption font-semibold tracking-wider text-fg-muted uppercase";
 
 /**
  * Store search box (ARIA 1.2 combobox with a listbox popup). Suggestions come
@@ -80,7 +37,8 @@ const sectionLabel = "flex items-center gap-2 px-3 py-2 text-caption font-semibo
  * the catalogue never ships to the browser. Arrow keys move through the
  * options (aria-activedescendant), Enter opens one or runs the full search,
  * Escape closes the popup and then clears the field. Recent searches are
- * kept in localStorage.
+ * kept in localStorage (useRecentSearches); the arrow-key model lives in
+ * useListboxNavigation and the panel's markup in SuggestionPanel.
  */
 export function SearchAutocomplete({ onClose, className, autoFocus = false, variant = "popover" }: SearchAutocompleteProps) {
   const inline = variant === "inline";
@@ -91,8 +49,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
 
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [recent, setRecent] = useState<string[]>(() => (inline && typeof window !== "undefined" ? readRecent() : []));
+  const recentSearches = useRecentSearches(inline);
 
   const trimmed = query.trim();
   const debounced = useDebouncedValue(trimmed, DEBOUNCE_MS);
@@ -108,21 +65,14 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
 
   const suggestions = searching ? (data?.items ?? []) : [];
   const total = searching ? (data?.total ?? 0) : 0;
-  const recentOptions = trimmed.length < MIN_QUERY ? recent : [];
+  const recentOptions = trimmed.length < MIN_QUERY ? recentSearches.recent : [];
   const optionCount = suggestions.length + recentOptions.length;
-  const optionId = (index: number) => `${listboxId}-option-${index}`;
+  const listbox = useListboxNavigation(listboxId, optionCount, `${debounced}|${suggestions.length}|${recentOptions.length}`);
+  const { activeIndex } = listbox;
   // The listbox is the combobox popup: it is only "expanded" while it has
   // options. The popular-search chips are plain buttons outside it, so a panel
   // showing only those leaves the combobox collapsed.
   const expanded = (inline || isOpen) && optionCount > 0;
-
-  // Reset the highlighted option whenever the option list changes.
-  const [prevKey, setPrevKey] = useState("");
-  const optionsKey = `${debounced}|${suggestions.length}|${recentOptions.length}`;
-  if (optionsKey !== prevKey) {
-    setPrevKey(optionsKey);
-    setActiveIndex(-1);
-  }
 
   useEffect(() => {
     if (inline) return;
@@ -133,15 +83,9 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [inline]);
 
-  // Keep the keyboard-highlighted option in view (long lists in the inline variant).
-  const activeOptionId = activeIndex >= 0 ? optionId(activeIndex) : null;
-  useEffect(() => {
-    if (activeOptionId) document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
-  }, [activeOptionId]);
-
   const close = () => {
     setIsOpen(false);
-    setActiveIndex(-1);
+    listbox.reset();
   };
 
   const finish = () => {
@@ -153,13 +97,13 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
   const runSearch = (term: string) => {
     const value = term.trim();
     if (!value) return;
-    saveRecent(value);
+    recentSearches.save(value);
     router.push(`/search?q=${encodeURIComponent(value)}`);
     finish();
   };
 
   const openProduct = (id: string) => {
-    if (trimmed) saveRecent(trimmed);
+    if (trimmed) recentSearches.save(trimmed);
     router.push(`/item/${id}`);
     finish();
   };
@@ -169,11 +113,11 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
       case "ArrowDown":
         event.preventDefault();
         setIsOpen(true);
-        if (optionCount) setActiveIndex((i) => (i + 1) % optionCount);
+        listbox.next();
         break;
       case "ArrowUp":
         event.preventDefault();
-        if (optionCount) setActiveIndex((i) => (i <= 0 ? optionCount - 1 : i - 1));
+        listbox.previous();
         break;
       case "Enter":
         event.preventDefault();
@@ -190,19 +134,10 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
           event.preventDefault();
           event.stopPropagation();
           setQuery("");
-          setActiveIndex(-1);
+          listbox.reset();
         }
         break;
     }
-  };
-
-  const clearRecent = () => {
-    try {
-      localStorage.removeItem(RECENT_KEY);
-    } catch {
-      // ignore
-    }
-    setRecent([]);
   };
 
   const showNoResults = searching && !isFetching && data !== undefined && total === 0;
@@ -215,115 +150,22 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
         : `${suggestions.length} ${suggestions.length === 1 ? "sugerencia" : "sugerencias"} de ${total} resultados`;
 
   const panel = (
-    <>
-      <ul id={listboxId} role="listbox" aria-label="Sugerencias de búsqueda" className="p-2 empty:hidden">
-        {suggestions.length > 0 && (
-          <li role="presentation" className={sectionLabel}>
-            Productos
-          </li>
-        )}
-        {suggestions.map((product, index) => (
-          <li key={product.id} role="presentation">
-            <Link
-              id={optionId(index)}
-              role="option"
-              aria-selected={activeIndex === index}
-              tabIndex={-1}
-              href={`/item/${product.id}`}
-              onClick={(event) => {
-                event.preventDefault();
-                openProduct(product.id);
-              }}
-              onPointerMove={() => setActiveIndex(index)}
-              className={cn(
-                "flex items-center gap-3 rounded-xl p-2 transition-colors duration-fast ease-standard",
-                activeIndex === index && "bg-bg-muted"
-              )}
-              data-testid="search-result"
-            >
-              <span className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-bg-subtle">
-                <ProductImage src={product.img} alt="" fill sizes="48px" className="object-contain p-1" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-1 text-sm font-medium text-fg-secondary">
-                  <Highlight text={product.name} query={debounced} />
-                </span>
-                <span className="block text-caption text-fg-muted">
-                  <Highlight text={product.theme} query={debounced} />
-                </span>
-              </span>
-              <span className="text-sm font-bold text-fg tabular-nums">{formatPrice(product.price)}</span>
-            </Link>
-          </li>
-        ))}
-
-        {recentOptions.length > 0 && (
-          <li role="presentation" className={sectionLabel}>
-            <Clock aria-hidden="true" className="size-3" />
-            Búsquedas recientes
-          </li>
-        )}
-        {recentOptions.map((term, i) => {
-          const index = suggestions.length + i;
-          return (
-            <li
-              key={term}
-              id={optionId(index)}
-              role="option"
-              aria-selected={activeIndex === index}
-              onClick={() => runSearch(term)}
-              onPointerMove={() => setActiveIndex(index)}
-              className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-fg-secondary transition-colors duration-fast ease-standard",
-                activeIndex === index && "bg-bg-muted text-fg"
-              )}
-            >
-              <Clock aria-hidden="true" className="size-4 text-fg-muted" />
-              {term}
-            </li>
-          );
-        })}
-      </ul>
-
-      {suggestions.length > 0 && (
-        <div className="px-2 pb-2">
-          <Button variant="ghost" className="w-full text-info hover:text-info" onClick={() => runSearch(query)}>
-            Ver los {total} resultados
-            <ArrowRight aria-hidden="true" />
-          </Button>
-        </div>
-      )}
-
-      {showNoResults && (
-        <div className="p-6 text-center">
-          <p className="text-fg-secondary">No se encontraron productos para &quot;{debounced}&quot;</p>
-          <p className="mt-1 text-sm text-fg-muted">Intenta con otros términos de búsqueda</p>
-        </div>
-      )}
-
-      {trimmed.length < MIN_QUERY && (
-        <div className="space-y-2 p-2 pt-0">
-          {recentOptions.length > 0 && (
-            <div className="flex justify-end px-1">
-              <Button variant="link" size="sm" className="text-caption" onClick={clearRecent}>
-                Borrar recientes
-              </Button>
-            </div>
-          )}
-          <p className={sectionLabel}>
-            <TrendingUp aria-hidden="true" className="size-3" />
-            Búsquedas populares
-          </p>
-          <div className="flex flex-wrap gap-2 px-3 pb-2">
-            {POPULAR_SEARCHES.map((term) => (
-              <Button key={term} variant="secondary" size="sm" className="rounded-full" onClick={() => runSearch(term)}>
-                {term}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+    <SuggestionPanel
+      listboxId={listboxId}
+      optionId={listbox.optionId}
+      activeIndex={activeIndex}
+      onActivate={listbox.setActiveIndex}
+      query={debounced}
+      suggestions={suggestions}
+      total={total}
+      recent={recentOptions}
+      showNoResults={showNoResults}
+      showStarters={trimmed.length < MIN_QUERY}
+      onOpenProduct={openProduct}
+      onSearch={runSearch}
+      onSearchAll={() => runSearch(query)}
+      onClearRecent={recentSearches.clear}
+    />
   );
 
   return (
@@ -357,7 +199,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
           aria-autocomplete="list"
           aria-expanded={expanded}
           aria-controls={listboxId}
-          aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+          aria-activedescendant={expanded ? (listbox.activeOptionId ?? undefined) : undefined}
           autoComplete="off"
           enterKeyHint="search"
           placeholder="Buscar sets, temas, personajes…"
@@ -367,7 +209,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
             setIsOpen(true);
           }}
           onFocus={() => {
-            setRecent(readRecent());
+            recentSearches.refresh();
             setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
