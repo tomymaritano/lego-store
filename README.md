@@ -164,10 +164,12 @@ scripts/               Presupuesto de JS y capturas del README
 - `__tests__/config`: cada link de navegación resuelve a una página.
 - `__tests__/lint` y `__tests__/design`: guardas de ESLint y contraste de tokens.
 - Storybook: cada story se renderiza en Chromium con axe (a11y como error).
-- `e2e/`: inicio, catálogo (filtros en la URL, orden, precio), búsqueda, ficha,
-  carrito, listas (favoritos y comparador), checkout (con axe), shell (navbar,
-  footer, páginas de información, 404), estado persistido y el proyecto `prod`
-  (navegación y transiciones sobre el build de producción).
+- `e2e/`: un archivo por área: `homepage` (inicio), `catalog` (filtros en la URL,
+  orden, precio), `search` (búsqueda y combobox), `product` (ficha), `cart`
+  (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
+  (favoritos, comparador y su barra), `checkout` (con axe), `shell` (navbar,
+  footer, páginas de información, 404), `state` (estado persistido) y el
+  proyecto `prod` (navegación y transiciones sobre el build de producción).
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de

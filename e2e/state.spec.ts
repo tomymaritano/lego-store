@@ -54,3 +54,48 @@ test.describe("Persisted state", () => {
     await expect(page.getByRole("option", { name: /Captain Rex Helmet/ })).toBeVisible();
   });
 });
+
+test.describe("Stale persisted ids", () => {
+  test("compare drops ids the catalogue no longer has, freeing their slots", async ({ page }) => {
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem("seeded")) return;
+      sessionStorage.setItem("seeded", "1");
+      localStorage.setItem(
+        "lego-compare-storage",
+        JSON.stringify({ state: { ids: ["999", "1", "998", "997"] }, version: 1 })
+      );
+    });
+    await page.goto("/compare");
+    await expect(page.getByRole("table")).toContainText("Captain Rex Helmet");
+    await expect(page.getByText("1 de 4 productos como máximo")).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("lego-compare-storage")!).state.ids))
+      .toEqual(["1"]);
+
+    await page.goto("/item/2");
+    await expect(page.getByRole("complementary", { name: "Comparación de productos" })).toContainText("1 de 4");
+  });
+
+  test("wishlist drops snapshots of products that no longer exist", async ({ page }) => {
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem("seeded")) return;
+      sessionStorage.setItem("seeded", "1");
+      localStorage.setItem(
+        "lego-wishlist-storage",
+        JSON.stringify({
+          state: {
+            wishlist: [
+              { id: "999", name: "Set retirado", price: 100, image: "/images/lego.png", stock: 1 },
+              { id: "1", name: "Captain Rex Helmet", price: 899, image: "/images/lego.png", stock: 3 },
+            ],
+          },
+          version: 1,
+        })
+      );
+    });
+    await page.goto("/wishlist");
+    await expect(page.getByRole("link", { name: "Captain Rex Helmet" })).toBeVisible();
+    await expect(page.getByText("Set retirado")).toHaveCount(0);
+    await expect(page.getByTestId("wishlist-count")).toHaveText("1");
+  });
+});

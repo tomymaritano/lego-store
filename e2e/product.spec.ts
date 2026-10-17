@@ -154,3 +154,41 @@ test.describe("Product page", () => {
       .toEqual([id, "1"]);
   });
 });
+
+test.describe("Product page layout", () => {
+  test("reviews sit inside the page gutter and use h3 titles", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/item/1");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("tab", { name: /Reseñas/ }).click();
+    const heading = page.getByRole("heading", { level: 2, name: "Reseñas de clientes" });
+    await heading.scrollIntoViewIfNeeded();
+    const box = await heading.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(16);
+    const section = page.getByRole("region", { name: "Reseñas de clientes" });
+    await expect(section.getByRole("heading", { level: 3 }).first()).toBeVisible();
+    await expect(section.getByRole("heading", { level: 4 })).toHaveCount(0);
+  });
+
+  test("the purchase actions fit at 390px: CTA on top, three icons in one row", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/item/1");
+    const tops = await Promise.all(
+      ["Agregar a favoritos", "Agregar a la comparación", "Compartir"].map(async (name) => {
+        const box = await page.getByRole("button", { name, exact: true }).boundingBox();
+        return Math.round(box!.y);
+      })
+    );
+    expect(new Set(tops).size).toBe(1);
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width).toBeLessThanOrEqual(390);
+  });
+
+  test("broken gallery images are dropped instead of showing an empty thumbnail", async ({ page }) => {
+    await page.goto("/item/1");
+    const thumbs = page.getByRole("group", { name: /Imágenes de/ }).getByRole("button");
+    await expect
+      .poll(() => thumbs.evaluateAll((buttons) => buttons.filter((b) => !(b.querySelector("img") as HTMLImageElement)?.naturalWidth).length))
+      .toBe(0);
+  });
+});

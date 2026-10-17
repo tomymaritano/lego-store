@@ -295,3 +295,30 @@ test.describe("Compare page", () => {
     await expect(page.getByRole("heading", { name: "No hay productos para comparar" })).toBeVisible();
   });
 });
+
+test.describe("Compare and quick view", () => {
+  test("show the category display name, not the slug", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("lego-compare-storage", JSON.stringify({ state: { ids: ["1"] }, version: 1 }));
+    });
+    await page.goto("/compare");
+    const row = page.getByRole("row", { name: /Categoría/ });
+    await expect(row).toContainText("Helmets");
+  });
+
+  test("the compare bar hides on cart and checkout and reserves room elsewhere", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("lego-compare-storage", JSON.stringify({ state: { ids: ["1"] }, version: 1 }));
+    });
+    const bar = page.getByRole("complementary", { name: "Comparación de productos" });
+
+    await page.goto("/item/2");
+    await expect(bar).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-compare-bar", "");
+
+    await page.goto("/cart");
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeAttached();
+    await expect(bar).toHaveCount(0);
+    await expect(page.locator("html")).not.toHaveAttribute("data-compare-bar");
+  });
+});

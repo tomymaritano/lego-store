@@ -200,7 +200,7 @@ test.describe("Footer and info pages", () => {
   });
 });
 
-test.describe("Shell review fixes", () => {
+test.describe("Shell details", () => {
   test("home offers one newsletter sign-up and one set of store promises", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("form", { name: /newsletter|Nuevo en LEGO/i })).toHaveCount(1);
