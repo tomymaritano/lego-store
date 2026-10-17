@@ -17,9 +17,9 @@ interface OrderSummaryProps {
  * Cart page totals: subtotal, shipping ($299, free from $5000) with the
  * progress toward free shipping, total and the checkout CTA. Shipping comes
  * from lib/pricing (OrderTotals), the same rule the drawer and checkout use.
+ * A secondary "Seguir comprando" link returns to the store.
  */
 export function OrderSummary({ subtotal, count, className }: OrderSummaryProps) {
-
   return (
     <Card className={className} aria-labelledby="order-summary-title" role="region">
       <CardHeader>
@@ -36,6 +36,9 @@ export function OrderSummary({ subtotal, count, className }: OrderSummaryProps) 
           <Button className="w-full" size="lg" render={<Link href="/checkout" />} data-testid="cart-checkout-btn">
             Finalizar compra
             <ArrowRight aria-hidden="true" />
+          </Button>
+          <Button variant="ghost" className="w-full" render={<Link href="/" />}>
+            Seguir comprando
           </Button>
           <p className="flex items-center justify-center gap-1.5 text-caption text-fg-muted">
             <Lock aria-hidden="true" className="size-3.5" />

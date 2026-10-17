@@ -116,6 +116,19 @@ test.describe("Catalogue filters and sort (URL state)", () => {
     await expect(count(page)).toBeFocused();
   });
 
+  test("a filter panel taller than the viewport fades the edge it continues past", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 640 });
+    await page.goto("/search?q=star");
+    const scroller = page.getByTestId("filters-scroller");
+    await expect(scroller).toHaveAttribute("data-fade-end", "true");
+    await expect(scroller).not.toHaveAttribute("data-fade-start", /.*/);
+    await scroller.evaluate((el) => el.scrollTo({ top: el.scrollHeight, behavior: "instant" }));
+    await expect(scroller).toHaveAttribute("data-fade-start", "true");
+    await expect(scroller).not.toHaveAttribute("data-fade-end", /.*/);
+    // The title stays put above the scrolling facets.
+    await expect(sidebar(page).getByRole("heading", { name: "Filtros" })).toBeInViewport();
+  });
+
   test("a stray ?category= on a category page is not an active filter", async ({ page }) => {
     await page.goto("/category/helmet?category=technic");
     await expect(count(page)).toContainText("5 productos");

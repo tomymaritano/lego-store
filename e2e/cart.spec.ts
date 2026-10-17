@@ -110,7 +110,23 @@ test.describe("Cart drawer", () => {
 
     await button.click(); // now "Ver carrito"
     await expect(page.getByRole("dialog", { name: /Carrito/ })).toBeVisible();
+    // Gone at once: no exit fade over the drawer's footer buttons.
+    const opacities = await toast.evaluateAll((toasts) => toasts.map((el) => getComputedStyle(el).opacity));
+    expect(opacities.every((opacity) => opacity === "0")).toBe(true);
     await expect(toast).toHaveCount(0);
+  });
+});
+
+test.describe("Cart page", () => {
+  test("the summary offers a way back to the store", async ({ page }) => {
+    await page.addInitScript(() => {
+      const line = { id: "1", name: "Captain Rex Helmet", price: 899, image: "/images/lego.png", quantity: 1, stock: 10 };
+      localStorage.setItem("lego-cart-storage", JSON.stringify({ state: { cart: [line] }, version: 1 }));
+    });
+    await page.goto("/cart");
+    const summary = page.getByRole("region", { name: "Resumen del pedido" });
+    await summary.getByRole("link", { name: "Seguir comprando" }).click();
+    await expect(page).toHaveURL(/\/$/);
   });
 });
 

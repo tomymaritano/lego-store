@@ -20,7 +20,7 @@ const DialogClose = BaseDialog.Close;
 type WithClassName<T> = Omit<T, "className"> & { className?: string };
 
 export const overlayClasses = cn(
-  "fixed inset-0 z-50 bg-overlay supports-backdrop-filter:backdrop-blur-xs",
+  "fixed inset-0 z-50 bg-overlay",
   "transition-opacity duration-base ease-standard data-starting-style:opacity-0 data-ending-style:opacity-0"
 );
 

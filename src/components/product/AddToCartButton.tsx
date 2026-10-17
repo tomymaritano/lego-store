@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, m } from "motion/react";
 import { Check, ShoppingCart } from "lucide-react";
-import { transitions } from "@/lib/motion";
+import { labelSwap } from "@/lib/motion";
 import { useProductActions } from "@/hooks/useProductActions";
 import { openCartDrawer } from "@/stores";
 import { Button, type ButtonProps } from "@/components/ui";
@@ -64,14 +64,14 @@ export function AddToCartButton({
       data-testid="add-to-cart-btn"
       data-in-cart={inCart || undefined}
     >
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="popLayout" initial={false}>
         <m.span
           key={adds}
           className="inline-flex items-center gap-2"
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={transitions.fast}
+          variants={labelSwap}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
         >
           {label}
         </m.span>

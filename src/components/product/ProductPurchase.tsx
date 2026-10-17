@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, m } from "motion/react";
 import { Check, Heart, PackageCheck, Scale, Share2, ShoppingCart } from "lucide-react";
-import { collapse, transitions } from "@/lib/motion";
+import { collapse, labelSwap, transitions } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
 import { cn } from "@/lib/utils";
 import { useProductActions } from "@/hooks/useProductActions";
@@ -130,14 +130,14 @@ export function ProductPurchase({ product }: { product: Product }) {
             className={cn("w-full sm:w-auto sm:flex-1", justAdded && "bg-success text-on-success hover:bg-success")}
             data-testid="add-to-cart-btn"
           >
-            <AnimatePresence mode="wait" initial={false}>
+            <AnimatePresence mode="popLayout" initial={false}>
               <m.span
                 key={ctaState}
                 className="inline-flex items-center gap-2"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={transitions.fast}
+                variants={labelSwap}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
               >
                 {ctaState === "added" || ctaState === "more" ? (
                   <Check aria-hidden="true" />

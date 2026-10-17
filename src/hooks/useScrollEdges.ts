@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Whether a horizontal scroller has more content past its start or end
- * edge. Drives the fade that tells a cut-off column apart from overflow.
- * Re-measures on scroll and when the scroller or its content resizes.
+ * Whether a scroller has more content past its start or end edge
+ * (left/right for "x", top/bottom for "y"). Drives the fade that tells a
+ * cut-off column or list apart from overflow. Re-measures on scroll and
+ * when the scroller or its content resizes.
  */
-export function useScrollEdges<T extends HTMLElement>() {
+export function useScrollEdges<T extends HTMLElement>(axis: "x" | "y" = "x") {
   const ref = useRef<T>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
 
@@ -15,9 +16,11 @@ export function useScrollEdges<T extends HTMLElement>() {
     const el = ref.current;
     if (!el) return;
     const measure = () => {
-      const max = el.scrollWidth - el.clientWidth;
-      const start = el.scrollLeft > 1;
-      const end = el.scrollLeft < max - 1;
+      const vertical = axis === "y";
+      const max = vertical ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth;
+      const offset = vertical ? el.scrollTop : el.scrollLeft;
+      const start = offset > 1;
+      const end = offset < max - 1;
       setEdges((prev) => (prev.start === start && prev.end === end ? prev : { start, end }));
     };
     measure();
@@ -29,7 +32,7 @@ export function useScrollEdges<T extends HTMLElement>() {
       el.removeEventListener("scroll", measure);
       observer?.disconnect();
     };
-  }, []);
+  }, [axis]);
 
   return [ref, edges] as const;
 }

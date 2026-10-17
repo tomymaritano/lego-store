@@ -108,6 +108,18 @@ export const collapse: Variants = {
   exit: { opacity: 0, height: 0, transition: transitions.exit },
 };
 
+/**
+ * Button label swaps (add to cart → added). Use inside
+ * <AnimatePresence mode="popLayout" initial={false}> (Button is `relative`):
+ * the old label leaves while the new one rises in, overlapping, so the
+ * button is never caught empty between the two.
+ */
+export const labelSwap: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  visible: { opacity: 1, y: 0, transition: transitions.fast },
+  exit: { opacity: 0, y: -6, transition: transitions.exit },
+};
+
 /** Menus that drop down from their trigger. */
 export const dropDown: Variants = {
   hidden: { opacity: 0, y: -8 },

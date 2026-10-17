@@ -5,6 +5,7 @@ import { CloudOff, SearchX, SlidersHorizontal } from "lucide-react";
 import { useCatalogQuery } from "@/hooks/useCatalogQuery";
 import { useFacetCounts } from "@/hooks/useFacetCounts";
 import { useProductPages } from "@/hooks/useProductPages";
+import { useScrollEdges } from "@/hooks/useScrollEdges";
 import { listActiveFilters, removeFilter, serializeProductQuery } from "@/lib/productQuery";
 import { cn, pluralize } from "@/lib/utils";
 import {
@@ -73,6 +74,7 @@ export function CatalogView({
   const resultsRef = useRef<HTMLElement>(null);
   const countRef = useRef<HTMLParagraphElement>(null);
   const filtersTitleId = useId();
+  const [filtersScrollRef, filterEdges] = useScrollEdges<HTMLDivElement>("y");
   const resultsTitleId = useId();
 
   // When the results change while scrolled down the grid, bring their top back into view.
@@ -94,8 +96,8 @@ export function CatalogView({
   return (
     <div className="lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:items-start lg:gap-10">
       <aside aria-labelledby={filtersTitleId} className="hidden lg:sticky lg:top-24 lg:block">
-        <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-5 shadow-card">
-          <div className="mb-5 flex items-center justify-between gap-2">
+        <div className="flex max-h-[calc(100dvh-7rem)] flex-col rounded-2xl border border-border bg-surface shadow-card">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-4">
             <h2 id={filtersTitleId} className="flex items-center gap-2 text-title">
               <SlidersHorizontal aria-hidden="true" className="size-5" />
               Filtros
@@ -114,10 +116,17 @@ export function CatalogView({
               </Button>
             ) : null}
           </div>
-          {filters}
-          {/* Hints that the list goes on below the fold of this scroller (it keeps wheel scrolling to
-              itself on purpose: overscroll-contain). The rarer facets start collapsed so it mostly fits. */}
-          <div aria-hidden="true" className="pointer-events-none sticky bottom-0 -mx-5 mt-3 -mb-5 h-8 rounded-b-2xl bg-linear-to-t from-surface to-transparent" />
+          {/* Taller than the viewport (a search with many facets): the facets scroll under a
+              fixed title, and the edges fade while there is more above or below. */}
+          <div
+            ref={filtersScrollRef}
+            data-fade-start={filterEdges.start || undefined}
+            data-fade-end={filterEdges.end || undefined}
+            className="scroll-fade-y min-h-0 overflow-y-auto overscroll-contain px-5 pt-4 pb-5"
+            data-testid="filters-scroller"
+          >
+            {filters}
+          </div>
         </div>
       </aside>
 

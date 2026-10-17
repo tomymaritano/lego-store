@@ -443,6 +443,15 @@ html[data-compare-bar] [data-footer-bottom] {
   opacity: 0;
 }
 
+/* A toast dismissed because a sheet or dialog opened (the cart drawer clears
+   them) disappears at once: its exit fade would otherwise play over the
+   panel's footer buttons, which sit above it in the stacking order. */
+html:has([data-slot="sheet-content"][data-open], [data-slot="dialog-content"][data-open])
+  [data-sonner-toast][data-removed="true"] {
+  opacity: 0 !important;
+  transition: none !important;
+}
+
 @utility container-custom {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
 }
@@ -484,6 +493,27 @@ html[data-compare-bar] [data-footer-bottom] {
 .dark .photo-blend {
   mix-blend-mode: normal;
 }
+/* Vertical scroller whose content may be cut off (desktop filter panel):
+   the top / bottom edge fades out while there is more to scroll that way
+   (data-fade-start / data-fade-end, see useScrollEdges). */
+.scroll-fade-y {
+  --fade-start: 0rem;
+  --fade-end: 0rem;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--fade-start),
+    #000 calc(100% - var(--fade-end)),
+    transparent
+  );
+}
+.scroll-fade-y[data-fade-start] {
+  --fade-start: 2.5rem;
+}
+.scroll-fade-y[data-fade-end] {
+  --fade-end: 2.5rem;
+}
+
 /* Opaque product photos (JPEG, white backdrop): in dark mode they cannot
    blend into the card, so they read as a rounded, slightly dimmed photo
    tile instead of a glaring white rectangle. */
