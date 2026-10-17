@@ -400,8 +400,10 @@
 }
 
 /* While the floating compare bar is shown (CompareBar sets the attribute),
-   reserve room under the page so it never covers the last CTAs or fields. */
-html[data-compare-bar] body {
+   reserve room under the page so it never covers the last CTAs or fields.
+   The room goes inside the footer's bottom bar, so it reads as part of the
+   footer instead of a stray band of page background below it. */
+html[data-compare-bar] [data-footer-bottom] {
   padding-bottom: --spacing(28);
 }
 

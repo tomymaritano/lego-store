@@ -172,8 +172,8 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
         </section>
       </div>
 
-      {/* Bottom bar */}
-      <div className="border-t border-border bg-bg-muted">
+      {/* Bottom bar; also holds the room reserved for the compare bar (globals.css) */}
+      <div data-footer-bottom className="border-t border-border bg-bg-muted">
         <div className="container-custom flex flex-col items-center justify-between gap-4 py-6 text-center md:flex-row md:text-left">
           <div className="text-sm text-fg-secondary">
             <p>© {new Date().getFullYear()} {siteConfig.name}. Proyecto de portafolio.</p>
