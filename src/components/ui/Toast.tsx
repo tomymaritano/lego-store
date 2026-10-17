@@ -3,6 +3,9 @@
 import { Toaster as SonnerToaster, toast } from "sonner";
 import { CheckCircle2, XCircle, AlertTriangle, Info, ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+
+const PHONE_QUERY = "(max-width: 639px)";
 
 /**
  * Sonner, themed with design tokens (no richColors: our tokens carry contrast).
@@ -10,9 +13,12 @@ import { cn } from "@/lib/utils";
  * toasts; globals.css restores it (see "Sonner: unstyled toasts").
  */
 export function Toaster() {
+  // Phones: toasts drop from the top so they never sit over the docked
+  // compare bar or a sheet's footer CTAs at the bottom of the screen.
+  const isPhone = useMediaQuery(PHONE_QUERY);
   return (
     <SonnerToaster
-      position="bottom-right"
+      position={isPhone ? "top-center" : "bottom-right"}
       duration={3000}
       containerAriaLabel="Notificaciones"
       toastOptions={{
