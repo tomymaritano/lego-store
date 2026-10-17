@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
+import { MotionConfig } from "motion/react";
 import { CompareBar } from "@/components/product";
 import { useThemeStore } from "@/stores";
 
-export function ClientProviders() {
+/**
+ * Client-only app shell: applies the theme class and sets the global motion
+ * policy (animations respect prefers-reduced-motion everywhere).
+ */
+export function ClientProviders({ children }: { children: ReactNode }) {
   const theme = useThemeStore((state) => state.theme);
 
   // Apply theme on mount and when theme changes
@@ -32,5 +37,10 @@ export function ClientProviders() {
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [theme]);
 
-  return <CompareBar />;
+  return (
+    <MotionConfig reducedMotion="user">
+      {children}
+      <CompareBar />
+    </MotionConfig>
+  );
 }
