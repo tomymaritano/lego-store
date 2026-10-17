@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ContactForm, NewsletterForm } from "@/components/forms";
@@ -65,6 +65,11 @@ describe("NewsletterForm", () => {
 });
 
 describe("ContactForm", () => {
+  // The validators load on demand (lib/validations/lazy): warm the module once so a
+  // busy parallel run does not spend the first test's timeout importing zod.
+  beforeAll(async () => {
+    await import("@/lib/validations/resolvers");
+  });
   beforeEach(() => vi.clearAllMocks());
 
   it("flags every missing required field on submit", async () => {

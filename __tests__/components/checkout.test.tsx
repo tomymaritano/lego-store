@@ -40,6 +40,9 @@ async function fillShipping(user: ReturnType<typeof userEvent.setup>) {
 
 describe("Checkout", () => {
   beforeAll(async () => {
+    // The validators load on demand (lib/validations/lazy): warm the module so a
+    // busy parallel run does not spend the first test's timeout importing zod.
+    await import("@/lib/validations/resolvers");
     await useCartStore.persist.rehydrate();
     // jsdom has no scrolling; the confirmation scrolls to the top before it enters.
     window.scrollTo = vi.fn() as typeof window.scrollTo;
