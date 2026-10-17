@@ -23,7 +23,7 @@ function Gallery() {
     <div className="flex max-w-sm flex-col gap-4">
       <Input aria-label="Buscar" placeholder="Buscar sets…" leftIcon={<Search />} />
       <Input aria-label="Email" invalid defaultValue="juan@" />
-      <Textarea aria-label="Comentario" placeholder="Contanos tu experiencia" />
+      <Textarea aria-label="Comentario" placeholder="Cuéntanos tu experiencia" />
     </div>
   );
 }

@@ -19,7 +19,7 @@ function Example({ side = "right" }: { side?: "left" | "right" | "top" | "bottom
       <SheetContent side={side}>
         <SheetHeader>
           <SheetTitle>Carrito (2)</SheetTitle>
-          <SheetDescription>Revisá tus productos antes de pagar.</SheetDescription>
+          <SheetDescription>Revisa tus productos antes de pagar.</SheetDescription>
         </SheetHeader>
         <SheetBody className="p-4 text-fg-secondary">Contenido del panel.</SheetBody>
         <SheetFooter>

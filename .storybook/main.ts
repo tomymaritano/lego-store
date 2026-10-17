@@ -9,8 +9,7 @@ const config: StorybookConfig = {
     "@storybook/addon-vitest",
     "@storybook/addon-a11y",
     "@storybook/addon-docs",
-    "@storybook/addon-themes",
-    "@storybook/addon-onboarding"
+    "@storybook/addon-themes"
   ],
   "framework": "@storybook/nextjs-vite",
   "staticDirs": [

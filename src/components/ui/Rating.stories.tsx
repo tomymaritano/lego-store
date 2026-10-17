@@ -21,7 +21,7 @@ function InputExample() {
       <Rating value={4.3} count={86} showValue />
       <Rating value={2.5} size="sm" />
       <RatingInput label="Tu calificación" value={value} onValueChange={setValue} required />
-      <RatingInput label="Con error" value={0} onValueChange={() => {}} error="Elegí una calificación" />
+      <RatingInput label="Con error" value={0} onValueChange={() => {}} error="Elige una calificación" />
     </div>
   );
 }

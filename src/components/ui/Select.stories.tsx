@@ -36,10 +36,10 @@ function Example() {
           </SelectContent>
         </Select>
       </Field>
-      <Field label="Provincia" error="Elegí una provincia">
+      <Field label="Provincia" error="Elige una provincia">
         <Select items={[{ value: "ba", label: "Buenos Aires" }]}>
           <SelectTrigger>
-            <SelectValue placeholder="Elegí una opción" />
+            <SelectValue placeholder="Elige una opción" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ba">Buenos Aires</SelectItem>

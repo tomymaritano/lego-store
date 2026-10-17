@@ -19,7 +19,7 @@ function Example() {
         <TabsTrigger value="reviews">Reseñas (12)</TabsTrigger>
       </TabsList>
       <TabsContent value="description" className="text-fg-secondary">
-        Recreá el casco icónico del Capitán Rex con 854 piezas.
+        Recrea el casco icónico del Capitán Rex con 854 piezas.
       </TabsContent>
       <TabsContent value="specs" className="text-fg-secondary">
         Edad 18+, 854 piezas, 20 cm de alto.

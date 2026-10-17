@@ -10,8 +10,8 @@ const meta = {
   tags: ["autodocs"],
   args: {
     icon: <Heart />,
-    title: "Todavía no tenés favoritos",
-    description: "Guardá los sets que te gustan para encontrarlos rápido.",
+    title: "Todavía no tienes favoritos",
+    description: "Guarda los sets que te gustan para encontrarlos rápido.",
     action: <Button render={<Link href="/" />}>Explorar productos</Button>,
   },
 } satisfies Meta<typeof EmptyState>;
