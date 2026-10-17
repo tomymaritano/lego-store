@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { formatPrice } from "@/lib/utils";
 import { Button, Checkbox, RadioGroup, RadioGroupItem, Slider } from "@/components/ui";
 import type { FilterOption, FilterOptions, ProductFilters as Filters, ProductQuery } from "@/types";
@@ -30,8 +30,8 @@ const LIST_SECTIONS: { field: ListField; legend: string }[] = [
 ];
 
 /**
- * Catalogue filters: availability toggles, facets with counts (checkboxes,
- * OR within a facet), a price range and a minimum rating. Controlled: the
+ * Catalogue filters: availability toggles, a price range, a minimum rating
+ * and facets with counts (checkboxes, OR within a facet). Controlled: the
  * page keeps the state in the URL. Shown as a sidebar on desktop and inside
  * a Sheet on phones (see CatalogView).
  */
@@ -79,26 +79,9 @@ export function ProductFilters({ options, query, onChange, showCategories = fals
         </FilterGroup>
       ) : null}
 
-      {LIST_SECTIONS.map(({ field, legend }) => {
-        const values = options[field];
-        const selected = query[field] ?? [];
-        // A facet with a single value does not narrow anything, unless it is selected.
-        if (values.length < 2 && selected.length === 0) return null;
-        return (
-          <FilterGroup key={field} legend={legend}>
-            <OptionList
-              options={values}
-              selected={selected}
-              onToggle={(value, checked) => toggle(field, value, checked)}
-              legend={legend}
-            />
-          </FilterGroup>
-        );
-      })}
-
+      {/* Price and rating first: short, and visible without scrolling the sidebar. */}
       {options.price.max > options.price.min ? (
         <PriceFilter
-          key={`${query.minPrice ?? ""}-${query.maxPrice ?? ""}`}
           bounds={options.price}
           minPrice={query.minPrice}
           maxPrice={query.maxPrice}
@@ -121,6 +104,24 @@ export function ProductFilters({ options, query, onChange, showCategories = fals
           </RadioGroup>
         </FilterGroup>
       ) : null}
+
+      {LIST_SECTIONS.map(({ field, legend }) => {
+        const values = options[field];
+        const selected = query[field] ?? [];
+        // A facet with a single value does not narrow anything, unless it is selected.
+        if (values.length < 2 && selected.length === 0) return null;
+        return (
+          <FilterGroup key={field} legend={legend}>
+            <OptionList
+              options={values}
+              selected={selected}
+              onToggle={(value, checked) => toggle(field, value, checked)}
+              legend={legend}
+            />
+          </FilterGroup>
+        );
+      })}
+
     </div>
   );
 }
@@ -191,6 +192,8 @@ function OptionList({
 }
 
 const PRICE_STEP = 50;
+/** Arrow keys commit once the user pauses, so holding a key is one URL change. */
+const KEYBOARD_COMMIT_DELAY = 400;
 
 function PriceFilter({
   bounds,
@@ -205,17 +208,43 @@ function PriceFilter({
 }) {
   const floor = Math.floor(bounds.min / PRICE_STEP) * PRICE_STEP;
   const ceil = Math.ceil(bounds.max / PRICE_STEP) * PRICE_STEP;
-  // Local while dragging; the URL only changes when the thumb is released.
-  const [range, setRange] = useState<[number, number]>([
-    Math.max(floor, minPrice ?? floor),
-    Math.min(ceil, maxPrice ?? ceil),
-  ]);
+  const low = Math.max(floor, minPrice ?? floor);
+  const high = Math.min(ceil, maxPrice ?? ceil);
 
-  const commit = ([low, high]: readonly number[]) =>
-    onChange({
-      minPrice: low > floor ? low : undefined,
-      maxPrice: high < ceil ? high : undefined,
+  // Local while dragging / pressing keys; the URL changes on commit. The
+  // slider is never remounted (that would drop keyboard focus): when the URL
+  // changes from elsewhere (a chip, "Limpiar", Back/Forward) the local range
+  // follows it here.
+  const [range, setRange] = useState<[number, number]>([low, high]);
+  const [synced, setSynced] = useState(`${low}-${high}`);
+  if (synced !== `${low}-${high}`) {
+    setSynced(`${low}-${high}`);
+    setRange([low, high]);
+  }
+
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  const pending = useRef<{ timer: ReturnType<typeof setTimeout>; value: readonly number[] } | null>(null);
+
+  const commit = ([nextLow, nextHigh]: readonly number[]) => {
+    if (pending.current) clearTimeout(pending.current.timer);
+    pending.current = null;
+    onChangeRef.current({
+      minPrice: nextLow > floor ? nextLow : undefined,
+      maxPrice: nextHigh < ceil ? nextHigh : undefined,
     });
+  };
+
+  // A keyboard change still waiting when the filters unmount (the sheet closes) is not lost.
+  useEffect(
+    () => () => {
+      if (pending.current) commit(pending.current.value);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flush once, on unmount
+    []
+  );
 
   return (
     <fieldset className="flex min-w-0 flex-col gap-3 py-5">
@@ -233,7 +262,12 @@ function PriceFilter({
         minStepsBetweenValues={1}
         value={range}
         onValueChange={(value) => Array.isArray(value) && setRange([value[0], value[1]])}
-        onValueCommitted={(value) => Array.isArray(value) && commit(value)}
+        onValueCommitted={(value, details) => {
+          if (!Array.isArray(value)) return;
+          if (details.reason !== "keyboard") return commit(value);
+          if (pending.current) clearTimeout(pending.current.timer);
+          pending.current = { value, timer: setTimeout(() => commit(value), KEYBOARD_COMMIT_DELAY) };
+        }}
         thumbLabels={["Precio mínimo", "Precio máximo"]}
         formatValueText={formatPrice}
         className="px-2.5"
