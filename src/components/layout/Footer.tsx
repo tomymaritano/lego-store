@@ -242,7 +242,7 @@ export function Footer() {
                 {paymentMethods.map((method) => (
                   <div
                     key={method}
-                    className="px-2 py-1 bg-gray-800 rounded-xs text-xs text-gray-400 font-medium"
+                    className="px-2 py-1 bg-gray-800 rounded-sm text-xs text-gray-400 font-medium"
                   >
                     {method}
                   </div>

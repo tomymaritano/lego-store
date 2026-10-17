@@ -93,7 +93,7 @@ export function CartItemSkeleton() {
         <Skeleton className="h-6 w-20" />
       </div>
       <div className="flex flex-col justify-between items-end">
-        <Skeleton className="h-6 w-6 rounded-xs" />
+        <Skeleton className="h-6 w-6 rounded-sm" />
         <Skeleton className="h-8 w-24" />
       </div>
     </div>

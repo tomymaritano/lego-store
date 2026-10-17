@@ -220,7 +220,7 @@ export default function HomePage() {
                     <div className="group bg-surface rounded-xl overflow-hidden border border-border shadow-sm hover:shadow-lg transition-shadow">
                       <div className="relative aspect-square bg-background-secondary">
                         {product.isOnSale && (
-                          <span className="absolute top-3 left-3 z-10 bg-lego-red text-white text-xs font-bold px-2 py-1 rounded-xs">
+                          <span className="absolute top-3 left-3 z-10 bg-lego-red text-white text-xs font-bold px-2 py-1 rounded-sm">
                             OFERTA
                           </span>
                         )}
