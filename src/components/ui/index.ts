@@ -1,4 +1,12 @@
 // Design-system primitives (shadcn/ui style on Base UI, styled with tokens).
+//
+// These are adapted by hand, not generated: the repo has no components.json on purpose.
+// `npx shadcn add` would write kebab-case files (button.tsx) that collide with these
+// PascalCase ones on case-insensitive filesystems (Windows/macOS), and its output uses
+// shadcn token names (bg-popover, text-muted-foreground, ring-ring...) that globals.css
+// does not define. To add a primitive, copy it from the shadcn Base UI docs into a
+// PascalCase file and re-tokenise it (surface-raised, fg-muted, focus-ring, border-strong,
+// bg-muted, surface); the ESLint guardrails flag anything left untokenised.
 export { Button, buttonVariants, type ButtonProps } from "./Button";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Spinner } from "./Spinner";

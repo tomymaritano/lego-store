@@ -60,11 +60,13 @@
 
   /* Warm stone neutrals */
   --stone-0: #ffffff;
+  --stone-25: #fafaf9;
   --stone-50: #faf9f7;
   --stone-100: #f5f3f0;
   --stone-200: #e7e5e4;
   --stone-300: #d6d3d1;
   --stone-400: #a8a29e;
+  --stone-450: #8f8780;
   --stone-500: #78716c;
   --stone-550: #6b645f;
   --stone-600: #57534e;
@@ -152,12 +154,12 @@
   --surface-raised: var(--stone-750);
   --overlay: rgb(0 0 0 / 0.7);
 
-  --fg: #fafaf9;
+  --fg: var(--stone-25);
   --fg-secondary: var(--stone-300);
   --fg-muted: var(--stone-400);
 
   --border: var(--stone-700);
-  --border-strong: #8f8780;
+  --border-strong: var(--stone-450);
 
   --primary: var(--yellow-400);
   --primary-hover: var(--yellow-300);
@@ -232,34 +234,22 @@
      These DO expose primitives as utilities, so ESLint flags every use
      (warning in app code, error in src/components/ui). Each points at a
      primitive or semantic var: no raw hex here. */
-  --color-background: var(--bg);
-  --color-foreground: var(--fg);
   --color-background-primary: var(--bg);
   --color-background-secondary: var(--bg-subtle);
   --color-background-tertiary: var(--bg-muted);
   --color-foreground-primary: var(--fg);
   --color-foreground-secondary: var(--fg-secondary);
   --color-foreground-muted: var(--fg-muted);
-  --color-border-subtle: var(--bg-muted);
   --color-status-success: var(--success);
   --color-status-error: var(--danger);
   --color-status-warning: var(--warning);
-  --color-status-info: var(--info);
   --color-lego-yellow: var(--yellow-400);
   --color-lego-red: var(--red-500);
   --color-lego-blue: var(--blue-500);
   --color-lego-blue-dark: var(--blue-600);
   --color-lego-black: var(--stone-925);
-  --color-brand-50: var(--yellow-50);
-  --color-brand-100: var(--yellow-100);
-  --color-brand-200: var(--yellow-200);
   --color-brand-300: var(--yellow-300);
   --color-brand-400: var(--yellow-400);
-  --color-brand-500: var(--yellow-500);
-  --color-brand-600: var(--yellow-600);
-  --color-brand-700: var(--yellow-700);
-  --color-brand-800: var(--yellow-800);
-  --color-brand-900: var(--yellow-900);
 }
 
 @theme {
@@ -318,7 +308,6 @@
   --color-gray-700: #374151;
   --color-gray-800: #1f2937;
   --color-gray-900: #111827;
-  --color-gray-950: #030712;
   --color-red-50: #fef2f2;
   --color-red-100: #fee2e2;
   --color-red-400: #f87171;
@@ -327,13 +316,10 @@
   --color-red-700: #b91c1c;
   --color-red-900: #7f1d1d;
   --color-red-950: #450a0a;
-  --color-amber-100: #fef3c7;
   --color-amber-400: #fbbf24;
   --color-amber-500: #f59e0b;
-  --color-amber-600: #d97706;
   --color-green-50: #f0fdf4;
   --color-green-100: #dcfce7;
-  --color-green-500: #22c55e;
   --color-green-600: #16a34a;
   --color-green-700: #15803d;
   --color-green-900: #14532d;

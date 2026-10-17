@@ -87,4 +87,37 @@ describe("theme overrides", () => {
     const primitive = /^(yellow|red|blue|stone|green|amber|orange|purple)-\d+$/;
     expect(Object.keys(declarations(".dark")).filter((k) => primitive.test(k))).toEqual([]);
   });
+
+  it.each([
+    [":root", declarations(":root")],
+    [".dark", declarations(".dark")],
+  ])("%s semantic tokens point at primitives (var()) or are rgb() overlays", (_selector, vars) => {
+    const primitive = /^(yellow|red|blue|stone|green|amber|orange|purple)-\d+$/;
+    const nonColour = /^(shadow-color|elevation-|duration-)/;
+    const offenders = Object.entries(vars).filter(
+      ([key, value]) => !primitive.test(key) && !nonColour.test(key) && !/^var\(--[\w-]+\)$/.test(value) && !/^rgb\(/.test(value)
+    );
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("theme utilities", () => {
+  it("every --color-* utility has a consumer in src/ or .storybook/", () => {
+    const root = path.resolve(__dirname, "../..");
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(ts|tsx|mdx)$/.test(entry.name)) sources.push(fs.readFileSync(full, "utf8"));
+      }
+    };
+    walk(path.join(root, "src"));
+    walk(path.join(root, ".storybook"));
+    const text = sources.join("\n");
+    const names = [...css.matchAll(/--color-([\w-]+)\s*:/g)].map((m) => m[1]);
+    const escape = (s: string) => s.replace(/[-]/g, "\\-");
+    const unused = names.filter((name) => !new RegExp(`-${escape(name)}(?![\\w-])`).test(text));
+    expect(unused).toEqual([]);
+  });
 });
