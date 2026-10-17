@@ -83,7 +83,7 @@ src/
   app/                 Rutas (App Router). Páginas = Server Components.
     (info)/            Ayuda y la tienda: faq, envios, devoluciones, contacto,
                        nosotros, terminos, privacidad (layout con menú lateral)
-    (auth)/            /login y /register + sus Server Actions (login, registro, logout, Google)
+    (auth)/            /login y /register + sus Server Actions (login, registro)
     account/           /account: perfil, contraseña, sesión (+ Server Actions)
     admin/             /admin: resumen de la tienda (solo ADMIN)
     forbidden.tsx      Página 403 (forbidden())
@@ -110,7 +110,8 @@ src/
     db/                Cliente de Prisma (instancia única en el servidor)
     auth/              Auth.js (index.ts), sesión y permisos (session.ts: getCurrentUser,
                        requireUser, requireAdmin, authorizeRequest), cuentas (accounts.ts),
-                       adapter de Prisma, callbackUrl seguro, hash de contraseñas (bcrypt)
+                       adapter de Prisma, callbackUrl seguro, hash de contraseñas (bcrypt),
+                       actions.ts (logout y Google, que usan el navbar y /account)
     rate-limit/        Rate limiting en Postgres (login, registro; reutilizable)
     admin/             Datos del panel de admin (verifican el rol ellos mismos)
     api-client.ts      Llamadas del navegador a /api/*
@@ -176,12 +177,25 @@ scripts/               Presupuesto de JS y capturas del README
   a la versión nueva exige una renovación firmada con `AUTH_SECRET` que arma la
   acción de cambio de contraseña para su propia sesión (`session-token.ts`). El rol
   también sale siempre de la base, nunca del token.
+- **Cerrar sesión** borra la cookie de ese navegador y nada más: los otros
+  dispositivos siguen con su sesión (lo esperable al cerrar sesión en el celular,
+  por ejemplo). Una copia del token tomada antes (cookie filtrada, compu
+  compartida) sigue valiendo hasta que vence (30 días desde el ingreso) o hasta
+  que se cambia la contraseña, que sí cierra todas las sesiones. Cerrar todas al
+  salir sería incrementar `sessionVersion` en `logoutAction` (`src/lib/auth/actions.ts`).
+- **La sesión no se renueva sola**: `proxy.ts` decide con la cookie pero no escribe
+  cookies (el wrapper de Auth.js re-emite la cookie en cada pedido, y un prefetch
+  de `/account` que respondiera después del logout la volvía a escribir y deshacía
+  el logout). Por eso el token dura 30 días desde el ingreso o desde la última
+  renovación del servidor (cambio de nombre o de contraseña), no 30 días desde la
+  última visita. Los links a `/account` y `/admin` de los menús tampoco hacen prefetch.
 - **Roles** USER / ADMIN: el email de `ADMIN_EMAIL` recibe ADMIN en el seed y al
   entrar por primera vez con Google (solo con el email verificado por Google). El
   formulario de registro **no** acepta `ADMIN_EMAIL` (responde como si ya existiera
   la cuenta): como no hay verificación de email, quien se registrara primero con esa
   dirección en una base nueva sería admin. Esto se aparta del spec («recibe ADMIN…
-  al registrarse»); la cuenta admin sale solo del seed. Los emails se guardan siempre en minúsculas (`CHECK` en la
+  al registrarse»); la cuenta admin sale solo del seed (o de Google con email
+  verificado). El servidor deja un aviso en el log cuando rechaza ese registro. Los emails se guardan siempre en minúsculas (`CHECK` en la
   base); `normalizeEmail()` corre antes de cada escritura y búsqueda, incluido el
   adapter de OAuth.
 - **Protección en dos capas**: `src/proxy.ts` manda a `/login?callbackUrl=…` a quien
@@ -193,7 +207,8 @@ scripts/               Presupuesto de JS y capturas del README
   mismas.
 - **callbackUrl**: solo rutas del mismo sitio (`safeCallbackUrl`): otro origen,
   `//host`, `/\host`, caracteres de control, `/login`, `/register` y `/api/*` vuelven
-  al inicio.
+  al inicio. Se revisa también el resultado ya normalizado, porque `/.//host` o
+  `/a/..//host` se convierten en `//host` al resolver los segmentos con punto.
 - **Rate limiting** (`src/lib/rate-limit`): ventana fija con el contador en Postgres
   (tabla `RateLimit`, un `INSERT … ON CONFLICT` atómico con el reloj de la base), así
   que vale entre instancias y en serverless. Login, en orden y cortando en el primer
