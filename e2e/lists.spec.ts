@@ -99,6 +99,29 @@ test.describe("Cart page", () => {
     await expect(page.getByTestId("cart-item")).toHaveCount(1);
   });
 
+  test("the undo toast keeps its action on one line on phones", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seed(page, "lego-cart-storage", {
+      cart: [
+        cartLine("1", "Millennium Falcon Ultimate Collector Series edición especial", 15999),
+        cartLine("2", "Princess Leia Helmet", 649),
+      ],
+    });
+    await page.goto("/cart");
+    await page
+      .getByRole("button", { name: "Eliminar Millennium Falcon Ultimate Collector Series edición especial del carrito" })
+      .click();
+    const undo = page.getByRole("button", { name: "Deshacer" });
+    await expect(undo).toBeVisible();
+    const lines = await undo.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const content = el.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      return Math.round(content / parseFloat(style.lineHeight));
+    });
+    expect(lines).toBe(1);
+    expect(await undo.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  });
+
   test("fits a phone screen without sideways scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await seed(page, "lego-cart-storage", {

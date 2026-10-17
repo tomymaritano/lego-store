@@ -67,11 +67,12 @@ export function Toaster() {
         classNames: {
           toast:
             "flex w-full items-center gap-3 overflow-hidden rounded-xl border border-border bg-surface-raised p-4 text-fg shadow-xl",
-          title: "text-sm font-semibold",
+          content: "min-w-0 flex-1",
+          title: "text-sm font-semibold break-words",
           description: "text-caption text-fg-muted",
           icon: "shrink-0",
-          actionButton: "rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary",
-          cancelButton: "rounded-lg bg-bg-muted px-3 py-1.5 text-sm font-semibold text-fg",
+          actionButton: "shrink-0 whitespace-nowrap rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-on-primary",
+          cancelButton: "shrink-0 whitespace-nowrap rounded-lg bg-bg-muted px-3 py-1.5 text-sm font-semibold text-fg",
           closeButton: "border border-border bg-surface text-fg",
         },
       }}
