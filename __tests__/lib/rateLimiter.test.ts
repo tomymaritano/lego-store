@@ -70,18 +70,35 @@ describe("waitMessage", () => {
 
 describe("clientIp", () => {
   const headers = (entries: Record<string, string>) => new Headers(entries);
+  const spoofed = { "x-forwarded-for": "6.6.6.6, 203.0.113.7, 10.0.0.1", "x-real-ip": "6.6.6.6" };
 
-  it("takes the first X-Forwarded-For entry", () => {
-    expect(clientIp(headers({ "x-forwarded-for": " 203.0.113.7 , 10.0.0.1" }))).toBe("203.0.113.7");
+  it("trusts no header without a trusted proxy: every client shares the 'unknown' bucket", () => {
+    expect(clientIp(headers(spoofed), {})).toBe("unknown");
+    expect(clientIp(headers({ "x-forwarded-for": "203.0.113.7" }), { TRUSTED_PROXY_HOPS: "0" })).toBe("unknown");
+    expect(clientIp(headers({ "x-forwarded-for": "203.0.113.7" }), { TRUSTED_PROXY_HOPS: "dos" })).toBe("unknown");
   });
 
-  it("falls back to X-Real-IP, then to a shared 'unknown' bucket", () => {
-    expect(clientIp(headers({ "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");
-    expect(clientIp(headers({}))).toBe("unknown");
-    expect(clientIp(headers({ "x-forwarded-for": "" }))).toBe("unknown");
+  it("behind N trusted proxies, takes the entry N from the right (what the outermost one saw)", () => {
+    expect(clientIp(headers(spoofed), { TRUSTED_PROXY_HOPS: "1" })).toBe("10.0.0.1");
+    expect(clientIp(headers(spoofed), { TRUSTED_PROXY_HOPS: "2" })).toBe("203.0.113.7");
+    // Rotating the client-sent part does not change the key.
+    expect(clientIp(headers({ "x-forwarded-for": "1.1.1.1, 2.2.2.2, 203.0.113.7, 10.0.0.1" }), { TRUSTED_PROXY_HOPS: "2" })).toBe(
+      "203.0.113.7"
+    );
+    // Fewer entries than proxies: the request skipped them.
+    expect(clientIp(headers({ "x-forwarded-for": "10.0.0.1" }), { TRUSTED_PROXY_HOPS: "2" })).toBe("unknown");
+    expect(clientIp(headers({}), { TRUSTED_PROXY_HOPS: "1" })).toBe("unknown");
+  });
+
+  it("on Vercel, takes the headers its edge overwrites", () => {
+    const vercel = { VERCEL: "1" };
+    expect(clientIp(headers({ "x-real-ip": "198.51.100.2", "x-forwarded-for": "203.0.113.7" }), vercel)).toBe("198.51.100.2");
+    expect(clientIp(headers({ "x-vercel-forwarded-for": "198.51.100.3" }), vercel)).toBe("198.51.100.3");
+    expect(clientIp(headers({ "x-forwarded-for": " 203.0.113.7 , 10.0.0.1" }), vercel)).toBe("203.0.113.7");
+    expect(clientIp(headers({}), vercel)).toBe("unknown");
   });
 
   it("caps the length", () => {
-    expect(clientIp(headers({ "x-forwarded-for": "9".repeat(500) }))).toHaveLength(64);
+    expect(clientIp(headers({ "x-forwarded-for": "9".repeat(500) }), { TRUSTED_PROXY_HOPS: "1" })).toHaveLength(64);
   });
 });

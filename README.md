@@ -207,9 +207,19 @@ scripts/               Presupuesto de JS y capturas del README
   límite por cuenta desde muchas IPs). Registro: 20 cuentas por IP por hora;
   contraseña actual en `/account`: 5 cada 15 min. Para limitar algo nuevo (reseñas,
   contacto, newsletter) se agrega una entrada en `rateLimits` y se llama
-  `consume(sujeto)`. La IP sale de `X-Forwarded-For` (Vercel la pone; sin ningún
-  proxy delante la manda el cliente, así que un self-host necesita un proxy que la
-  reescriba). `memoryStore()` existe para tests: no se comparte entre instancias.
+  `consume(sujeto)`. `memoryStore()` existe para tests: no se comparte entre
+  instancias.
+- **La IP del cliente** (`clientIp()`) solo sale de headers que pone
+  infraestructura de confianza, porque `X-Forwarded-For` lo puede mandar cualquiera
+  (`next dev` y `next start` lo dejan pasar tal cual): en Vercel, los headers que su
+  edge reescribe; detrás de tus proxies, `TRUSTED_PROXY_HOPS=N` toma la entrada de
+  `X-Forwarded-For` que agregó el proxy más externo (N desde la derecha). Sin ninguna
+  de las dos (desarrollo, un `next start` expuesto directo) no se confía en ninguna
+  IP: todos los clientes comparten el bucket `unknown`, así que los límites por IP
+  valen para todo el sitio junto (estricto, pero puede frenar a gente legítima: un
+  self-host público tiene que estar detrás de un proxy que reescriba
+  `X-Forwarded-For` y definir `TRUSTED_PROXY_HOPS`). Los límites por cuenta y los
+  dispositivos conocidos no dependen de la IP.
 - **Navbar sin parpadeo**: el layout raíz lee la sesión (`getCurrentUser()`) y el
   navbar llega del servidor ya con el menú de cuenta o el link de ingreso. El costo:
   todas las páginas se renderizan por pedido en vez de prerenderizarse (ver

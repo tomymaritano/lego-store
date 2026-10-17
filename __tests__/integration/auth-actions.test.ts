@@ -49,6 +49,8 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   signIn.mockReset();
+  // One trusted proxy in front: the right-most X-Forwarded-For entry is the client.
+  vi.stubEnv("TRUSTED_PROXY_HOPS", "1");
   await testDb.rateLimit.deleteMany();
   requestHeaders.current = new Headers({ "x-forwarded-for": "203.0.113.50" });
 });
