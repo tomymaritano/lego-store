@@ -19,10 +19,6 @@ interface OrderSummaryProps {
 }
 
 /**
- * Checkout sidebar: the lines being bought and the same totals block the cart
- * page shows (OrderTotals, lib/pricing), so the amounts always agree.
- */
-/**
  * True while the element's content is taller than the element, so a scroll
  * container joins the tab order only when there is something to scroll
  * (WCAG 2.1.1: keyboard users must be able to reach it).
@@ -46,6 +42,10 @@ function useOverflowsY<T extends HTMLElement>(contentKey: unknown) {
   return [ref, overflows] as const;
 }
 
+/**
+ * Checkout sidebar: the lines being bought and the same totals block the cart
+ * page shows (OrderTotals, lib/pricing), so the amounts always agree.
+ */
 export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps) {
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
   const [listRef, listScrolls] = useOverflowsY<HTMLUListElement>(lines.length);
@@ -68,9 +68,9 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
         >
           {lines.map((line) => (
             <li key={line.id} className="flex items-center gap-3" data-testid="checkout-line">
-              <span className="relative size-16 shrink-0 rounded-lg bg-photo-tile">
+              <span className="relative size-16 shrink-0 rounded-lg bg-bg-subtle">
                 <ProductImage src={line.image} alt="" fill sizes="64px" className="object-contain p-1.5" />
-                <span className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-fg text-caption font-semibold text-bg">
+                <span className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-caption font-semibold text-on-primary ring-2 ring-surface">
                   <span className="sr-only">Cantidad: </span>
                   {line.quantity}
                 </span>

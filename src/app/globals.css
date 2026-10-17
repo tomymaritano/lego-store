@@ -140,9 +140,6 @@
      as a text colour, it stays a deep blue in dark mode. */
   --info-surface: var(--blue-600);
   --on-info-surface: var(--stone-0);
-  /* White tile behind product/category photos: some are opaque JPEGs with a
-     white background, so every photo sits on the same tile in both themes. */
-  --photo-tile: var(--stone-0);
   /* Tint for highlighted table rows (compare "Resaltar diferencias"): a blue
      wash that reads on the surface in both themes and keeps body text AA. */
   --row-highlight: var(--blue-50);
@@ -254,7 +251,6 @@
   --color-on-brand-red: var(--on-brand-red);
   --color-info-surface: var(--info-surface);
   --color-on-info-surface: var(--on-info-surface);
-  --color-photo-tile: var(--photo-tile);
   --color-row-highlight: var(--row-highlight);
 
   /* Shadows */
