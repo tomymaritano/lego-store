@@ -8,7 +8,7 @@ test.describe("Homepage", () => {
     await expect(page).toHaveTitle(/LEGO Store/);
 
     // Check navbar is visible
-    await expect(page.locator("nav")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Principal" })).toBeVisible();
 
     // Check products are displayed
     const products = page.locator("[data-testid='product-card']");
