@@ -11,10 +11,11 @@ import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, EmptyState, IconButton, Price, Rating, Skeleton } from "@/components/ui";
 import { PageTransition } from "@/components/layout";
 import { AddToCartButton, ProductImage } from "@/components/product";
+import { CategoryName } from "@/providers/CategoriesProvider";
 import type { Product } from "@/types";
 
 const specs: { label: string; render: (p: Product) => React.ReactNode }[] = [
-  { label: "Categoría", render: (p) => <span className="capitalize">{p.category}</span> },
+  { label: "Categoría", render: (p) => <CategoryName id={p.category} /> },
   { label: "Tema", render: (p) => p.theme },
   { label: "Piezas", render: (p) => p.pieces || "N/D" },
   { label: "Edad", render: (p) => p.age },

@@ -53,12 +53,13 @@ export function ProductPurchase({ product }: { product: Product }) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      {/* Mobile: full-width CTA with the three secondary actions in their own row; sm+: one row. */}
+      <div className="flex flex-col gap-3 sm:flex-row">
         <Button
           onClick={handleAddToCart}
           disabled={!isAvailable}
           size="lg"
-          className="min-w-56 flex-1"
+          className="w-full sm:w-auto sm:flex-1"
           data-testid="add-to-cart-btn"
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -76,27 +77,29 @@ export function ProductPurchase({ product }: { product: Product }) {
           </AnimatePresence>
         </Button>
 
-        <IconButton
-          label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
-          aria-pressed={inWishlist}
-          variant="secondary"
-          className={cn("size-12", inWishlist && "border-sale text-sale")}
-          onClick={toggleWishlist}
-        >
-          <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
-        </IconButton>
-        <IconButton
-          label={inCompare ? "Quitar de la comparación" : "Agregar a la comparación"}
-          aria-pressed={inCompare}
-          variant="secondary"
-          className={cn("size-12", inCompare && "border-info text-info")}
-          onClick={toggleCompare}
-        >
-          <Scale aria-hidden="true" />
-        </IconButton>
-        <IconButton label="Compartir" variant="secondary" className="size-12" onClick={handleShare}>
-          <Share2 aria-hidden="true" />
-        </IconButton>
+        <div className="grid grid-cols-3 gap-3 sm:flex">
+          <IconButton
+            label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
+            aria-pressed={inWishlist}
+            variant="secondary"
+            className={cn("h-12 w-full sm:w-12", inWishlist && "border-sale text-sale")}
+            onClick={toggleWishlist}
+          >
+            <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
+          </IconButton>
+          <IconButton
+            label={inCompare ? "Quitar de la comparación" : "Agregar a la comparación"}
+            aria-pressed={inCompare}
+            variant="secondary"
+            className={cn("h-12 w-full sm:w-12", inCompare && "border-info text-info")}
+            onClick={toggleCompare}
+          >
+            <Scale aria-hidden="true" />
+          </IconButton>
+          <IconButton label="Compartir" variant="secondary" className="h-12 w-full sm:w-12" onClick={handleShare}>
+            <Share2 aria-hidden="true" />
+          </IconButton>
+        </div>
       </div>
     </div>
   );

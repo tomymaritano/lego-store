@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { ProductImage } from "./ProductImage";
 import Link from "next/link";
 import { Heart, ShoppingCart, ExternalLink } from "lucide-react";
 import type { Product } from "@/types";
-import { ProductThumbnails } from "./ProductThumbnails";
+import { ProductThumbnails, useGalleryImages } from "./ProductThumbnails";
 import { useProductActions } from "@/hooks/useProductActions";
+import { CategoryName } from "@/providers/CategoriesProvider";
 import { calculateDiscount, cn } from "@/lib/utils";
 import {
   Badge,
@@ -43,10 +44,9 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
 function QuickViewBody({ product, onClose }: { product: Product; onClose: () => void }) {
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(0);
 
   const { inCart, inWishlist, isAvailable, addToCart, toggleWishlist } = useProductActions(product);
-  const images = [product.img, product.imageSecondary].filter(Boolean) as string[];
+  const gallery = useGalleryImages([product.img, product.imageSecondary].filter((src): src is string => Boolean(src)));
   const discounted = product.isOnSale && product.originalPrice;
 
   const handleAddToCart = () => {
@@ -58,7 +58,7 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
       {/* Images */}
       <div className="bg-bg-subtle p-6 md:w-1/2">
         <div className="relative aspect-square overflow-hidden rounded-xl bg-surface">
-          <Image src={images[selectedImage] || product.img} alt={product.name} fill className="object-contain p-4" />
+          <ProductImage src={gallery.selectedSrc} alt={product.name} fill sizes="(min-width: 768px) 24rem, 100vw" className="object-contain p-4" />
           {discounted ? (
             <Badge variant="sale" className="absolute top-3 left-3">
               -{calculateDiscount(product.originalPrice!, product.price)}%
@@ -67,9 +67,10 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
         </div>
 
         <ProductThumbnails
-          images={images}
-          selected={selectedImage}
-          onSelect={setSelectedImage}
+          images={gallery.images}
+          selected={gallery.selected}
+          onSelect={gallery.select}
+          onImageError={gallery.markFailed}
           productName={product.name}
           size="sm"
           className="mt-4 justify-center"
@@ -98,7 +99,9 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
           )}
           <div className="flex justify-between border-b border-border py-2">
             <dt className="text-fg-muted">Categoría</dt>
-            <dd className="font-medium text-fg capitalize">{product.category}</dd>
+            <dd className="font-medium text-fg">
+              <CategoryName id={product.category} />
+            </dd>
           </div>
           <div className="flex justify-between border-b border-border py-2">
             <dt className="text-fg-muted">Disponibilidad</dt>

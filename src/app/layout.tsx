@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
+import { CategoriesProvider } from "@/providers/CategoriesProvider";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ClientProviders } from "@/components/layout";
@@ -67,14 +68,16 @@ export default async function RootLayout({
           Saltar al contenido principal
         </a>
         <QueryProvider>
-          <ClientProviders>
-            <Navbar categories={categories} />
-            <main id="main-content" className="flex-1" tabIndex={-1}>
-              {children}
-            </main>
-            <Footer />
-            <Toaster />
-          </ClientProviders>
+          <CategoriesProvider categories={categories}>
+            <ClientProviders>
+              <Navbar categories={categories} />
+              <main id="main-content" className="flex-1" tabIndex={-1}>
+                {children}
+              </main>
+              <Footer />
+              <Toaster />
+            </ClientProviders>
+          </CategoriesProvider>
         </QueryProvider>
       </body>
     </html>
