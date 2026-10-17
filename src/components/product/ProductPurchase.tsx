@@ -14,7 +14,7 @@ import type { Product } from "@/types";
 import { GALLERY_STAGE_ATTR } from "./ProductGallery";
 
 /** At or below this many units the stock line turns into a "last units" warning. */
-export const LOW_STOCK = 5;
+const LOW_STOCK = 5;
 /** How long the CTA says "¡Agregado!" after a successful add (ms). */
 const ADDED_FEEDBACK_MS = 1800;
 

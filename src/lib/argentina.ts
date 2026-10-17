@@ -28,5 +28,3 @@ export const ARGENTINA_PROVINCES = [
   "Tierra del Fuego",
   "Tucumán",
 ] as const;
-
-export type ArgentinaProvince = (typeof ARGENTINA_PROVINCES)[number];

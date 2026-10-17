@@ -80,4 +80,4 @@ function DialogDescription({ className, ...props }: WithClassName<React.Componen
   return <BaseDialog.Description data-slot="dialog-description" className={cn("text-body text-fg-muted", className)} {...props} />;
 }
 
-export { Dialog, DialogTrigger, DialogClose, DialogOverlay, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription };
+export { Dialog, DialogTrigger, DialogClose, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription };

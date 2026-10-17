@@ -5,7 +5,7 @@ import { insertAt, type RestorePosition } from "./restorePosition";
 
 export const MAX_COMPARE_ITEMS = 4;
 
-export type CompareResult = "added" | "removed" | "full";
+type CompareResult = "added" | "removed" | "full";
 
 interface CompareState {
   /** Product ids, in the order they were added. Products are fetched by id. */

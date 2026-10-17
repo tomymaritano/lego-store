@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const REVIEW_TITLE_MAX = 80;
-export const REVIEW_COMMENT_MIN = 10;
+const REVIEW_COMMENT_MIN = 10;
 export const REVIEW_COMMENT_MAX = 1000;
 
 /** Product page review form. `rating` is 0 until the visitor picks a star. */

@@ -42,5 +42,3 @@ export const siteConfig = {
     deliveryDays: { min: 3, max: 7 },
   },
 } as const;
-
-export type SocialNetwork = (typeof siteConfig.social)[number]["name"];

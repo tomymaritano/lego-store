@@ -5,7 +5,7 @@
  */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-export type NewsletterResult = { ok: true; email: string } | { ok: false; error: string };
+type NewsletterResult = { ok: true; email: string } | { ok: false; error: string };
 
 export function validateNewsletterEmail(raw: string): NewsletterResult {
   const email = raw.trim();
