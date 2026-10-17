@@ -342,3 +342,17 @@ test.describe("Compare bar", () => {
     await expect(bar.getByRole("link", { name: "Comparar" })).toBeVisible();
   });
 });
+
+test.describe("Compare table on a phone", () => {
+  test("fades the cut-off column until the table is scrolled to its end", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(() => {
+      localStorage.setItem("lego-compare-storage", JSON.stringify({ state: { ids: ["1", "2"] }, version: 1 }));
+    });
+    await page.goto("/compare");
+    const scroller = page.getByTestId("compare-scroller");
+    await expect(scroller).toHaveAttribute("data-more-end", "true");
+    await scroller.evaluate((el) => el.scrollTo({ left: el.scrollWidth, behavior: "instant" }));
+    await expect(scroller).not.toHaveAttribute("data-more-end");
+  });
+});

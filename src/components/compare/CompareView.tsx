@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImage } from "@/components/product/ProductImage";
 import { CategoryName } from "@/providers/CategoriesProvider";
+import { CompareScroller } from "./CompareScroller";
 import type { Product } from "@/types";
 
 function renderValue(product: Product, key: CompareRowKey) {
@@ -169,13 +170,7 @@ export function CompareView() {
                   Desliza la tabla para ver todos los productos
                 </p>
               ) : null}
-              <div
-                role="region"
-                aria-labelledby="compare-title"
-                tabIndex={0}
-                className="overflow-x-auto overscroll-x-contain rounded-2xl border border-border bg-surface shadow-card focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none"
-                data-testid="compare-scroller"
-              >
+              <CompareScroller labelledBy="compare-title">
                 <table className="w-full border-separate border-spacing-0 text-sm" data-highlight={showDifferences || undefined}>
                   <caption className="sr-only">
                     Características de los productos seleccionados
@@ -310,7 +305,7 @@ export function CompareView() {
                     </tr>
                   </tbody>
                 </table>
-              </div>
+              </CompareScroller>
             </m.div>
           )}
         </AnimatePresence>
