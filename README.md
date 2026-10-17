@@ -1,12 +1,12 @@
-# E-commerce Template - Next.js 14
+# E-commerce Template - Next.js 16
 
-A modern, production-ready e-commerce template built with Next.js 14, TypeScript, and Tailwind CSS. Perfect for building online stores, marketplaces, or showcasing products.
+A modern, production-ready e-commerce template built with Next.js 16, TypeScript, and Tailwind CSS. Perfect for building online stores, marketplaces, or showcasing products.
 
 **[Live Demo](https://lego-store-8i83q5ulc-indiehacklab.vercel.app)** | **[Documentation](#customization)** | **[Changelog](./CHANGELOG.md)**
 
-![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwindcss)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8?logo=tailwindcss)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Lighthouse Scores
@@ -51,7 +51,7 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
 
 - **Dark Mode** - Automatic theme detection with manual toggle
 - **Responsive Design** - Mobile-first approach, works on all devices
-- **Animations** - Smooth transitions with Framer Motion
+- **Animations** - Smooth transitions with Motion (motion/react)
 - **Accessibility** - ARIA labels, keyboard navigation, skip links
 - **Infinite Scroll** - Load more products as you scroll
 - **SEO Optimized** - Meta tags, Open Graph, structured data ready
@@ -142,11 +142,11 @@ export async function getProducts(): Promise<Product[]> {
 
 | Category | Technologies |
 |----------|-------------|
-| Framework | Next.js 14 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS, CSS Variables |
 | State | Zustand |
-| Animations | Framer Motion |
+| Animations | Motion (motion/react) |
 | Icons | Lucide React |
 | Data Fetching | TanStack Query |
 
