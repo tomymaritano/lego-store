@@ -2,12 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCategoryById, getProductById } from "@/lib/api";
 
 /**
- * Unknown categories and products get a real 404. Both pages stream behind a
- * loading.tsx, so by the time the page itself could call notFound() the 200
- * status has already been sent (the not-found UI still renders, but crawlers
- * and link checkers see a 200). Checking here, before rendering, keeps the
- * status honest. Keep these lookups cheap: they run on every request to
- * /category/* and /item/*.
+ * Unknown categories and products get a real 404 before any rendering: the
+ * known ids are prerendered, and an unknown one would otherwise be rendered
+ * on demand only to reach notFound(). Checking here keeps the status honest
+ * for crawlers and link checkers. Keep these lookups cheap: they run on
+ * every request to /category/* and /item/*.
  */
 const exists: Record<string, (id: string) => Promise<unknown>> = {
   category: getCategoryById,
