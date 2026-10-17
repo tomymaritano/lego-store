@@ -91,7 +91,7 @@ export function CatalogView({
   return (
     <div className="lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)] lg:items-start lg:gap-10">
       <aside aria-labelledby={filtersTitleId} className="hidden lg:sticky lg:top-24 lg:block">
-        <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-card">
+        <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface p-5 shadow-card">
           <div className="mb-5 flex items-center justify-between gap-2">
             <h2 id={filtersTitleId} className="flex items-center gap-2 text-title">
               <SlidersHorizontal aria-hidden="true" className="size-5" />
@@ -112,7 +112,8 @@ export function CatalogView({
             ) : null}
           </div>
           {filters}
-          {/* Hints that the list goes on below the fold of this scroller. */}
+          {/* Hints that the list goes on below the fold of this scroller (it keeps wheel scrolling to
+              itself on purpose: overscroll-contain). The rarer facets start collapsed so it mostly fits. */}
           <div aria-hidden="true" className="pointer-events-none sticky bottom-0 -mx-5 mt-3 -mb-5 h-8 rounded-b-2xl bg-linear-to-t from-surface to-transparent" />
         </div>
       </aside>

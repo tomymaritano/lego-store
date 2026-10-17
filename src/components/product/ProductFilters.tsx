@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { Button, Checkbox, RadioGroup, RadioGroupItem, Slider } from "@/components/ui";
 import type { FacetCounts, FilterOption, FilterOptions, ProductFilters as Filters, ProductQuery } from "@/types";
@@ -28,11 +29,15 @@ export interface ProductFiltersProps {
 /** Long lists show this many values until "Ver todos". */
 const VISIBLE_VALUES = 6;
 
-const LIST_SECTIONS: { field: ListField; legend: string }[] = [
+/**
+ * `collapsible` groups are the less-used facets: they start closed (open when
+ * one of their values is selected), so the sticky sidebar fits the viewport.
+ */
+const LIST_SECTIONS: { field: ListField; legend: string; collapsible?: boolean }[] = [
   { field: "themes", legend: "Tema" },
-  { field: "types", legend: "Tipo" },
-  { field: "ages", legend: "Edad" },
-  { field: "pieces", legend: "Piezas" },
+  { field: "types", legend: "Tipo", collapsible: true },
+  { field: "ages", legend: "Edad", collapsible: true },
+  { field: "pieces", legend: "Piezas", collapsible: true },
   { field: "highlights", legend: "Colección" },
 ];
 
@@ -125,13 +130,13 @@ export function ProductFilters({ options, counts, query, onChange, showCategorie
         </FilterGroup>
       ) : null}
 
-      {LIST_SECTIONS.map(({ field, legend }) => {
+      {LIST_SECTIONS.map(({ field, legend, collapsible }) => {
         const values = options[field].map((option) => live(field, option));
         const selected = query[field] ?? [];
         // A facet with a single value does not narrow anything, unless it is selected.
         if (values.length < 2 && selected.length === 0) return null;
         return (
-          <FilterGroup key={field} legend={legend}>
+          <FilterGroup key={field} legend={legend} collapsible={collapsible} activeCount={selected.length}>
             <OptionList
               options={values}
               selected={selected}
@@ -146,12 +151,59 @@ export function ProductFilters({ options, counts, query, onChange, showCategorie
   );
 }
 
-function FilterGroup({ legend, children }: { legend: string; children: ReactNode }) {
+interface FilterGroupProps {
+  legend: string;
+  children: ReactNode;
+  /** Render as a native disclosure, closed unless it has active values. */
+  collapsible?: boolean;
+  /** Selected values in the group: shown on a collapsed group's summary. */
+  activeCount?: number;
+}
+
+function FilterGroup({ legend, children, collapsible = false, activeCount = 0 }: FilterGroupProps) {
+  const [open, setOpen] = useState(activeCount > 0);
+  // A value selected elsewhere (chip, URL) opens its group (state adjusted during render).
+  const [seenCount, setSeenCount] = useState(activeCount);
+  if (activeCount !== seenCount) {
+    setSeenCount(activeCount);
+    if (activeCount > seenCount) setOpen(true);
+  }
+
+  if (!collapsible) {
+    return (
+      <fieldset className="flex min-w-0 flex-col gap-2.5 py-5 first:pt-0 last:pb-0">
+        <legend className="float-left mb-3 w-full text-label text-fg">{legend}</legend>
+        {children}
+      </fieldset>
+    );
+  }
+
   return (
-    <fieldset className="flex min-w-0 flex-col gap-2.5 py-5 first:pt-0 last:pb-0">
-      <legend className="float-left mb-3 w-full text-label text-fg">{legend}</legend>
-      {children}
-    </fieldset>
+    <details
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      className="disclosure group py-5 first:pt-0 last:pb-0"
+    >
+      <summary className="-mx-1 flex cursor-pointer list-none items-center justify-between gap-2 rounded-md px-1 py-0.5 text-label text-fg transition-colors duration-fast ease-standard hover:bg-bg-muted focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+        <span>
+          {legend}
+          {activeCount > 0 ? (
+            <span className="ml-1.5 text-caption text-fg-muted tabular-nums">
+              ({activeCount}
+              <span className="sr-only"> {activeCount === 1 ? "seleccionado" : "seleccionados"}</span>)
+            </span>
+          ) : null}
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className="size-4 shrink-0 text-fg-muted transition-[rotate] duration-base ease-standard group-open:rotate-180"
+        />
+      </summary>
+      <fieldset className="flex min-w-0 flex-col gap-2.5 pt-3">
+        <legend className="sr-only">{legend}</legend>
+        {children}
+      </fieldset>
+    </details>
   );
 }
 

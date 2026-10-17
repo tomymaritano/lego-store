@@ -42,6 +42,27 @@ describe("ProductFilters", () => {
     expect(screen.getByRole("slider", { name: "Precio mínimo" })).toBeInTheDocument();
   });
 
+  it("starts the rarer facets (Edad, Tipo, Piezas) collapsed, open when one of their values is selected", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<ProductFilters options={options} query={{}} onChange={() => {}} />);
+    const ages = screen.getByText("Edad", { selector: "legend" }).closest("details")!;
+    const toggle = ages.querySelector("summary")!;
+    expect(ages).not.toHaveAttribute("open");
+    // Tema is a frequent facet: always open, a plain group.
+    expect(screen.getByRole("group", { name: "Tema" }).closest("details")).toBeNull();
+
+    await user.click(toggle);
+    expect(ages).toHaveAttribute("open");
+    await user.click(toggle);
+    expect(ages).not.toHaveAttribute("open");
+
+    // Selected elsewhere (chip, URL): the group opens and its summary shows how many.
+    rerender(<ProductFilters options={options} query={{ ages: ["18+"] }} onChange={() => {}} />);
+    expect(ages).toHaveAttribute("open");
+    expect(toggle).toHaveTextContent("Edad(1 seleccionado)");
+    expect(screen.getByRole("checkbox", { name: "18+ (6)" })).toBeChecked();
+  });
+
   it("shows live counts from `counts` without dropping options in scope", () => {
     const counts: FacetCounts = {
       categories: { helmet: 2 },
