@@ -10,8 +10,7 @@ export {
 } from "./compareStore";
 export { positionIn, type RestorePosition } from "./restorePosition";
 export { useRecentlyViewedStore, useRecentlyViewedIds } from "./recentlyViewedStore";
-export { useCheckoutStore, summarizePayment } from "./checkoutStore";
+export { useCheckoutStore } from "./checkoutStore";
 export { useThemeStore } from "./themeStore";
-export { useReviewStore } from "./reviewStore";
 export { StoreHydrator, useStoresHydrated, useStoreHydrated } from "./hydration";
 export { useUiStore, useCartDrawerOpen, openCartDrawer } from "./uiStore";

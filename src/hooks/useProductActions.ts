@@ -34,7 +34,7 @@ export const productActionCopy = {
 /**
  * Cart / wishlist / compare state and actions for one product, with toasts.
  * The single implementation behind ProductCard, QuickView, the product page,
- * CompareButton, the compare page and the wishlist.
+ * the compare page and the wishlist.
  *
  * Accepts a ProductSummary, so a stored snapshot (wishlist) works as well as a
  * full Product. State flags are false until the stores are hydrated.

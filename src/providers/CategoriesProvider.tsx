@@ -16,7 +16,7 @@ export function CategoriesProvider({ categories, children }: { categories: reado
   return <CategoriesContext.Provider value={categories}>{children}</CategoriesContext.Provider>;
 }
 
-export function useCategories(): readonly CategoryRef[] {
+function useCategories(): readonly CategoryRef[] {
   return useContext(CategoriesContext);
 }
 
