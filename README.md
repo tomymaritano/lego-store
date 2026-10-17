@@ -174,10 +174,12 @@ npm run dev
 - **Puerto**: Docker publica Postgres en el **5433** para no chocar con un Postgres
   instalado en el 5432. Para otro puerto: `POSTGRES_PORT=5434 npm run db:up` y
   ajustá las URLs de `.env.local`.
-- **Admin de desarrollo**: si `ADMIN_EMAIL` / `ADMIN_PASSWORD` no están definidas, el
-  seed crea `admin@lego-store.local` / `admin-dev-1234` (solo fuera de producción;
-  en producción sin esas variables no se crea admin). Volver a sembrar actualiza la
-  contraseña si cambió.
+- **Admin de desarrollo**: si `ADMIN_EMAIL` y `ADMIN_PASSWORD` no están definidas (o
+  están vacías, como en `.env.example`), el seed crea `admin@lego-store.local` /
+  `admin-dev-1234`, pero solo si `DATABASE_URL` apunta a `localhost` (o con
+  `SEED_DEV_ADMIN=1`); contra cualquier otra base no crea admin. Si definís solo una
+  de las dos, el seed falla: van juntas. Volver a sembrar actualiza la contraseña si
+  cambió.
 - **El seed es idempotente**: se puede correr las veces que haga falta. Vuelve las
   categorías y los productos del seed a sus valores (stock incluido), crea o
   actualiza los usuarios de ejemplo (sin contraseña: no se puede entrar con ellos),
