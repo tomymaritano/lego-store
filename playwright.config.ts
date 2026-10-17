@@ -7,6 +7,8 @@ const PROD_URL = `http://localhost:${PROD_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // Compiles each dev route once before the workers start (see the file).
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
