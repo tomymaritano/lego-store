@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium } from "@playwright/test";
 import path from "path";
 
 const SCREENSHOTS_DIR = path.join(process.cwd(), "screenshots");

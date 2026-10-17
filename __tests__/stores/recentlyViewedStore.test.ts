@@ -14,7 +14,11 @@ const mockProduct: Product = {
   stock: 10,
   description: "A test product",
   age: "18+",
-  pieces: 100,
+  pieces: "100",
+  type: "set",
+  interests: [],
+  highlight: "",
+  shortDescription: "",
   isNew: false,
   isOnSale: false,
 };

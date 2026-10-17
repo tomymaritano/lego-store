@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/nextjs";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Input } from "./Input";
 import { Search as SearchIcon, Mail, Lock, Eye } from "lucide-react";
 
