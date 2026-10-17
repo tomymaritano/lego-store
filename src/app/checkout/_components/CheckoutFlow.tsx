@@ -7,8 +7,9 @@ import { fadeIn } from "@/lib/motion";
 import { orderTotals } from "@/lib/pricing";
 import { useCartItems, useCartStore, useCheckoutStore, useStoreHydrated } from "@/stores";
 import { Breadcrumbs, Skeleton, showToast } from "@/components/ui";
-import type { CheckoutStep, PaymentInfo, ShippingInfo } from "@/types";
+import type { CartItem, CheckoutStep, PaymentInfo, ShippingInfo } from "@/types";
 import { ConfirmationStep } from "./ConfirmationStep";
+import { MobileSummaryBar } from "./OrderLines";
 import { OrderSummary } from "./OrderSummary";
 import { PaymentStep } from "./PaymentStep";
 import { ReviewStep } from "./ReviewStep";
@@ -56,6 +57,8 @@ export function CheckoutFlow() {
   const isProcessing = useCheckoutStore((state) => state.isProcessing);
 
   const [direction, setDirection] = useState(1);
+  // What was bought, for the confirmation (the cart is emptied once the order goes through).
+  const [purchased, setPurchased] = useState<CartItem[]>([]);
   // Focus follows the step only after the visitor moved: not on page load.
   const [moved, setMoved] = useState(false);
   // The order being paid, so leaving the page can cancel it.
@@ -121,6 +124,7 @@ export function CheckoutFlow() {
     pendingOrder.current = controller;
     try {
       setDirection(1);
+      setPurchased(cart);
       await checkout().processOrder({ total: totals.total }, { signal: controller.signal });
       useCartStore.getState().clearCart();
     } catch (error) {
@@ -153,13 +157,21 @@ export function CheckoutFlow() {
       <AnimatePresence mode="wait" initial={false} onExitComplete={scrollToTop}>
         {confirmed ? (
           // Its "¡Gracias por tu compra!" is the page's h1.
-          <ConfirmationStep key="confirmation" orderId={orderId} total={orderTotal} email={shippingInfo?.email ?? null} />
+          <ConfirmationStep
+            key="confirmation"
+            orderId={orderId}
+            total={orderTotal}
+            email={shippingInfo?.email ?? null}
+            lines={purchased}
+          />
         ) : (
           <m.div key="checkout" variants={fadeIn} initial="hidden" animate="visible" exit="exit">
             <CheckoutHeader />
             <div className="mb-8">
               <Stepper current={step} />
             </div>
+
+            <MobileSummaryBar lines={cart} total={totals.total} />
 
             <div className="grid items-start gap-6 lg:grid-cols-3 lg:gap-8">
               <div className="min-w-0 lg:col-span-2">

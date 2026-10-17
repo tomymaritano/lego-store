@@ -85,6 +85,14 @@ describe("Checkout", () => {
     expect(list).not.toHaveAttribute("tabindex");
   });
 
+  it("shows the total above the form in a collapsible summary (phones)", () => {
+    render(<CheckoutFlow />);
+    const summary = screen.getByText("Ver resumen").closest("summary")!;
+    expect(summary).toHaveTextContent("(3 productos)");
+    expect(summary).toHaveTextContent(formatPrice(2746));
+    expect(within(summary.parentElement!).getByRole("list", { name: "Productos a comprar", hidden: true })).toHaveTextContent("Set 1");
+  });
+
   it("goes through every step, keeps only a card summary and confirms the order", async () => {
     const user = userEvent.setup();
     render(<CheckoutFlow />);
@@ -127,6 +135,10 @@ describe("Checkout", () => {
     expect(within(confirmation).getByTestId("order-id").textContent).toMatch(/^LEGO-/);
     expect(confirmation).toHaveTextContent(formatPrice(2746));
     expect(confirmation).toHaveTextContent("ana@example.com");
+    // What was bought stays listed even though the cart is now empty.
+    const bought = within(confirmation).getByRole("list", { name: "Productos comprados" });
+    expect(within(bought).getAllByRole("listitem")).toHaveLength(2);
+    expect(bought).toHaveTextContent("Set 1");
     await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toHaveFocus());
     // The order is done: the "Finalizar compra" heading and the checkout breadcrumb are gone.
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);

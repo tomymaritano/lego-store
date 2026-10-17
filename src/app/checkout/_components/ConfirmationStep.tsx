@@ -8,11 +8,15 @@ import { siteConfig } from "@/config/site";
 import { drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui";
+import type { CartItem } from "@/types";
+import { OrderLines } from "./OrderLines";
 
 interface ConfirmationStepProps {
   orderId: string;
   total: number | null;
   email: string | null;
+  /** The lines that were bought (empty when unknown). */
+  lines?: readonly CartItem[];
 }
 
 const { deliveryDays } = siteConfig.commerce;
@@ -22,7 +26,7 @@ const { deliveryDays } = siteConfig.commerce;
  * Its heading is the page's h1 (the checkout header is gone by then); focus
  * moves to it so the success is announced.
  */
-export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProps) {
+export function ConfirmationStep({ orderId, total, email, lines = [] }: ConfirmationStepProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
 
@@ -74,6 +78,12 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
             </div>
           )}
         </m.dl>
+
+        {lines.length > 0 ? (
+          <m.div variants={staggerItem} className="mb-6 w-full rounded-xl border border-border p-4">
+            <OrderLines lines={lines} label="Productos comprados" />
+          </m.div>
+        ) : null}
 
         <m.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-sm text-fg-secondary">
           {email && (
