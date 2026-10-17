@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { ArrowRight, Truck, Shield, RotateCcw, Star } from "lucide-react";
 import { products } from "@/data/products";
 import { ProductList } from "@/components/product";

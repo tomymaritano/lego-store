@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Scale, X, ShoppingCart, ChevronLeft } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { useCompareStore } from "@/stores/compareStore";
 import { useCartStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";

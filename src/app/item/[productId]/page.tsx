@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Heart, ShoppingCart, Star, Minus, Plus, Share2, Truck, Shield, RotateCcw } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { products } from "@/data/products";
 import { useCartStore, useWishlistStore, useRecentlyViewedStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";

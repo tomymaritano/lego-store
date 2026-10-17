@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Trash2, ChevronLeft, ShoppingBag } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useCartStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice } from "@/lib/utils";

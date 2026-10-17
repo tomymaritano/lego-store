@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useRecentlyViewedStore } from "@/stores/recentlyViewedStore";
 import { useHydration } from "@/hooks/useHydration";

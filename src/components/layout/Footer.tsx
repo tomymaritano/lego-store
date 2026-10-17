@@ -2,12 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import {
-  Facebook,
-  Twitter,
-  Instagram,
-  Youtube,
   Mail,
   Phone,
   MapPin,
@@ -16,6 +12,7 @@ import {
   Shield,
   Heart,
 } from "lucide-react";
+import { FacebookIcon, TwitterIcon, InstagramIcon, YoutubeIcon } from "@/components/icons/SocialIcons";
 
 const footerLinks = {
   shop: {
@@ -58,10 +55,10 @@ const footerLinks = {
 };
 
 const socialLinks = [
-  { name: "Facebook", icon: Facebook, href: "#", color: "hover:bg-blue-600" },
-  { name: "Twitter", icon: Twitter, href: "#", color: "hover:bg-sky-500" },
-  { name: "Instagram", icon: Instagram, href: "#", color: "hover:bg-pink-600" },
-  { name: "YouTube", icon: Youtube, href: "#", color: "hover:bg-red-600" },
+  { name: "Facebook", icon: FacebookIcon, href: "#", color: "hover:bg-blue-600" },
+  { name: "Twitter", icon: TwitterIcon, href: "#", color: "hover:bg-sky-500" },
+  { name: "Instagram", icon: InstagramIcon, href: "#", color: "hover:bg-pink-600" },
+  { name: "YouTube", icon: YoutubeIcon, href: "#", color: "hover:bg-red-600" },
 ];
 
 const paymentMethods = [

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Scale } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useCompareStore } from "@/stores/compareStore";
 import { useHydration } from "@/hooks/useHydration";
 import { showToast } from "@/components/ui";

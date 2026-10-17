@@ -1,7 +1,7 @@
 "use client";
 
 import { Moon, Sun, Monitor } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useThemeStore } from "@/stores/themeStore";
 import { useHydration } from "@/hooks/useHydration";
 import { cn } from "@/lib/utils";

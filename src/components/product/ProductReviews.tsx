@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Star, ThumbsUp, CheckCircle, User } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useReviewStore, type Review } from "@/stores/reviewStore";
 import { Button, Input } from "@/components/ui";
 import { cn } from "@/lib/utils";

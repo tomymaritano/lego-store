@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Clock, TrendingUp, X, ArrowRight } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { products } from "@/data/products";
 import { formatPrice, cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";

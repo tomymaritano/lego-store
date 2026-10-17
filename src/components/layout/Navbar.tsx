@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Search, ShoppingCart, Heart, Menu, User, ChevronDown } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useCartStore, useWishlistStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { Drawer, ThemeToggle } from "@/components/ui";
