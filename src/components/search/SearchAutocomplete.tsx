@@ -134,12 +134,10 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
   }, [inline]);
 
   // Keep the keyboard-highlighted option in view (long lists in the inline variant).
+  const activeOptionId = activeIndex >= 0 ? optionId(activeIndex) : null;
   useEffect(() => {
-    if (activeIndex < 0) return;
-    document.getElementById(optionId(activeIndex))?.scrollIntoView?.({ block: "nearest" });
-    // optionId only depends on listboxId, which is stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex]);
+    if (activeOptionId) document.getElementById(activeOptionId)?.scrollIntoView?.({ block: "nearest" });
+  }, [activeOptionId]);
 
   const close = () => {
     setIsOpen(false);

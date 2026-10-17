@@ -30,6 +30,12 @@ describe("sortReviews", () => {
   });
 });
 
+/** Opens the review form; it loads on demand, so wait for its submit button. */
+async function openForm() {
+  fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
+  await screen.findByRole("button", { name: "Publicar reseña" });
+}
+
 describe("ProductReviews", () => {
   beforeEach(() => useReviewStore.setState({ reviews: mockReviews }));
 
@@ -61,7 +67,7 @@ describe("ProductReviews", () => {
 
   it("shows Spanish validation messages and focuses the first invalid field", async () => {
     render(<ProductReviews productId="2" />);
-    fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
+    await openForm();
     fireEvent.change(screen.getByLabelText(/Tu reseña/), { target: { value: "corto" } });
     fireEvent.click(screen.getByRole("button", { name: "Publicar reseña" }));
 
@@ -77,7 +83,7 @@ describe("ProductReviews", () => {
 
   it("adds a review from the form and returns focus to the toggle", async () => {
     render(<ProductReviews productId="2" />);
-    fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
+    await openForm();
     fireEvent.click(screen.getByRole("radio", { name: "4 estrellas" }));
     fireEvent.change(screen.getByLabelText(/Tu nombre/), { target: { value: "  Ana  " } });
     fireEvent.change(screen.getByLabelText(/Título/), { target: { value: "Genial" } });
@@ -95,7 +101,7 @@ describe("ProductReviews", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { value: scrollIntoView, configurable: true });
     try {
       render(<ProductReviews productId="2" />);
-      fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
+      await openForm();
       fireEvent.click(screen.getByRole("button", { name: "Publicar reseña" }));
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" }));
       expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen.getByRole("radiogroup", { name: /Tu calificación/ }));
