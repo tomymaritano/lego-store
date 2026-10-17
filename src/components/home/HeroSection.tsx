@@ -42,7 +42,7 @@ export function HeroSection({ productCount, saleCount }: HeroSectionProps) {
               </h1>
             </StaggerItem>
             <StaggerItem effect="lift">
-              <p className="mt-6 max-w-lg text-lg md:text-xl">
+              <p className="mt-6 max-w-lg text-body sm:text-title sm:font-medium">
                 Descubre {pluralize(productCount, "set")} de Star Wars, Marvel, Harry Potter y más. Cada pieza cuenta una
                 historia.
               </p>

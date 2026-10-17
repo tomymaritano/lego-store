@@ -10,12 +10,14 @@ import { THEME_SCRIPT } from "@/lib/theme";
 import { siteConfig } from "@/config/site";
 
 // Self-hosted by next/font: no render-blocking request to Google, preloaded
-// woff2 and a size-adjusted fallback (no layout shift on swap). Only the
-// weights the type scale uses (regular to extrabold).
+// woff2 and a size-adjusted fallback. Only the weights the type scale uses
+// (regular to extrabold). `optional`: the text paints once, in its final
+// font, instead of repainting on a late swap (the hero copy is the LCP
+// element); on a cold, slow load the metric-matched fallback stays.
 const barlow = Barlow({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
+  display: "optional",
   variable: "--font-barlow",
 });
 

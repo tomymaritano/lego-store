@@ -10,6 +10,10 @@ const nextConfig = {
     root: import.meta.dirname,
   },
   images: {
+    // AVIF first (noticeably smaller than WebP for the set renders), WebP as
+    // the fallback. Optimised variants are cached, so the slower AVIF encode
+    // is paid once per size.
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",

@@ -484,6 +484,15 @@ html[data-compare-bar] [data-footer-bottom] {
 .dark .photo-blend {
   mix-blend-mode: normal;
 }
+/* Opaque product photos (JPEG, white backdrop): in dark mode they cannot
+   blend into the card, so they read as a rounded, slightly dimmed photo
+   tile instead of a glaring white rectangle. */
+.photo-opaque {
+  border-radius: var(--radius-xl);
+}
+.dark .photo-opaque {
+  filter: brightness(0.88);
+}
 
 /* Print: scroll reveals (motion's inline opacity/transform) never ran for
    content below the fold, so force it visible and in place on paper. */

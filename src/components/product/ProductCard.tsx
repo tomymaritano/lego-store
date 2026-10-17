@@ -29,12 +29,16 @@ interface ProductCardProps {
 /** Rendered width of the card image per grid breakpoint (1 / 2 / 3 / 4 columns, container capped at 80rem). */
 const CARD_IMAGE_SIZES = "(max-width: 639px) calc(100vw - 2rem), (max-width: 1023px) calc(50vw - 2.5rem), (max-width: 1279px) 33vw, 320px";
 
+/** JPEGs carry their own (white) background: framed as a photo tile instead of blended. */
+const isOpaquePhoto = (src: string) => /\.jpe?g(\?|$)/i.test(src);
+
 export function ProductCard({ product, onQuickView, priority = false }: ProductCardProps) {
   const { inWishlist, inCompare, isAvailable, toggleWishlist, toggleCompare } = useProductActions(product);
   const imageRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
   const [secondaryError, setSecondaryError] = useState(false);
   const showSecondary = Boolean(product.imageSecondary) && !imageError && !secondaryError;
+  const mainImage = imageError ? PLACEHOLDER_IMAGE : product.img;
 
   const discounted = product.isOnSale && product.originalPrice ? product.originalPrice : undefined;
   const lowStock = product.stock > 0 && product.stock <= 5;
@@ -111,7 +115,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
         <div className="absolute inset-0 p-6">
           <div ref={imageRef} className="relative size-full">
             <Image
-              src={imageError ? PLACEHOLDER_IMAGE : product.img}
+              src={mainImage}
               alt=""
               fill
               preload={priority}
@@ -120,6 +124,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
               fetchPriority={priority ? "high" : undefined}
               className={cn(
                 "photo-blend object-contain transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105",
+                isOpaquePhoto(mainImage) && "photo-opaque",
                 showSecondary && "group-hover:opacity-0"
               )}
               onError={() => setImageError(true)}

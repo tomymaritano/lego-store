@@ -54,7 +54,8 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
           src={shown}
           alt={alt}
           fill
-          sizes="(min-width: 1024px) 50vw, 100vw"
+          // The gallery column: half the container on desktop (max 1280px), full width below.
+          sizes="(min-width: 1280px) 600px, (min-width: 1024px) 45vw, 100vw"
           className="object-contain p-8 transition-[scale] duration-slow ease-emphasized group-hover:scale-105 motion-reduce:group-hover:scale-100"
           onError={() => setFailedSrc(src)}
           // The product page's LCP: `preload` alone left the <img> lazy (next/image warned).
