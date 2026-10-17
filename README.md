@@ -195,10 +195,16 @@ scripts/               Presupuesto de JS y capturas del README
   al inicio.
 - **Rate limiting** (`src/lib/rate-limit`): ventana fija con el contador en Postgres
   (tabla `RateLimit`, un `INSERT … ON CONFLICT` atómico con el reloj de la base), así
-  que vale entre instancias y en serverless. Login: 5 intentos por cuenta y IP cada
-  15 min (un login correcto los borra; por IP para que un extraño no pueda bloquear
-  la cuenta de otro), 30 por cuenta por hora desde cualquier IP y 50 por IP cada
-  15 min; registro: 20 cuentas por IP por hora;
+  que vale entre instancias y en serverless. Login, en orden y cortando en el primer
+  rechazo (un intento rechazado no suma en los límites siguientes): 5 intentos por
+  cuenta y origen cada 15 min (un login correcto los borra), 50 por IP cada 15 min y
+  30 por cuenta por hora desde cualquier IP. El origen es la IP, o el dispositivo si
+  el navegador ya ingresó antes a esa cuenta: una cookie HttpOnly firmada con
+  `AUTH_SECRET` (`known-device.ts`). Los dispositivos conocidos solo pasan por su
+  propio límite de 5, así que quien adivina contraseñas llena los contadores
+  compartidos pero no deja afuera al dueño en los navegadores que ya usa (un
+  dispositivo nuevo del dueño sí puede esperar hasta una hora si alguien llenó el
+  límite por cuenta desde muchas IPs). Registro: 20 cuentas por IP por hora;
   contraseña actual en `/account`: 5 cada 15 min. Para limitar algo nuevo (reseñas,
   contacto, newsletter) se agrega una entrada en `rateLimits` y se llama
   `consume(sujeto)`. La IP sale de `X-Forwarded-For` (Vercel la pone; sin ningún

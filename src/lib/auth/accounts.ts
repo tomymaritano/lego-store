@@ -4,7 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import type { Role } from "@/generated/prisma/enums";
 import { getDb } from "@/lib/db";
 import { rateLimits } from "@/lib/rate-limit";
-import type { RateLimitResult } from "@/lib/rate-limit/limiter";
+import type { RateLimiter } from "@/lib/rate-limit/limiter";
 import { normalizeEmail, roleForEmail } from "./email";
 import { hashPassword, verifyPassword } from "./password";
 
@@ -58,27 +58,42 @@ export type CredentialsResult =
  * (Google only) and wrong passwords are all just "invalid", and take about as
  * long as a real check, so the answer does not reveal which accounts exist.
  *
- * Rate limited per account and IP (tight), per account (roomier, against
- * guessing from many IPs) and per IP (against guessing across accounts).
- * Every attempt counts; a successful login clears the account-and-IP counter.
+ * Rate limits, checked in this order and stopping at the first refusal (so
+ * a refused attempt does not also eat into the wider limits):
+ * 1. per account and source (tight). The source is the IP, or the device id
+ *    when the browser proves an earlier login to this account (known-device.ts);
+ * 2. per IP, any account (against guessing across accounts);
+ * 3. per account from anywhere (against guessing spread over many IPs).
+ * Known devices only go through the first: they are not guessing (they
+ * logged in to this account before), and whoever fills the shared counters
+ * cannot lock the owner out of the browsers they already use.
+ * A successful login clears its account-and-source counter.
  */
-export async function verifyCredentials(rawEmail: string, password: string, ip: string): Promise<CredentialsResult> {
+export async function verifyCredentials(
+  rawEmail: string,
+  password: string,
+  ip: string,
+  { knownDevice = null }: { knownDevice?: string | null } = {}
+): Promise<CredentialsResult> {
   const email = normalizeEmail(rawEmail);
-  const accountIp = `${email}|${ip}`;
-  const limited = firstRefusal(
-    await Promise.all([
-      rateLimits.loginAccountIp.consume(accountIp),
-      rateLimits.loginAccount.consume(email),
-      rateLimits.loginIp.consume(ip),
-    ])
-  );
-  if (limited) return { ok: false, reason: "rate_limited", retryAfterSeconds: limited.retryAfterSeconds };
+  const source = knownDevice ? `${email}|device:${knownDevice}` : `${email}|${ip}`;
+  const limits: [RateLimiter, string][] = knownDevice
+    ? [[rateLimits.loginAccountIp, source]]
+    : [
+        [rateLimits.loginAccountIp, source],
+        [rateLimits.loginIp, ip],
+        [rateLimits.loginAccount, email],
+      ];
+  for (const [limiter, subject] of limits) {
+    const limit = await limiter.consume(subject);
+    if (!limit.ok) return { ok: false, reason: "rate_limited", retryAfterSeconds: limit.retryAfterSeconds };
+  }
 
   const user = await getDb().user.findUnique({ where: { email }, select: { ...accountSelect, passwordHash: true } });
   const valid = await verifyPassword(password, user?.passwordHash ?? (await dummyHash()));
   if (!user?.passwordHash || !valid) return { ok: false, reason: "invalid" };
 
-  await rateLimits.loginAccountIp.reset(accountIp);
+  await rateLimits.loginAccountIp.reset(source);
   return { ok: true, user: { id: user.id, name: user.name, email: user.email, role: user.role, sessionVersion: user.sessionVersion } };
 }
 
@@ -122,11 +137,6 @@ export async function changeUserPassword(id: string, currentPassword: string, ne
   if (count === 0) return { ok: false, reason: "conflict" };
   await rateLimits.passwordChange.reset(id);
   return { ok: true, sessionVersion: { from: user.sessionVersion, to: user.sessionVersion + 1 } };
-}
-
-function firstRefusal(results: RateLimitResult[]): RateLimitResult | undefined {
-  const refused = results.filter((result) => !result.ok);
-  return refused.sort((a, b) => b.retryAfterSeconds - a.retryAfterSeconds)[0];
 }
 
 /*

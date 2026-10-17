@@ -119,6 +119,38 @@ describe("verifyCredentials", () => {
     expect(await verifyCredentials(address, PASSWORD, "198.51.100.2")).toMatchObject({ ok: false, reason: "rate_limited" });
   });
 
+  it("one attacking IP cannot use up the account-wide limit and lock the owner out", async () => {
+    const address = email();
+    await registerUser({ name: "Ana", email: address, password: PASSWORD });
+    for (let i = 0; i < rateLimits.loginAccount.limit + 5; i++) await verifyCredentials(address, `mala-${i}`, IP);
+    // Refused attempts stop at the tight limit and do not count towards the wider ones.
+    const accountWide = await testDb.rateLimit.findUnique({ where: { key: `login-account:${address}` } });
+    expect(accountWide?.count).toBe(rateLimits.loginAccountIp.limit);
+    expect((await verifyCredentials(address, PASSWORD, "198.51.100.7")).ok).toBe(true);
+  });
+
+  it("a known device logs in even when the account-wide and IP limits are full", async () => {
+    const address = email();
+    await registerUser({ name: "Ana", email: address, password: PASSWORD });
+    const resetAt = new Date(Date.now() + 60_000);
+    await testDb.rateLimit.createMany({
+      data: [
+        { key: `login-account:${address}`, count: rateLimits.loginAccount.limit, resetAt },
+        { key: `login-ip:${IP}`, count: rateLimits.loginIp.limit, resetAt },
+      ],
+    });
+    expect(await verifyCredentials(address, PASSWORD, IP)).toMatchObject({ ok: false, reason: "rate_limited" });
+    expect((await verifyCredentials(address, PASSWORD, IP, { knownDevice: "dispositivo-de-ana-1234" })).ok).toBe(true);
+  });
+
+  it("a known device still has its own tight limit", async () => {
+    const address = email();
+    await registerUser({ name: "Ana", email: address, password: PASSWORD });
+    const device = { knownDevice: "dispositivo-robado-5678" };
+    for (let i = 0; i < rateLimits.loginAccountIp.limit; i++) await verifyCredentials(address, `mala-${i}`, IP, device);
+    expect(await verifyCredentials(address, PASSWORD, IP, device)).toMatchObject({ ok: false, reason: "rate_limited" });
+  });
+
   it("a successful login clears the account's failed attempts on that IP", async () => {
     const address = email();
     await registerUser({ name: "Ana", email: address, password: PASSWORD });

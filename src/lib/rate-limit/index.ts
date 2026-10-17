@@ -22,12 +22,16 @@ const limiter = (name: string, limit: number, windowMs: number): RateLimiter =>
 
 export const rateLimits = {
   /**
-   * Login attempts per account from one IP: the tight limit. Keyed by both so
-   * a stranger cannot lock someone out of their account by guessing wrong.
-   * Cleared by a successful login.
+   * Login attempts per account from one source: the tight limit. The source
+   * is the IP, or the device for a browser that logged in to this account
+   * before (lib/auth/known-device.ts), so a stranger guessing wrong does not
+   * lock the owner out. Cleared by a successful login.
    */
   loginAccountIp: limiter("login-account-ip", 5, 15 * MINUTE),
-  /** Login attempts per account from anywhere: slows down guessing spread over many IPs. */
+  /**
+   * Login attempts per account from anywhere, unknown devices only: slows
+   * down guessing spread over many IPs (see verifyCredentials).
+   */
   loginAccount: limiter("login-account", 30, HOUR),
   /**
    * Login attempts per client IP, any account: slows down guessing across

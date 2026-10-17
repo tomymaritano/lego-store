@@ -44,6 +44,9 @@ test.describe("Accounts", () => {
     await page.goto("/login");
     await logIn(page, email.toUpperCase());
     await expect(page.getByTestId("account-menu")).toBeVisible();
+    // The browser is now a known device for this account (its logins skip the shared limits).
+    const knownDevice = (await page.context().cookies()).find((cookie) => cookie.name === "known-device");
+    expect(knownDevice).toMatchObject({ httpOnly: true, sameSite: "Lax" });
 
     await page.goto("/account");
     await expect(page.getByRole("heading", { level: 1, name: "Mi cuenta" })).toBeVisible();

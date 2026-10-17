@@ -9,6 +9,7 @@ import { clientIp } from "@/lib/rate-limit/client-ip";
 import { loginSchema } from "@/lib/validations/auth";
 import { verifyCredentials } from "./accounts";
 import { prismaAuthAdapter } from "./adapter";
+import { readKnownDevice, rememberKnownDevice } from "./known-device";
 import { refreshSessionToken, type SessionRenewal } from "./session-token";
 
 /*
@@ -73,8 +74,13 @@ const credentials = Credentials({
   async authorize(input, request) {
     const parsed = loginSchema.safeParse(input);
     if (!parsed.success) return null;
-    const result = await verifyCredentials(parsed.data.email, parsed.data.password, clientIp(request.headers));
-    if (result.ok) return result.user;
+    const { email, password } = parsed.data;
+    const knownDevice = readKnownDevice(request.headers, email);
+    const result = await verifyCredentials(email, password, clientIp(request.headers), { knownDevice });
+    if (result.ok) {
+      await rememberKnownDevice(email);
+      return result.user;
+    }
     if (result.reason === "rate_limited") throw new RateLimitedSignin();
     return null;
   },
