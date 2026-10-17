@@ -65,6 +65,18 @@ export const stepSlide: Variants = {
   exit: { opacity: 0, x: -20, transition: transitions.exit },
 };
 
+/**
+ * Product gallery slides. `custom` is the direction of travel (1 = next,
+ * -1 = previous): the new picture enters from that side and the old one
+ * leaves through the other. Pass the same `custom` to AnimatePresence so the
+ * exiting slide uses the latest direction.
+ */
+export const gallerySlide: Variants = {
+  hidden: (direction: number = 1) => ({ opacity: 0, x: direction * 48 }),
+  visible: { opacity: 1, x: 0, transition: transitions.slow },
+  exit: (direction: number = 1) => ({ opacity: 0, x: direction * -48, transition: transitions.exit }),
+};
+
 /** List rows that are removed by the user (cart): enter up, leave to the left. */
 export const dismissible: Variants = {
   hidden: { opacity: 0, y: 12 },

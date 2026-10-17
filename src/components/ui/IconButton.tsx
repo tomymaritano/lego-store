@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { Button, type ButtonProps } from "./Button";
 
 export interface IconButtonProps extends Omit<ButtonProps, "aria-label" | "size"> {
@@ -8,7 +9,7 @@ export interface IconButtonProps extends Omit<ButtonProps, "aria-label" | "size"
   size?: "icon" | "icon-sm";
 }
 
-/** Icon-only button. `label` becomes aria-label (and the native tooltip). */
+/** Icon-only button. `label` becomes aria-label (and the native tooltip). Round unless `className` sets another radius. */
 export function IconButton({ label, variant = "ghost", size = "icon", className, title, ...props }: IconButtonProps) {
   return (
     <Button
@@ -16,7 +17,7 @@ export function IconButton({ label, variant = "ghost", size = "icon", className,
       title={title ?? label}
       variant={variant}
       size={size}
-      className={className ? `rounded-full ${className}` : "rounded-full"}
+      className={cn("rounded-full", className)}
       {...props}
     />
   );

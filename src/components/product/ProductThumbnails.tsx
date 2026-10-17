@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -37,7 +37,20 @@ interface ProductThumbnailsProps {
   className?: string;
 }
 
-/** Image picker for a product gallery (toggle buttons, current one pressed). */
+const KEY_STEP: Record<string, (index: number, count: number) => number> = {
+  ArrowRight: (i, n) => (i + 1) % n,
+  ArrowDown: (i, n) => (i + 1) % n,
+  ArrowLeft: (i, n) => (i - 1 + n) % n,
+  ArrowUp: (i, n) => (i - 1 + n) % n,
+  Home: () => 0,
+  End: (_, n) => n - 1,
+};
+
+/**
+ * Image picker for a product gallery: toggle buttons (current one pressed).
+ * Every thumbnail is a Tab stop; arrow keys, Home and End also move between
+ * them and show the picture straight away.
+ */
 export function ProductThumbnails({
   images,
   selected,
@@ -47,13 +60,32 @@ export function ProductThumbnails({
   size = "md",
   className,
 }: ProductThumbnailsProps) {
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   if (images.length < 2) return null;
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = KEY_STEP[event.key];
+    const current = buttons.current.findIndex((button) => button === document.activeElement);
+    if (!step || current === -1) return;
+    event.preventDefault();
+    const next = step(current, images.length);
+    onSelect(next);
+    buttons.current[next]?.focus();
+  };
+
   return (
-    <div role="group" aria-label={`Imágenes de ${productName}`} className={cn("flex gap-3 overflow-x-auto p-1 scrollbar-hide", className)}>
+    <div
+      role="group"
+      aria-label={`Imágenes de ${productName}`}
+      onKeyDown={handleKeyDown}
+      className={cn("flex gap-3 overflow-x-auto p-1 scrollbar-hide", className)}
+    >
       {images.map((src, index) => (
         <Button
           key={src}
+          ref={(element: HTMLButtonElement | null) => {
+            buttons.current[index] = element;
+          }}
           variant="secondary"
           onClick={() => onSelect(index)}
           aria-label={`Ver imagen ${index + 1} de ${images.length}`}

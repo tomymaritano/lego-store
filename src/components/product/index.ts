@@ -15,3 +15,5 @@ export { CompareButton } from "./CompareButton";
 export { CompareBar } from "./CompareBar";
 export { ProductGallery } from "./ProductGallery";
 export { ProductPurchase } from "./ProductPurchase";
+export { ProductDetailsTabs } from "./ProductDetailsTabs";
+export { REVIEWS_HASH } from "./anchors";

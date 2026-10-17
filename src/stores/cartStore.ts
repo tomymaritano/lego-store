@@ -107,3 +107,7 @@ export const useCartSubtotal = () =>
   useCartStore((state) => state.cart.reduce((sum, line) => sum + line.quantity * line.price, 0));
 
 export const useIsInCart = (id: string) => useCartStore((state) => state.cart.some((line) => line.id === id));
+
+/** Units of one product already in the cart (0 when it has no line). */
+export const useCartQuantity = (id: string) =>
+  useCartStore((state) => state.cart.find((line) => line.id === id)?.quantity ?? 0);

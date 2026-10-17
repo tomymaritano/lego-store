@@ -1,7 +1,8 @@
 import type { Product } from "@/types";
+import { PLACEHOLDER_IMAGE } from "@/lib/utils";
 
-/** Sets without a working picture use the neutral brick placeholder (public/images). */
-const NO_IMAGE = "/images/placeholder-product.svg";
+/** Sets without a working picture use the neutral brick placeholder. */
+const NO_IMAGE = PLACEHOLDER_IMAGE;
 
 /**
  * Mock catalogue. Only src/lib/api reads this file (ESLint enforces it), so the

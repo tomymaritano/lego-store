@@ -1,33 +1,87 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Heart, Scale, Share2, ShoppingCart } from "lucide-react";
-import { transitions } from "@/lib/motion";
+import { Check, Heart, PackageCheck, Scale, Share2, ShoppingCart } from "lucide-react";
+import { fadeIn, transitions } from "@/lib/motion";
+import { flyToCart } from "@/lib/flyToCart";
 import { cn } from "@/lib/utils";
 import { useProductActions } from "@/hooks/useProductActions";
+import { useCartQuantity } from "@/stores";
 import { Button, IconButton, QuantitySelector, showToast } from "@/components/ui";
 import type { Product } from "@/types";
+import { GALLERY_STAGE_ATTR } from "./ProductGallery";
 
-/** Product page actions: quantity, add to cart, wishlist, compare, share. */
+/** At or below this many units the stock line turns into a "last units" warning. */
+export const LOW_STOCK = 5;
+/** How long the CTA says "¡Agregado!" after a successful add (ms). */
+const ADDED_FEEDBACK_MS = 1800;
+
+/** Stock line: in stock / last units / sold out, with a coloured dot (colour is never the only cue). */
+export function StockStatus({ stock }: { stock: number }) {
+  const tone = stock <= 0 ? "danger" : stock <= LOW_STOCK ? "warning" : "success";
+  const label =
+    stock <= 0
+      ? "Agotado"
+      : stock <= LOW_STOCK
+        ? stock === 1
+          ? "¡Última unidad disponible!"
+          : `¡Últimas ${stock} unidades!`
+        : `En stock · ${stock} unidades disponibles`;
+  return (
+    <p className="flex items-center gap-2 text-sm font-semibold" data-testid="stock-status">
+      <span
+        aria-hidden="true"
+        className={cn(
+          "size-2.5 shrink-0 rounded-full ring-4",
+          tone === "danger" ? "bg-danger ring-danger/20" : tone === "warning" ? "bg-warning ring-warning/20" : "bg-success ring-success/20"
+        )}
+      />
+      <span className={tone === "danger" ? "text-danger" : tone === "warning" ? "text-warning" : "text-success"}>{label}</span>
+    </p>
+  );
+}
+
+/**
+ * Product page buy box: stock, quantity, add to cart (the picture flies to
+ * the cart and the CTA confirms), wishlist, compare and share (Web Share API,
+ * or copy the link with a toast). The quantity never exceeds what is left
+ * after the units already in the cart.
+ */
 export function ProductPurchase({ product }: { product: Product }) {
-  const { inCart, inWishlist, inCompare, isAvailable, addToCart, toggleWishlist, toggleCompare } =
-    useProductActions(product);
-  const [quantity, setQuantity] = useState(1);
+  const { inWishlist, inCompare, isAvailable, addToCart, toggleWishlist, toggleCompare } = useProductActions(product);
+  const inCartQuantity = useCartQuantity(product.id);
+  const remaining = Math.max(0, product.stock - inCartQuantity);
+  const [requested, setRequested] = useState(1);
+  const quantity = Math.min(requested, Math.max(1, remaining));
+  const [justAdded, setJustAdded] = useState(false);
+  /** Bumped on each wishlist click so only the visitor's own toggle pops the heart. */
+  const [heartPops, setHeartPops] = useState(0);
+  const addedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(addedTimer.current), []);
 
   const handleAddToCart = () => {
-    if (addToCart(quantity)) setQuantity(1);
+    if (!addToCart(quantity)) return;
+    const picture = document.querySelector<HTMLImageElement>(`[${GALLERY_STAGE_ATTR}] [data-slide] img`);
+    flyToCart(picture, picture?.currentSrc || product.img);
+    setRequested(1);
+    setJustAdded(true);
+    clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setJustAdded(false), ADDED_FEEDBACK_MS);
   };
 
   const handleShare = async () => {
     const url = window.location.href;
-    if (navigator.share) {
+    if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title: product.name, text: `Mira este set de LEGO: ${product.name}`, url });
-      } catch {
-        // The user closed the share sheet.
+        return;
+      } catch (error) {
+        // The visitor closed the share sheet: nothing to do. Any other failure falls back to copying.
+        if (error instanceof DOMException && error.name === "AbortError") return;
       }
-      return;
     }
     try {
       await navigator.clipboard.writeText(url);
@@ -37,17 +91,50 @@ export function ProductPurchase({ product }: { product: Product }) {
     }
   };
 
+  const soldOut = !isAvailable;
+  const maxedOut = isAvailable && remaining === 0;
+  const ctaState = soldOut ? "sold-out" : justAdded ? "added" : maxedOut ? "maxed" : inCartQuantity > 0 ? "more" : "add";
+  const ctaLabel = {
+    "sold-out": "Agotado",
+    added: "¡Agregado al carrito!",
+    maxed: "Ya tienes todo el stock",
+    more: "Agregar más al carrito",
+    add: "Agregar al carrito",
+  }[ctaState];
+
   return (
     <div className="space-y-5">
-      {isAvailable && (
+      <div className="space-y-2">
+        <StockStatus stock={product.stock} />
+        <AnimatePresence initial={false}>
+          {inCartQuantity > 0 && (
+            <motion.p
+              key="in-cart"
+              variants={fadeIn}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex items-center gap-2 text-sm text-fg-secondary"
+            >
+              <PackageCheck aria-hidden="true" className="size-4 text-info" />
+              <span>
+                Tienes {inCartQuantity} en tu carrito ·{" "}
+                <Link href="/cart" className="font-semibold text-info underline-offset-4 hover:underline">
+                  Ver carrito
+                </Link>
+              </span>
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {isAvailable && remaining > 0 && (
         <div className="flex items-center gap-4">
-          <span className="text-label text-fg-secondary">
-            Cantidad
-          </span>
+          <span className="text-label text-fg-secondary">Cantidad</span>
           <QuantitySelector
             value={quantity}
-            onValueChange={setQuantity}
-            max={product.stock}
+            onValueChange={setRequested}
+            max={remaining}
             label={`Cantidad de ${product.name}`}
           />
         </div>
@@ -57,22 +144,26 @@ export function ProductPurchase({ product }: { product: Product }) {
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
           onClick={handleAddToCart}
-          disabled={!isAvailable}
+          disabled={soldOut || maxedOut}
           size="lg"
-          className="w-full sm:w-auto sm:flex-1"
+          className={cn("w-full sm:w-auto sm:flex-1", justAdded && "bg-success text-on-success hover:bg-success")}
           data-testid="add-to-cart-btn"
         >
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
-              key={inCart ? "in" : "out"}
+              key={ctaState}
               className="inline-flex items-center gap-2"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={transitions.fast}
             >
-              {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
-              {!isAvailable ? "Agotado" : inCart ? "Agregar más al carrito" : "Agregar al carrito"}
+              {ctaState === "added" || ctaState === "more" ? (
+                <Check aria-hidden="true" />
+              ) : (
+                <ShoppingCart aria-hidden="true" />
+              )}
+              {ctaLabel}
             </motion.span>
           </AnimatePresence>
         </Button>
@@ -82,21 +173,32 @@ export function ProductPurchase({ product }: { product: Product }) {
             label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
             aria-pressed={inWishlist}
             variant="secondary"
-            className={cn("h-12 w-full sm:w-12", inWishlist && "border-sale text-sale")}
-            onClick={toggleWishlist}
+            className={cn(secondaryAction, inWishlist && "border-sale text-sale")}
+            onClick={() => {
+              toggleWishlist();
+              setHeartPops((n) => n + 1);
+            }}
           >
-            <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
+            <motion.span
+              key={heartPops}
+              initial={heartPops ? { scale: 0.6 } : false}
+              animate={{ scale: 1 }}
+              transition={transitions.spring}
+              className="inline-flex"
+            >
+              <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
+            </motion.span>
           </IconButton>
           <IconButton
             label={inCompare ? "Quitar de la comparación" : "Agregar a la comparación"}
             aria-pressed={inCompare}
             variant="secondary"
-            className={cn("h-12 w-full sm:w-12", inCompare && "border-info text-info")}
+            className={cn(secondaryAction, inCompare && "border-info text-info")}
             onClick={toggleCompare}
           >
             <Scale aria-hidden="true" />
           </IconButton>
-          <IconButton label="Compartir" variant="secondary" className="h-12 w-full sm:w-12" onClick={handleShare}>
+          <IconButton label="Compartir" variant="secondary" className={secondaryAction} onClick={handleShare}>
             <Share2 aria-hidden="true" />
           </IconButton>
         </div>
@@ -104,3 +206,6 @@ export function ProductPurchase({ product }: { product: Product }) {
     </div>
   );
 }
+
+/** Same height and radius as the CTA, so the row reads as one unit (full-width cells on mobile). */
+const secondaryAction = "h-12 w-full rounded-lg sm:w-12";

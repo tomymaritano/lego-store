@@ -1,4 +1,4 @@
-export { useCartStore, useCartItems, useCartCount, useCartSubtotal, useIsInCart } from "./cartStore";
+export { useCartStore, useCartItems, useCartCount, useCartSubtotal, useIsInCart, useCartQuantity } from "./cartStore";
 export { useWishlistStore, useWishlistItems, useWishlistCount, useIsInWishlist } from "./wishlistStore";
 export {
   useCompareStore,
