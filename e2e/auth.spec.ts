@@ -131,9 +131,17 @@ test.describe("Accounts", () => {
 
   test("admin pages: 403 for a customer, open for an admin", async ({ page }) => {
     await signUpFresh(page);
+    const consoleErrors: string[] = [];
+    page.on("console", (message) => {
+      // The 403 status itself is logged as a failed resource; anything else is a real problem.
+      if (message.type() === "error" && !message.text().startsWith("Failed to load resource")) consoleErrors.push(message.text());
+    });
     const response = await page.goto("/admin");
     expect(response?.status()).toBe(403);
     await expect(page.getByRole("heading", { level: 1, name: "No tienes permiso para ver esta página" })).toBeVisible();
+    // The 403 is rendered from Next's error shell (the whole tree renders on the client): no React warnings.
+    await expect(page.getByTestId("account-menu")).toBeEnabled();
+    expect(consoleErrors).toEqual([]);
     // A customer's menu has no admin link.
     await page.getByTestId("account-menu").click();
     await expect(page.getByRole("link", { name: "Administración" })).toHaveCount(0);

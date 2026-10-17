@@ -3,7 +3,7 @@
 import "./globals.css";
 import { useEffect } from "react";
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
-import { THEME_SCRIPT } from "@/lib/theme";
+import { ThemeScript } from "@/components/layout/ThemeScript";
 import { Button, EmptyState } from "@/components/ui";
 
 /**
@@ -20,7 +20,7 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
     <html lang="es-AR" suppressHydrationWarning>
       <head>
         <title>Algo salió mal | LEGO Store</title>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <ThemeScript />
       </head>
       <body className="flex min-h-screen items-center justify-center bg-bg px-4 text-fg antialiased">
         <main>

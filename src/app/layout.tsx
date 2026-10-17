@@ -7,7 +7,7 @@ import { ClientProviders, Footer, Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui";
 import { getCategories } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth/session";
-import { THEME_SCRIPT } from "@/lib/theme";
+import { ThemeScript } from "@/components/layout/ThemeScript";
 import { siteConfig } from "@/config/site";
 
 // Self-hosted by next/font: no render-blocking request to Google, preloaded
@@ -78,7 +78,7 @@ export default async function RootLayout({
     <html lang="es-AR" className={`${barlow.variable} motion-safe:scroll-smooth`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Applies the saved theme before first paint (no light/dark flash). See lib/theme.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <ThemeScript />
       </head>
       <body className="flex min-h-screen flex-col bg-bg text-fg antialiased">
         <a
