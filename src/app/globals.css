@@ -306,10 +306,6 @@
   --color-amber-400: #fbbf24;
   --color-green-50: #f0fdf4;
   --color-green-600: #16a34a;
-  --color-blue-600: #2563eb;
-  --color-yellow-400: #facc15;
-  --color-pink-600: #db2777;
-  --color-sky-500: #0ea5e9;
 }
 
 /* Motion duration utilities backed by the tokens above. */

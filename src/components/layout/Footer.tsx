@@ -1,32 +1,24 @@
-"use client";
-
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "motion/react";
-import { staggerContainer, staggerItem } from "@/lib/motion";
-import {
-  Mail,
-  Phone,
-  MapPin,
-  CreditCard,
-  Truck,
-  Shield,
-  Heart,
-} from "lucide-react";
-import { FacebookIcon, TwitterIcon, InstagramIcon, YoutubeIcon } from "@/components/icons/SocialIcons";
+import { CreditCard, Heart, Mail, MapPin, Phone, Shield, Truck } from "lucide-react";
+import { formatPrice } from "@/lib/utils";
+import { siteConfig } from "@/config/site";
+import { Stagger, StaggerItem } from "@/components/motion/Reveal";
+import { NewsletterForm } from "@/components/home/NewsletterForm";
+import { FacebookIcon, InstagramIcon, TwitterIcon, YoutubeIcon } from "@/components/icons/SocialIcons";
 
-const footerLinks = {
-  shop: {
+const footerLinks = [
+  {
     title: "Comprar",
     links: [
-      { name: "Todos los Sets", href: "/" },
+      { name: "Todos los sets", href: "/" },
       { name: "Helmets", href: "/category/helmet" },
       { name: "Brickheadz", href: "/category/brickheadz" },
       { name: "Vehículos", href: "/category/cars" },
       { name: "Ofertas", href: "/?sale=true" },
     ],
   },
-  themes: {
+  {
     title: "Temas",
     links: [
       { name: "Star Wars", href: "/?theme=Star+Wars" },
@@ -35,16 +27,16 @@ const footerLinks = {
       { name: "Harry Potter", href: "/?theme=Harry+Potter" },
     ],
   },
-  help: {
+  {
     title: "Ayuda",
     links: [
-      { name: "Preguntas Frecuentes", href: "/faq" },
-      { name: "Envíos y Entregas", href: "/shipping" },
+      { name: "Preguntas frecuentes", href: "/faq" },
+      { name: "Envíos y entregas", href: "/shipping" },
       { name: "Devoluciones", href: "/returns" },
       { name: "Contacto", href: "/contact" },
     ],
   },
-  about: {
+  {
     title: "Nosotros",
     links: [
       { name: "Sobre LEGO Store", href: "/about" },
@@ -53,129 +45,109 @@ const footerLinks = {
       { name: "Prensa", href: "/press" },
     ],
   },
-};
+];
 
 const socialLinks = [
-  { name: "Facebook", icon: FacebookIcon, href: "#", color: "hover:bg-blue-600" },
-  { name: "Twitter", icon: TwitterIcon, href: "#", color: "hover:bg-sky-500" },
-  { name: "Instagram", icon: InstagramIcon, href: "#", color: "hover:bg-pink-600" },
-  { name: "YouTube", icon: YoutubeIcon, href: "#", color: "hover:bg-red-600" },
+  { name: "Facebook", icon: FacebookIcon, href: "#" },
+  { name: "Twitter", icon: TwitterIcon, href: "#" },
+  { name: "Instagram", icon: InstagramIcon, href: "#" },
+  { name: "YouTube", icon: YoutubeIcon, href: "#" },
 ];
 
-const paymentMethods = [
-  "Visa",
-  "Mastercard",
-  "Amex",
-  "PayPal",
+const legalLinks = [
+  { name: "Privacidad", href: "/privacy" },
+  { name: "Términos", href: "/terms" },
+  { name: "Cookies", href: "/cookies" },
+  { name: "Accesibilidad", href: "/accessibility" },
 ];
+
+const paymentMethods = ["Visa", "Mastercard", "Amex", "PayPal"];
 
 const features = [
-  { icon: Truck, text: "Envío gratis +$5,000" },
+  { icon: Truck, text: `Envío gratis desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}` },
   { icon: Shield, text: "Compra segura" },
   { icon: CreditCard, text: "MSI disponibles" },
 ];
 
+const linkClasses =
+  "rounded-sm text-fg-secondary transition-colors duration-fast ease-standard hover:text-fg focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none";
+
+/** Site footer. Server Component; only the stagger wrapper and the newsletter form hydrate. */
 export function Footer() {
   return (
-    <footer className="bg-linear-to-b/srgb from-lego-black to-gray-900 text-white mt-auto">
-      {/* Features Banner */}
-      <div className="border-b border-gray-800">
+    <footer className="mt-auto border-t border-border bg-bg-subtle text-fg">
+      {/* Features */}
+      <div className="border-b border-border">
         <div className="container-custom py-6">
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-3 gap-4"
-            variants={staggerContainer(0.06)}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-          >
+          <Stagger as="ul" inView className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {features.map((feature) => (
-              <motion.div
-                key={feature.text}
-                variants={staggerItem}
-                className="flex items-center justify-center gap-3 py-2"
-              >
-                <div className="w-10 h-10 rounded-full bg-lego-yellow/10 flex items-center justify-center">
-                  <feature.icon className="w-5 h-5 text-lego-yellow" />
-                </div>
-                <span className="text-sm font-medium text-gray-300">{feature.text}</span>
-              </motion.div>
+              <StaggerItem as="li" key={feature.text} className="flex items-center justify-center gap-3 py-2">
+                <span
+                  aria-hidden="true"
+                  className="flex size-10 items-center justify-center rounded-full bg-primary text-on-primary"
+                >
+                  <feature.icon className="size-5" />
+                </span>
+                <span className="text-sm font-medium text-fg-secondary">{feature.text}</span>
+              </StaggerItem>
             ))}
-          </motion.div>
+          </Stagger>
         </div>
       </div>
 
-      {/* Main Footer Content */}
       <div className="container-custom py-12 lg:py-16">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 lg:gap-12">
-          {/* Brand Column */}
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-6 lg:gap-12">
+          {/* Brand */}
           <div className="col-span-2 md:col-span-3 lg:col-span-2">
-            {/* Logo */}
-            <Link href="/" className="inline-block mb-6">
-              <Image
-                src="/images/lego.png"
-                alt="LEGO Store"
-                width={120}
-                height={60}
-                className="h-12 w-auto"
-              />
+            <Link href="/" className="mb-6 inline-block rounded-sm focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none">
+              <Image src="/images/lego.png" alt="LEGO Store, inicio" width={120} height={60} className="h-12 w-auto" />
             </Link>
 
-            <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-sm">
-              Tu tienda favorita de LEGO. Construye mundos increíbles pieza a pieza.
-              Productos originales con garantía oficial.
+            <p className="mb-6 max-w-sm text-sm leading-relaxed text-fg-secondary">
+              Tu tienda favorita de LEGO. Construye mundos increíbles pieza a pieza. Productos originales con garantía
+              oficial.
             </p>
 
-            {/* Contact Info */}
-            <div className="space-y-3 mb-6">
-              <a
-                href="mailto:hola@legostore.com"
-                className="flex items-center gap-3 text-sm text-gray-400 hover:text-lego-yellow transition-colors"
-              >
-                <Mail className="w-4 h-4" />
+            <address className="mb-6 space-y-3 text-sm not-italic">
+              <a href="mailto:hola@legostore.com" className={`flex w-fit items-center gap-3 ${linkClasses}`}>
+                <Mail aria-hidden="true" className="size-4" />
                 hola@legostore.com
               </a>
-              <a
-                href="tel:+525512345678"
-                className="flex items-center gap-3 text-sm text-gray-400 hover:text-lego-yellow transition-colors"
-              >
-                <Phone className="w-4 h-4" />
+              <a href="tel:+525512345678" className={`flex w-fit items-center gap-3 ${linkClasses}`}>
+                <Phone aria-hidden="true" className="size-4" />
                 +52 55 1234 5678
               </a>
-              <div className="flex items-center gap-3 text-sm text-gray-400">
-                <MapPin className="w-4 h-4" />
+              <p className="flex items-center gap-3 text-fg-secondary">
+                <MapPin aria-hidden="true" className="size-4" />
                 Ciudad de México, México
-              </div>
-            </div>
+              </p>
+            </address>
 
-            {/* Social Links */}
-            <div className="flex gap-2">
+            <ul className="flex gap-2" aria-label="Redes sociales">
               {socialLinks.map((social) => (
-                <a
-                  key={social.name}
-                  href={social.href}
-                  className={`w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center transition-all duration-base ease-standard hover:scale-110 ${social.color}`}
-                  aria-label={social.name}
-                >
-                  <social.icon className="w-5 h-5" />
-                </a>
+                <li key={social.name}>
+                  <a
+                    href={social.href}
+                    aria-label={social.name}
+                    className="flex size-10 items-center justify-center rounded-xl border border-border bg-surface text-fg-secondary transition-[color,background-color,scale] duration-base ease-standard hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none motion-safe:hover:scale-110"
+                  >
+                    <social.icon className="size-5" />
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
-          {/* Links Columns */}
-          {Object.values(footerLinks).map((section) => (
+          {/* Link columns */}
+          {footerLinks.map((section) => (
             <div key={section.title}>
-              <h4 className="font-bold text-white mb-4 text-sm uppercase tracking-wider">
+              <h2 id={`footer-${section.title}`} className="mb-4 text-sm font-bold tracking-wider text-fg uppercase">
                 {section.title}
-              </h4>
-              <ul className="space-y-3">
+              </h2>
+              <ul className="space-y-3 text-sm">
                 {section.links.map((link) => (
                   <li key={link.name}>
-                    <Link
-                      href={link.href}
-                      prefetch={false}
-                      className="text-gray-400 hover:text-lego-yellow transition-[color,translate] duration-base ease-standard text-sm inline-block hover:translate-x-1"
-                    >
+                    <Link href={link.href} prefetch={false} className={`inline-block ${linkClasses}`}>
                       {link.name}
                     </Link>
                   </li>
@@ -186,74 +158,55 @@ export function Footer() {
         </div>
 
         {/* Newsletter */}
-        <div className="mt-12 pt-8 border-t border-gray-800">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div className="mt-12 border-t border-border pt-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h4 className="font-bold text-white text-lg mb-1">Suscríbete al Newsletter</h4>
-              <p className="text-gray-400 text-sm">
-                Recibe ofertas exclusivas y novedades directamente en tu correo.
-              </p>
+              <h2 className="mb-1 text-lg font-bold text-fg">Suscríbete al newsletter</h2>
+              <p className="text-sm text-fg-secondary">Recibe ofertas exclusivas y novedades directamente en tu correo.</p>
             </div>
-            <form className="flex gap-2 w-full lg:w-auto">
-              <input
-                type="email"
-                placeholder="tu@email.com"
-                className="min-w-0 flex-1 lg:w-64 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder:text-gray-500 focus:outline-hidden focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
-              />
-              <button
-                type="submit"
-                className="px-6 py-3 bg-lego-yellow text-lego-black font-bold rounded-xl hover:bg-yellow-400 transition-colors whitespace-nowrap"
-              >
-                Suscribirse
-              </button>
-            </form>
+            <NewsletterForm />
           </div>
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t border-gray-800 bg-gray-900/50">
-        <div className="container-custom py-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            {/* Copyright */}
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>© {new Date().getFullYear()} LEGO Store.</span>
-              <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">Hecho con</span>
-              <Heart className="hidden sm:inline w-4 h-4 text-lego-red fill-lego-red" />
-              <span className="hidden sm:inline">para portafolio</span>
-            </div>
+      {/* Bottom bar */}
+      <div className="border-t border-border bg-bg-muted">
+        <div className="container-custom flex flex-col items-center justify-between gap-4 py-6 md:flex-row">
+          <p className="flex items-center gap-2 text-sm text-fg-secondary">
+            <span>© {new Date().getFullYear()} LEGO Store.</span>
+            <span aria-hidden="true" className="hidden sm:inline">
+              •
+            </span>
+            <span className="hidden items-center gap-1.5 sm:inline-flex">
+              Hecho con
+              <Heart aria-hidden="true" className="size-4 fill-sale text-sale" />
+              <span className="sr-only">amor</span>
+              para portafolio
+            </span>
+          </p>
 
-            {/* Legal Links */}
-            <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-500">
-              <Link href="/privacy" prefetch={false} className="hover:text-white transition-colors">
-                Privacidad
-              </Link>
-              <Link href="/terms" prefetch={false} className="hover:text-white transition-colors">
-                Términos
-              </Link>
-              <Link href="/cookies" prefetch={false} className="hover:text-white transition-colors">
-                Cookies
-              </Link>
-              <Link href="/accessibility" prefetch={false} className="hover:text-white transition-colors">
-                Accesibilidad
-              </Link>
-            </div>
+          <ul className="flex flex-wrap justify-center gap-4 text-sm" aria-label="Legal">
+            {legalLinks.map((link) => (
+              <li key={link.name}>
+                <Link href={link.href} prefetch={false} className={linkClasses}>
+                  {link.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
 
-            {/* Payment Methods */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-600">Métodos de pago:</span>
-              <div className="flex gap-2">
-                {paymentMethods.map((method) => (
-                  <div
-                    key={method}
-                    className="px-2 py-1 bg-gray-800 rounded-sm text-xs text-gray-400 font-medium"
-                  >
-                    {method}
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="flex items-center gap-3">
+            <span className="text-caption text-fg-secondary">Métodos de pago:</span>
+            <ul className="flex gap-2">
+              {paymentMethods.map((method) => (
+                <li
+                  key={method}
+                  className="rounded-sm border border-border bg-surface px-2 py-1 text-caption font-medium text-fg-secondary"
+                >
+                  {method}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
