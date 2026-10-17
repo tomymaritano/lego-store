@@ -189,8 +189,10 @@ npm run dev
 - **Tests de integración**: `npx vitest run` incluye el proyecto `integration`, que
   usa `DATABASE_URL_TEST` (su nombre tiene que contener "test"): aplica las
   migraciones pendientes al empezar y cada archivo vacía y vuelve a sembrar las
-  tablas que usa. Los archivos corren uno tras otro. Sin la base levantada, la
-  corrida falla con un mensaje que lo explica.
+  tablas que usa. Los archivos corren uno tras otro, y cada corrida toma un lock
+  de la base de test: una segunda corrida a la vez (por ejemplo con `npm test` en
+  modo watch abierto) falla enseguida diciendo que la base está ocupada. Sin la
+  base levantada, la corrida falla con un mensaje que lo explica.
 - **El build necesita la base**: `next build` prerenderiza inicio, categorías y
   fichas leyendo Postgres. En CI hay un servicio Postgres que se migra y siembra
   antes del build, los tests y los E2E.
