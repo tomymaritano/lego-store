@@ -47,7 +47,7 @@ export default function ShippingPage() {
         <h2>Plazos por zona</h2>
         <p>Los plazos cuentan desde que el pedido se despacha y no incluyen fines de semana ni feriados.</p>
       </Prose>
-      <div className="mt-4 mb-10 max-w-3xl overflow-hidden rounded-2xl border border-border">
+      <div className="mt-4 mb-10 overflow-hidden rounded-2xl border border-border">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Plazos de entrega por zona</caption>
           <thead className="bg-bg-muted text-fg">
