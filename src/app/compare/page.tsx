@@ -9,7 +9,6 @@ import { MAX_COMPARE_ITEMS, useCompareIds, useCompareStore, useStoreHydrated } f
 import { useProductActions } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, EmptyState, IconButton, Price, Rating, Skeleton } from "@/components/ui";
-import { PageTransition } from "@/components/layout";
 import { AddToCartButton, ProductImage } from "@/components/product";
 import { CategoryName } from "@/providers/CategoriesProvider";
 import type { Product } from "@/types";
@@ -83,7 +82,7 @@ export default function ComparePage() {
 
   if (products.length === 0) {
     return (
-      <PageTransition>
+      <>
         <div className="container-custom py-16">
           <h1 className="sr-only">Comparar productos</h1>
           <EmptyState
@@ -98,7 +97,7 @@ export default function ComparePage() {
             }
           />
         </div>
-      </PageTransition>
+      </>
     );
   }
 
@@ -107,7 +106,7 @@ export default function ComparePage() {
     Array.from({ length: emptySlots }, (_, i) => <td key={`${key}-${i}`} className="p-4" />);
 
   return (
-    <PageTransition>
+    <>
       <div className="container-custom py-8">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -194,6 +193,6 @@ export default function ComparePage() {
           </table>
         </div>
       </div>
-    </PageTransition>
+    </>
   );
 }

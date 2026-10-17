@@ -9,7 +9,7 @@ export interface EmptyStateProps extends Omit<React.ComponentProps<"div">, "titl
   /** Primary action, usually a <Button>. */
   action?: React.ReactNode;
   /** Heading level for the title, to fit the page outline. */
-  headingLevel?: "h2" | "h3";
+  headingLevel?: "h1" | "h2" | "h3";
 }
 
 export function EmptyState({ icon, title, description, action, headingLevel = "h2", className, ...props }: EmptyStateProps) {

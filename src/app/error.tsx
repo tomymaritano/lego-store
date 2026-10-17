@@ -2,64 +2,53 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertTriangle, RefreshCw, Home } from "lucide-react";
-import { Button } from "@/components/ui";
+import { AlertTriangle, Home, RefreshCw } from "lucide-react";
+import { Button, EmptyState } from "@/components/ui";
 
 interface ErrorProps {
-  error: Error & { digest?: string };
-  reset: () => void;
+  error: unknown;
+  /** Re-fetches and re-renders the segment (Next 16.4+). */
+  retry: () => void;
 }
 
-export default function Error({ error, reset }: ErrorProps) {
-  useEffect(() => {
-    // Log the error to an error reporting service
-    console.error("Application error:", error);
+/** Route-level error boundary: the shell (Navbar, Footer) stays usable. */
+export default function Error({ error, retry }: ErrorProps) {
+  const details = error instanceof globalThis.Error ? (error as Error & { digest?: string }) : null;
 
-    // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
-    // captureException(error);
+  useEffect(() => {
+    // Hook for an error-reporting service (Sentry, etc.) once there is one.
+    console.error("Application error:", error);
   }, [error]);
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4">
-      <div className="max-w-md text-center">
-        {/* Error icon */}
-        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <AlertTriangle className="w-10 h-10 text-red-600 dark:text-red-400" />
-        </div>
+    <div className="container-custom flex min-h-[60vh] flex-col items-center justify-center py-16">
+      <EmptyState
+        headingLevel="h1"
+        icon={<AlertTriangle />}
+        title="Algo salió mal"
+        description="Tuvimos un problema al cargar esta página. Puedes intentarlo de nuevo o volver al inicio; tu carrito sigue a salvo."
+        action={
+          <>
+            <Button size="lg" onClick={() => retry()}>
+              <RefreshCw aria-hidden="true" />
+              Intentar de nuevo
+            </Button>
+            <Button size="lg" variant="outline" render={<Link href="/" />}>
+              <Home aria-hidden="true" />
+              Ir al inicio
+            </Button>
+          </>
+        }
+      />
 
-        <h1 className="text-2xl font-bold text-foreground-primary mb-3">
-          Algo salió mal
-        </h1>
-        <p className="text-foreground-muted mb-6">
-          Ha ocurrido un error inesperado. Nuestro equipo ha sido notificado y
-          estamos trabajando para solucionarlo.
-        </p>
-
-        {/* Error details in development */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mb-6 p-4 bg-background-secondary rounded-lg text-left">
-            <p className="text-xs font-mono text-red-600 dark:text-red-400 break-all">
-              {error.message}
-            </p>
-            {error.digest && (
-              <p className="text-xs text-foreground-muted mt-2">
-                Error ID: {error.digest}
-              </p>
-            )}
-          </div>
-        )}
-
-        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Button onClick={reset} size="lg">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Intentar de nuevo
-          </Button>
-          <Button variant="outline" size="lg" render={<Link href="/" />}>
-            <Home className="w-4 h-4 mr-2" />
-            Ir al inicio
-          </Button>
-        </div>
-      </div>
+      {process.env.NODE_ENV === "development" && details ? (
+        <pre className="mt-4 max-w-xl overflow-x-auto rounded-xl border border-border bg-bg-subtle p-4 text-left text-caption whitespace-pre-wrap text-danger">
+          {details.message}
+          {details.digest ? `\nID: ${details.digest}` : null}
+        </pre>
+      ) : details?.digest ? (
+        <p className="mt-2 text-caption text-fg-muted">Código de error: {details.digest}</p>
+      ) : null}
     </div>
   );
 }
