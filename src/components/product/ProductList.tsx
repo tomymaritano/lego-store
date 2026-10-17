@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { transitions } from "@/lib/motion";
 import { Package, Loader2 } from "lucide-react";
 import type { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
@@ -81,7 +82,7 @@ export function ProductList({
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ delay: Math.min(index * 0.03, 0.3) }}
+              transition={{ ...transitions.base, delay: Math.min(index * 0.03, 0.3) }}
             >
               <ProductCard
                 product={product}

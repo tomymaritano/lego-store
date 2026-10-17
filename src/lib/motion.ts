@@ -11,6 +11,10 @@ import type { Transition, Variants } from "motion/react";
  *
  * Reduced motion is handled once by <MotionConfig reducedMotion="user"> in
  * ClientProviders: transform animations are skipped, opacity still fades.
+ *
+ * Only export what has a consumer. ESLint flags numeric `duration:` literals
+ * in motion props, so new call sites reach for these presets. Panels
+ * (Sheet, Dialog) animate with CSS data-starting/ending-style instead.
  */
 
 /** Seconds, matching --duration-* in globals.css. */
@@ -66,20 +70,6 @@ export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
 /** Child of `staggerContainer`. */
 export const staggerItem: Variants = fadeInUp;
 
-export type SlideSide = "left" | "right" | "top" | "bottom";
-
-/** Panels entering from an edge (sheets, drawers, toasts). */
-export function slideIn(side: SlideSide): Variants {
-  const offset = side === "left" || side === "top" ? "-100%" : "100%";
-  const horizontal = side === "left" || side === "right";
-  const at = (value: string | number) => (horizontal ? { x: value } : { y: value });
-  return {
-    hidden: at(offset),
-    visible: { ...at(0), transition: transitions.slow },
-    exit: { ...at(offset), transition: { duration: duration.base, ease: ease.exit } },
-  };
-}
-
 /**
  * Hover lift + press for interactive cards. Spread on a motion element:
  * <motion.article {...pressable}>.
@@ -87,12 +77,6 @@ export function slideIn(side: SlideSide): Variants {
 export const pressable = {
   whileHover: { y: -4 },
   whileTap: { scale: 0.98 },
-  transition: transitions.fast,
-} as const;
-
-/** Press feedback only, for buttons rendered as motion elements. */
-export const pressableButton = {
-  whileTap: { scale: 0.96 },
   transition: transitions.fast,
 } as const;
 

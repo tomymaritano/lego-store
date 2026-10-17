@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { fadeIn, transitions } from "@/lib/motion";
 import { SlidersHorizontal, X, ChevronDown, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -102,9 +103,10 @@ export function ProductFilters({
         {isOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              variants={fadeIn}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               onClick={() => setIsOpen(false)}
               className="fixed inset-0 bg-black/50 z-40 lg:hidden"
             />
@@ -112,7 +114,7 @@ export function ProductFilters({
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25 }}
+              transition={transitions.spring}
               className="fixed inset-y-0 left-0 w-80 bg-white z-50 shadow-xl lg:hidden overflow-auto"
             >
               <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white">

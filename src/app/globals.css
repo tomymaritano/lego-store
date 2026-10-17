@@ -283,7 +283,8 @@
   --text-title: 1.25rem;
   --text-title--line-height: 1.75rem;
   --text-title--font-weight: 700;
-  --text-display: 3rem;
+  /* Fluid: 36px on phones to 60px on wide screens (hero / display headings). */
+  --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.75rem);
   --text-display--line-height: 1.05;
   --text-display--font-weight: 800;
 

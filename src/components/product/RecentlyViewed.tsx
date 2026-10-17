@@ -4,6 +4,7 @@ import { useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "motion/react";
+import { transitions } from "@/lib/motion";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { useRecentlyViewedStore } from "@/stores/recentlyViewedStore";
 import { useHydration } from "@/hooks/useHydration";
@@ -69,7 +70,8 @@ export function RecentlyViewed() {
               key={product.id}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05 }}
+              // Capped so long histories still finish within the motion budget.
+              transition={{ ...transitions.base, delay: Math.min(index * 0.04, 0.2) }}
               className="shrink-0 w-48"
             >
               <Link href={`/item/${product.id}`}>

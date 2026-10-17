@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
+import { fadeInUp, scaleIn, staggerContainer, staggerItem } from "@/lib/motion";
 import { ArrowRight, Truck, Shield, RotateCcw, Star } from "lucide-react";
 import { products } from "@/data/products";
 import { ProductList } from "@/components/product";
@@ -51,17 +52,18 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMwMDAiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iNCIvPjwvZz48L2c+PC9zdmc+')] opacity-30" />
 
         <div className="container-custom relative z-10">
-          <div className="grid lg:grid-cols-2 gap-8 items-center min-h-[500px] py-12 lg:py-20">
+          <motion.div
+            className="grid lg:grid-cols-2 gap-8 items-center min-h-[500px] py-12 lg:py-20"
+            variants={staggerContainer(0.08)}
+            initial="hidden"
+            animate="visible"
+          >
             {/* Text Content */}
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-            >
+            <motion.div variants={fadeInUp}>
               <span className="inline-block bg-lego-red text-white text-sm font-bold px-4 py-1 rounded-full mb-4">
                 NUEVA COLECCIÓN 2024
               </span>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-lego-black leading-tight md:leading-none">
+              <h1 className="text-display text-lego-black">
                 Construye tu
                 <span className="block text-lego-red">universo LEGO</span>
               </h1>
@@ -81,12 +83,7 @@ export default function HomePage() {
             </motion.div>
 
             {/* Hero Image */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative hidden lg:block"
-            >
+            <motion.div variants={scaleIn} className="relative hidden lg:block">
               <div className="relative w-full aspect-square max-w-lg mx-auto">
                 <div className="absolute inset-0 bg-white/20 rounded-full blur-3xl" />
                 <Image
@@ -98,7 +95,7 @@ export default function HomePage() {
                 />
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Wave Divider */}
@@ -115,15 +112,14 @@ export default function HomePage() {
       {/* Features Bar */}
       <section className="bg-background-primary py-8 border-b border-border">
         <div className="container-custom">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="flex items-center gap-3"
-              >
+          <motion.div
+            className="grid grid-cols-2 md:grid-cols-4 gap-6"
+            variants={staggerContainer(0.06, 0.1)}
+            initial="hidden"
+            animate="visible"
+          >
+            {features.map((feature) => (
+              <motion.div key={feature.title} variants={staggerItem} className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-lego-yellow/20 rounded-xl flex items-center justify-center shrink-0">
                   <feature.icon className="w-6 h-6 text-foreground-primary" />
                 </div>
@@ -133,7 +129,7 @@ export default function HomePage() {
                 </div>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -145,15 +141,15 @@ export default function HomePage() {
             <p className="text-foreground-secondary mt-2">Encuentra tu colección perfecta</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {categories.map((cat, index) => (
-              <motion.div
-                key={cat.name}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
+          <motion.div
+            className="grid md:grid-cols-3 gap-6"
+            variants={staggerContainer(0.06)}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+          >
+            {categories.map((cat) => (
+              <motion.div key={cat.name} variants={staggerItem}>
                 <Link href={cat.href}>
                   <div className="group relative bg-surface rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-border">
                     <div className={`absolute inset-0 bg-linear-to-br/srgb ${cat.color} opacity-0 group-hover:opacity-10 transition-opacity`} />
@@ -181,7 +177,7 @@ export default function HomePage() {
                 </Link>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -203,15 +199,15 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              {featuredProducts.map((product, index) => (
-                <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                >
+            <motion.div
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6"
+              variants={staggerContainer(0.05)}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-80px" }}
+            >
+              {featuredProducts.map((product) => (
+                <motion.div key={product.id} variants={scaleIn}>
                   <Link href={`/item/${product.id}`}>
                     <div className="group bg-surface rounded-xl overflow-hidden border border-border shadow-sm hover:shadow-lg transition-shadow">
                       <div className="relative aspect-square bg-background-secondary">
@@ -246,7 +242,7 @@ export default function HomePage() {
                   </Link>
                 </motion.div>
               ))}
-            </div>
+            </motion.div>
           </div>
         </section>
       )}

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Clock, TrendingUp, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { transitions } from "@/lib/motion";
 import { products } from "@/data/products";
 import { formatPrice, cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -184,7 +185,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
+            transition={transitions.fast}
             className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden z-50"
           >
             {/* Product Suggestions */}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
+import { fadeInUp, pressable, transitions } from "@/lib/motion";
 import { Heart, ShoppingCart, Star, Eye, Scale } from "lucide-react";
 import type { Product } from "@/types";
 import { useCartStore, useWishlistStore, useCompareStore } from "@/stores";
@@ -83,10 +84,10 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -8 }}
-      transition={{ duration: 0.3 }}
+      variants={fadeInUp}
+      initial="hidden"
+      animate="visible"
+      {...pressable}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="h-full"
@@ -177,7 +178,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             <motion.div
               initial={false}
               animate={{ y: isHovered ? 0 : 100, opacity: isHovered ? 1 : 0 }}
-              transition={{ duration: 0.3 }}
+              transition={transitions.base}
               className="absolute bottom-0 left-0 right-0 p-3"
             >
               <Button

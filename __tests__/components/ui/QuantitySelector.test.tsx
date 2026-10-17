@@ -31,7 +31,7 @@ describe("QuantitySelector", () => {
     const increment = screen.getByRole("button", { name: "Aumentar cantidad" });
 
     await user.click(increment);
-    expect(screen.getByRole("status")).toHaveTextContent(/^3$/);
+    expect(screen.getByRole("status").textContent).toBe("3");
     expect(increment).toHaveAttribute("aria-disabled", "true");
   });
 
@@ -59,7 +59,7 @@ describe("QuantitySelector", () => {
     expect(increment).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(onValueChange).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status")).toHaveTextContent(/^5$/);
+    expect(screen.getByRole("status").textContent).toBe("5");
   });
 
   it("never emits values outside the bounds", async () => {
