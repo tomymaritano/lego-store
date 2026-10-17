@@ -2,7 +2,8 @@
  * Where to send someone after login/registration: the `callbackUrl` query
  * parameter, but only when it is a path on this site. Anything else (another
  * origin, a protocol-relative "//evil.com", "/\evil.com" that browsers read as
- * a host, javascript: URLs, control characters) falls back to the home page,
+ * a host, "/.//evil.com" that parses into one, javascript: URLs, control
+ * characters) falls back to the home page,
  * so a crafted login link can never bounce a user to another site.
  *
  * Pure and dependency-free: used by the login/register pages, their Server
@@ -33,7 +34,11 @@ export function safeCallbackUrl(raw: unknown, fallback = "/"): string {
   if (url.origin !== BASE) return fallback;
   if (AUTH_PAGES.some((page) => url.pathname === page || url.pathname.startsWith(`${page}/`))) return fallback;
   if (url.pathname.startsWith("/api/")) return fallback;
-  return `${url.pathname}${url.search}${url.hash}`;
+  // Parsing resolves dot segments, so "/.//evil.com" or "/a/..//evil.com" come out as
+  // "//evil.com": check what is actually returned, not only the raw input.
+  const out = `${url.pathname}${url.search}${url.hash}`;
+  if (out.startsWith("//") || out.includes("\\") || new URL(out, BASE).origin !== BASE) return fallback;
+  return out;
 }
 
 /** "/login?callbackUrl=…" for `path` (the home page needs no callback). */
