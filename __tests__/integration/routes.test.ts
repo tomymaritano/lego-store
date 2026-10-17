@@ -1,6 +1,7 @@
 import { beforeAll, describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as getProducts } from "@/app/api/products/route";
+import { GET as getFacets } from "@/app/api/products/facets/route";
 import { GET as getByIds } from "@/app/api/products/by-ids/route";
 import { GET as getSearch } from "@/app/api/search/route";
 import { proxy } from "@/proxy";
@@ -40,6 +41,47 @@ describe("Route Handlers", () => {
 
     const empty = await (await getSearch(request("/api/search?q="))).json();
     expect(empty).toEqual({ items: [], total: 0 });
+  });
+});
+
+describe("Route Handlers with hostile input (no 500s)", () => {
+  it.each([
+    "/api/products?maxPrice=1e12",
+    "/api/products?minPrice=99999999999&sort=price-asc",
+    "/api/products?minPrice=3000000000&minRating=99",
+    "/api/products?category=%00",
+    "/api/products?q=%00&theme=%00",
+  ])("GET %s answers 200", async (path) => {
+    const res = await getProducts(request(path));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ page: 1 });
+  });
+
+  it("an out-of-range minimum price returns an empty page, a huge maximum the whole catalogue", async () => {
+    expect(await (await getProducts(request("/api/products?minPrice=99999999999"))).json()).toMatchObject({ total: 0 });
+    const all = await (await getProducts(request("/api/products"))).json();
+    expect(await (await getProducts(request("/api/products?maxPrice=1e12"))).json()).toMatchObject({ total: all.total });
+  });
+
+  it.each(["/api/products/facets?minPrice=3000000000", "/api/products/facets?maxPrice=1e12&category=%00", "/api/products/facets?q=%00"])(
+    "GET %s answers 200",
+    async (path) => {
+      const res = await getFacets(request(path));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toHaveProperty("flags");
+    }
+  );
+
+  it("a very long search costs no more than its first terms", async () => {
+    const q = Array.from({ length: 2500 }, (_, i) => `t${i}`).join(" ");
+    const res = await getFacets(request(`/api/products/facets?q=${encodeURIComponent(q)}`));
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /api/search with a NUL byte returns no results", async () => {
+    const res = await getSearch(request("/api/search?q=%00"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ items: [], total: 0 });
   });
 });
 

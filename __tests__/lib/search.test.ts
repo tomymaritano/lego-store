@@ -6,6 +6,9 @@ describe("search text", () => {
     expect(normalizeText("  Vehículos   ÁRBOL ")).toBe("vehiculos arbol");
     expect(tokenize("Star  WARS star")).toEqual(["star", "wars"]);
     expect(tokenize("   ")).toEqual([]);
+    expect(tokenize("\u0000")).toEqual([]);
+    expect(tokenize("star\u0000wars")).toEqual(["star", "wars"]);
+    expect(tokenize(Array.from({ length: 40 }, (_, i) => `t${i}`).join(" "))).toHaveLength(8);
   });
 
   it("builds the stored search columns from name, theme, category and description", () => {

@@ -13,9 +13,12 @@
  * Pure functions: lib/api, the seed and the admin writes all use them.
  */
 
-/** Lowercase, strip diacritics, collapse whitespace. */
+import { MAX_SEARCH_TERMS } from "@/lib/productQuery";
+
+/** Lowercase, strip diacritics, control characters to spaces (Postgres rejects NUL), collapse whitespace. */
 export function normalizeText(text: string): string {
   return text
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
@@ -23,9 +26,13 @@ export function normalizeText(text: string): string {
     .trim();
 }
 
+/**
+ * The distinct terms of a query, at most MAX_SEARCH_TERMS: each one is a LIKE
+ * clause, so server-side callers that skip parseProductQuery stay bounded too.
+ */
 export function tokenize(query: string): string[] {
   const normalized = normalizeText(query);
-  return normalized ? Array.from(new Set(normalized.split(" "))) : [];
+  return normalized ? Array.from(new Set(normalized.split(" "))).slice(0, MAX_SEARCH_TERMS) : [];
 }
 
 interface SearchableProduct {

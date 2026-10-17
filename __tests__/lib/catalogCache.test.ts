@@ -20,7 +20,6 @@ vi.mock("@/lib/api/catalog", () => ({
   getProducts: vi.fn(async () => []),
   getProductIds: vi.fn(async () => ["3", "7", "9"]),
   getProductById: vi.fn(async (_db: unknown, id: string) => product(id)),
-  getProductsByIds: vi.fn(),
   searchProducts: vi.fn(async () => []),
   getSearchSuggestions: vi.fn(async () => ({ items: [], total: 0 })),
   getPaginatedProducts: vi.fn(async () => ({ items: [] })),
@@ -30,7 +29,6 @@ vi.mock("@/lib/api/catalog", () => ({
   getFeaturedProducts: vi.fn(async () => []),
   getSaleProducts: vi.fn(async () => []),
   getCategories: vi.fn(async () => [category("star-wars"), category("cars")]),
-  getCategoryById: vi.fn(),
 }));
 
 const { revalidateTag } = await import("next/cache");

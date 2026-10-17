@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseProductQuery, serializeProductQuery } from "@/lib/productQuery";
+import {
+  MAX_FILTER_VALUES,
+  MAX_PAGE_SIZE,
+  MAX_PRICE,
+  MAX_SEARCH_LENGTH,
+  MAX_SEARCH_TERMS,
+  cleanSearchText,
+  parseProductQuery,
+  serializeProductQuery,
+} from "@/lib/productQuery";
 
 describe("productQuery", () => {
   it("parses every supported parameter", () => {
@@ -43,5 +52,38 @@ describe("productQuery", () => {
     const query = { q: "rex", themes: ["Star Wars", "Marvel"], onSale: true, page: 3, sort: "name-desc" as const };
     expect(parseProductQuery(serializeProductQuery(query))).toEqual(query);
     expect(serializeProductQuery({}).toString()).toBe("");
+  });
+
+  it("clamps numbers to what the database can compare (int4 prices, 0-5 rating, page size)", () => {
+    expect(parseProductQuery(new URLSearchParams("minPrice=99999999999&maxPrice=1e12&minRating=9&page=0&limit=500"))).toEqual({
+      minPrice: MAX_PRICE,
+      maxPrice: MAX_PRICE,
+      minRating: 5,
+      page: 1,
+      limit: MAX_PAGE_SIZE,
+    });
+    expect(parseProductQuery(new URLSearchParams("minPrice=-5&maxPrice=10.9&minRating=-1&page=2.7"))).toEqual({
+      minPrice: 0,
+      maxPrice: 10,
+      minRating: 0,
+      page: 2,
+    });
+    expect(parseProductQuery(new URLSearchParams("minPrice=10.1&maxPrice=1e400&minRating=Infinity"))).toEqual({ minPrice: 11 });
+  });
+
+  it("drops control characters: Postgres rejects NUL in text", () => {
+    expect(parseProductQuery(new URLSearchParams("q=%00&category=%00&theme=%00,Marvel"))).toEqual({ themes: ["Marvel"] });
+    expect(parseProductQuery(new URLSearchParams("q=star%00wars")).q).toBe("star wars");
+  });
+
+  it("caps the search text, the number of terms and the list sizes", () => {
+    const words = Array.from({ length: 50 }, (_, i) => `t${i}`).join(" ");
+    const q = parseProductQuery(new URLSearchParams({ q: words })).q!;
+    expect(q.split(" ")).toHaveLength(MAX_SEARCH_TERMS);
+    expect(cleanSearchText("x".repeat(5000))).toHaveLength(MAX_SEARCH_LENGTH);
+
+    const themes = Array.from({ length: 100 }, (_, i) => `theme=v${i}`).join("&");
+    expect(parseProductQuery(new URLSearchParams(themes)).themes).toHaveLength(MAX_FILTER_VALUES);
+    expect(parseProductQuery(new URLSearchParams({ category: "c".repeat(500) }))).toEqual({});
   });
 });

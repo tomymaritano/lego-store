@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE } from "@/lib/productQuery";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MAX_PRICE } from "@/lib/productQuery";
 import type {
   Category,
   FacetCounts,
@@ -14,9 +14,9 @@ import type {
 import { escapeLike, nameHits, normalizeText, tokenize } from "./search";
 
 /*
- * Catalogue queries on Prisma, uncached. ./products.ts wraps each one in the
- * Next data cache for the app; the integration tests call them through it with
- * the cache stubbed out. Every function takes the client first so tests can
+ * Catalogue queries on Prisma, uncached. ./products.ts exposes them to the app,
+ * behind the Next data cache where the arguments are bounded; the integration
+ * tests call them through it with the cache stubbed out. Every function takes the client first so tests can
  * hand in a client on the test database.
  *
  * Filtering, search, sorting and pagination run in Postgres. Two things are
@@ -127,7 +127,10 @@ function whereBuilder(db: Db) {
     const and: Prisma.ProductWhereInput[] = [];
 
     for (const term of tokenize(query.q ?? "")) and.push({ searchText: { contains: escapeLike(term) } });
-    if (query.category) and.push({ categoryId: { equals: query.category, mode: "insensitive" } });
+    // Postgres rejects NUL in a text value: such a slug matches nothing instead of failing the query.
+    if (query.category) {
+      and.push(query.category.includes("\u0000") ? { id: { in: [] } } : { categoryId: { equals: query.category, mode: "insensitive" } });
+    }
 
     for (const [filter, field] of Object.entries(LIST_FIELDS) as [ListFilter, keyof Vocabulary][]) {
       const requested = query[filter];
@@ -137,9 +140,12 @@ function whereBuilder(db: Db) {
       and.push(field === "interests" ? { interests: { hasSome: values } } : { [field]: { in: values } });
     }
 
-    if (query.minPrice !== undefined) and.push({ price: { gte: query.minPrice } });
-    if (query.maxPrice !== undefined) and.push({ price: { lte: query.maxPrice } });
-    if (query.minRating !== undefined) and.push({ rating: { gte: query.minRating } });
+    // Bounds outside the int4 price column are clamped (parseProductQuery already does it for URLs).
+    if (query.minPrice !== undefined) and.push({ price: { gte: clampInt(Math.ceil(query.minPrice), 0, MAX_PRICE, 0) } });
+    if (query.maxPrice !== undefined) and.push({ price: { lte: clampInt(Math.floor(query.maxPrice), 0, MAX_PRICE, MAX_PRICE) } });
+    if (query.minRating !== undefined && Number.isFinite(query.minRating)) {
+      and.push({ rating: { gte: Math.min(5, Math.max(0, query.minRating)) } });
+    }
     if (query.inStock) and.push({ stock: { gt: 0 } });
     if (query.onSale) and.push({ isOnSale: true });
     if (query.isNew) and.push({ isNew: true });
@@ -202,10 +208,6 @@ export async function getProductIds(db: Db): Promise<string[]> {
 export async function getProductById(db: Db, id: string): Promise<Product | null> {
   const row = await db.product.findUnique({ where: { id }, select: productSelect });
   return row ? toProduct(row) : null;
-}
-
-export async function getProductsByIds(db: Db, ids: string[]): Promise<Product[]> {
-  return productsInOrder(db, Array.from(new Set(ids)).slice(0, MAX_IDS_PER_REQUEST));
 }
 
 export async function searchProducts(db: Db, query: string, options: { limit?: number } = {}): Promise<Product[]> {
@@ -464,14 +466,4 @@ export async function getCategories(db: Db): Promise<Category[]> {
     select: { id: true, name: true, description: true, image: true, _count: { select: { products: true } } },
   });
   return rows.map(({ _count, ...category }) => ({ ...category, productCount: _count.products }));
-}
-
-export async function getCategoryById(db: Db, id: string): Promise<Category | null> {
-  const row = await db.category.findFirst({
-    where: { id: { equals: id, mode: "insensitive" } },
-    select: { id: true, name: true, description: true, image: true, _count: { select: { products: true } } },
-  });
-  if (!row) return null;
-  const { _count, ...category } = row;
-  return { ...category, productCount: _count.products };
 }
