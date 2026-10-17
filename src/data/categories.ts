@@ -23,7 +23,7 @@ export const categories: Omit<Category, "productCount">[] = [
     id: "cars",
     name: "Vehículos",
     description: "Autos y naves épicas",
-    image: "https://www.lego.com/cdn/cs/set/assets/blt38e8915698af2d5f/75308.jpg",
+    image: "/images/lego.png",
   },
   {
     id: "buildings",
@@ -41,6 +41,6 @@ export const categories: Omit<Category, "productCount">[] = [
     id: "robots",
     name: "Robots",
     description: "Droides y robots para construir",
-    image: "/images/lego.png",
+    image: "https://www.lego.com/cdn/cs/set/assets/blt38e8915698af2d5f/75308.jpg",
   },
 ];

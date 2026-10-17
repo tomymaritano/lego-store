@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <!-- Product image placeholder: a neutral 2x4 brick in translucent grey, so it reads on light and dark frames. -->
+  <g stroke="#8b93a1" stroke-width="8" stroke-linejoin="round" stroke-opacity="0.8" fill="#8b93a1">
+    <path d="M180 480 L380 560 L380 440 L180 360 Z" fill-opacity="0.3" />
+    <path d="M380 560 L620 450 L620 330 L380 440 Z" fill-opacity="0.14" />
+    <path d="M180 360 L420 250 L620 330 L380 440 Z" fill-opacity="0.2" />
+    <g fill-opacity="0.3">
+      <path d="M228 366 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="260" cy="352" rx="32" ry="14" />
+      <path d="M288 339 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="320" cy="325" rx="32" ry="14" />
+      <path d="M348 311 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="380" cy="297" rx="32" ry="14" />
+      <path d="M408 284 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="440" cy="270" rx="32" ry="14" />
+      <path d="M328 406 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="360" cy="392" rx="32" ry="14" />
+      <path d="M388 379 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="420" cy="365" rx="32" ry="14" />
+      <path d="M448 351 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="480" cy="337" rx="32" ry="14" />
+      <path d="M508 324 v-14 a32 14 0 0 1 64 0 v14 a32 14 0 0 1 -64 0 Z" />
+      <ellipse cx="540" cy="310" rx="32" ry="14" />
+    </g>
+  </g>
+</svg>

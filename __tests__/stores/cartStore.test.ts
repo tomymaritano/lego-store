@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useCartCount, useCartStore, useCartSubtotal, useIsInCart } from "@/stores/cartStore";
+import { PLACEHOLDER_IMAGE } from "@/lib/utils";
 import type { ProductSummary } from "@/types";
 
 const rex: ProductSummary = { id: "1", name: "Captain Rex Helmet", price: 899, img: "/rex.png", stock: 3 };
@@ -113,7 +114,7 @@ describe("cartStore", () => {
       await useCartStore.persist.rehydrate();
       const cart = useCartStore.getState().cart;
       expect(cart.map((l) => l.id)).toEqual(["1", "2"]);
-      expect(cart[1].image).toBe("/images/lego.png");
+      expect(cart[1].image).toBe(PLACEHOLDER_IMAGE);
       expect(JSON.parse(localStorage.getItem("lego-cart-storage")!).version).toBe(1);
     });
   });

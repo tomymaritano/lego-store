@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { ProductImage } from "@/components/product/ProductImage";
 import { Lock, Shield, ShoppingBag } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import type { CartItem } from "@/types";
@@ -24,7 +24,7 @@ export function OrderSummary({ cart, subtotal, shipping }: OrderSummaryProps) {
         {cart.map((item) => (
           <li key={item.id} className="flex gap-3">
             <span className="relative size-16 shrink-0 rounded-lg bg-bg-subtle">
-              <Image src={item.image} alt="" fill sizes="64px" className="object-contain p-1" />
+              <ProductImage src={item.image} alt="" fill sizes="64px" className="object-contain p-1" />
               <span className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-fg text-caption font-semibold text-bg">
                 <span className="sr-only">Cantidad: </span>
                 {item.quantity}

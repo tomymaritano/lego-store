@@ -33,8 +33,8 @@ export function calculateDiscount(originalPrice: number, currentPrice: number): 
   return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
 }
 
-/** Fallback product image (a broken or missing URL). */
-export const PLACEHOLDER_IMAGE = "/images/lego.png";
+/** Fallback product image (a broken or missing URL): a neutral brick that works in light and dark. */
+export const PLACEHOLDER_IMAGE = "/images/placeholder-product.svg";
 
 /**
  * "1 producto", "3 productos". Spanish plural for UI copy; pass the plural

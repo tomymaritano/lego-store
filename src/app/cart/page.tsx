@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { ProductImage } from "@/components/product/ProductImage";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, ShoppingBag, Trash2 } from "lucide-react";
@@ -91,7 +91,7 @@ export default function CartPage() {
               >
                 <Link href={`/item/${item.id}`} className="shrink-0 rounded-lg" tabIndex={-1} aria-hidden="true">
                   <span className="relative block size-24 overflow-hidden rounded-lg bg-bg-subtle">
-                    <Image src={item.image} alt="" fill sizes="96px" className="object-contain p-2" />
+                    <ProductImage src={item.image} alt="" fill sizes="96px" className="object-contain p-2" />
                   </span>
                 </Link>
 

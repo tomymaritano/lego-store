@@ -108,7 +108,7 @@ export const WithSecondaryImage: Story = {
   args: {
     product: {
       ...baseProduct,
-      imageSecondary: "https://www.lego.com/cdn/cs/set/assets/bltd9dfc1fa25e3b4e8/75349-alt.png",
+      imageSecondary: "https://www.lego.com/cdn/cs/set/assets/blt32953937b372413f/75351.png",
     },
   },
 };
