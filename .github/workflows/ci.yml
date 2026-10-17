@@ -15,6 +15,9 @@ env:
   # CI-only credentials for the seeded admin (no real data lives here).
   ADMIN_EMAIL: admin@ci.lego-store.local
   ADMIN_PASSWORD: ci-admin-password
+  # `next start` (e2e prod project, Lighthouse, bundle size) outside Vercel:
+  # let Auth.js trust the request's host. AUTH_SECRET is generated per job.
+  AUTH_TRUST_HOST: 'true'
 
 jobs:
   # Lint and Type Check
@@ -67,6 +70,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci
@@ -123,6 +129,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
 
@@ -169,6 +178,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci
@@ -221,6 +233,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci
@@ -304,6 +319,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
+
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci

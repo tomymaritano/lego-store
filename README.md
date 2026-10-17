@@ -6,7 +6,8 @@ hasta 4 productos y un checkout en pasos (pago simulado). Toda la UI está en
 español, tiene modo oscuro y apunta a WCAG 2.1 AA.
 
 El catálogo vive en PostgreSQL (Prisma) y todas las lecturas pasan por una sola
-capa (`src/lib/api`). El resto del backend (usuarios, carrito y favoritos en el
+capa (`src/lib/api`). Hay cuentas de usuario (registro, login, perfil, roles
+cliente/admin) con Auth.js. El resto del backend (carrito y favoritos en el
 servidor, reseñas, pedidos con Stripe, emails, admin) se construye por etapas
 según `docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
 necesita Postgres para correr: ver [Backend local setup](#backend-local-setup).
@@ -35,6 +36,7 @@ producción en marcha (`npm run build && npm start`).
 - **Tailwind CSS 4** con tokens de diseño en `@theme` (`src/app/globals.css`)
 - Primitivos estilo **shadcn/ui sobre Base UI** (`src/components/ui`)
 - **motion** (`motion/react`, vía `LazyMotion` + `m.*`) para animaciones, con presets en `src/lib/motion.ts`
+- **Auth.js** (`next-auth@5.0.0-beta.32`, compatible con Next 16 y React 19): email + contraseña (bcrypt) y Google opcional, sesiones JWT
 - **PostgreSQL 17** + **Prisma 7** (cliente `prisma-client` generado en `src/generated/prisma`, driver adapter `@prisma/adapter-pg`)
 - **Zustand** (estado del cliente persistido), **TanStack Query** (datos en islas cliente)
 - **React Hook Form** + **Zod** (checkout, contacto y reseñas; se cargan solo donde se usan), **sonner** (toasts)
@@ -81,16 +83,22 @@ src/
   app/                 Rutas (App Router). Páginas = Server Components.
     (info)/            Ayuda y la tienda: faq, envios, devoluciones, contacto,
                        nosotros, terminos, privacidad (layout con menú lateral)
+    (auth)/            /login y /register + sus Server Actions (login, registro, logout, Google)
+    account/           /account: perfil, contraseña, sesión (+ Server Actions)
+    admin/             /admin: resumen de la tienda (solo ADMIN)
+    forbidden.tsx      Página 403 (forbidden())
     api/               Route Handlers para las islas cliente
       products/        GET /api/products (filtros, orden, paginación)
       products/by-ids/ GET /api/products/by-ids?ids=1,2
       products/facets/ GET /api/products/facets (conteos en vivo de los filtros)
       search/          GET /api/search?q= (autocompletado)
+      auth/[...nextauth]/  Endpoints de Auth.js (OAuth, sesión, CSRF)
     cart/ wishlist/ compare/ search/ category/ item/
     checkout/_components/  Pasos, resumen y confirmación del checkout
   components/
     ui/                Primitivos del sistema de diseño (barrel index.ts)
-    layout/            Navbar, Footer, PageHeader, menús y paneles (carga diferida)
+    layout/            Navbar, Footer, PageHeader, menú de cuenta, menús y paneles (carga diferida)
+    auth/ account/     Formularios de login/registro y de /account
     product/           Tarjeta, grilla, catálogo y filtros, ficha, galería, reseñas (reviews/)
     cart/ wishlist/ compare/ search/ home/ info/ forms/ icons/
     motion/            Reveal / Stagger para Server Components
@@ -100,7 +108,11 @@ src/
   lib/
     api/               Gateway de datos (server-only): consultas Prisma + caché de Next
     db/                Cliente de Prisma (instancia única en el servidor)
-    auth/password.ts   Hash de contraseñas (bcrypt)
+    auth/              Auth.js (index.ts), sesión y permisos (session.ts: getCurrentUser,
+                       requireUser, requireAdmin, authorizeRequest), cuentas (accounts.ts),
+                       adapter de Prisma, callbackUrl seguro, hash de contraseñas (bcrypt)
+    rate-limit/        Rate limiting en Postgres (login, registro; reutilizable)
+    admin/             Datos del panel de admin (verifican el rol ellos mismos)
     api-client.ts      Llamadas del navegador a /api/*
     productQuery.ts    ProductQuery <-> URL search params
     pricing.ts         Subtotal, envío y totales (carrito y checkout)
@@ -109,6 +121,7 @@ src/
     motion.ts motion-features.ts theme.ts metadata.ts utils.ts validations/
   stores/              Zustand: cart, wishlist, compare, recentlyViewed, theme, reviews, checkout, ui
   types/               Tipos de dominio (única fuente)
+src/proxy.ts           /account y /admin sin sesión van a /login; 404 reales de /item y /category
 __tests__/             Tests unitarios y de componentes (Vitest + Testing Library)
   integration/         Tests contra la base de test (lib/api, Route Handlers, proxy, seed, restricciones)
 e2e/                   Tests de Playwright (e2e/prod: contra el build de producción)
@@ -126,9 +139,10 @@ scripts/               Presupuesto de JS y capturas del README
 - **Caché**: cada lectura del catálogo pasa por el data cache de Next
   (`unstable_cache`, el modelo previo a Cache Components, que la app no activa) con
   tags: `products` (todo el catálogo), `product:<id>` y `categories`. Las páginas
-  del catálogo se prerenderizan en el build y se regeneran en la próxima visita
-  después de que una escritura llama a `invalidateCatalog()` (`src/lib/api/cache.ts`,
-  vencimiento inmediato). Hay además una revalidación por tiempo de 1 h como red de
+  se renderizan por pedido (el navbar depende de la sesión, ver
+  [Cuentas y sesiones](#cuentas-y-sesiones)), pero sus lecturas del catálogo salen
+  de esa caché hasta que una escritura llama a `invalidateCatalog()`
+  (`src/lib/api/cache.ts`, vencimiento inmediato). Hay además una revalidación por tiempo de 1 h como red de
   seguridad. Lo que depende del usuario (carrito, pedidos, cuenta) no pasa por esta
   caché.
 - **Islas cliente** (infinite scroll, autocompletado, comparador, favoritos,
@@ -144,6 +158,56 @@ scripts/               Presupuesto de JS y capturas del README
 - **Rating**: `Product.rating` y `Product.reviewCount` son columnas cacheadas del
   promedio y la cantidad de reseñas (`refreshProductRatings()`); un producto sin
   reseñas tiene rating 0 y va al final de "Destacados" y "Mejor calificados".
+
+## Cuentas y sesiones
+
+- **Auth.js v5** (`src/lib/auth/index.ts`): email + contraseña (Credentials, hash
+  bcrypt) y Google solo si están `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET` (si no,
+  el botón no aparece). Páginas propias: `/login`, `/register`, `/account`
+  (nombre, contraseña, cerrar sesión) y `/admin`.
+- **Sesiones JWT** en una cookie HttpOnly, no sesiones en base: Credentials solo
+  admite JWT y leer la sesión no cuesta una consulta (el navbar la lee en cada
+  página). Lo que un JWT no tiene, revocación inmediata, se cubre en el servidor:
+  el token lleva la `sessionVersion` del usuario y `getCurrentUser()` la compara
+  con la base en cada página, acción y ruta protegida. Cambiar la contraseña la
+  incrementa, así que se cierran las sesiones de los otros dispositivos (la actual
+  se renueva). El rol también sale siempre de la base, nunca del token.
+- **Roles** USER / ADMIN: el email de `ADMIN_EMAIL` recibe ADMIN en el seed, al
+  registrarse y al entrar por primera vez con Google (solo con el email verificado
+  por Google). Como no hay verificación de email, si `ADMIN_EMAIL` está definida
+  sembrá esa cuenta antes de publicar el sitio: si no, quien se registre primero con
+  ese email sería admin. Los emails se guardan siempre en minúsculas (`CHECK` en la
+  base); `normalizeEmail()` corre antes de cada escritura y búsqueda, incluido el
+  adapter de OAuth.
+- **Protección en dos capas**: `src/proxy.ts` manda a `/login?callbackUrl=…` a quien
+  pide `/account/*` o `/admin/*` sin sesión (chequeo optimista: solo mira la cookie).
+  La autorización real está en el servidor: cada página, Server Action y Route
+  Handler protegida llama a `requireUser()`, `requireAdmin()` (403 con
+  `forbidden()`, `experimental.authInterrupts`) o `authorizeRequest()` (401/403 en
+  JSON para Route Handlers). Las funciones de datos de admin verifican el rol ellas
+  mismas.
+- **callbackUrl**: solo rutas del mismo sitio (`safeCallbackUrl`): otro origen,
+  `//host`, `/\host`, caracteres de control, `/login`, `/register` y `/api/*` vuelven
+  al inicio.
+- **Rate limiting** (`src/lib/rate-limit`): ventana fija con el contador en Postgres
+  (tabla `RateLimit`, un `INSERT … ON CONFLICT` atómico con el reloj de la base), así
+  que vale entre instancias y en serverless. Login: 5 intentos por cuenta y IP cada
+  15 min (un login correcto los borra; por IP para que un extraño no pueda bloquear
+  la cuenta de otro), 30 por cuenta por hora desde cualquier IP y 50 por IP cada
+  15 min; registro: 20 cuentas por IP por hora;
+  contraseña actual en `/account`: 5 cada 15 min. Para limitar algo nuevo (reseñas,
+  contacto, newsletter) se agrega una entrada en `rateLimits` y se llama
+  `consume(sujeto)`. La IP sale de `X-Forwarded-For` (Vercel la pone; sin ningún
+  proxy delante la manda el cliente, así que un self-host necesita un proxy que la
+  reescriba). `memoryStore()` existe para tests: no se comparte entre instancias.
+- **Navbar sin parpadeo**: el layout raíz lee la sesión (`getCurrentUser()`) y el
+  navbar llega del servidor ya con el menú de cuenta o el link de ingreso. El costo:
+  todas las páginas se renderizan por pedido en vez de prerenderizarse (ver
+  [Rendimiento](#rendimiento)).
+- **Configuración**: `AUTH_SECRET` es obligatoria. Sin ella Auth.js falla cerrado:
+  todas las páginas se ven sin sesión, nadie puede ingresar y `/login` y `/register`
+  avisan que falta. Fuera de Vercel, `next start` necesita `AUTH_TRUST_HOST=true`
+  (o `AUTH_URL`) para que Auth.js acepte el host.
 
 ## Estado del cliente
 
@@ -164,7 +228,8 @@ Requisitos: Node `^22.13` o `>=24` y Docker (Docker Desktop en Windows/macOS).
 
 ```bash
 npm install                 # también genera el cliente de Prisma (postinstall)
-cp .env.example .env.local  # los valores por defecto ya apuntan al Postgres de Docker
+cp .env.example .env.local  # los valores por defecto ya apuntan al Postgres de Docker;
+                            # completá AUTH_SECRET (obligatoria): npx auth secret
 npm run db:up               # Postgres 17 en localhost:5433, bases lego_store y lego_store_test
 npm run db:migrate          # aplica las migraciones a lego_store
 npm run db:seed             # catálogo, reseñas de ejemplo y el admin (ver "Admin")
@@ -195,17 +260,17 @@ npm run dev
   de la base de test: una segunda corrida a la vez (por ejemplo con `npm test` en
   modo watch abierto) falla enseguida diciendo que la base está ocupada. Sin la
   base levantada, la corrida falla con un mensaje que lo explica.
-- **El build necesita la base**: `next build` prerenderiza inicio, categorías y
-  fichas leyendo Postgres. En CI hay un servicio Postgres que se migra y siembra
-  antes del build, los tests y los E2E.
+- **El build necesita la base** (lee las categorías y los ids de las rutas). En CI
+  hay un servicio Postgres que se migra y siembra antes del build, los tests y los
+  E2E.
 - **Cambiar el modelo**: editá `prisma/schema.prisma` y corré
   `npm run db:migrate -- --name <cambio>` y `npm run db:generate`. Las restricciones
-  CHECK (stock ≥ 0, cantidades > 0, rating 1..5, totales que cierran…) están escritas
-  a mano en la primera migración: si una migración nueva recrea una tabla, copiá
-  las suyas.
-- **Producción** (Vercel + Neon u otro Postgres): `DATABASE_URL` en las variables
-  del proyecto y `npm run db:deploy` + `npm run db:seed` contra esa base antes del
-  primer deploy.
+  CHECK (stock ≥ 0, cantidades > 0, rating 1..5, totales que cierran, emails en
+  minúsculas…) están escritas a mano al final de cada migración: si una migración
+  nueva recrea una tabla, copiá las suyas.
+- **Producción** (Vercel + Neon u otro Postgres): `DATABASE_URL` y `AUTH_SECRET` en
+  las variables del proyecto y `npm run db:deploy` + `npm run db:seed` contra esa
+  base antes del primer deploy.
 
 ## Sistema de diseño
 
@@ -234,10 +299,16 @@ npm run dev
 
 ## Rendimiento
 
-- Inicio, fichas y categorías se prerenderizan (desde la base, en el build) sin `loading.tsx`: el HTML
-  estático trae el contenido en orden y el texto del hero (el LCP) se pinta en
-  el primer frame. Los filtros de una categoría viven en la URL y se aplican en
-  el cliente, así que la ruta sigue siendo estática.
+- Las páginas se renderizan en el servidor por pedido, sin `loading.tsx`: el HTML
+  trae el contenido en orden y el texto del hero (el LCP) se pinta en el primer
+  frame. Antes de las cuentas, inicio, fichas y categorías se prerenderizaban en el
+  build; desde que el navbar muestra la sesión sin parpadeo, el layout lee una
+  cookie y Next renderiza cada ruta por pedido. Las lecturas del catálogo siguen
+  saliendo del data cache, así que el costo por pedido es el render más una
+  consulta de usuario cuando hay sesión. Volver a servir HTML estático pediría
+  Cache Components (PPR: shell estático y el menú de cuenta como hueco dinámico),
+  un cambio de modelo de caché que queda pendiente. Los filtros de una categoría
+  viven en la URL y se aplican en el cliente.
 - Los paneles poco usados (carrito lateral, menú y búsqueda móviles, vista
   rápida, formulario de reseñas) se cargan bajo demanda con `next/dynamic` y se
   precargan al pasar el puntero o enfocar su botón. Sonner (toasts) y las
@@ -259,14 +330,19 @@ npm run dev
 
 - `__tests__/integration` (contra la base de test): gateway de datos (búsqueda,
   filtros, orden, paginación, facetas, casos borde), lecturas después de
-  escrituras, Route Handlers y proxy, seed (contenido, idempotencia, admin) y las
-  restricciones del schema.
+  escrituras, Route Handlers y proxy (incluidas las rutas protegidas), seed
+  (contenido, idempotencia, admin), las restricciones del schema, cuentas
+  (registro, credenciales, roles, contraseña, adapter de OAuth), las Server
+  Actions de login y registro, los helpers de sesión y permisos y el rate limiter
+  en Postgres (concurrencia y ventanas).
 - `__tests__/lib`: parser de queries, búsqueda normalizada, caché del catálogo
-  (tags e invalidación) y utilidades.
+  (tags e invalidación), validación de cuentas, callbackUrl, roles, rate limiter y
+  utilidades.
 - `__tests__/stores`: stores, selectores, migraciones e hidratación.
 - `__tests__/components`: primitivos (`ui/`), carrito lateral, carrito /
   favoritos / comparador, catálogo y filtros, checkout, formularios, galería,
-  ficha de producto, reseñas, autocompletado, useProductActions,
+  ficha de producto, reseñas, autocompletado, formularios y menú de cuenta,
+  useProductActions,
   useProductsByIds y suscripciones a los stores.
 - `__tests__/config`: cada link de navegación resuelve a una página.
 - `__tests__/lint` y `__tests__/design`: guardas de ESLint y contraste de tokens.
@@ -276,8 +352,13 @@ npm run dev
   (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
   (favoritos, comparador y su barra), `checkout` (con axe), `shell` (navbar,
   footer, páginas de información, 404), `state` (estado persistido), `a11y`
-  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro) y el proyecto `prod`
-  (navegación, transiciones y rutas estáticas sobre el build de producción).
+  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro), `auth` (registro →
+  logout → login → cuenta, redirección de rutas protegidas, callbackUrl, 403 de
+  admin, cambio de contraseña, menú móvil, axe) y el proyecto `prod` (navegación,
+  transiciones y códigos de estado sobre el build de producción). Los E2E de
+  cuentas usan emails `@e2e.lego-store.test`: el setup global los borra de la base
+  de dev, limpia los contadores de rate limiting y crea un admin con una contraseña
+  aleatoria; el teardown vuelve a borrarlos.
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
