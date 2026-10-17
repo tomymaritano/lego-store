@@ -7,8 +7,7 @@
         "http://localhost:3000/",
         "http://localhost:3000/item/1",
         "http://localhost:3000/category/helmet",
-        "http://localhost:3000/cart",
-        "http://localhost:3000/checkout"
+        "http://localhost:3000/cart"
       ],
       "numberOfRuns": 3
     },

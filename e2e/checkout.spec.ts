@@ -78,6 +78,9 @@ test.describe("Checkout", () => {
     await expect(stepper(page).locator("[aria-current='step']")).toContainText("Pago");
     await expect(stepper(page)).toContainText("Envío (completado)");
 
+    // Lighthouse skips /checkout (it redirects without a cart): axe audits every step here.
+    expect(await seriousAxeViolations(page)).toEqual([]);
+
     await fillPayment(page);
     await expect(page.getByLabel(/^Número de tarjeta/)).toHaveValue("4242 4242 4242 4242");
     await expect(page.getByTestId("card-brand")).toHaveText("Visa");
@@ -87,6 +90,7 @@ test.describe("Checkout", () => {
     await expect(page.getByTestId("review-shipping")).toContainText("Córdoba X5000ABC");
     await expect(page.getByTestId("review-payment")).toContainText("Visa •••• 4242");
     await expect(page.getByTestId("review-total")).toHaveText(/2\.746/);
+    expect(await seriousAxeViolations(page)).toEqual([]);
 
     await page.getByRole("button", { name: /Confirmar pedido/ }).click();
     await expect(page.getByTestId("place-order")).toHaveAttribute("aria-busy", "true");
@@ -102,6 +106,7 @@ test.describe("Checkout", () => {
     await expect(confirmation.getByTestId("order-id")).toHaveText(/^LEGO-[A-Z0-9]+$/);
     await expect(confirmation).toContainText("ana@example.com");
     await expect(confirmation).toContainText(/2\.746/);
+    expect(await seriousAxeViolations(page)).toEqual([]);
 
     // The cart is now empty, but the confirmation stays (no redirect to the cart).
     await expect(page.getByTestId("cart-count")).toHaveCount(0);

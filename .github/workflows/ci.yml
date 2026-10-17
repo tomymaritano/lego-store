@@ -151,7 +151,8 @@ jobs:
 
       # Category scores gate (lighthouserc.json); reports are kept as workflow
       # artifacts, never published to public storage. SEO is asserted only on
-      # indexable pages: /cart and /checkout are noindex on purpose.
+      # indexable pages: /cart is noindex on purpose. /checkout is left out: with
+      # an empty cart it redirects to /cart; e2e/checkout.spec.ts audits it with axe.
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:

@@ -147,10 +147,13 @@ scripts/               Presupuesto de JS y capturas del README
   precargan al pasar el puntero o enfocar su botón.
 - `npm run size` mide el JS de primera carga por ruta (gzip, sin los polyfills
   `noModule`) contra un presupuesto por ruta; CI lo corre en cada PR.
-- Lighthouse CI (`lighthouserc.json`) audita `/`, `/item/1`, `/category/helmet`,
-  `/cart` y `/checkout`. El objetivo de SEO 100 excluye `/cart` y `/checkout`:
-  son `noindex` a propósito (lo correcto en páginas transaccionales), así que no
-  se afirma SEO sobre ellas.
+- Lighthouse CI (`lighthouserc.json`) audita `/`, `/item/1`, `/category/helmet`
+  y `/cart`. El objetivo de SEO 100 aplica solo a las rutas indexables: `/cart`
+  y `/checkout` son `noindex` a propósito (lo correcto en páginas
+  transaccionales), así que no se afirma SEO sobre ellas. `/checkout` no está en
+  Lighthouse: sin carrito redirige a `/cart` y el informe mediría esa página;
+  su accesibilidad se audita con axe en `e2e/checkout.spec.ts`, paso a paso y
+  con un carrito cargado.
 
 ## Tests
 
