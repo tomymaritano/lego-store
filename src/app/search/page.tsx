@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, Search, SearchX } from "lucide-react";
 import { getPaginatedProducts } from "@/lib/api";
+import { pageMetadata } from "@/lib/metadata";
 import { parseProductQuery, serializeProductQuery } from "@/lib/productQuery";
 import { Breadcrumbs, Button, EmptyState } from "@/components/ui";
 import { ProductList } from "@/components/product";
@@ -13,8 +14,11 @@ interface SearchPageProps {
 export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
   const { q } = parseProductQuery(await searchParams);
   return {
-    title: q ? `Resultados para "${q}"` : "Buscar productos",
-    description: "Busca entre nuestra colección de sets LEGO. Encuentra helmets, brickheadz, vehículos y más.",
+    ...pageMetadata({
+      title: q ? `Resultados para "${q}"` : "Buscar productos",
+      description: "Busca entre nuestra colección de sets LEGO. Encuentra helmets, brickheadz, vehículos y más.",
+      path: q ? `/search?q=${encodeURIComponent(q)}` : "/search",
+    }),
     robots: { index: false, follow: true },
   };
 }
