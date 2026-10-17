@@ -64,6 +64,9 @@ jobs:
           path: coverage/
           retention-days: 7
 
+      - name: Build Storybook
+        run: npm run build-storybook -- --quiet
+
   # Build
   build:
     name: Build Application
@@ -92,6 +95,38 @@ jobs:
           path: .next/
           retention-days: 7
 
+  # End-to-end tests (Playwright: dev server projects + the production project)
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   # Lighthouse Performance Audit (on PRs only)
   lighthouse:
     name: Lighthouse Audit
@@ -114,13 +149,15 @@ jobs:
       - name: Build application
         run: npm run build
 
+      # Category scores gate (lighthouserc.json); reports are kept as workflow
+      # artifacts, never published to public storage. SEO is asserted only on
+      # indexable pages: /cart and /checkout are noindex on purpose.
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:
           uploadArtifacts: true
-          temporaryPublicStorage: true
+          temporaryPublicStorage: false
           configPath: ./lighthouserc.json
-        continue-on-error: true
 
   # Security Audit
   security:
@@ -136,11 +173,21 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Run npm audit
+      - name: Install dependencies
+        run: npm ci
+
+      # Gate on what ships: production dependencies.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # Report-only for tooling. Known: GHSA-vfj7-8cjw-p6xm (braces, via
+      # eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch),
+      # dev-only with no non-breaking fix yet; revisit when eslint-config-next updates.
+      - name: Audit all dependencies (report only)
         run: npm audit --audit-level=high
         continue-on-error: true
 
-  # Bundle Size Check
+  # Bundle Size Check (scripts/first-load-js.mjs)
   bundle-size:
     name: Bundle Size Check
     runs-on: ubuntu-latest
@@ -162,6 +209,8 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Analyze bundle
-        run: npx @next/bundle-analyzer
-        continue-on-error: true
+      # First-load JS per key route (gzip, modern browsers) against a budget.
+      - name: Check first-load JS budget
+        run: |
+          npm run start -- -p 3311 &
+          npm run size -- http://localhost:3311
