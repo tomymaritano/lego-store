@@ -3,6 +3,7 @@
  * have no password: they exist only to author reviews (and the past orders
  * that make some of them "compra verificada"), nobody can log in as them.
  */
+import { mockReviews } from "@/stores/mockReviews";
 
 export interface SampleUser {
   key: string;
@@ -34,47 +35,16 @@ export interface HandwrittenReview {
   verified: boolean;
 }
 
-/** The reviews the mock UI shipped with (reviewStore), kept word for word. */
-export const handwrittenReviews: HandwrittenReview[] = [
-  {
-    productId: "1",
-    userKey: "carlos",
-    rating: 5,
-    title: "Increíble nivel de detalle",
-    comment:
-      "El casco de Captain Rex es impresionante. Los detalles de las marcas de batalla son perfectos. La construcción fue divertida y el resultado final es espectacular para exhibir.",
-    date: "2024-01-15",
-    verified: true,
-  },
-  {
-    productId: "1",
-    userKey: "ana",
-    rating: 4,
-    title: "Muy bueno pero algo difícil",
-    comment:
-      "Excelente set para fans de Clone Wars. La construcción es algo desafiante en algunas partes pero vale la pena el esfuerzo.",
-    date: "2024-01-10",
-    verified: true,
-  },
-  {
-    productId: "3",
-    userKey: "roberto",
-    rating: 5,
-    title: "El mejor helmet de la colección",
-    comment: "Cody siempre impresiona. Este set no decepciona: imponente y con un acabado premium.",
-    date: "2024-02-01",
-    verified: true,
-  },
-  {
-    productId: "4",
-    userKey: "maria",
-    rating: 5,
-    title: "¡Espectacular en la repisa!",
-    comment: "Perfecto para mi escritorio. El casco de Mando tiene un acabado brillante que llama la atención.",
-    date: "2024-01-20",
-    verified: false,
-  },
-];
+/**
+ * The reviews the mock UI ships with (src/stores/mockReviews.ts, the single
+ * copy of their text), attributed to the sample user with the same name.
+ */
+export const handwrittenReviews: HandwrittenReview[] = mockReviews.map((review) => {
+  const user = sampleUsers.find((u) => u.name === review.userName);
+  if (!user) throw new Error(`mockReviews: no hay usuario de ejemplo llamado ${review.userName}.`);
+  const { productId, rating, title, comment, date, verified } = review;
+  return { productId, userKey: user.key, rating, title, comment, date, verified };
+});
 
 /** Generic copy by star rating; `{name}` is replaced by the product name. */
 export const reviewTemplates: Record<number, { title: string; comment: string }[]> = {
