@@ -99,6 +99,7 @@ describe("SearchAutocomplete", () => {
   });
 
   it("inline variant (mobile) always shows the listbox and lets Escape through on an empty field", () => {
+    localStorage.setItem("lego-recent-searches", JSON.stringify(["batman"]));
     const onKeyDown = vi.fn();
     renderWithQuery(
       <div onKeyDown={onKeyDown}>
@@ -123,6 +124,27 @@ describe("SearchAutocomplete", () => {
 describe("SearchAutocomplete focus handling", () => {
   beforeEach(() => {
     mockFetch(() => ({ items: [], total: 0 }));
+    localStorage.setItem("lego-recent-searches", JSON.stringify(["batman"]));
+  });
+
+  it("stays collapsed while the panel only shows popular-search chips (no options)", () => {
+    localStorage.clear();
+    renderWithQuery(<SearchAutocomplete />);
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    expect(screen.getByRole("button", { name: "Star Wars" })).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+  });
+
+  it("expands once recent searches give the listbox options", () => {
+    renderWithQuery(<SearchAutocomplete />);
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("option", { name: /batman/ })).toBeInTheDocument();
   });
 
   it("closes when keyboard focus leaves the combobox", () => {

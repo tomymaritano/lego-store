@@ -5,11 +5,21 @@ test.describe("Search combobox focus", () => {
     await page.goto("/");
     const input = page.getByRole("combobox", { name: "Buscar productos" }).first();
     await input.focus();
-    await expect(input).toHaveAttribute("aria-expanded", "true");
+    // Empty field, no recents: the panel shows only the popular chips, which are
+    // not listbox options, so the combobox itself stays collapsed.
+    const popular = page.getByText("Búsquedas populares");
+    await expect(popular).toBeVisible();
+    await expect(input).toHaveAttribute("aria-expanded", "false");
 
     // Tab walks through the panel (chips) and then out of the combobox.
     for (let i = 0; i < 12; i++) await page.keyboard.press("Tab");
-    await expect(input).toHaveAttribute("aria-expanded", "false");
+    await expect(popular).toBeHidden();
+
+    // With recent searches the listbox has options and the combobox expands.
+    await page.evaluate(() => localStorage.setItem("lego-recent-searches", JSON.stringify(["batman"])));
+    await input.focus();
+    await expect(input).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("option", { name: /batman/ })).toBeVisible();
   });
 });
 

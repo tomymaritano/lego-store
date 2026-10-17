@@ -94,7 +94,6 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
   const [activeIndex, setActiveIndex] = useState(-1);
   const [recent, setRecent] = useState<string[]>(() => (inline && typeof window !== "undefined" ? readRecent() : []));
 
-  const expanded = inline || isOpen;
   const trimmed = query.trim();
   const debounced = useDebouncedValue(trimmed, DEBOUNCE_MS);
   const searching = debounced.length >= MIN_QUERY;
@@ -112,6 +111,10 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
   const recentOptions = trimmed.length < MIN_QUERY ? recent : [];
   const optionCount = suggestions.length + recentOptions.length;
   const optionId = (index: number) => `${listboxId}-option-${index}`;
+  // The listbox is the combobox popup: it is only "expanded" while it has
+  // options. The popular-search chips are plain buttons outside it, so a panel
+  // showing only those leaves the combobox collapsed.
+  const expanded = (inline || isOpen) && optionCount > 0;
 
   // Reset the highlighted option whenever the option list changes.
   const [prevKey, setPrevKey] = useState("");
@@ -373,7 +376,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
           autoFocus={autoFocus}
           leftIcon={<Search />}
           className={cn(
-            "rounded-full border-transparent bg-bg-muted pr-10 text-sm [&::-webkit-search-cancel-button]:hidden",
+            "rounded-full pr-10 text-sm [&::-webkit-search-cancel-button]:hidden",
             inline ? "h-12 text-body" : "h-10"
           )}
           data-testid="search-input"
