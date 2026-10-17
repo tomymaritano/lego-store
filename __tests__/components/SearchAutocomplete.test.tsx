@@ -75,9 +75,48 @@ describe("SearchAutocomplete", () => {
     const input = screen.getByRole("combobox");
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "zzz" } });
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent('No se encontraron productos para "zzz"')
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Sin resultados para zzz"));
+    expect(screen.getByText('No se encontraron productos para "zzz"')).toBeInTheDocument();
+  });
+
+  it("announces how many suggestions there are", async () => {
+    renderWithQuery(<SearchAutocomplete />);
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "star" } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("2 sugerencias de 9 resultados"));
+  });
+
+  it("highlights the query inside each suggestion", async () => {
+    renderWithQuery(<SearchAutocomplete />);
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    mockFetch(() => ({ items: [{ id: "1", name: "Captain Rex Helmet", price: 899, img: "/rex.png", theme: "Star Wars" }], total: 1 }));
+    fireEvent.change(input, { target: { value: "rex helm" } });
+    const option = await screen.findByRole("option", { name: /Captain/ });
+    expect(option).toHaveTextContent("Captain Rex Helmet");
+    expect([...option.querySelectorAll("mark")].map((m) => m.textContent)).toEqual(["Rex", "Helm"]);
+  });
+
+  it("inline variant (mobile) always shows the listbox and lets Escape through on an empty field", () => {
+    const onKeyDown = vi.fn();
+    renderWithQuery(
+      <div onKeyDown={onKeyDown}>
+        <SearchAutocomplete variant="inline" />
+      </div>
     );
+    const input = screen.getByRole("combobox");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("listbox", { hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Star Wars" })).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "lego" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toHaveValue("");
+    expect(onKeyDown).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
   });
 });
 
