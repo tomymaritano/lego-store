@@ -20,6 +20,14 @@ const ids = (list: { id: string }[]) => list.map((p) => p.id);
 
 describe("lib/api", () => {
   describe("getProducts / getProductById", () => {
+    it("never shows one set's picture on two products", async () => {
+      const all = await getProducts();
+      const pictures = all.map((p) => p.img).filter((img) => !img.startsWith("/") && !img.startsWith("data:"));
+      expect(new Set(pictures).size).toBe(pictures.length);
+      // 40623 is the Battle of Endor Heroes set.
+      expect(all.find((p) => p.name === "Battle of Endor Heroes")?.img).toMatch(/40623\.png$/);
+    });
+
     it("returns the whole catalogue as a copy", async () => {
       const all = await getProducts();
       expect(all.length).toBeGreaterThan(20);
