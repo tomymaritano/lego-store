@@ -127,6 +127,29 @@ export interface FilterOptions {
   total: number;
 }
 
+/**
+ * Live facet counts for a query: for each facet, how many products match
+ * every other active filter and have that value. A facet's own selection is
+ * left out, so each number is what checking that option would add (OR inside
+ * a facet) or show (radio facets, toggles). Keyed by option value.
+ */
+export interface FacetCounts {
+  categories: Record<string, number>;
+  themes: Record<string, number>;
+  types: Record<string, number>;
+  ages: Record<string, number>;
+  interests: Record<string, number>;
+  pieces: Record<string, number>;
+  highlights: Record<string, number>;
+  /** Keyed by threshold ("4.5", "4", "3"). */
+  ratings: Record<string, number>;
+  flags: { onSale: number; inStock: number; isNew: number };
+  /** The "Todas" option of the category facet: every other filter applied. */
+  anyCategory: number;
+  /** The "Todas" option of the rating facet: every other filter applied. */
+  anyRating: number;
+}
+
 // ---------------------------------------------------------------------------
 // Client state (persisted in localStorage)
 // ---------------------------------------------------------------------------

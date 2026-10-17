@@ -43,6 +43,22 @@ test.describe("Catalogue filters and sort (URL state)", () => {
     await expect(count(page)).toContainText("22 productos");
   });
 
+  test("facet counts follow the other active filters", async ({ page }) => {
+    await page.goto("/search");
+    const filters = sidebar(page);
+    await expect(filters.getByRole("checkbox", { name: "En oferta (6)" })).toBeVisible();
+
+    await filters.getByRole("checkbox", { name: /Novedades/ }).click();
+    await expect(page).toHaveURL(/\/search\?isNew=1$/);
+    // Each count is what checking the option would show with Novedades kept.
+    const onSale = filters.getByRole("checkbox", { name: /^En oferta \(\d+\)$/ });
+    await expect(onSale).toHaveAccessibleName("En oferta (1)");
+    await expect(filters.getByRole("radio", { name: /^Helmets/ })).toHaveAccessibleName("Helmets (2)");
+
+    await onSale.click();
+    await expect(count(page)).toContainText("1 producto");
+  });
+
   test("sort select orders the results and is kept in the URL", async ({ page }) => {
     await page.goto("/category/helmet");
     await page.getByTestId("product-sort").click();

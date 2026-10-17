@@ -1,5 +1,5 @@
 import { serializeProductQuery } from "@/lib/productQuery";
-import type { PaginatedResponse, Product, ProductQuery, SearchSuggestion } from "@/types";
+import type { FacetCounts, PaginatedResponse, Product, ProductQuery, SearchSuggestion } from "@/types";
 
 /**
  * Browser-side calls to the Route Handlers in src/app/api. Client islands use
@@ -14,6 +14,10 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
 
 export function fetchProductsPage(query: ProductQuery, signal?: AbortSignal) {
   return getJson<PaginatedResponse<Product>>(`/api/products?${serializeProductQuery(query)}`, signal);
+}
+
+export function fetchFacetCounts(query: ProductQuery, signal?: AbortSignal) {
+  return getJson<FacetCounts>(`/api/products/facets?${serializeProductQuery(query)}`, signal);
 }
 
 export function fetchSearchSuggestions(q: string, limit = 5, signal?: AbortSignal) {

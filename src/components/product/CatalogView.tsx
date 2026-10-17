@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 import { CloudOff, SearchX, SlidersHorizontal } from "lucide-react";
 import { useCatalogQuery } from "@/hooks/useCatalogQuery";
+import { useFacetCounts } from "@/hooks/useFacetCounts";
 import { useProductPages } from "@/hooks/useProductPages";
 import { listActiveFilters, removeFilter, serializeProductQuery } from "@/lib/productQuery";
 import { cn, pluralize } from "@/lib/utils";
@@ -19,7 +20,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui";
-import type { FilterOptions, PaginatedResponse, Product, ProductQuery } from "@/types";
+import type { FacetCounts, FilterOptions, PaginatedResponse, Product, ProductQuery } from "@/types";
 import { ActiveFilters } from "./ActiveFilters";
 import { ProductFilters } from "./ProductFilters";
 import { ProductGrid } from "./ProductGrid";
@@ -35,6 +36,8 @@ interface CatalogViewProps {
   scope?: Pick<ProductQuery, "category">;
   /** Filter values and counts in scope (getFilterOptions). */
   options: FilterOptions;
+  /** Facet counts for `initialQuery` (getFacetCounts); refreshed as filters change. */
+  initialCounts: FacetCounts;
   /** Offer the category facet (only where the route does not fix one). */
   showCategories?: boolean;
 }
@@ -48,11 +51,20 @@ const EAGER_IMAGES = 3;
  * /api/products and animate in place. Filters sit in a sidebar on desktop
  * and in a bottom sheet on phones.
  */
-export function CatalogView({ initialPage, initialQuery, scope, options, showCategories = false }: CatalogViewProps) {
+export function CatalogView({
+  initialPage,
+  initialQuery,
+  scope,
+  options,
+  initialCounts,
+  showCategories = false,
+}: CatalogViewProps) {
   // The route's scope (the category in the path) is not a URL filter.
   const { query, update, setQuery, clear } = useCatalogQuery(scope ? (Object.keys(scope) as (keyof ProductQuery)[]) : []);
   const apiQuery = { ...query, ...scope };
-  const pages = useProductPages({ query: apiQuery, initialPage, initialQuery: { ...initialQuery, ...scope } });
+  const scopedInitialQuery = { ...initialQuery, ...scope };
+  const pages = useProductPages({ query: apiQuery, initialPage, initialQuery: scopedInitialQuery });
+  const counts = useFacetCounts({ query: apiQuery, initialCounts, initialQuery: scopedInitialQuery });
 
   const filterCount = listActiveFilters(query).length;
   const resultsRef = useRef<HTMLElement>(null);
@@ -71,7 +83,7 @@ export function CatalogView({ initialPage, initialQuery, scope, options, showCat
   }, [queryKey]);
 
   const filters = (
-    <ProductFilters options={options} query={query} onChange={update} showCategories={showCategories} />
+    <ProductFilters options={options} counts={counts} query={query} onChange={update} showCategories={showCategories} />
   );
 
   const countText = pluralize(pages.total, "producto");

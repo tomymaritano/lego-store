@@ -15,6 +15,7 @@ export {
   getPaginatedProducts,
   getRelatedProducts,
   getFilterOptions,
+  getFacetCounts,
   getFeaturedProducts,
   getSaleProducts,
   getCategories,

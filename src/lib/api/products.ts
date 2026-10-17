@@ -5,6 +5,7 @@ import { categories as categoryData } from "@/data/categories";
 import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE } from "@/lib/productQuery";
 import type {
   Category,
+  FacetCounts,
   FilterOption,
   FilterOptions,
   PaginatedResponse,
@@ -215,6 +216,47 @@ export async function getFilterOptions(
       isNew: list.filter((p) => p.isNew).length,
     },
     total: list.length,
+  };
+}
+
+function countBy(list: Product[], values: (p: Product) => string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const p of list) {
+    for (const value of new Set(values(p))) counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Facet counts that follow the active filters (see FacetCounts): each facet
+ * is counted over the products matching the search text and every other
+ * filter, leaving out its own selection. Sort and paging are ignored.
+ * Values missing from a map have 0 products.
+ */
+export async function getFacetCounts(query: ProductQuery = {}): Promise<FacetCounts> {
+  const without = (field: keyof ProductFilters) => scope({ ...query, [field]: undefined });
+
+  const byCategory = without("category");
+  const byRating = without("minRating");
+
+  return {
+    categories: countBy(byCategory, (p) => [p.category]),
+    themes: countBy(without("themes"), (p) => [p.theme]),
+    types: countBy(without("types"), (p) => [p.type]),
+    ages: countBy(without("ages"), (p) => [p.age]),
+    interests: countBy(without("interests"), (p) => p.interests),
+    pieces: countBy(without("pieces"), (p) => [p.pieces]),
+    highlights: countBy(without("highlights"), (p) => [p.highlight]),
+    ratings: Object.fromEntries(
+      RATING_THRESHOLDS.map((stars) => [String(stars), byRating.filter((p) => p.rating >= stars).length])
+    ),
+    flags: {
+      onSale: without("onSale").filter((p) => p.isOnSale).length,
+      inStock: without("inStock").filter((p) => p.stock > 0).length,
+      isNew: without("isNew").filter((p) => p.isNew).length,
+    },
+    anyCategory: byCategory.length,
+    anyRating: byRating.length,
   };
 }
 

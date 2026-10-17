@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCategories, getCategoryById, getFilterOptions, getPaginatedProducts } from "@/lib/api";
+import { getCategories, getCategoryById, getFacetCounts, getFilterOptions, getPaginatedProducts } from "@/lib/api";
 import { Breadcrumbs } from "@/components/ui";
 import { CatalogView } from "@/components/product";
 import { parseProductQuery } from "@/lib/productQuery";
@@ -38,9 +38,10 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   void _page;
   void _limit;
   const scope = { category: category.id };
-  const [firstPage, options] = await Promise.all([
+  const [firstPage, options, counts] = await Promise.all([
     getPaginatedProducts({ ...urlQuery, ...scope }),
     getFilterOptions(scope),
+    getFacetCounts({ ...urlQuery, ...scope }),
   ]);
 
   return (
@@ -54,7 +55,13 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         </p>
       </header>
 
-      <CatalogView initialPage={firstPage} initialQuery={urlQuery} scope={scope} options={options} />
+      <CatalogView
+        initialPage={firstPage}
+        initialQuery={urlQuery}
+        scope={scope}
+        options={options}
+        initialCounts={counts}
+      />
     </div>
   );
 }

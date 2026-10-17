@@ -3,13 +3,20 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { formatPrice } from "@/lib/utils";
 import { Button, Checkbox, RadioGroup, RadioGroupItem, Slider } from "@/components/ui";
-import type { FilterOption, FilterOptions, ProductFilters as Filters, ProductQuery } from "@/types";
+import type { FacetCounts, FilterOption, FilterOptions, ProductFilters as Filters, ProductQuery } from "@/types";
 
 type ListField = "themes" | "types" | "ages" | "pieces" | "highlights";
+type CountedFacet = ListField | "categories" | "ratings";
 
 export interface ProductFiltersProps {
   /** Values and counts in the page's scope (getFilterOptions). */
   options: FilterOptions;
+  /**
+   * Counts that follow the active filters (getFacetCounts). Which options are
+   * listed still comes from `options`; only the numbers change. Without it the
+   * scope totals from `options` are shown.
+   */
+  counts?: FacetCounts;
   /** The current query (from the URL). */
   query: ProductQuery;
   /** Called with the fields that change; `undefined` removes a filter. */
@@ -35,7 +42,11 @@ const LIST_SECTIONS: { field: ListField; legend: string }[] = [
  * page keeps the state in the URL. Shown as a sidebar on desktop and inside
  * a Sheet on phones (see CatalogView).
  */
-export function ProductFilters({ options, query, onChange, showCategories = false }: ProductFiltersProps) {
+export function ProductFilters({ options, counts, query, onChange, showCategories = false }: ProductFiltersProps) {
+  /** The option with its live count, when there are live counts. */
+  const live = (field: CountedFacet, option: FilterOption) =>
+    counts ? { ...option, count: counts[field][option.value] ?? 0 } : option;
+
   const toggle = (field: ListField, value: string, checked: boolean) => {
     const current = query[field] ?? [];
     const next = checked ? [...current, value] : current.filter((v) => v !== value);
@@ -43,22 +54,23 @@ export function ProductFilters({ options, query, onChange, showCategories = fals
   };
 
   const flags = [
-    { field: "onSale", label: "En oferta", count: options.flags.onSale },
-    { field: "isNew", label: "Novedades", count: options.flags.isNew },
-    { field: "inStock", label: "En stock", count: options.flags.inStock },
+    { field: "onSale", label: "En oferta" },
+    { field: "isNew", label: "Novedades" },
+    { field: "inStock", label: "En stock" },
   ] as const;
 
   return (
     <div className="flex flex-col divide-y divide-border" data-testid="product-filters">
       <FilterGroup legend="Disponibilidad">
         {flags
-          .filter((flag) => flag.count > 0 || query[flag.field])
+          // Listed when the scope has any; the number follows the other filters.
+          .filter((flag) => options.flags[flag.field] > 0 || query[flag.field])
           .map((flag) => (
             <Checkbox
               key={flag.field}
               checked={!!query[flag.field]}
               onCheckedChange={(checked) => onChange({ [flag.field]: checked || undefined })}
-              label={<OptionLabel label={flag.label} count={flag.count} />}
+              label={<OptionLabel label={flag.label} count={(counts ?? options).flags[flag.field]} />}
             />
           ))}
       </FilterGroup>
@@ -71,9 +83,13 @@ export function ProductFilters({ options, query, onChange, showCategories = fals
             onValueChange={(value) => onChange({ category: (value as string) || undefined })}
             className="gap-2.5"
           >
-            <RadioGroupItem value="" label={<OptionLabel label="Todas" count={options.total} />} />
+            <RadioGroupItem value="" label={<OptionLabel label="Todas" count={counts?.anyCategory ?? options.total} />} />
             {options.categories.map((option) => (
-              <RadioGroupItem key={option.value} value={option.value} label={<OptionLabel {...option} />} />
+              <RadioGroupItem
+                key={option.value}
+                value={option.value}
+                label={<OptionLabel {...live("categories", option)} />}
+              />
             ))}
           </RadioGroup>
         </FilterGroup>
@@ -97,16 +113,20 @@ export function ProductFilters({ options, query, onChange, showCategories = fals
             onValueChange={(value) => onChange({ minRating: value ? Number(value) : undefined })}
             className="gap-2.5"
           >
-            <RadioGroupItem value="" label={<OptionLabel label="Todas" count={options.total} />} />
+            <RadioGroupItem value="" label={<OptionLabel label="Todas" count={counts?.anyRating ?? options.total} />} />
             {options.ratings.map((option) => (
-              <RadioGroupItem key={option.value} value={option.value} label={<OptionLabel {...option} />} />
+              <RadioGroupItem
+                key={option.value}
+                value={option.value}
+                label={<OptionLabel {...live("ratings", option)} />}
+              />
             ))}
           </RadioGroup>
         </FilterGroup>
       ) : null}
 
       {LIST_SECTIONS.map(({ field, legend }) => {
-        const values = options[field];
+        const values = options[field].map((option) => live(field, option));
         const selected = query[field] ?? [];
         // A facet with a single value does not narrow anything, unless it is selected.
         if (values.length < 2 && selected.length === 0) return null;

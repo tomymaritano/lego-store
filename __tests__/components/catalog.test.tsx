@@ -3,7 +3,7 @@ import { act, render, renderHook, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProductFilters } from "@/components/product/ProductFilters";
 import { ActiveFilters } from "@/components/product/ActiveFilters";
-import type { FilterOptions } from "@/types";
+import type { FacetCounts, FilterOptions } from "@/types";
 
 const nav = vi.hoisted(() => ({ search: "", pathname: "/search" }));
 vi.mock("next/navigation", () => ({
@@ -40,6 +40,31 @@ describe("ProductFilters", () => {
     expect(screen.queryByRole("group", { name: "Tipo" })).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Vehículos (3)" })).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "Precio mínimo" })).toBeInTheDocument();
+  });
+
+  it("shows live counts from `counts` without dropping options in scope", () => {
+    const counts: FacetCounts = {
+      categories: { helmet: 2 },
+      themes: { "Tema 1": 1 },
+      types: {},
+      ages: { "18+": 3 },
+      interests: {},
+      pieces: {},
+      highlights: {},
+      ratings: { "4": 2 },
+      flags: { onSale: 1, inStock: 3, isNew: 0 },
+      anyCategory: 3,
+      anyRating: 3,
+    };
+    render(<ProductFilters options={options} counts={counts} query={{ ages: ["18+"] }} onChange={() => {}} showCategories />);
+    // The accessible name carries the live number, not the scope total.
+    expect(screen.getByRole("checkbox", { name: "En oferta (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Helmets (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Vehículos (0)" })).toBeInTheDocument();
+    expect(screen.getAllByRole("radio", { name: "Todas (3)" })).toHaveLength(2);
+    expect(screen.getByRole("radio", { name: "4 estrellas o más (2)" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Tema 2 (0)" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "18+ (3)" })).toBeChecked();
   });
 
   it("toggles list values and flags through onChange", async () => {

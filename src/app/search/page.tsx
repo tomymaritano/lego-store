@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SearchX } from "lucide-react";
-import { getCategories, getFilterOptions, getPaginatedProducts } from "@/lib/api";
+import { getCategories, getFacetCounts, getFilterOptions, getPaginatedProducts } from "@/lib/api";
 import { pageMetadata } from "@/lib/metadata";
 import { parseProductQuery } from "@/lib/productQuery";
 import { pluralize } from "@/lib/utils";
@@ -38,7 +38,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   void _limit;
   const q = urlQuery.q;
 
-  const [firstPage, options] = await Promise.all([getPaginatedProducts(urlQuery), getFilterOptions({ q })]);
+  const [firstPage, options, counts] = await Promise.all([
+    getPaginatedProducts(urlQuery),
+    getFilterOptions({ q }),
+    getFacetCounts(urlQuery),
+  ]);
 
   return (
     <div className="container-custom py-8">
@@ -64,7 +68,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       </header>
 
       {options.total > 0 ? (
-        <CatalogView key={q ?? ""} initialPage={firstPage} initialQuery={urlQuery} options={options} showCategories />
+        <CatalogView
+          key={q ?? ""}
+          initialPage={firstPage}
+          initialQuery={urlQuery}
+          options={options}
+          initialCounts={counts}
+          showCategories
+        />
       ) : (
         <NoResults q={q ?? ""} />
       )}

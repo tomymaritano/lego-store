@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getCategories,
   getCategoryById,
+  getFacetCounts,
   getFeaturedProducts,
   getFilterOptions,
   getPaginatedProducts,
@@ -213,6 +214,33 @@ describe("lib/api", () => {
 
     it("returns [] for an unknown product", async () => {
       expect(await getRelatedProducts("nope")).toEqual([]);
+    });
+  });
+
+  describe("getFacetCounts", () => {
+    it("matches getFilterOptions when no filter is active", async () => {
+      const [counts, options] = await Promise.all([getFacetCounts(), getFilterOptions()]);
+      expect(counts.flags).toEqual(options.flags);
+      expect(counts.anyCategory).toBe(options.total);
+      for (const option of options.themes) expect(counts.themes[option.value]).toBe(option.count);
+    });
+
+    it("counts each facet under every other active filter", async () => {
+      const counts = await getFacetCounts({ isNew: true });
+      // What checking the option would show, i.e. the API total for both filters.
+      expect(counts.flags.onSale).toBe((await getPaginatedProducts({ isNew: true, onSale: true })).total);
+      expect(counts.categories.helmet).toBe((await getPaginatedProducts({ isNew: true, category: "helmet" })).total);
+      expect(counts.anyCategory).toBe((await getPaginatedProducts({ isNew: true })).total);
+      // A facet ignores its own selection.
+      expect(counts.flags.isNew).toBe((await getFilterOptions()).flags.isNew);
+    });
+
+    it("leaves a multi-select facet's own values out (OR), keeps the others in", async () => {
+      const counts = await getFacetCounts({ themes: ["Star Wars"], q: "helmet" });
+      const all = await getFacetCounts({ q: "helmet" });
+      expect(counts.themes).toEqual(all.themes);
+      expect(counts.anyRating).toBe((await getPaginatedProducts({ themes: ["Star Wars"], q: "helmet" })).total);
+      expect(await getFacetCounts({ q: "zzzz" })).toMatchObject({ themes: {}, anyCategory: 0, flags: { onSale: 0 } });
     });
   });
 
