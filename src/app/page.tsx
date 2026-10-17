@@ -1,24 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, RotateCcw, Shield, Star, Truck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { getCategories, getPaginatedProducts, getSaleProducts } from "@/lib/api";
-import { formatPrice } from "@/lib/utils";
-import { siteConfig } from "@/config/site";
 import { Badge, Button, Price } from "@/components/ui";
 import { ProductImage, ProductList } from "@/components/product";
 import { Stagger, StaggerItem } from "@/components/motion/Reveal";
-import { NewsletterForm } from "@/components/forms";
-
-const features = [
-  {
-    icon: Truck,
-    title: "Envío gratis",
-    description: `En compras desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}`,
-  },
-  { icon: Shield, title: "Pago seguro", description: "100% protegido" },
-  { icon: RotateCcw, title: "Devoluciones", description: "30 días de garantía" },
-  { icon: Star, title: "Calidad LEGO", description: "Productos originales" },
-];
 
 const FEATURED_CATEGORIES = 3;
 
@@ -86,33 +72,14 @@ export default async function HomePage() {
           </Stagger>
         </div>
 
-        {/* Wave divider into the page background */}
-        <div aria-hidden="true" className="absolute right-0 bottom-0 left-0 text-bg">
+        {/* Wave divider into the categories band */}
+        <div aria-hidden="true" className="absolute right-0 bottom-0 left-0 text-bg-subtle">
           <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="block w-full">
             <path
               d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z"
               fill="currentColor"
             />
           </svg>
-        </div>
-      </section>
-
-      {/* Perks */}
-      <section aria-label="Beneficios" className="border-b border-border bg-bg py-8">
-        <div className="container-custom">
-          <Stagger as="ul" className="grid grid-cols-2 gap-6 md:grid-cols-4" stagger={0.06} delay={0.1}>
-            {features.map((feature) => (
-              <StaggerItem as="li" key={feature.title} className="flex items-center gap-3">
-                <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-on-primary">
-                  <feature.icon className="size-6" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-fg">{feature.title}</p>
-                  <p className="text-caption text-fg-muted">{feature.description}</p>
-                </div>
-              </StaggerItem>
-            ))}
-          </Stagger>
         </div>
       </section>
 
@@ -221,23 +188,6 @@ export default async function HomePage() {
           </div>
 
           <ProductList initialPage={firstPage} />
-        </div>
-      </section>
-
-      {/* Newsletter */}
-      <section aria-labelledby="newsletter-title" className="bg-info py-16 text-on-info">
-        <div className="container-custom">
-          <div className="flex flex-col items-center justify-between gap-8 lg:flex-row">
-            <div className="text-center lg:text-left">
-              <h2 id="newsletter-title" className="text-on-info">
-                ¿Nuevo en LEGO?
-              </h2>
-              <p className="mt-2 text-lg">Suscríbete y obtén 10% de descuento en tu primera compra</p>
-            </div>
-            <div className="w-full rounded-2xl bg-surface p-4 text-fg shadow-lg lg:w-auto">
-              <NewsletterForm labelledBy="newsletter-title" />
-            </div>
-          </div>
         </div>
       </section>
     </div>
