@@ -76,15 +76,15 @@ export function CompareBar() {
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
+        className="fixed bottom-4 inset-x-4 z-50 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2"
       >
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border p-4 flex items-center gap-4">
+        <div className="mx-auto w-fit max-w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2">
             <Scale className="w-5 h-5 text-lego-blue" />
-            <span className="font-semibold">{items.length} productos</span>
+            <span className="font-semibold whitespace-nowrap">{items.length} productos</span>
           </div>
 
-          <div className="flex -space-x-2">
+          <div className="hidden sm:flex -space-x-2">
             {items.slice(0, 4).map((item) => (
               <div
                 key={item.id}
@@ -98,13 +98,13 @@ export function CompareBar() {
           <div className="flex gap-2">
             <a
               href="/compare"
-              className="px-4 py-2 bg-lego-blue text-white rounded-xl font-medium text-sm hover:bg-blue-600 transition-colors"
+              className="px-3 sm:px-4 py-2 bg-lego-blue text-white rounded-xl font-medium text-sm hover:bg-blue-600 transition-colors"
             >
               Comparar
             </a>
             <button
               onClick={clearCompare}
-              className="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm"
+              className="px-2 sm:px-4 py-2 text-gray-500 hover:text-gray-700 text-sm"
             >
               Limpiar
             </button>
