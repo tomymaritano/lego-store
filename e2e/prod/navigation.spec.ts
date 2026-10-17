@@ -67,3 +67,33 @@ test.describe("Production navigation", () => {
     await expectClientNavigationWithTransition(page);
   });
 });
+
+test.describe("Production status codes", () => {
+  test("an unknown category is a real 404, a known one is 200", async ({ request }) => {
+    expect((await request.get("/category/nope")).status()).toBe(404);
+    expect((await request.get("/category/nope?theme=Marvel")).status()).toBe(404);
+    const ok = await request.get("/category/helmet?theme=Marvel");
+    expect(ok.status()).toBe(200);
+    expect(await ok.text()).toContain("Helmets");
+  });
+
+  test("an unknown category still shows the not-found page", async ({ page }) => {
+    const response = await page.goto("/category/nope");
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+});
+
+test.describe("Home server HTML", () => {
+  test("hero copy is not hidden before hydration (LCP, no-JS)", async ({ request }) => {
+    const response = await request.get("/");
+    expect(response.ok()).toBe(true);
+    const html = await response.text();
+    const start = html.indexOf('aria-labelledby="hero-title"');
+    const end = html.indexOf('id="hero-title"');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    // Motion serialises its initial state inline; the hero only moves, it never starts transparent.
+    expect(html.slice(start, end)).not.toMatch(/opacity:\s*0(?![.\d])/);
+  });
+});
