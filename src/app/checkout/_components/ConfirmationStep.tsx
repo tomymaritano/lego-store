@@ -5,7 +5,7 @@ import Link from "next/link";
 import { m } from "motion/react";
 import { ArrowRight, Mail, Truck } from "lucide-react";
 import { siteConfig } from "@/config/site";
-import { STAGGER, drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
+import { STAGGER, STAGGER_DELAY, drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui";
 import type { CartItem } from "@/types";
@@ -40,7 +40,7 @@ export function ConfirmationStep({ orderId, total, email, lines = [] }: Confirma
       data-testid="order-confirmation"
       className="mx-auto max-w-xl rounded-2xl border border-border bg-surface p-6 text-center shadow-card sm:p-10"
     >
-      <m.div variants={staggerContainer(STAGGER, 0.1)} initial="hidden" animate="visible" className="flex flex-col items-center">
+      <m.div variants={staggerContainer(STAGGER, STAGGER_DELAY.step)} initial="hidden" animate="visible" className="flex flex-col items-center">
         <m.span
           variants={successPop}
           aria-hidden="true"

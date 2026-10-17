@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { m } from "motion/react";
 import { Heart, Scale, ShoppingCart } from "lucide-react";
-import { STAGGER, staggerContainer, staggerItem } from "@/lib/motion";
+import { STAGGER, STAGGER_DELAY, staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { helpLinks, type NavItem } from "@/config/navigation";
 import {
@@ -61,7 +61,7 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
         <SheetBody>
           <m.nav
             aria-label="Menú móvil"
-            variants={staggerContainer(STAGGER, 0.05)}
+            variants={staggerContainer(STAGGER, STAGGER_DELAY.short)}
             initial="hidden"
             animate="visible"
             className="space-y-6 px-2 py-4"
