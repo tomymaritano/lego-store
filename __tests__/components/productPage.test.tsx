@@ -3,6 +3,9 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { TrackRecentlyViewed } from "@/components/product/RecentlyViewed";
 import { ProductGallery, gallerySources } from "@/components/product/ProductGallery";
 import { StockStatus } from "@/components/product/ProductPurchase";
+import { ReviewsLink, reviewsLinkLabel } from "@/components/product/ReviewsLink";
+import { REVIEWS_HASH } from "@/components/product/anchors";
+import { mockReviews, useReviewStore } from "@/stores/reviewStore";
 import { useRecentlyViewedStore } from "@/stores";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { PLACEHOLDER_IMAGE } from "@/lib/utils";
@@ -102,5 +105,21 @@ describe("product structured data", () => {
 
   it("escapes < so the JSON cannot close its script tag", () => {
     expect(serializeJsonLd(productJsonLd(product))).not.toContain("</script>");
+  });
+});
+
+describe("ReviewsLink", () => {
+  beforeEach(() => useReviewStore.setState({ reviews: mockReviews }));
+
+  it("counts the reviews the tab will show, from the same store", () => {
+    const count = mockReviews.filter((r) => r.productId === "1").length;
+    render(<ReviewsLink productId="1" />);
+    expect(screen.getByRole("link", { name: `Ver ${count} reseñas` })).toHaveAttribute("href", `#${REVIEWS_HASH}`);
+  });
+
+  it("does not promise reviews when there are none", () => {
+    render(<ReviewsLink productId="no-reviews" />);
+    expect(screen.getByRole("link")).toHaveTextContent("Aún sin reseñas · Escribe la primera");
+    expect(reviewsLinkLabel(1)).toBe("Ver 1 reseña");
   });
 });

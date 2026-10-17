@@ -13,7 +13,7 @@ import {
   ProductGrid,
   ProductPurchase,
   RecentlyViewed,
-  REVIEWS_HASH,
+  ReviewsLink,
   TrackRecentlyViewed,
 } from "@/components/product";
 
@@ -105,13 +105,15 @@ export default async function ItemPage({ params }: ItemPageProps) {
                   <Badge variant="neutral">{product.highlight}</Badge>
                 </div>
                 <h1 className="text-3xl text-balance lg:text-4xl">{product.name}</h1>
-                <a
-                  href={`#${REVIEWS_HASH}`}
-                  className="inline-flex items-center gap-2 rounded-sm text-sm text-fg-secondary underline-offset-4 outline-none hover:text-fg hover:underline focus-visible:ring-2 focus-visible:ring-focus-ring"
-                >
+                {/* Catalogue rating (same as the product cards), labelled as such; the link counts the reviews in the tab. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                   <Rating value={product.rating} showValue />
-                  <span>Ver reseñas</span>
-                </a>
+                  <span className="text-fg-muted">valoración general</span>
+                  <span aria-hidden="true" className="text-fg-muted">
+                    ·
+                  </span>
+                  <ReviewsLink productId={product.id} />
+                </div>
               </div>
 
               <Price
