@@ -101,7 +101,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
                   <p className="text-sm font-semibold tracking-wider text-info uppercase">{product.theme}</p>
                   <Badge variant="neutral">{product.highlight}</Badge>
                 </div>
-                <h1 className="text-3xl text-balance lg:text-4xl">{product.name}</h1>
+                <h1 className="text-headline text-balance">{product.name}</h1>
                 {/* Catalogue rating (same as the product cards), labelled as such; the link counts the reviews in the tab. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                   <Rating value={product.rating} showValue />

@@ -56,7 +56,7 @@ export function ConfirmationStep({ orderId, total, email, lines = [] }: Confirma
           id="confirmation-title"
           ref={headingRef}
           tabIndex={-1}
-          className="mb-2 scroll-mt-32 text-2xl text-fg sm:text-3xl outline-none"
+          className="mb-2 scroll-mt-32 text-heading text-fg outline-none"
         >
           ¡Gracias por tu compra!
         </m.h1>

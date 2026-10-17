@@ -30,7 +30,7 @@ function CheckoutHeader() {
   return (
     <>
       <Breadcrumbs items={[{ label: "Carrito", href: "/cart" }, { label: "Checkout" }]} />
-      <h1 className="mt-4 mb-8 text-3xl md:text-4xl">Finalizar compra</h1>
+      <h1 className="mt-4 mb-8 text-headline">Finalizar compra</h1>
     </>
   );
 }

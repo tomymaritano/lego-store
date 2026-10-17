@@ -36,7 +36,7 @@ export default function NotFound() {
         ))}
       </div>
 
-      <h1 className="text-3xl md:text-4xl">Esta pieza no está en la caja</h1>
+      <h1 className="text-headline">Esta pieza no está en la caja</h1>
       <p className="mt-3 max-w-md text-lg text-fg-secondary">
         La página que buscas no existe o se movió. Prueba buscando el set o vuelve al inicio.
       </p>

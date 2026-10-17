@@ -275,7 +275,9 @@
   /* Sticky site header height (h-16 bar). Also the scroll offset for anchors and focus (see html below). */
   --spacing-header: 4rem;
 
-  /* Type scale (text-caption, text-label, text-body, text-title, text-display) */
+  /* Type scale (text-caption, text-label, text-body, text-title, text-heading,
+     text-headline, text-display). Heading sizes are fluid, so one class
+     replaces a text-2xl md:text-3xl style ladder. */
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
   --text-label: 0.875rem;
@@ -286,6 +288,12 @@
   --text-title: 1.25rem;
   --text-title--line-height: 1.75rem;
   --text-title--font-weight: 700;
+  /* Section headings: 24px on phones to 30px on wide screens. */
+  --text-heading: clamp(1.5rem, 1.25rem + 1vw, 1.875rem);
+  --text-heading--line-height: 1.2;
+  /* Page headings (h1 of a page): 30px on phones to 36px on wide screens. */
+  --text-headline: clamp(1.875rem, 1.5rem + 1.5vw, 2.25rem);
+  --text-headline--line-height: 1.15;
   /* Fluid: 36px on phones to 60px on wide screens (hero / display headings). */
   --text-display: clamp(2.25rem, 1.5rem + 3vw, 3.75rem);
   --text-display--line-height: 1.05;
@@ -383,20 +391,21 @@
     @apply font-bold tracking-tight text-fg;
   }
 
+  /* Defaults on the type scale; components usually set their own role. */
   h1 {
-    @apply text-4xl md:text-5xl lg:text-6xl;
+    @apply text-display;
   }
 
   h2 {
-    @apply text-3xl md:text-4xl;
+    @apply text-headline;
   }
 
   h3 {
-    @apply text-2xl md:text-3xl;
+    @apply text-heading;
   }
 
   h4 {
-    @apply text-xl md:text-2xl;
+    @apply text-title;
   }
 
   a {

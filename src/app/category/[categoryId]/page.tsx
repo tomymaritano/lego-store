@@ -49,7 +49,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       <Breadcrumbs items={[{ label: category.name }]} />
 
       <header className="mb-8">
-        <h1 className="text-3xl md:text-4xl">{category.name}</h1>
+        <h1 className="text-headline">{category.name}</h1>
         <p className="mt-2 text-fg-secondary">
           {category.description} · {pluralize(options.total, "set")}
         </p>

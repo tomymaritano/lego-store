@@ -52,10 +52,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         {q ? (
           <>
             <p className="text-label tracking-wider text-fg-secondary uppercase">Resultados de búsqueda</p>
-            <h1 className="mt-1 text-3xl break-words md:text-4xl">&ldquo;{q}&rdquo;</h1>
+            <h1 className="mt-1 text-headline break-words">&ldquo;{q}&rdquo;</h1>
           </>
         ) : (
-          <h1 className="text-3xl md:text-4xl">Catálogo</h1>
+          <h1 className="text-headline">Catálogo</h1>
         )}
         <p className="mt-2 text-fg-secondary">
           {/* With a search, the live count (after filters) is CatalogView's alone. */}

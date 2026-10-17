@@ -42,7 +42,7 @@ export default function ReturnsPage() {
       />
 
       <section aria-labelledby="returns-steps" className="mb-12">
-        <h2 id="returns-steps" className="mb-6 text-2xl">
+        <h2 id="returns-steps" className="mb-6 text-heading">
           Cómo hacer una devolución
         </h2>
         <ol className="grid gap-4 sm:grid-cols-2">

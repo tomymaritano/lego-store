@@ -154,7 +154,7 @@ export default function FaqPage() {
       <div className="space-y-10">
         {sections.map((section) => (
           <section key={section.id} aria-labelledby={`faq-${section.id}`}>
-            <h2 id={`faq-${section.id}`} className="mb-4 text-2xl">
+            <h2 id={`faq-${section.id}`} className="mb-4 text-heading">
               {section.title}
             </h2>
             <Accordion items={section.items} name={`faq-${section.id}`} />

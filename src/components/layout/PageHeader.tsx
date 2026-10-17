@@ -24,7 +24,7 @@ export function PageHeader({ title, titleId, breadcrumbs, description, actions }
       <Breadcrumbs items={breadcrumbs ?? [{ label: title }]} className="pt-0" />
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <h1 id={titleId} tabIndex={-1} className="text-3xl outline-none md:text-4xl">
+          <h1 id={titleId} tabIndex={-1} className="text-headline outline-none">
             {title}
           </h1>
           {description ? <div className="mt-1 text-fg-muted">{description}</div> : null}

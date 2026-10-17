@@ -26,7 +26,7 @@ export function InfoPageHeader({ title, description, icon, meta }: InfoPageHeade
           </span>
         ) : null}
         <div>
-          <h1 className="text-3xl md:text-4xl">{title}</h1>
+          <h1 className="text-headline">{title}</h1>
           {description ? <p className="mt-3 max-w-2xl text-lg text-fg-secondary">{description}</p> : null}
           {meta ? <p className="mt-2 text-sm text-fg-muted">{meta}</p> : null}
         </div>
@@ -41,7 +41,7 @@ export function Prose({ className, ...props }: ComponentProps<"div">) {
     <div
       className={cn(
         "space-y-4 text-body text-fg-secondary",
-        "[&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-2xl [&_h2:first-child]:mt-0",
+        "[&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-heading [&_h2:first-child]:mt-0",
         "[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-lg",
         "[&_strong]:font-semibold [&_strong]:text-fg",
         "[&_a]:rounded-sm [&_a]:font-medium [&_a]:text-info [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:no-underline",
