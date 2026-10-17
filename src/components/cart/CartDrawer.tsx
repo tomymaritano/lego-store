@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
@@ -19,6 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
   Spinner,
+  toast,
 } from "@/components/ui";
 
 interface CartDrawerProps {
@@ -32,6 +34,11 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const totalPrice = useCartSubtotal();
   const removeItem = useCartStore((state) => state.removeItem);
   const setQuantity = useCartStore((state) => state.setQuantity);
+
+  // Toasts sit bottom-right, exactly over the drawer footer CTAs: clear them when it opens.
+  useEffect(() => {
+    if (isOpen) toast.dismiss();
+  }, [isOpen]);
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
