@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ProductImage } from "./ProductImage";
 import Link from "next/link";
 import { Heart, ShoppingCart, ExternalLink } from "lucide-react";
@@ -8,7 +8,9 @@ import type { Product } from "@/types";
 import { ProductThumbnails, useGalleryImages } from "./ProductThumbnails";
 import { useProductActions } from "@/hooks/useProductActions";
 import { CategoryName } from "@/providers/CategoriesProvider";
+import { flyToCart } from "@/lib/flyToCart";
 import { calculateDiscount, cn } from "@/lib/utils";
+import { openCartDrawer, useCartStore } from "@/stores";
 import {
   Badge,
   Button,
@@ -44,20 +46,34 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
 function QuickViewBody({ product, onClose }: { product: Product; onClose: () => void }) {
   const [quantity, setQuantity] = useState(1);
+  const imageRef = useRef<HTMLDivElement>(null);
 
-  const { inCart, inWishlist, isAvailable, addToCart, toggleWishlist } = useProductActions(product);
+  const { inWishlist, isAvailable, addToCart, toggleWishlist } = useProductActions(product);
+  const inCartQuantity = useCartStore((state) => state.cart.find((line) => line.id === product.id)?.quantity ?? 0);
+  // What can still be added without going over the stock.
+  const remaining = Math.max(0, product.stock - inCartQuantity);
+  const cartIsFull = isAvailable && remaining === 0;
   const gallery = useGalleryImages([product.img, product.imageSecondary].filter((src): src is string => Boolean(src)));
   const discounted = product.isOnSale && product.originalPrice;
 
   const handleAddToCart = () => {
-    if (addToCart(quantity)) setQuantity(1);
+    if (cartIsFull) {
+      // Every unit is already in the cart: show it instead (the dialog closes first).
+      onClose();
+      openCartDrawer();
+      return;
+    }
+    if (addToCart(Math.min(quantity, remaining))) {
+      flyToCart(imageRef.current, gallery.selectedSrc);
+      setQuantity(1);
+    }
   };
 
   return (
     <div className="flex flex-col overflow-y-auto md:flex-row">
       {/* Images */}
       <div className="bg-bg-subtle p-6 md:w-1/2">
-        <div className="relative aspect-square overflow-hidden rounded-xl bg-surface">
+        <div ref={imageRef} className="relative aspect-square overflow-hidden rounded-xl bg-surface">
           <ProductImage src={gallery.selectedSrc} alt={product.name} fill sizes="(min-width: 768px) 24rem, 100vw" className="object-contain p-4" />
           {discounted ? (
             <Badge variant="sale" className="absolute top-3 left-3">
@@ -116,17 +132,23 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
           <QuantitySelector
             value={quantity}
             onValueChange={setQuantity}
-            max={Math.max(1, product.stock)}
+            max={Math.max(1, remaining)}
             label={`Cantidad de ${product.name}`}
-            disabled={!isAvailable}
+            disabled={!isAvailable || cartIsFull}
           />
         </div>
 
         <div className="mt-6 space-y-3">
-          <Button onClick={handleAddToCart} disabled={!isAvailable || inCart} className="w-full" size="lg">
+          {/* Stays enabled once the product is in the cart, so focus never drops to <body>. */}
+          <Button onClick={handleAddToCart} disabled={!isAvailable} className="w-full" size="lg" data-testid="quick-view-add">
             <ShoppingCart aria-hidden="true" />
-            {inCart ? "Ya en el carrito" : "Agregar al carrito"}
+            {!isAvailable ? "Agotado" : cartIsFull ? "Ver carrito" : "Agregar al carrito"}
           </Button>
+          {inCartQuantity > 0 ? (
+            <p className="text-center text-sm text-fg-secondary">
+              Ya tienes {inCartQuantity} en el carrito
+            </p>
+          ) : null}
 
           <div className="flex gap-3">
             <Button

@@ -12,6 +12,8 @@ interface AddToCartButtonProps extends Pick<ButtonProps, "size" | "className"> {
   product: ProductSummary;
   /** Visible label before the product is in the cart. */
   addLabel?: string;
+  /** Runs after a successful add (e.g. the fly-to-cart animation). */
+  onAdded?: () => void;
 }
 
 /**
@@ -22,13 +24,22 @@ interface AddToCartButtonProps extends Pick<ButtonProps, "size" | "className"> {
  * disables itself drops focus to <body>). Only an out-of-stock
  * product renders a disabled button, which the user never activated.
  */
-export function AddToCartButton({ product, addLabel = "Agregar al carrito", size = "sm", className }: AddToCartButtonProps) {
+export function AddToCartButton({
+  product,
+  addLabel = "Agregar al carrito",
+  onAdded,
+  size = "sm",
+  className,
+}: AddToCartButtonProps) {
   const { inCart, isAvailable, addToCart } = useProductActions(product);
   const state = !isAvailable ? "soldout" : inCart ? "in" : "out";
 
   return (
     <Button
-      onClick={() => (inCart ? openCartDrawer() : addToCart())}
+      onClick={() => {
+        if (inCart) openCartDrawer();
+        else if (addToCart()) onAdded?.();
+      }}
       disabled={!isAvailable}
       size={size}
       variant={inCart ? "secondary" : "primary"}

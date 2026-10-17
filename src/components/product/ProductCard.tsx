@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { Eye, Heart, Scale } from "lucide-react";
 import { hoverLift } from "@/lib/motion";
+import { flyToCart } from "@/lib/flyToCart";
 import { PLACEHOLDER_IMAGE, calculateDiscount, cn } from "@/lib/utils";
 import { useProductActions } from "@/hooks/useProductActions";
-import { Badge, IconButton, Price, Rating } from "@/components/ui";
+import { Badge, IconButton, Price, Rating, cardVariants } from "@/components/ui";
 import { AddToCartButton } from "./AddToCartButton";
 import type { Product } from "@/types";
 
@@ -27,6 +28,7 @@ interface ProductCardProps {
  */
 export function ProductCard({ product, onQuickView, priority = false }: ProductCardProps) {
   const { inWishlist, inCompare, isAvailable, toggleWishlist, toggleCompare } = useProductActions(product);
+  const imageRef = useRef<HTMLDivElement>(null);
   const [imageError, setImageError] = useState(false);
   const [secondaryError, setSecondaryError] = useState(false);
   const showSecondary = Boolean(product.imageSecondary) && !imageError && !secondaryError;
@@ -39,7 +41,13 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
     <motion.article
       {...hoverLift}
       aria-labelledby={titleId}
-      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card transition-[box-shadow,scale] duration-base ease-standard hover:shadow-xl focus-within:shadow-xl motion-safe:has-[[data-testid=product-name]:active]:scale-98"
+      className={cn(
+        cardVariants({ elevation: "raised" }),
+        "group relative flex h-full flex-col overflow-hidden",
+        "transition-[box-shadow,scale] duration-base ease-standard hover:shadow-xl focus-within:shadow-xl",
+        // Press feedback when the card's link (its whole surface) is pressed.
+        "motion-safe:has-[[data-testid=product-name]:active]:scale-98"
+      )}
       data-testid="product-card"
     >
       {/* Image */}
@@ -98,7 +106,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
         </div>
 
         <div className="absolute inset-0 p-6">
-          <div className="relative size-full">
+          <div ref={imageRef} className="relative size-full">
             <Image
               src={imageError ? PLACEHOLDER_IMAGE : product.img}
               alt=""
@@ -154,7 +162,11 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
           {lowStock && <span className="text-caption font-semibold text-warning">¡Solo quedan {product.stock}!</span>}
         </div>
 
-        <AddToCartButton product={product} className="relative z-10 mt-2 w-full" />
+        <AddToCartButton
+          product={product}
+          onAdded={() => flyToCart(imageRef.current, imageError ? PLACEHOLDER_IMAGE : product.img)}
+          className="relative z-10 mt-2 w-full"
+        />
       </div>
     </motion.article>
   );
