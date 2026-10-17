@@ -21,6 +21,8 @@ export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 
 export const DEFAULT_PAGE_SIZE = 12;
 export const MAX_PAGE_SIZE = 48;
+/** Most ids GET /api/products/by-ids resolves per request; the rest are ignored. */
+export const MAX_IDS_PER_REQUEST = 50;
 
 const SORT_VALUES = new Set<string>(SORT_OPTIONS.map((o) => o.value));
 

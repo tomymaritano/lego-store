@@ -43,4 +43,10 @@ describe("recentlyViewedStore", () => {
     await useRecentlyViewedStore.persist.rehydrate();
     expect(useRecentlyViewedStore.getState().ids).toEqual(["7", "1"]);
   });
+
+  it("removeMany drops stale ids and keeps the order", () => {
+    useRecentlyViewedStore.setState({ ids: ["3", "999", "1"] });
+    useRecentlyViewedStore.getState().removeMany(["999"]);
+    expect(useRecentlyViewedStore.getState().ids).toEqual(["3", "1"]);
+  });
 });

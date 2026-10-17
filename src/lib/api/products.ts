@@ -2,7 +2,7 @@ import "server-only";
 
 import { products as catalogue } from "@/data/products";
 import { categories as categoryData } from "@/data/categories";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/lib/productQuery";
+import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE } from "@/lib/productQuery";
 import type {
   Category,
   FilterOption,
@@ -22,7 +22,6 @@ import { normalizeText, search } from "./search";
  * are: async, plain serialisable arguments and results, null for "not found".
  */
 
-const MAX_IDS = 50;
 
 const categoryName = (slug: string) => categoryData.find((c) => c.id === slug)?.name;
 
@@ -103,7 +102,7 @@ export async function getProductById(id: string): Promise<Product | null> {
  * only persist ids on the client.
  */
 export async function getProductsByIds(ids: string[]): Promise<Product[]> {
-  const unique = Array.from(new Set(ids)).slice(0, MAX_IDS);
+  const unique = Array.from(new Set(ids)).slice(0, MAX_IDS_PER_REQUEST);
   return unique.map((id) => catalogue.find((p) => p.id === id)).filter((p): p is Product => !!p);
 }
 

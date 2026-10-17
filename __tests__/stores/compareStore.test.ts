@@ -68,4 +68,11 @@ describe("compareStore", () => {
     expect(useCompareStore.getState().ids).toEqual(["4", "2"]);
     expect(JSON.parse(localStorage.getItem("lego-compare-storage")!).state).toEqual({ ids: ["4", "2"] });
   });
+
+  it("removeMany drops stale ids and frees their slots", () => {
+    useCompareStore.setState({ ids: ["999", "1", "998", "997"] });
+    useCompareStore.getState().removeMany(["999", "998", "997"]);
+    expect(useCompareStore.getState().ids).toEqual(["1"]);
+    expect(useCompareStore.getState().addToCompare("2")).toBe(true);
+  });
 });

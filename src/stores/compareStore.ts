@@ -14,6 +14,8 @@ interface CompareState {
   removeFromCompare: (id: string) => void;
   toggleCompare: (id: string) => CompareResult;
   clearCompare: () => void;
+  /** Drops ids the catalogue no longer knows (see useProductsByIds). */
+  removeMany: (ids: string[]) => void;
 }
 
 export const useCompareStore = create<CompareState>()(
@@ -39,6 +41,8 @@ export const useCompareStore = create<CompareState>()(
       },
 
       clearCompare: () => set({ ids: [] }),
+
+      removeMany: (ids) => set((state) => ({ ids: state.ids.filter((item) => !ids.includes(item)) })),
     }),
     {
       name: "lego-compare-storage",

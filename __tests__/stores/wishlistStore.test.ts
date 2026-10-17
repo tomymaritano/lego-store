@@ -64,4 +64,12 @@ describe("wishlistStore", () => {
       { id: "1", name: "Rex", price: 899, image: "/rex.png", stock: 3 },
     ]);
   });
+
+  it("removeMany drops stale snapshots", () => {
+    const { addToWishlist, removeMany } = useWishlistStore.getState();
+    addToWishlist({ id: "1", name: "Rex", price: 899, img: "/rex.png", stock: 1 });
+    addToWishlist({ id: "999", name: "Gone", price: 1, img: "/gone.png", stock: 1 });
+    removeMany(["999"]);
+    expect(useWishlistStore.getState().wishlist.map((item) => item.id)).toEqual(["1"]);
+  });
 });

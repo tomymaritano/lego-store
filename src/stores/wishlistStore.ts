@@ -10,6 +10,8 @@ interface WishlistState {
   /** Adds or removes; returns true when the product ends up in the wishlist. */
   toggleWishlist: (product: ProductSummary) => boolean;
   clearWishlist: () => void;
+  /** Drops products the catalogue no longer knows (see useProductsByIds). */
+  removeMany: (ids: string[]) => void;
 }
 
 const snapshot = ({ id, name, price, img, stock }: ProductSummary): WishlistItem => ({
@@ -42,6 +44,8 @@ export const useWishlistStore = create<WishlistState>()(
       },
 
       clearWishlist: () => set({ wishlist: [] }),
+
+      removeMany: (ids) => set((state) => ({ wishlist: state.wishlist.filter((item) => !ids.includes(item.id)) })),
     }),
     {
       name: "lego-wishlist-storage",

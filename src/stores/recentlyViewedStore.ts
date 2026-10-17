@@ -10,6 +10,8 @@ interface RecentlyViewedState {
   /** Moves (or adds) the id to the front. */
   addItem: (id: string) => void;
   clearAll: () => void;
+  /** Drops ids the catalogue no longer knows (see useProductsByIds). */
+  removeMany: (ids: string[]) => void;
 }
 
 export const useRecentlyViewedStore = create<RecentlyViewedState>()(
@@ -19,6 +21,7 @@ export const useRecentlyViewedStore = create<RecentlyViewedState>()(
       addItem: (id) =>
         set((state) => ({ ids: [id, ...state.ids.filter((item) => item !== id)].slice(0, MAX_RECENTLY_VIEWED) })),
       clearAll: () => set({ ids: [] }),
+      removeMany: (ids) => set((state) => ({ ids: state.ids.filter((item) => !ids.includes(item)) })),
     }),
     {
       name: "lego-recently-viewed",
