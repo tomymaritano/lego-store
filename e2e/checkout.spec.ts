@@ -21,7 +21,7 @@ test.describe("Checkout", () => {
     await page.goto("/checkout");
 
     // Try to submit empty form
-    const submitBtn = page.locator("button[type='submit']");
+    const submitBtn = page.locator("main button[type='submit']");
     await submitBtn.click();
 
     // Should show validation errors
@@ -43,10 +43,10 @@ test.describe("Checkout", () => {
     await page.fill("input[name='zipCode']", "06600");
 
     // Submit form
-    const submitBtn = page.locator("button[type='submit']");
+    const submitBtn = page.locator("main button[type='submit']");
     await submitBtn.click();
 
     // Should move to payment step
-    await expect(page.locator("text=/pago|payment/i")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("input[name='cardNumber']")).toBeVisible({ timeout: 5000 });
   });
 });

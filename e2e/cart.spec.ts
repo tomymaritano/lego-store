@@ -16,7 +16,7 @@ test.describe("Cart", () => {
     await addToCartBtn.first().click();
 
     // Cart badge should show item
-    const cartBadge = page.locator("[data-testid='cart-badge']");
+    const cartBadge = page.locator("[data-testid='cart-count']");
     await expect(cartBadge).toBeVisible({ timeout: 5000 });
   });
 

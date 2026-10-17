@@ -19,11 +19,12 @@ test.describe("Search", () => {
   test("should navigate to search page from navbar", async ({ page }) => {
     await page.goto("/");
 
-    // Click search icon in navbar
-    const searchBtn = page.locator("[data-testid='search-button'], a[href='/search']");
-    await searchBtn.first().click();
+    // Submit a query from the navbar search box
+    const searchInput = page.getByTestId("search-input").first();
+    await searchInput.fill("star");
+    await searchInput.press("Enter");
 
-    // Should be on search page
-    await expect(page).toHaveURL(/\/search/);
+    // Should be on the search page with the query
+    await expect(page).toHaveURL(/\/search\?q=star/);
   });
 });
