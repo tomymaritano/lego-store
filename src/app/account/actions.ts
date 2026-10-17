@@ -7,7 +7,13 @@ import { sessionRenewal } from "@/lib/auth/session-token";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { requireUser } from "@/lib/auth/session";
 import { waitMessage } from "@/lib/rate-limit";
-import { changePasswordSchema, fieldErrors, profileSchema } from "@/lib/validations/auth";
+import {
+  changePasswordSchema,
+  fieldErrors,
+  profileSchema,
+  type PasswordField,
+  type ProfileField,
+} from "@/lib/validations/auth";
 import { clearPasswordChangedFlash, setPasswordChangedFlash } from "./flash";
 
 /*
@@ -15,13 +21,14 @@ import { clearPasswordChangedFlash, setPasswordChangedFlash } from "./flash";
  * Server Actions are POST endpoints of their own, whatever proxy.ts matches.
  */
 
-type PasswordField = "currentPassword" | "newPassword" | "confirmPassword";
-
-export async function updateProfileAction(_previous: FormState<"name">, formData: FormData): Promise<FormState<"name">> {
+export async function updateProfileAction(
+  _previous: FormState<ProfileField>,
+  formData: FormData
+): Promise<FormState<ProfileField>> {
   const user = await requireUser();
   const values = { name: formText(formData, "name") };
   const parsed = profileSchema.safeParse(values);
-  if (!parsed.success) return { status: "error", fieldErrors: fieldErrors<"name">(parsed.error), values };
+  if (!parsed.success) return { status: "error", fieldErrors: fieldErrors<ProfileField>(parsed.error), values };
 
   await updateUserName(user.id, parsed.data.name);
   // Re-issues the session cookie with the new name; Next re-renders the page (and the navbar) with it.

@@ -2,23 +2,20 @@
 
 import { headers } from "next/headers";
 import { AuthError, CredentialsSignin } from "next-auth";
-import { redirect } from "next/navigation";
-import { isGoogleEnabled, signIn, signOut } from "@/lib/auth";
+import { signIn } from "@/lib/auth";
 import { registerUser } from "@/lib/auth/accounts";
 import { safeCallbackUrl } from "@/lib/auth/callback-url";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { clientIp, rateLimits, waitMessage } from "@/lib/rate-limit";
-import { fieldErrors, loginSchema, registerSchema } from "@/lib/validations/auth";
+import { fieldErrors, loginSchema, registerSchema, type LoginField, type RegisterField } from "@/lib/validations/auth";
 
 /*
- * Login, registration and logout. Each one validates on the server (zod),
+ * Login and registration (logout and the Google button, which the navbar and
+ * /account use too, live in src/lib/auth/actions.ts). Each one validates on the server (zod),
  * whatever the form did, and only redirects to a same-site callbackUrl.
  * Login rate limits live in the Credentials provider (lib/auth/accounts.ts),
  * so they also cover direct POSTs to /api/auth/callback/credentials.
  */
-
-export type LoginField = "email" | "password";
-export type RegisterField = "name" | "email" | "password" | "confirmPassword";
 
 const LOGIN_FAILED = "El email o la contraseña no son correctos.";
 const TOO_MANY_LOGINS = "Demasiados intentos de ingreso. Espera unos minutos y vuelve a intentarlo.";
@@ -85,13 +82,4 @@ export async function registerAction(
     message: "Creamos tu cuenta, pero no pudimos iniciar tu sesión. Ingresa con tu email y contraseña.",
     values,
   };
-}
-
-export async function googleSignInAction(formData: FormData): Promise<void> {
-  if (!isGoogleEnabled()) redirect("/login");
-  await signIn("google", { redirectTo: safeCallbackUrl(formText(formData, "callbackUrl")) });
-}
-
-export async function logoutAction(): Promise<void> {
-  await signOut({ redirectTo: "/" });
 }

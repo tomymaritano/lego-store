@@ -2,12 +2,13 @@
 
 import { useActionState } from "react";
 import type { FormState } from "@/lib/auth/form-state";
+import type { ProfileField } from "@/lib/validations/auth";
 import { Button, Field, Input } from "@/components/ui";
 import { FormAlert } from "@/components/auth/FormAlert";
 import { useFocusFirstInvalid } from "@/components/auth/useFormFeedback";
 
 export interface ProfileFormProps {
-  action: (state: FormState<"name">, formData: FormData) => Promise<FormState<"name">>;
+  action: (state: FormState<ProfileField>, formData: FormData) => Promise<FormState<ProfileField>>;
   name: string;
   email: string;
 }

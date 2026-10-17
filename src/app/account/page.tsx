@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ProfileForm } from "@/components/account/ProfileForm";
 import { PasswordForm } from "@/components/account/PasswordForm";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
-import { logoutAction } from "../(auth)/actions";
+import { logoutAction } from "@/lib/auth/actions";
 import { changePasswordAction, dismissPasswordNoticeAction, updateProfileAction } from "./actions";
 import { hasPasswordChangedFlash } from "./flash";
 

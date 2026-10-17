@@ -6,13 +6,12 @@ import { UserPlus } from "lucide-react";
 import type { FormState } from "@/lib/auth/form-state";
 import { loginHref } from "@/lib/auth/callback-url";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-rules";
+import type { RegisterField } from "@/lib/validations/auth";
 import { Button, Field, Input } from "@/components/ui";
 import { FormAlert } from "./FormAlert";
 import { GoogleSignIn } from "./GoogleSignIn";
 import { PasswordInput } from "./PasswordInput";
 import { useFocusFirstInvalid } from "./useFormFeedback";
-
-type RegisterField = "name" | "email" | "password" | "confirmPassword";
 
 export interface RegisterFormProps {
   action: (state: FormState<RegisterField>, formData: FormData) => Promise<FormState<RegisterField>>;

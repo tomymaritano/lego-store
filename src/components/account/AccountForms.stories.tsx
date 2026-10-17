@@ -1,14 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { FormState } from "@/lib/auth/form-state";
+import { stubFormAction } from "@/components/auth/stub-action";
 import { PasswordForm } from "./PasswordForm";
 import { ProfileForm } from "./ProfileForm";
 
 /** /account forms with stand-in Server Actions (see src/app/account/actions.ts for the real ones). */
-
-const answer =
-  <F extends string>(state: FormState<F>) =>
-  async (): Promise<FormState<F>> =>
-    state;
 
 const meta = {
   title: "Account/Forms",
@@ -31,15 +26,15 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Profile: Story = {
-  render: () => <ProfileForm action={answer({})} name="Ana Pérez" email="ana@example.com" />,
+  render: () => <ProfileForm action={stubFormAction({})} name="Ana Pérez" email="ana@example.com" />,
 };
 
 export const Password: Story = {
-  render: () => <PasswordForm action={answer({})} />,
+  render: () => <PasswordForm action={stubFormAction({})} />,
 };
 
 export const PasswordChanged: Story = {
-  render: () => <PasswordForm action={answer({})} notice="Cambiamos tu contraseña. Cerramos la sesión en tus otros dispositivos." />,
+  render: () => <PasswordForm action={stubFormAction({})} notice="Cambiamos tu contraseña. Cerramos la sesión en tus otros dispositivos." />,
 };
 
 export const PasswordChangedDark: Story = { ...PasswordChanged, globals: { theme: "dark" } };

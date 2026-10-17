@@ -3,12 +3,11 @@
 import { useActionState, useEffect, useState } from "react";
 import type { FormState } from "@/lib/auth/form-state";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-rules";
+import type { PasswordField } from "@/lib/validations/auth";
 import { Button, Field } from "@/components/ui";
 import { FormAlert } from "@/components/auth/FormAlert";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import { useFocusFirstInvalid } from "@/components/auth/useFormFeedback";
-
-type PasswordField = "currentPassword" | "newPassword" | "confirmPassword";
 
 export interface PasswordFormProps {
   action: (state: FormState<PasswordField>, formData: FormData) => Promise<FormState<PasswordField>>;

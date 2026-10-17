@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, userEvent, within } from "storybook/test";
-import type { FormState } from "@/lib/auth/form-state";
+import type { LoginField, RegisterField } from "@/lib/validations/auth";
+import { stubFormAction } from "./stub-action";
 import { LoginForm } from "./LoginForm";
 import { RegisterForm } from "./RegisterForm";
 
@@ -9,11 +10,6 @@ import { RegisterForm } from "./RegisterForm";
  * src/app/(auth)/actions.ts and need a database). Each story's action
  * answers the way the server does for that case.
  */
-
-const answer =
-  <F extends string>(state: FormState<F>) =>
-  async (): Promise<FormState<F>> =>
-    state;
 
 const meta = {
   title: "Auth/Forms",
@@ -34,17 +30,17 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Login: Story = {
-  render: () => <LoginForm action={answer({})} callbackUrl="/account" />,
+  render: () => <LoginForm action={stubFormAction({})} callbackUrl="/account" />,
 };
 
 export const LoginWithGoogle: Story = {
-  render: () => <LoginForm action={answer({})} callbackUrl="/" googleAction={async () => {}} />,
+  render: () => <LoginForm action={stubFormAction({})} callbackUrl="/" googleAction={async () => {}} />,
 };
 
 export const LoginWrongPassword: Story = {
   render: () => (
     <LoginForm
-      action={answer<"email" | "password">({
+      action={stubFormAction<LoginField>({
         status: "error",
         message: "El email o la contraseña no son correctos.",
         values: { email: "ana@example.com" },
@@ -60,13 +56,13 @@ export const LoginWrongPassword: Story = {
 };
 
 export const Register: Story = {
-  render: () => <RegisterForm action={answer({})} callbackUrl="/" />,
+  render: () => <RegisterForm action={stubFormAction({})} callbackUrl="/" />,
 };
 
 export const RegisterInvalid: Story = {
   render: () => (
     <RegisterForm
-      action={answer<"name" | "email" | "password" | "confirmPassword">({
+      action={stubFormAction<RegisterField>({
         status: "error",
         fieldErrors: {
           name: "Ingresa tu nombre (al menos 2 caracteres)",

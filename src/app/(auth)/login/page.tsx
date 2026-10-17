@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { isAuthConfigured, isGoogleEnabled } from "@/lib/auth";
+import { isGoogleEnabled } from "@/lib/auth";
+import { googleSignInAction } from "@/lib/auth/actions";
 import { safeCallbackUrl } from "@/lib/auth/callback-url";
+import { firstParam, type SearchParams } from "@/lib/auth/search-params";
 import { authErrorMessage } from "@/lib/auth/error-messages";
 import { getCurrentUser } from "@/lib/auth/session";
-import { FormAlert } from "@/components/auth/FormAlert";
+import { AuthNotConfigured } from "@/components/auth/AuthNotConfigured";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { googleSignInAction, loginAction } from "../actions";
+import { loginAction } from "../actions";
 
 export const metadata: Metadata = {
   title: "Iniciar sesión",
@@ -16,14 +18,12 @@ export const metadata: Metadata = {
 };
 
 interface LoginPageProps {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<SearchParams>;
 }
-
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const callbackUrl = safeCallbackUrl(first(params.callbackUrl));
+  const callbackUrl = safeCallbackUrl(firstParam(params.callbackUrl));
   // Already signed in: nothing to do here.
   if (await getCurrentUser()) redirect(callbackUrl);
 
@@ -35,15 +35,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </h1>
         <p className="mt-2 text-fg-secondary">Ingresa con tu email y contraseña.</p>
       </header>
-      {isAuthConfigured() ? null : (
-        <FormAlert className="mb-6">
-          El ingreso no está configurado en este servidor: falta la variable AUTH_SECRET (ver README).
-        </FormAlert>
-      )}
+      <AuthNotConfigured />
       <LoginForm
         action={loginAction}
         callbackUrl={callbackUrl}
-        notice={authErrorMessage(first(params.error))}
+        notice={authErrorMessage(firstParam(params.error))}
         googleAction={isGoogleEnabled() ? googleSignInAction : undefined}
       />
     </>

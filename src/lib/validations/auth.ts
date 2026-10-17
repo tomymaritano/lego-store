@@ -77,6 +77,12 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/** Field names of each form, shared by its Server Action and its component (so they cannot drift). */
+export type LoginField = keyof LoginInput;
+export type RegisterField = keyof RegisterInput;
+export type ProfileField = keyof ProfileInput;
+export type PasswordField = keyof ChangePasswordInput;
+
 /** The first message per field, for a form's field errors. */
 export function fieldErrors<T extends string>(error: z.ZodError): Partial<Record<T, string>> {
   const errors: Partial<Record<T, string>> = {};
