@@ -171,8 +171,9 @@ npm run db:seed             # catálogo, reseñas de ejemplo y el admin (ver "Ad
 npm run dev
 ```
 
-- **Puerto**: Docker publica Postgres en el **5433** para no chocar con un Postgres
-  instalado en el 5432. Para otro puerto: `POSTGRES_PORT=5434 npm run db:up` y
+- **Puerto**: Docker publica Postgres en el **5433**, solo en `127.0.0.1` (nadie
+  de tu red llega a la base con las credenciales de ejemplo), para no chocar con un
+  Postgres instalado en el 5432. Para otro puerto: `POSTGRES_PORT=5434 npm run db:up` y
   ajustá las URLs de `.env.local`.
 - **Admin**: el seed crea el admin de `ADMIN_EMAIL` / `ADMIN_PASSWORD` (van juntas:
   si definís solo una, falla). Sin ellas no crea ninguno, salvo que actives el
