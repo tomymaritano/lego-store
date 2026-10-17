@@ -79,7 +79,7 @@ const features = [
 
 export function Footer() {
   return (
-    <footer className="bg-gradient-to-b from-lego-black to-gray-900 text-white mt-auto">
+    <footer className="bg-linear-to-b from-lego-black to-gray-900 text-white mt-auto">
       {/* Features Banner */}
       <div className="border-b border-gray-800">
         <div className="container-custom py-6">
@@ -196,7 +196,7 @@ export function Footer() {
               <input
                 type="email"
                 placeholder="tu@email.com"
-                className="flex-1 lg:w-64 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
+                className="flex-1 lg:w-64 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white placeholder:text-gray-500 focus:outline-hidden focus:ring-2 focus:ring-lego-yellow focus:border-transparent"
               />
               <button
                 type="submit"
@@ -245,7 +245,7 @@ export function Footer() {
                 {paymentMethods.map((method) => (
                   <div
                     key={method}
-                    className="px-2 py-1 bg-gray-800 rounded text-xs text-gray-400 font-medium"
+                    className="px-2 py-1 bg-gray-800 rounded-sm text-xs text-gray-400 font-medium"
                   >
                     {method}
                   </div>

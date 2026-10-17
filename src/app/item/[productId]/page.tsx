@@ -99,7 +99,7 @@ export default function ItemPage({ params }: ItemPageProps) {
               key={selectedImage}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="relative aspect-square bg-gradient-to-br from-background-secondary to-background-tertiary rounded-2xl overflow-hidden"
+              className="relative aspect-square bg-linear-to-br from-background-secondary to-background-tertiary rounded-2xl overflow-hidden"
             >
               {/* Badges */}
               <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
@@ -124,7 +124,7 @@ export default function ItemPage({ params }: ItemPageProps) {
                     key={index}
                     onClick={() => setSelectedImage(index)}
                     className={cn(
-                      "relative w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all bg-background-secondary",
+                      "relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all bg-background-secondary",
                       selectedImage === index
                         ? "border-lego-yellow shadow-md"
                         : "border-transparent hover:border-border"
@@ -239,7 +239,7 @@ export default function ItemPage({ params }: ItemPageProps) {
                 size="lg"
                 onClick={handleToggleWishlist}
                 aria-label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
-                className={cn(inWishlist && "!bg-lego-red !text-white")}
+                className={cn(inWishlist && "bg-lego-red! text-white!")}
               >
                 <Heart className={cn("w-5 h-5", inWishlist && "fill-current")} />
               </Button>

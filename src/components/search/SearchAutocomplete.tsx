@@ -163,7 +163,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
           }}
           onKeyDown={handleKeyDown}
           autoFocus={autoFocus}
-          className="w-full pl-11 pr-10 py-2.5 bg-background-secondary border-0 rounded-full text-sm text-foreground-primary placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-lego-yellow transition-all"
+          className="w-full pl-11 pr-10 py-2.5 bg-background-secondary border-0 rounded-full text-sm text-foreground-primary placeholder:text-foreground-muted focus:outline-hidden focus:ring-2 focus:ring-lego-yellow transition-all"
           data-testid="search-input"
         />
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted" />
@@ -207,7 +207,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
                     )}
                     data-testid="search-result"
                   >
-                    <div className="relative w-12 h-12 bg-background-secondary rounded-lg flex-shrink-0">
+                    <div className="relative w-12 h-12 bg-background-secondary rounded-lg shrink-0">
                       <Image
                         src={product.img}
                         alt={product.name}

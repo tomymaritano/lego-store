@@ -127,7 +127,7 @@ export default function CheckoutPage() {
                     {index < steps.length - 1 && (
                       <div
                         className={cn(
-                          "w-12 h-1 mx-2 rounded",
+                          "w-12 h-1 mx-2 rounded-sm",
                           isCompleted ? "bg-status-success" : "bg-background-tertiary"
                         )}
                       />
@@ -194,7 +194,7 @@ export default function CheckoutPage() {
                 <div className="space-y-3 mb-4 max-h-64 overflow-auto">
                   {cart.map((item) => (
                     <div key={item.id} className="flex gap-3">
-                      <div className="relative w-16 h-16 bg-background-secondary rounded-lg flex-shrink-0">
+                      <div className="relative w-16 h-16 bg-background-secondary rounded-lg shrink-0">
                         <Image
                           src={item.image}
                           alt={item.name}
@@ -588,7 +588,7 @@ function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
 
         <div className="bg-background-secondary rounded-xl p-4 mt-4">
           <p className="text-sm text-foreground-secondary flex items-start gap-2">
-            <Lock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <Lock className="w-4 h-4 mt-0.5 shrink-0" />
             Tus datos están protegidos con encriptación SSL de 256 bits.
             Esta es una demo, no se procesarán pagos reales.
           </p>

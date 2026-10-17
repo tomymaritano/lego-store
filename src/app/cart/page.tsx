@@ -84,7 +84,7 @@ export default function CartPage() {
                 className="bg-surface rounded-xl p-4 shadow-card flex gap-4 border border-border"
               >
                 {/* Image */}
-                <Link href={`/item/${item.id}`} className="flex-shrink-0">
+                <Link href={`/item/${item.id}`} className="shrink-0">
                   <div className="relative w-24 h-24 bg-background-secondary rounded-lg overflow-hidden">
                     <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
                   </div>

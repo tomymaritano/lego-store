@@ -97,7 +97,7 @@ export default function WishlistPage() {
                       e.preventDefault();
                       removeFromWishlist(item.id);
                     }}
-                    className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-sm rounded-full text-lego-red hover:bg-white transition-colors"
+                    className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-xs rounded-full text-lego-red hover:bg-white transition-colors"
                     aria-label="Quitar de favoritos"
                   >
                     <Trash2 className="w-4 h-4" />

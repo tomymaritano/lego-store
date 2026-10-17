@@ -91,7 +91,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
       <Link href={`/item/${product.id}`}>
         <div className="group bg-surface rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 h-full flex flex-col border border-border">
           {/* Image Container */}
-          <div className="relative aspect-square bg-gradient-to-br from-background-secondary to-background-tertiary overflow-hidden">
+          <div className="relative aspect-square bg-linear-to-br from-background-secondary to-background-tertiary overflow-hidden">
             {/* Badges */}
             <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
               {product.isNew && (
@@ -105,12 +105,12 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
                 </span>
               )}
               {product.highlight === "Edición Limitada" && (
-                <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                <span className="bg-linear-to-r from-orange-500 to-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
                   Limitado
                 </span>
               )}
               {product.highlight === "Exclusivos" && (
-                <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
+                <span className="bg-linear-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
                   Exclusivo
                 </span>
               )}

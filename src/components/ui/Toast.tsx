@@ -9,7 +9,7 @@ export function Toaster() {
       position="bottom-right"
       toastOptions={{
         duration: 3000,
-        className: "!bg-surface !border !border-border !shadow-xl !rounded-xl !text-foreground-primary",
+        className: "bg-surface! border! border-border! shadow-xl! rounded-xl! text-foreground-primary!",
       }}
       expand={false}
       richColors
@@ -41,7 +41,7 @@ export const showToast = {
   cart: (message: string) => {
     toast.success(message, {
       icon: <ShoppingCart className="w-5 h-5 text-lego-yellow" />,
-      className: "!bg-lego-black !text-white !border-lego-yellow",
+      className: "bg-lego-black! text-white! border-lego-yellow!",
     });
   },
   wishlist: (message: string, added: boolean) => {

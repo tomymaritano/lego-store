@@ -141,7 +141,7 @@ function ReviewCard({
       className="border-b pb-6 last:border-0"
     >
       <div className="flex items-start gap-4">
-        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center shrink-0">
           <User className="w-5 h-5 text-gray-500" />
         </div>
         <div className="flex-1">
@@ -284,7 +284,7 @@ function ReviewForm({
           placeholder="Cuéntanos más sobre tu experiencia con este producto..."
           rows={4}
           required
-          className="w-full px-4 py-3 bg-white dark:bg-gray-900 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-lego-yellow resize-none"
+          className="w-full px-4 py-3 bg-white dark:bg-gray-900 border rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-lego-yellow resize-none"
         />
       </div>
 

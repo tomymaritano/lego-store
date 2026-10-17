@@ -150,7 +150,7 @@ export function ProductFilters({
       </AnimatePresence>
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block w-64 flex-shrink-0">
+      <div className="hidden lg:block w-64 shrink-0">
         <div className="sticky top-24 bg-white rounded-2xl border p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-lg flex items-center gap-2">
@@ -215,7 +215,7 @@ function FilterContent({
             type="checkbox"
             checked={filters.onSale}
             onChange={(e) => onFilterChange({ ...filters, onSale: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-300 text-lego-yellow focus:ring-lego-yellow"
+            className="w-4 h-4 rounded-sm border-gray-300 text-lego-yellow focus:ring-lego-yellow"
           />
           <span className="text-sm">En oferta</span>
         </label>
@@ -224,7 +224,7 @@ function FilterContent({
             type="checkbox"
             checked={filters.inStock}
             onChange={(e) => onFilterChange({ ...filters, inStock: e.target.checked })}
-            className="w-4 h-4 rounded border-gray-300 text-lego-yellow focus:ring-lego-yellow"
+            className="w-4 h-4 rounded-sm border-gray-300 text-lego-yellow focus:ring-lego-yellow"
           />
           <span className="text-sm">En stock</span>
         </label>
@@ -287,7 +287,7 @@ function FilterContent({
                 type="checkbox"
                 checked={filters.themes.includes(theme)}
                 onChange={() => handleThemeToggle(theme)}
-                className="w-4 h-4 rounded border-gray-300 text-lego-yellow focus:ring-lego-yellow"
+                className="w-4 h-4 rounded-sm border-gray-300 text-lego-yellow focus:ring-lego-yellow"
               />
               <span className="text-sm">{theme}</span>
             </label>

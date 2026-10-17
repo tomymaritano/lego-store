@@ -10,7 +10,7 @@ export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
       className={cn(
-        "animate-pulse bg-gradient-to-r from-background-tertiary via-background-secondary to-background-tertiary bg-[length:200%_100%] animate-shimmer rounded-lg",
+        "animate-pulse bg-linear-to-r from-background-tertiary via-background-secondary to-background-tertiary bg-size-[200%_100%] animate-shimmer rounded-lg",
         className
       )}
     />
@@ -86,14 +86,14 @@ export function ProductDetailSkeleton() {
 export function CartItemSkeleton() {
   return (
     <div className="flex gap-4 p-4 border-b border-border">
-      <Skeleton className="w-24 h-24 rounded-xl flex-shrink-0" />
+      <Skeleton className="w-24 h-24 rounded-xl shrink-0" />
       <div className="flex-1 space-y-2">
         <Skeleton className="h-4 w-3/4" />
         <Skeleton className="h-3 w-1/4" />
         <Skeleton className="h-6 w-20" />
       </div>
       <div className="flex flex-col justify-between items-end">
-        <Skeleton className="h-6 w-6 rounded" />
+        <Skeleton className="h-6 w-6 rounded-sm" />
         <Skeleton className="h-8 w-24" />
       </div>
     </div>

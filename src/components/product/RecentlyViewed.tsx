@@ -70,7 +70,7 @@ export function RecentlyViewed() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="flex-shrink-0 w-48"
+              className="shrink-0 w-48"
             >
               <Link href={`/item/${product.id}`}>
                 <div className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all group">

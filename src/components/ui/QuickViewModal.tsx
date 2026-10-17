@@ -62,7 +62,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50"
           />
 
           {/* Modal */}
@@ -233,7 +233,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
                     <Button
                       variant="outline"
                       onClick={handleToggleWishlist}
-                      className={cn("flex-1", inWishlist && "!border-lego-red !text-lego-red")}
+                      className={cn("flex-1", inWishlist && "border-lego-red! text-lego-red!")}
                     >
                       <Heart className={cn("w-5 h-5 mr-2", inWishlist && "fill-current")} />
                       {inWishlist ? "En favoritos" : "Favoritos"}

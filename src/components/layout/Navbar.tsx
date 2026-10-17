@@ -50,7 +50,7 @@ export function Navbar() {
         <div className="container-custom">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex-shrink-0">
+            <Link href="/" className="shrink-0">
               <Image
                 src="/images/lego.png"
                 alt="LEGO Store"
@@ -106,7 +106,7 @@ export function Navbar() {
                         <Link
                           key={theme.name}
                           href={theme.href}
-                          className="block px-4 py-2 text-sm text-foreground-secondary hover:bg-background-secondary hover:text-lego-blue focus-visible:bg-background-secondary focus-visible:text-lego-blue focus-visible:outline-none"
+                          className="block px-4 py-2 text-sm text-foreground-secondary hover:bg-background-secondary hover:text-lego-blue focus-visible:bg-background-secondary focus-visible:text-lego-blue focus-visible:outline-hidden"
                           role="menuitem"
                         >
                           {theme.name}
