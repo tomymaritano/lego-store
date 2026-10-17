@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-17
+
+UI overhaul (see `docs/superpowers/specs/2026-10-17-ui-overhaul-design.md`).
+
+### Changed
+
+- **Framework**: Next.js 16 (App Router, Turbopack, `proxy.ts`) and React 19;
+  pages are Server Components with small client islands. Node `^22.13 || >=24`.
+- **Styling**: Tailwind CSS 4 with three-tier design tokens in `@theme`
+  (primitives, semantic, component), AA contrast checked by tests, dark mode on
+  semantic tokens only. Tailwind's default palette is disabled.
+- **Components**: shadcn-style primitives on Base UI (`src/components/ui`) with
+  Storybook 10 stories, a11y checked as errors.
+- **Data**: every read goes through `src/lib/api` (async, serializable; ready
+  for the backend); client islands use Route Handlers.
+- **Motion**: `motion` (`motion/react`) instead of framer-motion, presets in
+  `src/lib/motion.ts` (150-300 ms), reduced motion respected, LazyMotion.
+- **Lint**: ESLint 9 flat config; design-system guardrails (raw palette,
+  legacy aliases, `dark:`, numeric timing) are errors.
+- **Performance**: Barlow via `next/font`, on-demand panels and review form,
+  first-load JS budgets per route (`npm run size`).
+
+### Added
+
+- Catalogue filters in the URL with live facet counts, compare page with
+  highlighted differences, wishlist, undo toasts, checkout in three steps with
+  Argentine address and card validation, info pages (FAQ, envíos, devoluciones,
+  contacto, nosotros, términos, privacidad), designed 404.
+- Tests: Vitest (unit + Storybook projects), Playwright E2E including a
+  production project; CI runs lint, types, unit, Storybook build, build, E2E,
+  audit, JS budget and Lighthouse.
+
+### Removed
+
+- The unused i18n system (the UI is Spanish only).
+- Unused or duplicated dependencies (react-hot-toast, keen-slider,
+  framer-motion, among others) and dead components.
+
+### Accessibility
+
+- WCAG 2.1 AA target: labelled controls, landmarks and heading order, visible
+  focus, keyboard support in every widget. Lighthouse accessibility 100 and
+  best practices 100 on the key routes (mobile and desktop).
+
+---
+
 ## [1.1.0] - 2024-12-09
 
 ### Added
