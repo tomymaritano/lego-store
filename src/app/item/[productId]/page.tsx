@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { RotateCcw, Shield, Truck } from "lucide-react";
 import { getCategoryById, getProductById, getProducts, getRelatedProducts } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
+import { pageMetadata } from "@/lib/metadata";
 import { siteConfig } from "@/config/site";
 import { Breadcrumbs, Price, Rating } from "@/components/ui";
 import {
@@ -26,19 +27,13 @@ export async function generateMetadata({ params }: ItemPageProps): Promise<Metad
   const product = await getProductById((await params).productId);
   if (!product) return { title: "Producto no encontrado" };
 
-  const title = `${product.name} | ${siteConfig.name}`;
   const description = product.shortDescription || product.description.slice(0, 160);
-  return {
+  return pageMetadata({
     title: product.name,
     description,
-    openGraph: {
-      title,
-      description,
-      type: "website",
-      images: [{ url: product.img, width: 800, height: 800, alt: product.name }],
-    },
-    twitter: { card: "summary_large_image", title, description, images: [product.img] },
-  };
+    path: `/item/${product.id}`,
+    images: [{ url: product.img, width: 800, height: 800, alt: product.name }],
+  });
 }
 
 const perks = [

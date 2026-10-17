@@ -4,6 +4,7 @@ import { getCategories, getCategoryById, getPaginatedProducts } from "@/lib/api"
 import { Breadcrumbs } from "@/components/ui";
 import { ProductList } from "@/components/product";
 import { pluralize } from "@/lib/utils";
+import { pageMetadata } from "@/lib/metadata";
 
 interface CategoryPageProps {
   params: Promise<{ categoryId: string }>;
@@ -16,10 +17,11 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const category = await getCategoryById((await params).categoryId);
   if (!category) return { title: "Categoría no encontrada" };
-  return {
+  return pageMetadata({
     title: category.name,
     description: `Explora nuestra colección de ${category.name} LEGO: ${category.description.toLowerCase()}.`,
-  };
+    path: `/category/${category.id}`,
+  });
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
