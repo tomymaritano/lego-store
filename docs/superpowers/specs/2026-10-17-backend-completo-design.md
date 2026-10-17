@@ -60,9 +60,15 @@ README pasa a describir el proyecto en vez de un producto a la venta.
 
 ## Restricciones
 
-- Todo dentro del **mismo proyecto Next.js 14** (App Router): Route Handlers y
+- Todo dentro del **mismo proyecto Next.js** (App Router): Route Handlers y
   Server Actions. Un solo repo, desplegable en Vercel (donde ya está la demo).
-- Se mantiene Next 14.2 (no migrar a 15 como parte de este trabajo).
+- Se construye **sobre el resultado del overhaul de UI** (rama `feat/ui-overhaul`:
+  Next 16, React 19, Tailwind 4, primitivos shadcn/Base UI, `src/lib/api` como única
+  puerta de datos). Las páginas nuevas (login, cuenta, admin) usan esos primitivos y
+  tokens. En Next 16 el middleware se llama `proxy.ts`.
+- Sin cuentas externas todavía: todo debe poder desarrollarse y testearse local con
+  Postgres en Docker, Stripe simulado vía webhook firmado de test y emails a consola.
+  Con keys reales de test en `.env.local` funciona contra Stripe/Resend sin cambios.
 - Moneda: **ARS**, precios enteros en pesos como hoy (`formatPrice` usa `es-AR`/ARS).
   Para Stripe se convierten a centavos (`price * 100`).
 - Envío: $299, gratis desde $5000 de subtotal — misma regla que la UI actual, pero
