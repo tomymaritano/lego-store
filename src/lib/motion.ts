@@ -122,8 +122,11 @@ export const slideUp: Variants = {
   exit: { opacity: 0, y: "100%", transition: transitions.exit },
 };
 
+/** Seconds between staggered children: lists, grids and page sections share it. */
+export const STAGGER = 0.04;
+
 /** Parent of a staggered list/grid. Keep `stagger` small so long grids stay fast. */
-export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
+export function staggerContainer(stagger = STAGGER, delayChildren = 0): Variants {
   return {
     hidden: {},
     visible: { transition: { staggerChildren: stagger, delayChildren } },
@@ -134,9 +137,8 @@ export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
 /** Child of `staggerContainer` (the name call sites use; same curve as fadeInUp). */
 export const staggerItem: Variants = fadeInUp;
 
-/** Seconds between grid cards, and the cap that keeps a full page within the motion budget. */
-export const GRID_STAGGER = 0.04;
-export const GRID_MAX_DELAY = 0.24;
+/** Cap on a grid cell's delay, so a full page of cards stays within the motion budget. */
+const GRID_MAX_DELAY = 0.24;
 
 /**
  * Product grid cells. `custom` is the cell's index within the batch that
@@ -149,7 +151,7 @@ export const gridItem: Variants = {
   visible: (index = 0) => ({
     opacity: 1,
     y: 0,
-    transition: { ...transitions.slow, delay: Math.min(index * GRID_STAGGER, GRID_MAX_DELAY) },
+    transition: { ...transitions.slow, delay: Math.min(index * STAGGER, GRID_MAX_DELAY) },
   }),
   exit: { opacity: 0, scale: 0.96, transition: transitions.exit },
 };

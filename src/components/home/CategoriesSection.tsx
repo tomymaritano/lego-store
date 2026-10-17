@@ -67,7 +67,7 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
 
         {more.length > 0 ? (
           <nav aria-label="Más categorías" className="mt-8">
-            <Stagger as="ul" inView stagger={0.04} className="flex flex-wrap justify-center gap-2">
+            <Stagger as="ul" inView className="flex flex-wrap justify-center gap-2">
               {more.map((category) => (
                 <StaggerItem as="li" effect="pop" key={category.id}>
                   <Button

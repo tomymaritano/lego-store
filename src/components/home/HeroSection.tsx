@@ -27,7 +27,7 @@ export function HeroSection({ productCount, saleCount }: HeroSectionProps) {
 
       <div className="container-custom relative z-10">
         <div className="grid min-h-[30rem] items-center gap-8 pt-12 pb-24 lg:grid-cols-2 lg:pt-16 lg:pb-32">
-          <Stagger stagger={0.06}>
+          <Stagger>
             <StaggerItem effect="lift">
               <Badge variant="sale" className="mb-4 bg-brand-red px-3 py-1 text-label text-on-brand-red">
                 Nueva colección

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { m } from "motion/react";
-import { fadeInUp, riseIn, scaleIn, staggerContainer, staggerItem } from "@/lib/motion";
+import { STAGGER, fadeInUp, riseIn, scaleIn, staggerContainer, staggerItem } from "@/lib/motion";
 
 /*
  * Motion wrappers for Server Components: pages stay server-rendered and only
@@ -20,7 +20,7 @@ const VIEWPORT = { once: true, amount: "some" } as const;
 interface StaggerProps {
   children: ReactNode;
   className?: string;
-  /** Seconds between children. */
+  /** Seconds between children (defaults to the shared STAGGER). */
   stagger?: number;
   delay?: number;
   /** Animate when scrolled into view (once) instead of on mount. */
@@ -28,7 +28,7 @@ interface StaggerProps {
   as?: "div" | "ul";
 }
 
-export function Stagger({ children, className, stagger = 0.06, delay = 0, inView = false, as = "div" }: StaggerProps) {
+export function Stagger({ children, className, stagger = STAGGER, delay = 0, inView = false, as = "div" }: StaggerProps) {
   const Component = as === "ul" ? m.ul : m.div;
   const trigger = inView ? { whileInView: "visible", viewport: VIEWPORT } : { animate: "visible" };
   return (
