@@ -17,8 +17,8 @@ const WHITE_BLACK =
 const ARBITRARY_COLOR = "-[[](color:)?(#|(rgb|hsl)a?[(]|okl(ch|ab)[(])";
 // `dark:` at the start of a class or after another variant (md:dark:, hover:dark:).
 const DARK_VARIANT = "(^|[\\s\"'`:])dark:";
-// Transitional @theme aliases in globals.css: they expose primitives / legacy
-// names as utilities, so every use is flagged until pages move to semantic tokens.
+// Legacy alias names from the pre-overhaul theme (removed from globals.css):
+// rejected so nobody re-adds them; use the semantic tokens.
 const LEGACY_ALIAS =
   "-(lego-[a-z]+(-dark)?|brand-\\d\\d\\d?|background(-(primary|secondary|tertiary))?|foreground(-(primary|secondary|muted))?|status-(success|error|warning|info)|border-subtle)\\b";
 // Named arbitrary colours: bg-[red], text-[white], border-[color:navy]. CSS keywords stay allowed.
@@ -37,7 +37,7 @@ const MOTION_PROPS = "^(transition|animate|initial|exit|whileHover|whileTap|whil
 const rawColorMessage =
   "Usá tokens semánticos (bg-surface, text-fg-muted, bg-primary, text-danger…) en vez de colores crudos de la paleta.";
 const aliasMessage =
-  "Alias transicional (lego-*, brand-*, background-*, foreground-*, status-*, border-subtle): usá el token semántico (bg-bg, text-fg, bg-primary, text-danger…).";
+  "Alias heredado (lego-*, brand-*, background-*, foreground-*, status-*, border-subtle): usá el token semántico (bg-bg, text-fg, bg-primary, text-danger…).";
 const darkMessage =
   "No uses `dark:` fuera de src/components/ui: los tokens semánticos ya cambian con el tema.";
 const motionMessage =
@@ -84,17 +84,15 @@ export default defineConfig([
   ...nextTs,
   ...storybook.configs["flat/recommended"],
 
-  // App code: raw palette, legacy aliases + ad-hoc dark: are warnings until pages migrate
-  // to the semantic tokens (next stage of the overhaul).
+  // App code: raw palette, legacy aliases, ad-hoc dark: and numeric motion timing are errors.
   {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/components/ui/**"],
     rules: {
-      "no-restricted-syntax": ["warn", ...rawColorSelectors, ...aliasSelectors, ...darkSelectors, ...motionSelectors],
+      "no-restricted-syntax": ["error", ...rawColorSelectors, ...aliasSelectors, ...darkSelectors, ...motionSelectors],
     },
   },
-  // Primitives must stay clean: raw palette, legacy aliases and numeric motion
-  // durations are errors. `dark:` is allowed here.
+  // Primitives: same rules, except that `dark:` is allowed here.
   {
     files: ["src/components/ui/**/*.{ts,tsx}"],
     rules: {

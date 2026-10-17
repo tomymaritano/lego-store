@@ -83,7 +83,7 @@ const clean: Array<[string, string]> = [
 
 describe("design-system guardrails", () => {
   describe.each([
-    ["app code", APP_FILE, 1],
+    ["app code", APP_FILE, 2],
     ["ui primitives", UI_FILE, 2],
   ])("%s", (_scope, filePath, severity) => {
     it.each(flagged)("flags %s", async (_name, code) => {
