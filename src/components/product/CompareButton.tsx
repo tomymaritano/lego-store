@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Scale } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { slideUp } from "@/lib/motion";
 import { useCompareStore } from "@/stores/compareStore";
 import { useHydration } from "@/hooks/useHydration";
 import { showToast } from "@/components/ui";
@@ -73,9 +74,10 @@ export function CompareBar() {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 100, opacity: 0 }}
+        variants={slideUp}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
         className="fixed bottom-4 inset-x-4 z-50 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2"
       >
         <div className="mx-auto w-fit max-w-full bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border p-3 sm:p-4 flex items-center gap-3 sm:gap-4">

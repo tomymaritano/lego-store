@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Scale, X, ShoppingCart, ChevronLeft } from "lucide-react";
 import { motion } from "motion/react";
+import { fadeInUp } from "@/lib/motion";
 import { useCompareStore } from "@/stores/compareStore";
 import { useCartStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
@@ -91,8 +92,9 @@ export default function ComparePage() {
                 {items.map((item) => (
                   <th key={item.id} className="p-4 border-b border-border">
                     <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      variants={fadeInUp}
+                      initial="hidden"
+                      animate="visible"
                       className="relative"
                     >
                       <button

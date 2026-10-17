@@ -1,6 +1,7 @@
 import type { Preview } from "@storybook/nextjs-vite";
 import { withThemeByClassName } from "@storybook/addon-themes";
 import { MotionConfig } from "motion/react";
+import { transitions } from "@/lib/motion";
 import "../src/app/globals.css";
 
 const preview: Preview = {
@@ -11,7 +12,7 @@ const preview: Preview = {
       defaultTheme: "light",
     }),
     (Story) => (
-      <MotionConfig reducedMotion="user">
+      <MotionConfig reducedMotion="user" transition={transitions.base}>
         <div className="bg-bg p-4 text-fg">
           <Story />
         </div>

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Heart, ShoppingCart, Star, Minus, Plus, Share2, Truck, Shield, RotateCcw } from "lucide-react";
 import { motion } from "motion/react";
+import { fadeIn } from "@/lib/motion";
 import { products } from "@/data/products";
 import { useCartStore, useWishlistStore, useRecentlyViewedStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
@@ -101,8 +102,9 @@ export default function ItemPage({ params }: ItemPageProps) {
             {/* Main Image with Zoom */}
             <motion.div
               key={selectedImage}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              variants={fadeIn}
+              initial="hidden"
+              animate="visible"
               className="relative aspect-square bg-linear-to-br/srgb from-background-secondary to-background-tertiary rounded-2xl overflow-hidden"
             >
               {/* Badges */}

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
+import { fadeIn, scaleIn } from "@/lib/motion";
 import { ZoomIn, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,9 +58,10 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
         <AnimatePresence>
           {isHovering && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              variants={scaleIn}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               className="absolute w-32 h-32 border-2 border-white rounded-full pointer-events-none shadow-lg overflow-hidden"
               style={{
                 left: mousePosition.x - 64,
@@ -92,9 +94,10 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            variants={fadeIn}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
             onClick={() => setIsModalOpen(false)}
           >
@@ -108,9 +111,10 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
 
             {/* Zoomed Image */}
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              variants={scaleIn}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
               className="relative w-full h-full max-w-4xl max-h-[85vh]"
               onClick={(e) => e.stopPropagation()}
             >

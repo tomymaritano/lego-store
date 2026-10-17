@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
+import { scaleIn, stepSlide } from "@/lib/motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -292,9 +293,10 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+      variants={stepSlide}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="bg-surface rounded-2xl shadow-sm border border-border p-6"
     >
       <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-foreground-primary">
@@ -502,9 +504,10 @@ function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+      variants={stepSlide}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="bg-surface rounded-2xl shadow-sm border border-border p-6"
     >
       <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-foreground-primary">
@@ -618,9 +621,10 @@ interface ReviewStepProps {
 function ReviewStep({ shippingInfo, paymentInfo, onBack, onPlaceOrder, isProcessing }: ReviewStepProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+      variants={stepSlide}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       className="space-y-6"
     >
       {/* Shipping Info */}
@@ -692,8 +696,9 @@ interface ConfirmationStepProps {
 function ConfirmationStep({ orderId, onContinueShopping }: ConfirmationStepProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+      variants={scaleIn}
+      initial="hidden"
+      animate="visible"
       className="bg-surface rounded-2xl shadow-sm border border-border p-8 text-center max-w-lg mx-auto"
     >
       <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { dropDown } from "@/lib/motion";
 import { ArrowUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,9 +59,10 @@ export function ProductSort({ value, onChange, productCount }: ProductSortProps)
                 onClick={() => setIsOpen(false)}
               />
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
+                variants={dropDown}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
                 className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border z-20 py-2"
               >
                 {sortOptions.map((option) => (

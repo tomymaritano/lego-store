@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, ShoppingCart, Heart, Menu, User, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { collapse, fadeInUp } from "@/lib/motion";
 import { useCartStore, useWishlistStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, ThemeToggle } from "@/components/ui";
@@ -95,9 +96,10 @@ export function Navbar() {
                 <AnimatePresence>
                   {showThemes && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
+                      variants={fadeInUp}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
                       className="absolute top-full left-0 mt-1 w-48 bg-surface rounded-xl shadow-xl border border-border py-2 z-50"
                       role="menu"
                       aria-label="Temas disponibles"
@@ -182,9 +184,10 @@ export function Navbar() {
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                variants={collapse}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
                 className="md:hidden overflow-hidden"
               >
                 <div className="pb-4">

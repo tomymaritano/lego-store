@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Star, ThumbsUp, CheckCircle, User } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { collapse, fadeInUp } from "@/lib/motion";
 import { useReviewStore, type Review } from "@/stores/reviewStore";
 import { Button, Input } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -53,9 +54,10 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
       <AnimatePresence>
         {showForm && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
+            variants={collapse}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
           >
             <ReviewForm productId={productId} onClose={() => setShowForm(false)} />
           </motion.div>
@@ -136,8 +138,9 @@ function ReviewCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      variants={fadeInUp}
+      initial="hidden"
+      animate="visible"
       className="border-b pb-6 last:border-0"
     >
       <div className="flex items-start gap-4">

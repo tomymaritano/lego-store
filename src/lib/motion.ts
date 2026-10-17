@@ -58,6 +58,41 @@ export const scaleIn: Variants = {
   exit: { opacity: 0, scale: 0.98, transition: transitions.exit },
 };
 
+/** Wizard steps (checkout): enter from the right, leave to the left. */
+export const stepSlide: Variants = {
+  hidden: { opacity: 0, x: 20 },
+  visible: { opacity: 1, x: 0, transition: transitions.slow },
+  exit: { opacity: 0, x: -20, transition: transitions.exit },
+};
+
+/** List rows that are removed by the user (cart): enter up, leave to the left. */
+export const dismissible: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: { opacity: 1, y: 0, transition: transitions.slow },
+  exit: { opacity: 0, x: -48, transition: transitions.exit },
+};
+
+/** Inline panels that open in place (mobile search, review form). */
+export const collapse: Variants = {
+  hidden: { opacity: 0, height: 0 },
+  visible: { opacity: 1, height: "auto", transition: transitions.base },
+  exit: { opacity: 0, height: 0, transition: transitions.exit },
+};
+
+/** Menus that drop down from their trigger. */
+export const dropDown: Variants = {
+  hidden: { opacity: 0, y: -8 },
+  visible: { opacity: 1, y: 0, transition: transitions.fast },
+  exit: { opacity: 0, y: -8, transition: transitions.exit },
+};
+
+/** Bars docked to the bottom of the viewport (compare bar). */
+export const slideUp: Variants = {
+  hidden: { opacity: 0, y: "100%" },
+  visible: { opacity: 1, y: 0, transition: transitions.slow },
+  exit: { opacity: 0, y: "100%", transition: transitions.exit },
+};
+
 /** Parent of a staggered list/grid. Keep `stagger` small so long grids stay fast. */
 export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
   return {

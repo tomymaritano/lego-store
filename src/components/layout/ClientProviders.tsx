@@ -2,12 +2,14 @@
 
 import { useEffect, type ReactNode } from "react";
 import { MotionConfig } from "motion/react";
+import { transitions } from "@/lib/motion";
 import { CompareBar } from "@/components/product";
 import { useThemeStore } from "@/stores";
 
 /**
  * Client-only app shell: applies the theme class and sets the global motion
- * policy (animations respect prefers-reduced-motion everywhere).
+ * policy (animations respect prefers-reduced-motion everywhere, and any motion
+ * element without its own transition uses the token timing, transitions.base).
  */
 export function ClientProviders({ children }: { children: ReactNode }) {
   const theme = useThemeStore((state) => state.theme);
@@ -38,7 +40,7 @@ export function ClientProviders({ children }: { children: ReactNode }) {
   }, [theme]);
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion="user" transition={transitions.base}>
       {children}
       <CompareBar />
     </MotionConfig>

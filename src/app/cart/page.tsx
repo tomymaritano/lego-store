@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Trash2, ChevronLeft, ShoppingBag } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { dismissible, transitions } from "@/lib/motion";
 import { useCartStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice } from "@/lib/utils";
@@ -75,9 +76,11 @@ export default function CartPage() {
               <motion.div
                 key={item.id}
                 layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -100 }}
+                transition={transitions.spring}
+                variants={dismissible}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
                 className="bg-surface rounded-xl p-4 shadow-card flex gap-4 border border-border"
               >
                 {/* Image */}

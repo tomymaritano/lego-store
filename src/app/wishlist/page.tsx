@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart, ShoppingCart, Trash2, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { scaleIn, transitions } from "@/lib/motion";
 import { useWishlistStore, useCartStore } from "@/stores";
 import { useHydration } from "@/hooks/useHydration";
 import { formatPrice } from "@/lib/utils";
@@ -82,9 +83,11 @@ export default function WishlistPage() {
               <motion.div
                 key={item.id}
                 layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
+                transition={transitions.spring}
+                variants={scaleIn}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
                 className="bg-surface rounded-xl shadow-card overflow-hidden border border-border"
               >
                 {/* Image */}
