@@ -208,7 +208,7 @@ test.describe("Shell review fixes", () => {
   });
 
   for (const [path, title] of [
-    ["/search?q=star", 'Resultados para "star"'],
+    ["/search?q=star", "Resultados para “star”"],
     ["/cart", "Carrito de Compras"],
     ["/compare", "Comparar Productos"],
     ["/wishlist", "Lista de Deseos"],

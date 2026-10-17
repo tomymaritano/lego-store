@@ -127,7 +127,8 @@ test.describe("Search page", () => {
   test("no results suggest themes and categories", async ({ page }) => {
     await page.goto("/search?q=zzzz");
     const empty = page.getByTestId("search-empty");
-    await expect(empty.getByRole("heading", { name: 'No encontramos sets para "zzzz"' })).toBeVisible();
+    await expect(empty.getByRole("heading", { name: "No encontramos sets para “zzzz”" })).toBeVisible();
+    await expect(empty.getByRole("heading", { level: 3, name: "Temas populares" })).toBeVisible();
     await empty.getByRole("navigation", { name: "Temas populares" }).getByRole("link", { name: "Marvel" }).click();
     await expect(page).toHaveURL(/\/search\?q=Marvel$/);
     await expect(page.getByTestId("product-card").first()).toBeVisible();

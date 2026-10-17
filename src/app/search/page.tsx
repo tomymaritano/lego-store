@@ -16,9 +16,9 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
   const { q } = parseProductQuery(await searchParams);
   return {
     ...pageMetadata({
-      title: q ? `Resultados para "${q}"` : "Catálogo",
+      title: q ? `Resultados para “${q}”` : "Catálogo",
       description: q
-        ? `Sets LEGO que coinciden con "${q}": filtra por tema, edad, piezas y precio.`
+        ? `Sets LEGO que coinciden con “${q}”: filtra por tema, edad, piezas y precio.`
         : "Todo el catálogo de sets LEGO: filtra por tema, categoría, edad, piezas y precio.",
       path: q ? `/search?q=${encodeURIComponent(q)}` : "/search",
     }),
@@ -81,15 +81,15 @@ async function NoResults({ q }: { q: string }) {
     <div className="rounded-2xl border border-dashed border-border-strong" data-testid="search-empty">
       <EmptyState
         icon={<SearchX />}
-        title={`No encontramos sets para "${q}"`}
+        title={`No encontramos sets para “${q}”`}
         description="Revisa la ortografía, prueba con menos palabras o explora alguna de estas sugerencias."
         action={<Button render={<Link href="/search" />}>Ver todo el catálogo</Button>}
       />
       <div className="grid gap-8 px-6 pb-10 sm:grid-cols-2 sm:px-10">
         <nav aria-labelledby="suggest-themes-title">
-          <h2 id="suggest-themes-title" className="mb-3 text-label text-fg">
+          <h3 id="suggest-themes-title" className="mb-3 text-label text-fg">
             Temas populares
-          </h2>
+          </h3>
           <ul className="flex flex-wrap gap-2">
             {popularThemes.map((theme) => (
               <li key={theme.value}>
@@ -106,9 +106,9 @@ async function NoResults({ q }: { q: string }) {
           </ul>
         </nav>
         <nav aria-labelledby="suggest-categories-title">
-          <h2 id="suggest-categories-title" className="mb-3 text-label text-fg">
+          <h3 id="suggest-categories-title" className="mb-3 text-label text-fg">
             Categorías
-          </h2>
+          </h3>
           <ul className="flex flex-wrap gap-2">
             {categories
               .filter((category) => category.productCount > 0)
