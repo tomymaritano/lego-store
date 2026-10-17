@@ -115,6 +115,9 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
               alt=""
               fill
               preload={priority}
+              // First-row cards can be the LCP: load them eagerly, the rest lazily.
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : undefined}
               className={cn(
                 "photo-blend object-contain transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105",
                 showSecondary && "group-hover:opacity-0"
