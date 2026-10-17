@@ -155,7 +155,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
           </Link>
         </h3>
 
-        <Rating value={product.rating} count={Math.floor(product.rating * 20)} size="sm" />
+        <Rating value={product.rating} showValue size="sm" />
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           <Price value={product.price} originalValue={discounted} size="md" data-testid="product-price" />
