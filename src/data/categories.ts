@@ -23,19 +23,19 @@ export const categories: Omit<Category, "productCount">[] = [
     id: "cars",
     name: "Vehículos",
     description: "Autos y naves épicas",
-    image: "/images/lego.png",
+    image: "/images/placeholder-product.svg",
   },
   {
     id: "buildings",
     name: "Edificios",
     description: "Arquitectura y lugares legendarios",
-    image: "/images/lego.png",
+    image: "/images/placeholder-product.svg",
   },
   {
     id: "ships",
     name: "Naves",
     description: "Naves y caminantes de colección",
-    image: "/images/lego.png",
+    image: "/images/placeholder-product.svg",
   },
   {
     id: "robots",

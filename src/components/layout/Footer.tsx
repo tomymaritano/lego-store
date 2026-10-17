@@ -98,6 +98,8 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
                 // The logo file is square: matching dimensions avoid a resized-image warning and layout shift.
                 width={48}
                 height={48}
+                // Can be the largest paint on short pages: never lazy.
+                loading="eager"
                 className="size-12"
               />
             </Link>

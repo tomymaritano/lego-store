@@ -26,6 +26,9 @@ interface ProductCardProps {
  * action buttons sit above it. Actions show on hover / keyboard focus and are
  * always visible on touch screens.
  */
+/** Rendered width of the card image per grid breakpoint (1 / 2 / 3 / 4 columns, container capped at 80rem). */
+const CARD_IMAGE_SIZES = "(max-width: 639px) calc(100vw - 2rem), (max-width: 1023px) calc(50vw - 2.5rem), (max-width: 1279px) 33vw, 320px";
+
 export function ProductCard({ product, onQuickView, priority = false }: ProductCardProps) {
   const { inWishlist, inCompare, isAvailable, toggleWishlist, toggleCompare } = useProductActions(product);
   const imageRef = useRef<HTMLDivElement>(null);
@@ -113,11 +116,11 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
               fill
               preload={priority}
               className={cn(
-                "object-contain transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105",
+                "photo-blend object-contain transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105",
                 showSecondary && "group-hover:opacity-0"
               )}
               onError={() => setImageError(true)}
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              sizes={CARD_IMAGE_SIZES}
             />
             {showSecondary && (
               <Image
@@ -125,8 +128,8 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
                 alt=""
                 fill
                 onError={() => setSecondaryError(true)}
-                className="object-contain opacity-0 transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105 group-hover:opacity-100"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                className="photo-blend object-contain opacity-0 transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105 group-hover:opacity-100"
+                sizes={CARD_IMAGE_SIZES}
               />
             )}
           </div>

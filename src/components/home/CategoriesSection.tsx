@@ -36,17 +36,15 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
                   "group block overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
                 )}
               >
-                {/* Every photo sits on the same white tile: some covers are opaque JPEGs. */}
-                <div className="bg-bg-muted p-4">
-                  <div className="relative h-40 overflow-hidden rounded-xl bg-photo-tile">
-                    <Image
-                      src={category.image}
-                      alt=""
-                      fill
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                      className="object-contain p-4 transition-[scale] duration-slow ease-emphasized group-hover:scale-110 motion-reduce:group-hover:scale-100"
-                    />
-                  </div>
+                {/* Same media area as the product cards; opaque white-background covers blend into it (photo-blend). */}
+                <div className="relative h-48 overflow-hidden bg-bg-subtle">
+                  <Image
+                    src={category.image}
+                    alt=""
+                    fill
+                    sizes="(max-width: 767px) calc(100vw - 2rem), 400px"
+                    className="photo-blend object-contain p-5 transition-[scale] duration-slow ease-emphasized group-hover:scale-110 motion-reduce:group-hover:scale-100"
+                  />
                 </div>
                 <div className="p-6">
                   <div className="flex items-baseline justify-between gap-2">

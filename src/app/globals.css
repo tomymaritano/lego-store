@@ -470,6 +470,16 @@ html[data-compare-bar] [data-footer-bottom] {
   block-size: auto;
 }
 
+/* Product and category photos: covers shot on an opaque white background
+   blend into the tinted media area in light mode instead of showing a white
+   box. Dark mode keeps them as they are (multiply would turn them black). */
+.photo-blend {
+  mix-blend-mode: multiply;
+}
+.dark .photo-blend {
+  mix-blend-mode: normal;
+}
+
 /* Print: scroll reveals (motion's inline opacity/transform) never ran for
    content below the fold, so force it visible and in place on paper. */
 @media print {

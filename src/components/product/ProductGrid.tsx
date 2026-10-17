@@ -27,6 +27,12 @@ export interface ProductGridProps {
   /** Cards whose image loads eagerly (first row above the fold). */
   eagerCount?: number;
   columns?: 3 | 4;
+  /**
+   * Phones only: "carousel" turns the single column into a horizontal,
+   * snapping row (short showcase rows on the home page), so a 4-card row
+   * does not become four screens of scrolling. From sm up it is the grid.
+   */
+  mobileLayout?: "stack" | "carousel";
   /** Previous results while new ones load: dimmed and marked busy. */
   busy?: boolean;
   /** Accessible name of the list, e.g. "12 productos". */
@@ -35,8 +41,16 @@ export interface ProductGridProps {
 }
 
 const COLUMNS = {
-  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+  3: "sm:grid-cols-2 lg:grid-cols-3",
+  4: "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+} as const;
+
+const MOBILE = {
+  stack: { list: "grid grid-cols-1", item: "" },
+  carousel: {
+    list: "-mx-4 flex snap-x snap-mandatory scroll-px-4 overflow-x-auto overscroll-x-contain px-4 pb-2 scrollbar-hide sm:mx-0 sm:grid sm:overflow-visible sm:px-0 sm:pb-0",
+    item: "w-[80%] shrink-0 snap-start sm:w-auto",
+  },
 } as const;
 
 /**
@@ -50,6 +64,7 @@ export function ProductGrid({
   batchSize = products.length || 1,
   eagerCount = 0,
   columns = 4,
+  mobileLayout = "stack",
   busy = false,
   label,
   className,
@@ -66,7 +81,8 @@ export function ProductGrid({
         onPointerEnter={() => void loadQuickView()}
         onFocus={() => void loadQuickView()}
         className={cn(
-          "grid gap-4 md:gap-6",
+          MOBILE[mobileLayout].list,
+          "gap-4 sm:grid md:gap-6",
           // Cards leaving a filtered list (popLayout lifts them out of the flow)
           // sit under the ones gliding into place and no longer take clicks.
           "[&>[data-motion-pop-id]]:pointer-events-none [&>[data-motion-pop-id]]:z-0",
@@ -89,7 +105,7 @@ export function ProductGrid({
                 ? { whileInView: "visible", viewport: { once: true, amount: "some" } }
                 : { animate: "visible" })}
               transition={{ layout: transitions.spring }}
-              className="relative z-1 h-full"
+              className={cn("relative z-1 h-full", MOBILE[mobileLayout].item)}
             >
               <ProductCard product={product} onQuickView={setQuickView} priority={index < eagerCount} />
             </m.li>

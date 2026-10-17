@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import Image from "next/image";
 import { m, useReducedMotion, useScroll, useTransform } from "motion/react";
-import { scaleIn, transitions } from "@/lib/motion";
+import { transitions } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface HeroArtProps {
@@ -58,7 +58,8 @@ export function HeroArt({ src, alt }: HeroArtProps) {
       </m.div>
 
       <m.div style={{ y: imageY }} className="absolute inset-0">
-        <m.div variants={scaleIn} initial="hidden" animate="visible" className="relative size-full">
+        {/* The LCP image: it only scales in (never starts transparent) and loads eagerly at high priority. */}
+        <m.div initial={{ scale: 0.94 }} animate={{ scale: 1 }} transition={transitions.slow} className="relative size-full">
           <Image
             src={src}
             alt={alt}
@@ -66,6 +67,8 @@ export function HeroArt({ src, alt }: HeroArtProps) {
             sizes="(max-width: 1023px) 0px, 512px"
             className="object-contain drop-shadow-2xl transition-[scale] duration-slow ease-emphasized hover:scale-105 motion-reduce:hover:scale-100"
             preload
+            loading="eager"
+            fetchPriority="high"
           />
         </m.div>
       </m.div>

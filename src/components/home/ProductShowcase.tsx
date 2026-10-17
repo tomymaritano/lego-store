@@ -15,7 +15,10 @@ interface ProductShowcaseProps {
   className?: string;
 }
 
-/** A titled row of product cards (new arrivals, deals) that rise in as they scroll into view. */
+/**
+ * A titled row of product cards (new arrivals, deals) that rise in as they
+ * scroll into view; a swipeable row on phones.
+ */
 export function ProductShowcase({ id, eyebrow, tone, title, description, action, products, className }: ProductShowcaseProps) {
   if (products.length === 0) return null;
   const titleId = `${id}-title`;
@@ -23,7 +26,7 @@ export function ProductShowcase({ id, eyebrow, tone, title, description, action,
     <section id={id} aria-labelledby={titleId} className={cn("py-16 md:py-20", className)}>
       <div className="container-custom">
         <SectionHeader id={titleId} eyebrow={eyebrow} tone={tone} title={title} description={description} action={action} />
-        <ProductGrid products={products} reveal="in-view" label={title} />
+        <ProductGrid products={products} reveal="in-view" label={title} mobileLayout="carousel" />
       </div>
     </section>
   );
