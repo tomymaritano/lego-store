@@ -7,7 +7,8 @@
 //
 // Exits 1 when a route goes over its budget. Budgets sit ~8% above the
 // sizes measured when they were set (Oct 2026: / 260 kB, catalogue 326 kB,
-// checkout 349 kB): a regression guard, not a target. Lower them as you trim.
+// checkout 349 kB, 318 kB once zod loaded on demand): a regression guard,
+// not a target. Lower them as you trim.
 import { gzipSync } from "node:zlib";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
@@ -20,7 +21,7 @@ const BUDGETS = {
   "/cart": 280,
   "/wishlist": 280,
   "/compare": 285,
-  "/checkout": 375,
+  "/checkout": 345,
 };
 
 async function waitForServer() {

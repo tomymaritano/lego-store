@@ -14,9 +14,12 @@ import { ThemeSync } from "./ThemeSync";
  * element without its own transition uses the token timing).
  *
  * Motion runs through LazyMotion: components use the light `m.*` elements
- * and the feature bundle loads asynchronously (lib/motion-features), so the
- * animation engine is not part of every route's first-load JS. `strict`
- * makes a stray full `motion.*` import throw in development.
+ * and the feature bundle (animation, gestures, layout, drag: domMax, needed
+ * app-wide for the layout animations) loads asynchronously from
+ * lib/motion-features, outside every route's first-load JS (checked with
+ * `npm run size`). The `m` elements and AnimatePresence still bring motion's
+ * core, about 45 kB gzip. `strict` makes a stray full `motion.*` import throw
+ * in development.
  */
 const loadMotionFeatures = () => import("@/lib/motion-features").then((mod) => mod.default);
 

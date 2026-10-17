@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, m } from "motion/react";
 import { CheckCircle2, Send } from "lucide-react";
 import { fadeInUp, scaleIn } from "@/lib/motion";
 import { simulateRequest } from "@/lib/forms";
-import { CONTACT_MESSAGE_MAX, CONTACT_TOPICS, contactSchema, type ContactInput } from "@/lib/validations";
+import { CONTACT_MESSAGE_MAX, CONTACT_TOPICS } from "@/lib/validations/contact-options";
+import type { ContactInput } from "@/lib/validations/contact";
+import { contactResolver } from "@/lib/validations/lazy";
 import {
   Button,
   Field,
@@ -39,7 +40,7 @@ export function ContactForm() {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<ContactInput>({ resolver: zodResolver(contactSchema), defaultValues, mode: "onTouched" });
+  } = useForm<ContactInput>({ resolver: contactResolver, defaultValues, mode: "onTouched" });
 
   const messageLength = useWatch({ control, name: "message" })?.length ?? 0;
 
@@ -86,6 +87,7 @@ export function ContactForm() {
           exit="exit"
           noValidate
           aria-labelledby="contact-form-title"
+          onFocus={contactResolver.preload}
           onSubmit={handleSubmit(onSubmit)}
           className="space-y-5"
         >

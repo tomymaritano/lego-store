@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { Controller, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, ChevronLeft, Truck } from "lucide-react";
 import { ARGENTINA_PROVINCES, SHIPPING_COUNTRY } from "@/lib/argentina";
-import { shippingSchema } from "@/lib/validations";
+import { shippingResolver } from "@/lib/validations/lazy";
 import {
   Button,
   Field,
@@ -51,7 +50,7 @@ export function ShippingStep({ initialData, focusHeading, onSubmit }: ShippingSt
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ShippingInfo>({
-    resolver: zodResolver(shippingSchema),
+    resolver: shippingResolver,
     defaultValues: initialData ?? emptyShipping,
     mode: "onTouched",
   });
@@ -64,7 +63,13 @@ export function ShippingStep({ initialData, focusHeading, onSubmit }: ShippingSt
       focusHeading={focusHeading}
       aside={<StepCount index={0} total={3} />}
     >
-      <form onSubmit={handleSubmit(onSubmit)} noValidate aria-labelledby="shipping-title" className="space-y-5">
+      <form
+        onFocus={shippingResolver.preload}
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
+        aria-labelledby="shipping-title"
+        className="space-y-5"
+      >
         <fieldset className="space-y-4">
           <legend className="mb-3 text-label font-semibold text-fg">Contacto</legend>
           <div className="grid gap-4 sm:grid-cols-2">

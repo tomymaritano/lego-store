@@ -1,12 +1,11 @@
 "use client";
 
 import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronLeft, CreditCard, Lock } from "lucide-react";
 import { scaleIn } from "@/lib/motion";
 import { CARD_BRAND_LABELS, cvvLength, detectCardBrand, formatCardNumber, formatExpiry, onlyDigits } from "@/lib/card";
-import { paymentSchema } from "@/lib/validations";
+import { paymentResolver } from "@/lib/validations/lazy";
 import { Button, Field, Input } from "@/components/ui";
 import type { PaymentInfo, PaymentSummary } from "@/types";
 import { RequiredNote } from "./RequiredNote";
@@ -36,7 +35,7 @@ export function PaymentStep({ summary, focusHeading, onSubmit, onBack }: Payment
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<PaymentInfo>({
-    resolver: zodResolver(paymentSchema),
+    resolver: paymentResolver,
     defaultValues: { cardNumber: "", cardName: summary?.cardName ?? "", expiryDate: summary?.expiryDate ?? "", cvv: "" },
     mode: "onTouched",
   });
@@ -62,7 +61,13 @@ export function PaymentStep({ summary, focusHeading, onSubmit, onBack }: Payment
       focusHeading={focusHeading}
       aside={<StepCount index={1} total={3} />}
     >
-      <form onSubmit={handleSubmit(onSubmit)} noValidate aria-labelledby="payment-title" className="space-y-5">
+      <form
+        onFocus={paymentResolver.preload}
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
+        aria-labelledby="payment-title"
+        className="space-y-5"
+      >
         <Field
           label="Número de tarjeta"
           required
