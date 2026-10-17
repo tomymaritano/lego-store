@@ -30,13 +30,13 @@ describe("LoginForm", () => {
     });
     render(<LoginForm action={action} callbackUrl="/account" />);
 
-    await user.type(screen.getByLabelText("Email"), "ana@example.com");
-    await user.type(screen.getByLabelText("Contraseña"), "mala-clave");
+    await user.type(screen.getByLabelText(/^Email/), "ana@example.com");
+    await user.type(screen.getByLabelText(/^Contraseña/), "mala-clave");
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("El email o la contraseña no son correctos.");
     expect(submitted[0]).toMatchObject({ email: "ana@example.com", password: "mala-clave", callbackUrl: "/account" });
-    expect(screen.getByLabelText("Email")).toHaveValue("ana@example.com");
+    expect(screen.getByLabelText(/^Email/)).toHaveValue("ana@example.com");
   });
 
   it("marks invalid fields, describes them and focuses the first one", async () => {
@@ -49,10 +49,10 @@ describe("LoginForm", () => {
     render(<LoginForm action={action} callbackUrl="/" />);
     await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
 
-    const email = screen.getByLabelText("Email");
+    const email = screen.getByLabelText(/^Email/);
     await waitFor(() => expect(email).toHaveAttribute("aria-invalid", "true"));
     expect(email).toHaveAccessibleDescription("Ingresa tu email");
-    expect(screen.getByLabelText("Contraseña")).toHaveAccessibleDescription("Ingresa tu contraseña");
+    expect(screen.getByLabelText(/^Contraseña/)).toHaveAccessibleDescription("Ingresa tu contraseña");
     await waitFor(() => expect(email).toHaveFocus());
   });
 
@@ -74,7 +74,7 @@ describe("LoginForm", () => {
   it("toggles the password visibility with a pressed-state button", async () => {
     const user = userEvent.setup();
     render(<LoginForm action={stubAction({}).action} callbackUrl="/" />);
-    const password = screen.getByLabelText("Contraseña");
+    const password = screen.getByLabelText(/^Contraseña/);
     const toggle = screen.getByRole("button", { name: "Mostrar contraseña" });
     expect(password).toHaveAttribute("type", "password");
     await user.click(toggle);

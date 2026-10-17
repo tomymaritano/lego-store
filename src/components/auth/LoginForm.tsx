@@ -39,18 +39,17 @@ export function LoginForm({ action, callbackUrl, notice, googleAction }: LoginFo
         <input type="hidden" name="callbackUrl" value={callbackUrl} />
         {message ? <FormAlert>{message}</FormAlert> : null}
 
-        <Field label="Email" error={state.fieldErrors?.email}>
+        <Field label="Email" error={state.fieldErrors?.email} required>
           <Input
             name="email"
             type="email"
             inputMode="email"
             autoComplete="email"
             defaultValue={state.values?.email}
-            required
           />
         </Field>
-        <Field label="Contraseña" error={state.fieldErrors?.password}>
-          <PasswordInput name="password" autoComplete="current-password" required />
+        <Field label="Contraseña" error={state.fieldErrors?.password} required>
+          <PasswordInput name="password" autoComplete="current-password" />
         </Field>
 
         <Button type="submit" size="lg" className="w-full" loading={pending}>
