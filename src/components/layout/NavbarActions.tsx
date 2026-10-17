@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Heart, Menu, Scale, Search, ShoppingCart, User } from "lucide-react";
@@ -13,7 +13,10 @@ import { CountIcon } from "./CountBadge";
 // The three panels load on demand: they are on every page but rarely opened,
 // so their code (Base UI dialog, cart lines, search combobox) stays out of the
 // first-load bundle. Each trigger preloads its panel on hover/focus/press, and
-// a panel stays mounted after its first open so it can animate out.
+// a panel stays mounted after its first open so it can animate out. The cart
+// drawer also preloads when the browser is idle once the cart has something in
+// it, because a card's "Ver carrito" button opens it without touching the
+// navbar trigger (no dead time before the first slide-in).
 const loadCartDrawer = () => import("@/components/cart/CartDrawer");
 const loadMobileMenu = () => import("./MobileMenu");
 const loadMobileSearch = () => import("./MobileSearch");
@@ -26,6 +29,16 @@ const preload = (load: () => Promise<unknown>) => ({
   onFocus: () => void load(),
   onPointerDown: () => void load(),
 });
+
+/** Runs `load` once the main thread is idle (setTimeout where requestIdleCallback is missing). */
+function whenIdle(load: () => unknown) {
+  if (typeof window.requestIdleCallback === "function") {
+    const id = window.requestIdleCallback(() => void load(), { timeout: 2000 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = window.setTimeout(() => void load(), 200);
+  return () => window.clearTimeout(id);
+}
 
 /** True from the first time `open` is true (lazy panels mount once, then stay). */
 function useOpenedOnce(open: boolean) {
@@ -54,6 +67,9 @@ export function NavbarActions({ links, themes }: { links: NavItem[]; themes: Nav
   const cartCount = useCartCount();
   const wishlistCount = useWishlistCount();
   const compareCount = useCompareCount();
+
+  const hasCartItems = cartCount > 0;
+  useEffect(() => (hasCartItems ? whenIdle(loadCartDrawer) : undefined), [hasCartItems]);
 
   return (
     <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
