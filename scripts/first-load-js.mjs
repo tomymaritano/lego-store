@@ -5,23 +5,29 @@
 //   npm run build && npm run start -- -p 3311
 //   npm run size -- http://localhost:3311
 //
-// Exits 1 when a route goes over its budget. Budgets sit ~8% above the
-// sizes measured when they were set (Oct 2026: / 260 kB, catalogue 326 kB,
-// checkout 349 kB, 318 kB once zod loaded on demand): a regression guard,
-// not a target. Lower them as you trim.
+// Exits 1 when a route goes over its budget. Budgets sit ~5% above the sizes
+// measured when they were last lowered (Oct 2026: / 251 kB, product 282 kB,
+// catalogue 314 kB, checkout 306 kB, after Sonner and the product reviews
+// moved out of first load and the category pages were prerendered): a
+// regression guard, not a target. Lower them as you trim.
+//
+// Pre-overhaul (Next 15) printed 181-197 kB. That floor is out of reach
+// without dropping Motion: React 19 + the Next 16 runtime alone are ~131 kB,
+// and Motion's `m` core ~45 kB (its feature bundle loads on demand). Not
+// strictly comparable either: this counts every script tag.
 import { gzipSync } from "node:zlib";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
 /** kB of gzipped JS per route. */
 const BUDGETS = {
-  "/": 280,
-  "/item/1": 350,
-  "/category/helmet": 350,
-  "/search?q=star": 350,
-  "/cart": 280,
-  "/wishlist": 280,
-  "/compare": 285,
-  "/checkout": 345,
+  "/": 265,
+  "/item/1": 296,
+  "/category/helmet": 330,
+  "/search?q=star": 330,
+  "/cart": 262,
+  "/wishlist": 262,
+  "/compare": 264,
+  "/checkout": 322,
 };
 
 async function waitForServer() {

@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useReviewStore } from "@/stores/reviewStore";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
+import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { REVIEWS_HASH, WRITE_REVIEW_HASH } from "./anchors";
-import { ProductReviews, type ReviewsFocusRequest } from "./ProductReviews";
+import type { ReviewsFocusRequest } from "./ProductReviews";
+
+// Reviews live in a closed tab and come from the client-side review store, so
+// they load after hydration: their sort menu (Base UI Select + floating UI)
+// and list stay out of the product page's first-load JS.
+const ProductReviews = dynamic(() => import("./ProductReviews").then((mod) => mod.ProductReviews), {
+  ssr: false,
+  loading: () => <Skeleton className="h-64 rounded-2xl" />,
+});
 
 type DetailsTab = "description" | "specs" | "reviews";
 
