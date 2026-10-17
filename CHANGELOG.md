@@ -24,15 +24,18 @@ UI overhaul (see `docs/superpowers/specs/2026-10-17-ui-overhaul-design.md`).
   `src/lib/motion.ts` (150-300 ms), reduced motion respected, LazyMotion.
 - **Lint**: ESLint 9 flat config; design-system guardrails (raw palette,
   legacy aliases, `dark:`, numeric timing) are errors.
-- **Performance**: Barlow via `next/font`, on-demand panels and review form,
-  first-load JS budgets per route (`npm run size`).
+- **Performance**: Barlow via `next/font`, on-demand panels, review form and
+  form validation (zod), first-load JS budgets per route (`npm run size`).
+- **Pages rebuilt**: wishlist and compare (existing pages, redesigned on the
+  new primitives), checkout as a three-step flow, and a designed 404 instead
+  of the old not-found page.
 
 ### Added
 
-- Catalogue filters in the URL with live facet counts, compare page with
-  highlighted differences, wishlist, undo toasts, checkout in three steps with
-  Argentine address and card validation, info pages (FAQ, envíos, devoluciones,
-  contacto, nosotros, términos, privacidad), designed 404.
+- Catalogue filters in the URL with live facet counts, "highlight
+  differences" on the compare page, undo toasts (cart, wishlist, compare),
+  Argentine address and card validation in checkout, info pages (FAQ, envíos,
+  devoluciones, contacto, nosotros, términos, privacidad).
 - Tests: Vitest (unit + Storybook projects), Playwright E2E including a
   production project; CI runs lint, types, unit, Storybook build, build, E2E,
   audit, JS budget and Lighthouse.
