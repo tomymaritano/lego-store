@@ -1,13 +1,16 @@
 # LEGO Store
 
-Tienda online de sets LEGO (proyecto de portfolio): catálogo con búsqueda e
-infinite scroll, ficha de producto, carrito, lista de deseos, comparador de
-hasta 4 productos y un checkout en pasos (pago simulado). Toda la UI está en
-español, tiene modo oscuro y apunta a WCAG 2.1 AA.
+Tienda online de sets LEGO (proyecto de portfolio): catálogo con búsqueda,
+filtros en la URL e infinite scroll, ficha de producto, carrito, favoritos,
+comparador de hasta 4 productos, páginas de ayuda y un checkout en tres pasos
+(pago simulado). Toda la UI está en español, tiene modo oscuro y apunta a WCAG
+2.1 AA.
 
-Los datos del catálogo son un mock local; el próximo paso del proyecto es un
-backend real (ver `docs/superpowers/specs/`). La UI ya está preparada para eso:
-todas las lecturas pasan por una sola capa (`src/lib/api`).
+Los datos del catálogo son un mock local. El próximo paso es un backend real
+(próximamente, ver
+[la spec del backend](./docs/superpowers/specs/2026-10-17-backend-completo-design.md)).
+La UI ya está preparada para eso: todas las lecturas pasan por una sola capa,
+`src/lib/api`.
 
 <table>
   <tr>
@@ -29,18 +32,29 @@ producción en marcha (`npm run build && npm start`).
 
 ## Stack
 
-- **Next.js 16** (App Router, Turbopack) + **React 19**, TypeScript 5.9
-- **Tailwind CSS 4** con tokens de diseño en `@theme` (`src/app/globals.css`)
-- Primitivos estilo **shadcn/ui sobre Base UI** (`src/components/ui`)
-- **motion** (`motion/react`, vía `LazyMotion` + `m.*`) para animaciones, con presets en `src/lib/motion.ts`
-- **Zustand** (estado del cliente persistido), **TanStack Query** (datos en islas cliente)
-- **React Hook Form** + **Zod** (checkout, contacto y reseñas; se cargan solo donde se usan), **sonner** (toasts)
-- Barlow servida por `next/font` (self-hosted y precargada)
-- **Vitest** (unit + Storybook), **Playwright** (E2E), **Storybook 10** con a11y
+Versiones instaladas (`package-lock.json`):
 
-Requiere Node `^22.13` o `>=24`.
+- **Next.js 16.4** (App Router, Turbopack, `proxy.ts`) + **React 19.3**, TypeScript 5.9
+- **Tailwind CSS 4.3** con tokens de diseño en `src/app/globals.css`
+- Primitivos estilo **shadcn/ui** escritos a mano sobre **Base UI 1.9** (`src/components/ui`), con `class-variance-authority` y `tailwind-merge`
+- **motion 14** (`motion/react`, vía `LazyMotion` + `m.*`), presets en `src/lib/motion.ts`
+- **Zustand 5** (estado del cliente persistido) y **TanStack Query 5** (datos en islas cliente)
+- **React Hook Form 7** + **Zod 4** (checkout, contacto, reseñas; se cargan donde se usan), **Sonner 2** (toasts), **lucide-react** (íconos)
+- Barlow por `next/font` (self-hosted y precargada)
+- **Vitest 5** (unit + Storybook), **Playwright 1.64** (E2E), **Storybook 10** con addon a11y, **ESLint 9**
 
-## Scripts
+Requiere Node `^22.13.0` o `>=24`.
+
+## Inicio rápido
+
+```bash
+npm ci
+npm run dev        # http://localhost:3000
+```
+
+Para los tests en navegador (stories y E2E), una vez: `npx playwright install chromium`.
+
+## Scripts principales
 
 | Comando | Qué hace |
 | --- | --- |
@@ -49,147 +63,49 @@ Requiere Node `^22.13` o `>=24`.
 | `npm run lint` | ESLint (incluye las guardas del sistema de diseño) |
 | `npx tsc --noEmit` | Chequeo de tipos |
 | `npm test` | Vitest en modo watch (`npx vitest run` para una corrida) |
-| `npm run test:coverage` | Cobertura de los tests unitarios |
-| `npm run test:e2e` | Playwright: proyecto `chromium` contra `npm run dev` y proyecto `prod` contra un build en el puerto 3100 (los levanta si no están) |
-| `npm run storybook` / `npm run build-storybook` | Storybook en http://localhost:6006 / build estático |
-| `npm run size -- <url>` | JS de primera carga (gzip) por ruta clave contra su presupuesto, sobre un `npm start` en marcha |
-| `npm run screenshots` | Regenera las capturas de `screenshots/` (`BASE_URL` para otro origen) |
+| `npm run test:coverage` | Cobertura |
+| `npm run test:e2e` | Playwright: proyecto `chromium` contra `npm run dev` y proyecto `prod` contra un build en el puerto 3100 |
+| `npm run storybook` | Storybook en http://localhost:6006 |
+| `npm run size -- <url>` | JS de primera carga por ruta contra su presupuesto, sobre un `npm start` en marcha |
+| `npm run screenshots` | Regenera `screenshots/` |
 
-## Estructura
+La tabla completa está en [CONTRIBUTING.md](./CONTRIBUTING.md#scripts).
 
-```
-src/
-  app/                 Rutas (App Router). Páginas = Server Components.
-    (info)/            Ayuda y la tienda: faq, envios, devoluciones, contacto,
-                       nosotros, terminos, privacidad (layout con menú lateral)
-    api/               Route Handlers para las islas cliente
-      products/        GET /api/products (filtros, orden, paginación)
-      products/by-ids/ GET /api/products/by-ids?ids=1,2
-      products/facets/ GET /api/products/facets (conteos en vivo de los filtros)
-      search/          GET /api/search?q= (autocompletado)
-    cart/ wishlist/ compare/ search/ category/ item/
-    checkout/_components/  Pasos, resumen y confirmación del checkout
-  components/
-    ui/                Primitivos del sistema de diseño (barrel index.ts)
-    layout/            Navbar, Footer, PageHeader, menús y paneles (carga diferida)
-    product/           Tarjeta, grilla, catálogo y filtros, ficha, galería, reseñas (reviews/)
-    cart/ wishlist/ compare/ search/ home/ info/ forms/ icons/
-    motion/            Reveal / Stagger para Server Components
-  data/                Mock del catálogo (solo lo lee src/lib/api)
-  hooks/               useProductActions, useProductsByIds, useInfiniteScroll…
-  lib/
-    api/               Gateway de datos (server-only)
-    api-client.ts      Llamadas del navegador a /api/*
-    productQuery.ts    ProductQuery <-> URL search params
-    pricing.ts         Subtotal, envío y totales (carrito y checkout)
-    card.ts argentina.ts  Tarjetas, provincias y códigos postales
-    flyToCart.ts       Animación "vuela al carrito" (Web Animations API)
-    motion.ts motion-features.ts theme.ts metadata.ts utils.ts validations/
-  stores/              Zustand: cart, wishlist, compare, recentlyViewed, theme, reviews, checkout, ui
-  types/               Tipos de dominio (única fuente)
-__tests__/             Tests unitarios y de componentes (Vitest + Testing Library)
-e2e/                   Tests de Playwright (e2e/prod: contra el build de producción)
-scripts/               Presupuesto de JS y capturas del README
-```
+## Documentación
 
-## Arquitectura de datos
+- [Arquitectura](./docs/architecture.md): carpetas, Server vs Client Components,
+  flujo de datos, estado, rutas, SEO y caché.
+- [Sistema de diseño](./docs/design-system.md): tokens, tipografía, primitivos,
+  movimiento, guardas de ESLint y cómo agregar un primitivo.
+- [Tests y calidad](./docs/testing.md): Vitest, Playwright, CI, presupuestos de JS
+  y Lighthouse.
+- [Cómo contribuir](./CONTRIBUTING.md): requisitos, ramas, commits y checklist
+  del PR.
+- [Changelog](./CHANGELOG.md).
+- Diseño y auditoría del overhaul:
+  [spec del overhaul de UI](./docs/superpowers/specs/2026-10-17-ui-overhaul-design.md),
+  [auditoría de UI](./docs/superpowers/audits/2026-10-17-auditoria-ui.md) y
+  [spec del backend](./docs/superpowers/specs/2026-10-17-backend-completo-design.md)
+  (próximamente).
 
-- **Lecturas**: Server Components llaman a `@/lib/api` (`getPaginatedProducts`,
-  `getProductById`, `searchProducts`, `getFilterOptions`, `getCategories`,
-  `getRelatedProducts`, `getProductsByIds`…). Son funciones `async` con argumentos y
-  resultados serializables; el backend reemplazará su implementación sin cambiar
-  las firmas. Importar `@/data` fuera de `src/lib/api` es un error de lint.
-- **Islas cliente** (infinite scroll, autocompletado, comparador, favoritos,
-  vistos recientemente) usan los Route Handlers de `src/app/api` vía
-  `@/lib/api-client` y React Query. El catálogo nunca viaja en el bundle.
-- **Búsqueda**: un solo algoritmo (`src/lib/api/search.ts`): todos los términos
-  deben aparecer en nombre, tema, categoría o descripción, sin distinguir
-  mayúsculas ni acentos.
+## En pocas palabras
 
-## Estado del cliente
-
-- Stores de Zustand con **selectores** (`useCartCount`, `useCartSubtotal`,
-  `useIsInCart(id)`, `useIsInWishlist(id)`, `useCompareIds`…).
-- Persistencia versionada con `migrate` desde formatos anteriores. Comparar y
-  vistos recientemente guardan IDs; favoritos, un snapshot mínimo.
-- Hidratación: los stores usan `skipHydration` y `<StoreHydrator />` los carga una
-  sola vez tras hidratar (y sincroniza pestañas). `useStoresHydrated()` distingue
-  "cargando" de "vacío" donde importa.
-- Tema: el store es la única fuente de verdad; un script inline en `<head>` aplica
-  la clase `dark` antes del primer pintado y `ThemeSync` lo mantiene al día.
-- El checkout vive en memoria y nunca guarda el número de tarjeta ni el CVV.
-
-## Sistema de diseño
-
-- **Tokens** en tres niveles (primitivos → semánticos → componente) en
-  `globals.css`, expuestos como utilidades: `bg-bg`, `bg-surface`, `text-fg`,
-  `text-fg-muted`, `bg-primary`/`text-on-primary`, `text-danger`, `text-info`… El
-  contraste AA se verifica en `__tests__/design/tokens.test.ts`.
-- La paleta por defecto de Tailwind está desactivada (`--color-*: initial`):
-  solo existen los colores de los tokens.
-- **Primitivos** en `src/components/ui`: Button (con `render` para links),
-  IconButton, Field, Input, Textarea, Select, Checkbox, RadioGroup, Slider,
-  Dialog, Sheet, Tabs, Card, Badge, Rating, RatingInput, Price, EmptyState,
-  Skeleton, QuantitySelector, Spinner, Toast, Breadcrumbs, ThemeToggle. Cada
-  uno con stories en claro y oscuro.
-- **Guardas de ESLint** (errores en todo `src/`): colores crudos de la paleta,
-  alias heredados, `dark:`, duraciones numéricas de movimiento y tamaños de
-  texto de Tailwind (`text-sm`, `text-2xl`…: se usa la escala `text-caption`,
-  `text-label`, `text-body`, `text-title`, `text-heading`, `text-headline`,
-  `text-display`). Dentro de `ui/` rigen las mismas reglas, salvo que `dark:`
-  y los tamaños compactos de los primitivos están permitidos.
-- **Movimiento**: presets en `src/lib/motion.ts` (150–300 ms) y
-  `<MotionConfig reducedMotion="user">`; respetan `prefers-reduced-motion`. Los
-  componentes usan `m.*` dentro de `<LazyMotion>` (el bundle de features se
-  pide aparte, aunque Turbopack hoy lo deja en el chunk compartido de motion:
-  unos 45 kB gzip en la primera carga).
-
-## Rendimiento
-
-- Inicio, fichas y categorías se prerenderizan sin `loading.tsx`: el HTML
-  estático trae el contenido en orden y el texto del hero (el LCP) se pinta en
-  el primer frame. Los filtros de una categoría viven en la URL y se aplican en
-  el cliente, así que la ruta sigue siendo estática.
-- Los paneles poco usados (carrito lateral, menú y búsqueda móviles, vista
-  rápida, formulario de reseñas) se cargan bajo demanda con `next/dynamic` y se
-  precargan al pasar el puntero o enfocar su botón. Sonner (toasts) y las
-  reseñas de la ficha se cargan después de hidratar.
-- Imágenes en AVIF (WebP de respaldo) con `sizes` ajustados a cada grilla.
-- `npm run size` mide el JS de primera carga por ruta (gzip, sin los polyfills
-  `noModule`) contra un presupuesto por ruta; CI lo corre en cada PR.
-- Lighthouse CI (`lighthouserc.json`, móvil simulado) audita `/`, `/item/1`,
-  `/category/helmet` y `/cart`; la última corrida local dio rendimiento 80-82
-  (mediana), accesibilidad 100 y buenas prácticas 100. El gate de SEO de CI es
-  ≥ 90 en las rutas indexables (`/`, fichas y categorías), y el objetivo es 100,
-  que hoy cumplen. `/cart` y `/checkout` son `noindex` a propósito (lo correcto
-  en páginas transaccionales), así que no se afirma SEO sobre ellas. `/checkout` no está en
-  Lighthouse: sin carrito redirige a `/cart` y el informe mediría esa página;
-  su accesibilidad se audita con axe en `e2e/checkout.spec.ts`, paso a paso y
-  con un carrito cargado.
-
-## Tests
-
-- `__tests__/lib`: gateway de datos (búsqueda, filtros, orden, paginación,
-  casos borde), parser de queries y Route Handlers.
-- `__tests__/stores`: stores, selectores, migraciones e hidratación.
-- `__tests__/components`: primitivos (`ui/`), carrito lateral, carrito /
-  favoritos / comparador, catálogo y filtros, checkout, formularios, galería,
-  ficha de producto, reseñas, autocompletado, useProductActions,
-  useProductsByIds y suscripciones a los stores.
-- `__tests__/config`: cada link de navegación resuelve a una página.
-- `__tests__/lint` y `__tests__/design`: guardas de ESLint y contraste de tokens.
-- Storybook: cada story se renderiza en Chromium con axe (a11y como error).
-- `e2e/`: un archivo por área: `homepage` (inicio), `catalog` (filtros en la URL,
-  orden, precio), `search` (búsqueda y combobox), `product` (ficha), `cart`
-  (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
-  (favoritos, comparador y su barra), `checkout` (con axe), `shell` (navbar,
-  footer, páginas de información, 404), `state` (estado persistido), `a11y`
-  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro) y el proyecto `prod`
-  (navegación, transiciones y rutas estáticas sobre el build de producción).
-
-CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
-Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
-JS y Lighthouse.
+- **Datos**: las páginas son Server Components que leen de `@/lib/api`
+  (server-only); las islas cliente usan los Route Handlers de `src/app/api` con
+  React Query. Importar `@/data` fuera de `src/lib/api` es un error de lint.
+- **Estado**: stores de Zustand con selectores y persistencia versionada;
+  `StoreHydrator` los carga tras hidratar y un script inline aplica el tema antes
+  del primer pintado.
+- **Diseño**: tokens semánticos en tres niveles con contraste AA verificado por
+  tests, paleta por defecto de Tailwind desactivada y guardas de ESLint contra
+  colores crudos, `dark:` sueltos, duraciones numéricas y tamaños de texto fuera
+  de la escala.
+- **Rendimiento**: inicio, fichas y categorías prerenderizadas; paneles poco
+  usados, Sonner y reseñas cargados bajo demanda; imágenes AVIF; presupuesto de
+  JS por ruta en CI. Lighthouse CI exige accesibilidad ≥ 0.95, buenas prácticas
+  ≥ 0.9 y SEO ≥ 0.9 en las rutas indexables; rendimiento (≥ 0.8) es un aviso.
+  La última corrida local dio rendimiento 80–82 (mediana), accesibilidad 100 y
+  buenas prácticas 100.
 
 ## Licencia
 
