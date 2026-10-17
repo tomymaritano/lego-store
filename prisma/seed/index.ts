@@ -12,6 +12,7 @@ import {
   type HandwrittenReview,
   type SampleUser,
 } from "./sample-reviews";
+import { DEV_ADMIN } from "./admin";
 
 /*
  * Idempotent seed: running it again converges on the same rows instead of
@@ -62,6 +63,10 @@ export async function seedDatabase(db: PrismaClient, options: SeedOptions): Prom
   if (options.admin) {
     admin = await seedAdmin(db, options.admin);
     log(`Admin: ${admin}`);
+  }
+  // The dev admin's password is public: it never stays an admin next to (or instead of) a real one.
+  if (admin !== DEV_ADMIN.email && (await demoteDevAdmin(db))) {
+    log(`ATENCIÓN: ${DEV_ADMIN.email} (admin de desarrollo, contraseña pública) pasó a USER y ya no puede iniciar sesión.`);
   }
 
   return {
@@ -307,6 +312,18 @@ async function seedOrders(
 // ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
+
+/**
+ * Takes the ADMIN role and the password away from the dev admin, if it exists
+ * and still has either. The user row stays (it may own data). True if it changed.
+ */
+async function demoteDevAdmin(db: PrismaClient): Promise<boolean> {
+  const { count } = await db.user.updateMany({
+    where: { email: DEV_ADMIN.email, OR: [{ role: "ADMIN" }, { passwordHash: { not: null } }] },
+    data: { role: "USER", passwordHash: null },
+  });
+  return count > 0;
+}
 
 async function seedAdmin(db: PrismaClient, admin: { email: string; password: string }): Promise<string> {
   const email = admin.email.trim().toLowerCase();

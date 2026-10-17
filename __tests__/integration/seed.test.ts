@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { products as seedProducts } from "@/data/products";
 import { categories as seedCategories } from "@/data/categories";
 import { verifyPassword } from "@/lib/auth/password";
@@ -6,6 +6,7 @@ import { refreshProductRatings } from "@/lib/api/ratings";
 import { PLACEHOLDER_IMAGE } from "@/lib/utils";
 import { handwrittenReviews, sampleUsers } from "../../prisma/seed/sample-reviews";
 import { seedDatabase } from "../../prisma/seed/index";
+import { DEV_ADMIN } from "../../prisma/seed/admin";
 import { resetAndSeed, testDb } from "./setup/db";
 
 beforeEach(async () => {
@@ -103,6 +104,23 @@ describe("seed", () => {
     await expect(seedDatabase(testDb, { admin: { email: "admin@example.com", password: "corta" } })).rejects.toThrow(
       /al menos 8/
     );
+  });
+
+  it("demotes the dev admin (public password) once a real admin is seeded", async () => {
+    await seedDatabase(testDb, { admin: { ...DEV_ADMIN } });
+    expect((await testDb.user.findUniqueOrThrow({ where: { email: DEV_ADMIN.email } })).role).toBe("ADMIN");
+
+    const log = vi.fn();
+    await seedDatabase(testDb, { admin: { email: "owner@example.com", password: "una-clave-segura" }, log });
+    const dev = await testDb.user.findUniqueOrThrow({ where: { email: DEV_ADMIN.email } });
+    expect(dev).toMatchObject({ role: "USER", passwordHash: null });
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/ATENCIÓN: admin@lego-store\.local/));
+    expect((await testDb.user.findUniqueOrThrow({ where: { email: "owner@example.com" } })).role).toBe("ADMIN");
+
+    // Also without any admin (production without ADMIN_*), and quietly once it is already demoted.
+    log.mockClear();
+    await seedDatabase(testDb, { admin: null, log });
+    expect(log).not.toHaveBeenCalledWith(expect.stringMatching(/ATENCIÓN/));
   });
 
   it("sample users cannot log in", async () => {
