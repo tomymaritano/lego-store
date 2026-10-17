@@ -129,6 +129,53 @@ test.describe("Accounts", () => {
     await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/$/);
   });
 
+  test("a signed-in visit to /login or /register never bounces to another site", async ({ page }) => {
+    await signUpFresh(page);
+    // Dot segments parse into a protocol-relative "//evil.example/phish" if only the raw value is checked.
+    for (const path of ["/login", "/register"]) {
+      for (const callback of ["/.//evil.example/phish", "/%2e//evil.example/phish", "/a/..//evil.example/phish"]) {
+        const response = await page.request.get(`${path}?callbackUrl=${encodeURIComponent(callback)}`, { maxRedirects: 0 });
+        expect(response.status(), `${path} ${callback}`).toBe(307);
+        expect(response.headers().location, `${path} ${callback}`).toBe("/");
+      }
+    }
+    await page.goto(`/login?callbackUrl=${encodeURIComponent("/.//evil.example/phish")}`);
+    await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/$/);
+  });
+
+  test("logging out sticks, even when an /account request answers after it", async ({ page }) => {
+    await signUpFresh(page);
+
+    // proxy.ts reads the session cookie but never re-issues it (Auth.js's wrapper would, on every request).
+    const direct = await page.request.get("/account", { headers: { RSC: "1", "Next-Router-Prefetch": "1" } });
+    const sessionCookies = direct.headersArray().filter((h) => h.name.toLowerCase() === "set-cookie" && h.value.includes("session-token"));
+    expect(sessionCookies).toEqual([]);
+
+    // An /account request (a prefetch, say) that leaves before logout and answers after it.
+    let release!: () => void;
+    const loggedOut = new Promise<void>((resolve) => (release = resolve));
+    const accountUrl = /\/account(\?|$)/;
+    await page.route(accountUrl, async (route) => {
+      const response = await route.fetch();
+      await loggedOut;
+      await route.fulfill({ response });
+    });
+    const inFlight = page.evaluate(() => fetch("/account", { headers: { RSC: "1", "Next-Router-Prefetch": "1" } }).then((r) => r.status));
+
+    await page.getByTestId("account-menu").click();
+    await page.getByRole("button", { name: "Cerrar sesión" }).click();
+    await expect(page.getByTestId("login-link")).toBeVisible();
+    release();
+    await inFlight;
+    await page.unroute(accountUrl);
+
+    await page.goto("/login");
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Inicia sesión" })).toBeVisible();
+    await page.goto("/account");
+    await expect(page).toHaveURL(/\/login\?callbackUrl=%2Faccount$/);
+  });
+
   test("admin pages: 403 for a customer, open for an admin", async ({ page }) => {
     await signUpFresh(page);
     const consoleErrors: string[] = [];
@@ -210,6 +257,38 @@ test.describe("Accounts", () => {
     await expect(menu.getByRole("link", { name: "Crear cuenta" })).toBeVisible();
   });
 
+  test("phones: a customer's menu shows the account and logs out", async ({ page }) => {
+    await signUpFresh(page, "Marta Móvil");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/item/1");
+    await page.getByRole("button", { name: "Abrir menú" }).click();
+    const menu = page.getByRole("dialog", { name: "Menú" });
+    await expect(menu.getByText("Marta Móvil", { exact: true })).toBeVisible();
+    await expect(menu.getByRole("link", { name: "Mi cuenta" })).toHaveAttribute("href", "/account");
+    await expect(menu.getByRole("link", { name: "Administración" })).toHaveCount(0);
+    await expect(menu.getByRole("link", { name: "Iniciar sesión" })).toHaveCount(0);
+
+    await menu.getByRole("button", { name: "Cerrar sesión" }).click();
+    await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/$/);
+    await expect(menu).toBeHidden(); // closes once signed out
+    await page.getByRole("button", { name: "Abrir menú" }).click();
+    await expect(page.getByRole("dialog", { name: "Menú" }).getByRole("link", { name: "Iniciar sesión" })).toBeVisible();
+    await page.goto("/account");
+    await expect(page).toHaveURL(/\/login\?callbackUrl=%2Faccount$/);
+  });
+
+  test("phones: an admin's menu links the admin panel", async ({ page }) => {
+    await page.goto("/login");
+    await logIn(page, E2E_ADMIN_EMAIL, process.env.E2E_ADMIN_PASSWORD);
+    await expect(page.getByTestId("account-menu")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Abrir menú" }).click();
+    const menu = page.getByRole("dialog", { name: "Menú" });
+    await menu.getByRole("link", { name: "Administración" }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Panel de administración" })).toBeVisible();
+  });
+
   for (const colorScheme of ["light", "dark"] as const) {
     test(`login, register and account pages pass axe (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
@@ -226,6 +305,29 @@ test.describe("Accounts", () => {
       await page.goto("/account");
       await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
       await page.getByTestId("account-menu").click();
+      await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
+    });
+  }
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`the 403 page, the admin panel and the phone menu pass axe (${colorScheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme });
+      await signUpFresh(page, "Axe Cliente");
+      expect((await page.goto("/admin"))?.status()).toBe(403);
+      await expect(page.getByRole("heading", { level: 1, name: "No tienes permiso para ver esta página" })).toBeVisible();
+      await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto("/");
+      await page.getByRole("button", { name: "Abrir menú" }).click();
+      await expect(page.getByRole("dialog", { name: "Menú" }).getByRole("link", { name: "Mi cuenta" })).toBeVisible();
+      await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
+
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.context().clearCookies();
+      await page.goto("/login?callbackUrl=%2Fadmin");
+      await logIn(page, E2E_ADMIN_EMAIL, process.env.E2E_ADMIN_PASSWORD);
+      await expect(page.getByRole("heading", { level: 1, name: "Panel de administración" })).toBeVisible();
       await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
     });
   }
