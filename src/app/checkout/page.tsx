@@ -1,4 +1,15 @@
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/metadata";
 import { CheckoutFlow } from "./_components/CheckoutFlow";
+
+export const metadata: Metadata = {
+  ...pageMetadata({
+    title: "Checkout",
+    description: "Completa tu compra de forma segura. Envío, pago y confirmación de pedido.",
+    path: "/checkout",
+  }),
+  robots: { index: false, follow: false },
+};
 
 /**
  * Checkout. The page shell is a Server Component; the wizard is a client

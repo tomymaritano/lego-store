@@ -19,6 +19,7 @@ import {
 import { productActionCopy } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, EmptyState, IconButton, Price, Skeleton, cardVariants, showToast } from "@/components/ui";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ProductImage } from "@/components/product/ProductImage";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
 import type { CartItem, Product, ProductSummary, WishlistItem } from "@/types";
@@ -271,33 +272,37 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
   };
 
   return (
-    <div className="container-custom py-8 md:py-12">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 md:mb-8">
-        <div>
-          <h1 id="wishlist-title" tabIndex={-1} className="text-3xl outline-none md:text-4xl">
-            Lista de deseos
-          </h1>
-          {hydrated && !empty ? (
-            <p className="mt-1 text-fg-muted" data-testid="wishlist-page-count">
+    // min-h keeps the footer below the fold while the persisted list hydrates (no CLS when the
+    // skeleton gives way to the taller empty state).
+    <div className="container-custom min-h-[calc(100dvh-6rem)] py-8 md:py-12">
+      <PageHeader
+        title="Lista de deseos"
+        titleId="wishlist-title"
+        breadcrumbs={[{ label: "Favoritos" }]}
+        description={
+          hydrated && !empty ? (
+            <p data-testid="wishlist-page-count">
               {pluralize(wishlist.length, "producto guardado", "productos guardados")}
             </p>
-          ) : null}
-        </div>
-        {hydrated && !empty ? (
-          <div className="flex flex-wrap gap-2">
-            <Button variant="ghost" size="sm" onClick={clearAll} className="hover:text-danger">
-              <Trash2 aria-hidden="true" />
-              Vaciar lista
-            </Button>
-            {movable.length > 1 ? (
-              <Button variant="secondary" size="sm" onClick={() => moveAllToCart(movable)}>
-                <ShoppingCart aria-hidden="true" />
-                Mover todo al carrito
+          ) : null
+        }
+        actions={
+          hydrated && !empty ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={clearAll} className="hover:text-danger">
+                <Trash2 aria-hidden="true" />
+                Vaciar lista
               </Button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+              {movable.length > 1 ? (
+                <Button variant="secondary" size="sm" onClick={() => moveAllToCart(movable)}>
+                  <ShoppingCart aria-hidden="true" />
+                  Mover todo al carrito
+                </Button>
+              ) : null}
+            </>
+          ) : null
+        }
+      />
 
       {!hydrated ? (
         <div aria-busy="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4">

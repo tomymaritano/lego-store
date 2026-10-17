@@ -11,6 +11,7 @@ import { MAX_COMPARE_ITEMS, positionIn, useCompareIds, useCompareStore, useStore
 import { productActionCopy } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, Checkbox, EmptyState, IconButton, Price, Rating, Skeleton, showToast } from "@/components/ui";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { AddToCartButton } from "@/components/product/AddToCartButton";
 import { ProductImage } from "@/components/product/ProductImage";
 import { CategoryName } from "@/providers/CategoriesProvider";
@@ -99,33 +100,36 @@ export function CompareView() {
   const showDifferences = highlight && products.length > 1;
 
   return (
-    <div className="container-custom py-8 md:py-12">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 md:mb-8">
-        <div>
-          <h1 id="compare-title" tabIndex={-1} className="text-3xl outline-none md:text-4xl">
-            Comparar productos
-          </h1>
-          {!loading && !empty ? (
-            <p className="mt-1 text-fg-muted" data-testid="compare-page-count">
+    // min-h keeps the footer below the fold while the persisted list hydrates and loads (no CLS).
+    <div className="container-custom min-h-[calc(100dvh-6rem)] py-8 md:py-12">
+      <PageHeader
+        title="Comparar productos"
+        titleId="compare-title"
+        breadcrumbs={[{ label: "Comparar" }]}
+        description={
+          !loading && !empty ? (
+            <p data-testid="compare-page-count">
               {products.length} de {MAX_COMPARE_ITEMS} productos como máximo
             </p>
-          ) : null}
-        </div>
-        {!loading && !empty ? (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <Checkbox
-              label="Resaltar diferencias"
-              checked={highlight}
-              onCheckedChange={(checked) => setHighlight(checked === true)}
-              disabled={products.length < 2}
-              data-testid="highlight-differences"
-            />
-            <Button variant="ghost" size="sm" onClick={clearAll} className="hover:text-danger">
-              Limpiar todo
-            </Button>
-          </div>
-        ) : null}
-      </div>
+          ) : null
+        }
+        actions={
+          !loading && !empty ? (
+            <>
+              <Checkbox
+                label="Resaltar diferencias"
+                checked={highlight}
+                onCheckedChange={(checked) => setHighlight(checked === true)}
+                disabled={products.length < 2}
+                data-testid="highlight-differences"
+              />
+              <Button variant="ghost" size="sm" onClick={clearAll} className="hover:text-danger">
+                Limpiar todo
+              </Button>
+            </>
+          ) : null
+        }
+      />
 
       {loading ? (
         <div aria-busy="true" className="grid grid-cols-2 gap-4 md:grid-cols-4">

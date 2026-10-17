@@ -215,6 +215,13 @@ test.describe("Shell review fixes", () => {
     ["/checkout", "Checkout"],
   ] as const) {
     test(`${path} shares its own title on social cards`, async ({ page }) => {
+      // An empty cart sends /checkout back to /cart after hydration: give it a line.
+      if (path === "/checkout") {
+        await page.addInitScript(() => {
+          const line = { id: "1", name: "Captain Rex Helmet", price: 899, image: "/images/placeholder-product.svg", quantity: 1, stock: 10 };
+          localStorage.setItem("lego-cart-storage", JSON.stringify({ state: { cart: [line] }, version: 1 }));
+        });
+      }
       await page.goto(path);
       const fullTitle = `${title} | LEGO Store`;
       await expect(page).toHaveTitle(fullTitle);

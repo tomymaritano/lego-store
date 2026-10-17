@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { AnimatePresence, m } from "motion/react";
-import { ArrowRight, ChevronLeft, ShoppingBag, Trash2 } from "lucide-react";
+import { ArrowRight, ShoppingBag, Trash2 } from "lucide-react";
 import { fadeIn, fadeInUp } from "@/lib/motion";
 import { pluralize } from "@/lib/utils";
 import { positionIn, useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { productActionCopy } from "@/hooks/useProductActions";
 import { Button, EmptyState, Skeleton, showToast } from "@/components/ui";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
+import { PageHeader } from "@/components/layout/PageHeader";
 import type { CartItem, Product } from "@/types";
 import { CartLine } from "./CartLine";
 import { OrderSummary } from "./OrderSummary";
@@ -74,30 +75,25 @@ export function CartView({ recommended }: { recommended: Product[] }) {
   const empty = hydrated && cart.length === 0;
 
   return (
-    <div className="container-custom py-8 md:py-12">
-      <div className="mb-6 md:mb-8">
-        <Link
-          href="/"
-          className="mb-2 inline-flex items-center gap-1 rounded-sm text-sm font-medium text-fg-secondary hover:text-info"
-        >
-          <ChevronLeft aria-hidden="true" className="size-4" />
-          Seguir comprando
-        </Link>
-        <h1 id="cart-title" tabIndex={-1} className="text-3xl outline-none md:text-4xl">
-          Carrito de compras
-        </h1>
-        {hydrated && !empty ? (
-          <div className="mt-1 flex items-center justify-between gap-4">
-            <p className="text-fg-muted" data-testid="cart-page-count">
-              {pluralize(count, "producto")}
-            </p>
-            <Button variant="ghost" size="sm" onClick={clearAll} className="-mr-3 hover:text-danger">
+    // min-h keeps the footer below the fold while the persisted cart hydrates, so swapping the
+    // skeleton for the (taller) empty state never shifts it on screen (CLS).
+    <div className="container-custom min-h-[calc(100dvh-6rem)] py-8 md:py-12">
+      <PageHeader
+        title="Carrito de compras"
+        titleId="cart-title"
+        breadcrumbs={[{ label: "Carrito" }]}
+        description={
+          hydrated && !empty ? <p data-testid="cart-page-count">{pluralize(count, "producto")}</p> : null
+        }
+        actions={
+          hydrated && !empty ? (
+            <Button variant="ghost" size="sm" onClick={clearAll} className="hover:text-danger">
               <Trash2 aria-hidden="true" />
               Vaciar carrito
             </Button>
-          </div>
-        ) : null}
-      </div>
+          ) : null
+        }
+      />
 
       {!hydrated ? (
         <CartSkeleton />
