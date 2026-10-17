@@ -27,7 +27,7 @@ export const productActionCopy = {
   cartCleared: () => "Vaciaste el carrito",
   movedToCart: (name: string) => `${name} movido al carrito`,
   movedAllToCart: (count: number) => (count === 1 ? "1 producto movido al carrito" : `${count} productos movidos al carrito`),
-  wishlistCleared: () => "Vaciaste tu lista de deseos",
+  wishlistCleared: () => "Vaciaste tus favoritos",
   compareCleared: () => "Vaciaste la comparación",
 };
 

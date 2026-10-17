@@ -55,7 +55,7 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
     // skeleton gives way to the taller empty state).
     <div className="container-custom min-h-[calc(100dvh-6rem)] py-8 md:py-12">
       <PageHeader
-        title="Lista de deseos"
+        title="Favoritos"
         titleId="wishlist-title"
         breadcrumbs={[{ label: "Favoritos" }]}
         description={
@@ -70,7 +70,7 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
             <>
               <Button variant="ghost" size="sm" onClick={clearAll} className="hover:text-danger">
                 <Trash2 aria-hidden="true" />
-                Vaciar lista
+                Vaciar favoritos
               </Button>
               {movable.length > 1 ? (
                 <Button variant="secondary" size="sm" onClick={() => moveAllToCart(movable)}>
@@ -85,7 +85,7 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
 
       {!hydrated ? (
         <div aria-busy="true" className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4">
-          <span className="sr-only">Cargando lista de deseos…</span>
+          <span className="sr-only">Cargando favoritos…</span>
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-96 rounded-2xl" />
           ))}
@@ -97,7 +97,7 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
               <div className="rounded-2xl border border-dashed border-border-strong bg-bg-subtle">
                 <EmptyState
                   icon={<Heart />}
-                  title="Tu lista de deseos está vacía"
+                  title="Todavía no tienes favoritos"
                   description="Toca el corazón de cualquier set para guardarlo y comprarlo más tarde."
                   action={
                     <Button size="lg" render={<Link href="/" />}>

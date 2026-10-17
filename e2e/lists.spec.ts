@@ -165,12 +165,12 @@ test.describe("Wishlist page", () => {
     await page.goto("/wishlist");
 
     await page.getByRole("button", { name: "Quitar Captain Rex Helmet de favoritos" }).click();
-    await expect(page.getByRole("heading", { name: "Tu lista de deseos está vacía" })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1, name: "Lista de deseos" })).toBeFocused();
+    await expect(page.getByRole("heading", { name: "Todavía no tienes favoritos" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Favoritos" })).toBeFocused();
     await expect(page.getByRole("region", { name: "Te puede interesar" })).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Tu lista de deseos está vacía" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Todavía no tienes favoritos" })).toBeVisible();
   });
 
   test("moves everything in stock to the cart at once", async ({ page }) => {
@@ -179,7 +179,7 @@ test.describe("Wishlist page", () => {
     await expect(page.getByTestId("wishlist-item")).toHaveCount(2);
 
     await page.getByRole("button", { name: "Mover todo al carrito" }).click();
-    await expect(page.getByRole("heading", { name: "Tu lista de deseos está vacía" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Todavía no tienes favoritos" })).toBeVisible();
     await expect(page.getByTestId("cart-count")).toHaveText("2");
   });
 

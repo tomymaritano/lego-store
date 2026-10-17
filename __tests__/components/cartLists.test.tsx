@@ -235,13 +235,13 @@ describe("WishlistView", () => {
     expect(useCartStore.getState().cart.find((l) => l.id === "1")?.quantity).toBe(3);
   });
 
-  it("undoing 'Vaciar lista' keeps items saved afterwards", async () => {
+  it("undoing 'Vaciar favoritos' keeps items saved afterwards", async () => {
     const user = userEvent.setup();
     mockFetch(() => ({ items: [product("1")] }));
     useWishlistStore.setState({ wishlist: [{ id: "1", name: "Set 1", price: 1000, image: "/images/lego.png", stock: 5 }] });
     renderWithQuery(<WishlistView recommended={[]} />);
 
-    await user.click(screen.getByRole("button", { name: "Vaciar lista" }));
+    await user.click(screen.getByRole("button", { name: "Vaciar favoritos" }));
     act(() => useWishlistStore.getState().addToWishlist({ id: "7", name: "Set 7", price: 1, img: "/x.png", stock: 1 }));
     act(() => undo.last!.onUndo());
     expect(useWishlistStore.getState().wishlist.map((i) => i.id)).toEqual(["1", "7"]);
@@ -262,7 +262,7 @@ describe("WishlistView", () => {
     renderWithQuery(<WishlistView recommended={[]} />);
 
     await user.click(screen.getByRole("button", { name: "Quitar Set 1 de favoritos" }));
-    expect(await screen.findByRole("heading", { name: "Tu lista de deseos está vacía" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Todavía no tienes favoritos" })).toBeInTheDocument();
     act(() => undo.last!.onUndo());
     expect(useWishlistStore.getState().wishlist).toHaveLength(1);
   });

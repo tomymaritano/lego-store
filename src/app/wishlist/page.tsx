@@ -5,7 +5,7 @@ import { WishlistView } from "@/components/wishlist/WishlistView";
 
 export const metadata: Metadata = {
   ...pageMetadata({
-    title: "Lista de Deseos",
+    title: "Favoritos",
     description: "Tus sets LEGO favoritos guardados. Añade productos a tu carrito cuando estés listo.",
     path: "/wishlist",
   }),
