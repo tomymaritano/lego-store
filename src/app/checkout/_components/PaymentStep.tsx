@@ -2,7 +2,7 @@
 
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronLeft, CreditCard, Lock } from "lucide-react";
 import { scaleIn } from "@/lib/motion";
 import { CARD_BRAND_LABELS, cvvLength, detectCardBrand, formatCardNumber, formatExpiry, onlyDigits } from "@/lib/card";
@@ -83,7 +83,7 @@ export function PaymentStep({ summary, focusHeading, onSubmit, onBack }: Payment
             rightIcon={
               <AnimatePresence mode="popLayout" initial={false}>
                 {brand !== "unknown" && (
-                  <motion.span
+                  <m.span
                     key={brand}
                     variants={scaleIn}
                     initial="hidden"
@@ -93,7 +93,7 @@ export function PaymentStep({ summary, focusHeading, onSubmit, onBack }: Payment
                     className="rounded-md bg-bg-muted px-2 py-0.5 text-caption font-bold text-fg"
                   >
                     {brand === "amex" ? "Amex" : CARD_BRAND_LABELS[brand]}
-                  </motion.span>
+                  </m.span>
                 )}
               </AnimatePresence>
             }

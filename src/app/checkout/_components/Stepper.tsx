@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Check } from "lucide-react";
 import { transitions } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ export function Stepper({ current }: { current: CheckoutStep }) {
               {index > 0 && (
                 <span aria-hidden="true" className="absolute top-4 right-1/2 h-1 w-full -translate-y-1/2">
                   <span className="block h-full overflow-hidden rounded-full bg-bg-muted">
-                    <motion.span
+                    <m.span
                       className="block h-full origin-left bg-success"
                       initial={false}
                       animate={{ scaleX: index <= currentIndex ? 1 : 0 }}
@@ -39,7 +39,7 @@ export function Stepper({ current }: { current: CheckoutStep }) {
                   </span>
                 </span>
               )}
-              <motion.span
+              <m.span
                 aria-hidden="true"
                 initial={false}
                 animate={{ scale: isActive ? 1.08 : 1 }}
@@ -53,7 +53,7 @@ export function Stepper({ current }: { current: CheckoutStep }) {
                 )}
               >
                 {isCompleted ? <Check className="size-4" strokeWidth={3} /> : index + 1}
-              </motion.span>
+              </m.span>
               <span className={cn("text-sm", isActive ? "font-semibold text-fg" : "text-fg-muted")}>
                 {step.label}
                 {isCompleted && <span className="sr-only"> (completado)</span>}

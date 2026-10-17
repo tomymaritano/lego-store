@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import Image from "next/image";
-import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { m, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { scaleIn, transitions } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -38,27 +38,27 @@ export function HeroArt({ src, alt }: HeroArtProps) {
     <div ref={ref} className="relative mx-auto aspect-square w-full max-w-lg">
       <div aria-hidden="true" className="absolute inset-10 rounded-full bg-surface/40 blur-3xl" />
 
-      <motion.div style={{ y: bricksY }} aria-hidden="true" className="absolute inset-0">
-        <motion.div
+      <m.div style={{ y: bricksY }} aria-hidden="true" className="absolute inset-0">
+        <m.div
           initial={{ opacity: 0, rotate: -24, scale: 0.6 }}
           animate={{ opacity: 1, rotate: -12, scale: 1 }}
           transition={{ ...transitions.spring, delay: transitions.slow.duration }}
           className="absolute top-6 left-2"
         >
           <Brick className="bg-brand-red text-on-brand-red" />
-        </motion.div>
-        <motion.div
+        </m.div>
+        <m.div
           initial={{ opacity: 0, rotate: 24, scale: 0.6 }}
           animate={{ opacity: 1, rotate: 10, scale: 1 }}
           transition={{ ...transitions.spring, delay: transitions.slow.duration + transitions.fast.duration }}
           className="absolute right-4 bottom-10"
         >
           <Brick className="bg-info-surface text-on-info-surface" />
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
 
-      <motion.div style={{ y: imageY }} className="absolute inset-0">
-        <motion.div variants={scaleIn} initial="hidden" animate="visible" className="relative size-full">
+      <m.div style={{ y: imageY }} className="absolute inset-0">
+        <m.div variants={scaleIn} initial="hidden" animate="visible" className="relative size-full">
           <Image
             src={src}
             alt={alt}
@@ -67,8 +67,8 @@ export function HeroArt({ src, alt }: HeroArtProps) {
             className="object-contain drop-shadow-2xl transition-[scale] duration-slow ease-emphasized hover:scale-105 motion-reduce:hover:scale-100"
             preload
           />
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

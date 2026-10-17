@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { pageTransition } from "@/lib/motion";
 
 /** Becomes true after the first client render; module scope, so it survives template remounts. */
@@ -26,8 +26,8 @@ export function PageTransition({ children, className }: PageTransitionProps) {
   }, []);
 
   return (
-    <motion.div initial={animateIn ? "hidden" : false} animate="visible" variants={pageTransition} className={className}>
+    <m.div initial={animateIn ? "hidden" : false} animate="visible" variants={pageTransition} className={className}>
       {children}
-    </motion.div>
+    </m.div>
   );
 }

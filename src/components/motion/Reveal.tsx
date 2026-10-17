@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { fadeInUp, riseIn, scaleIn, staggerContainer, staggerItem } from "@/lib/motion";
 
 /*
@@ -10,8 +10,12 @@ import { fadeInUp, riseIn, scaleIn, staggerContainer, staggerItem } from "@/lib/
  * scrolled into view with `inView`.
  */
 
-/** Scroll-reveal fires a little before the element is fully in view, and only once. */
-const VIEWPORT = { once: true, margin: "0px 0px -80px" } as const;
+/**
+ * Scroll-reveal fires as soon as the element enters the viewport, and only
+ * once, so slow scrolling never meets an empty band. (Print forces revealed
+ * content visible, see globals.css.)
+ */
+const VIEWPORT = { once: true, amount: "some" } as const;
 
 interface StaggerProps {
   children: ReactNode;
@@ -25,7 +29,7 @@ interface StaggerProps {
 }
 
 export function Stagger({ children, className, stagger = 0.06, delay = 0, inView = false, as = "div" }: StaggerProps) {
-  const Component = as === "ul" ? motion.ul : motion.div;
+  const Component = as === "ul" ? m.ul : m.div;
   const trigger = inView ? { whileInView: "visible", viewport: VIEWPORT } : { animate: "visible" };
   return (
     <Component className={className} variants={staggerContainer(stagger, delay)} initial="hidden" {...trigger}>
@@ -48,7 +52,7 @@ interface StaggerItemProps {
 }
 
 export function StaggerItem({ children, className, effect = "rise", as = "div" }: StaggerItemProps) {
-  const Component = as === "li" ? motion.li : motion.div;
+  const Component = as === "li" ? m.li : m.div;
   return (
     <Component className={className} variants={effects[effect]}>
       {children}
@@ -59,8 +63,8 @@ export function StaggerItem({ children, className, effect = "rise", as = "div" }
 /** One block that fades up when scrolled into view (section headers, banners). */
 export function Reveal({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <motion.div className={className} variants={fadeInUp} initial="hidden" whileInView="visible" viewport={VIEWPORT}>
+    <m.div className={className} variants={fadeInUp} initial="hidden" whileInView="visible" viewport={VIEWPORT}>
       {children}
-    </motion.div>
+    </m.div>
   );
 }

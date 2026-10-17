@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCategories, getCategoryById, getFacetCounts, getFilterOptions, getPaginatedProducts } from "@/lib/api";
 import { Breadcrumbs } from "@/components/ui";
-import { CatalogView } from "@/components/product";
+import { CatalogView } from "@/components/product/CatalogView";
 import { parseProductQuery } from "@/lib/productQuery";
 import { pluralize } from "@/lib/utils";
 import { pageMetadata } from "@/lib/metadata";

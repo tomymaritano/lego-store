@@ -7,15 +7,12 @@ import { defaultOgImage, pageMetadata } from "@/lib/metadata";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { siteConfig } from "@/config/site";
 import { Badge, Breadcrumbs, Price, Rating } from "@/components/ui";
-import {
-  ProductDetailsTabs,
-  ProductGallery,
-  ProductGrid,
-  ProductPurchase,
-  RecentlyViewed,
-  ReviewsLink,
-  TrackRecentlyViewed,
-} from "@/components/product";
+import { ProductDetailsTabs } from "@/components/product/ProductDetailsTabs";
+import { ProductGallery } from "@/components/product/ProductGallery";
+import { ProductGrid } from "@/components/product/ProductGrid";
+import { ProductPurchase } from "@/components/product/ProductPurchase";
+import { RecentlyViewed, TrackRecentlyViewed } from "@/components/product/RecentlyViewed";
+import { ReviewsLink } from "@/components/product/ReviewsLink";
 
 interface ItemPageProps {
   params: Promise<{ productId: string }>;

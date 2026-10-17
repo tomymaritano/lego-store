@@ -2,7 +2,7 @@
 
 import { useRef, type Ref } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, Heart, ShoppingCart, Trash2 } from "lucide-react";
 import { fadeIn, fadeInUp, gridItem, transitions } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
@@ -159,7 +159,7 @@ function SavedCard({ product, index, ref }: { product: SavedProduct; index: numb
   const titleId = `saved-${product.id}-title`;
 
   return (
-    <motion.li
+    <m.li
       ref={ref}
       layout
       custom={index}
@@ -231,7 +231,7 @@ function SavedCard({ product, index, ref }: { product: SavedProduct; index: numb
           {!available ? "Agotado" : atLimit ? "Máximo en el carrito" : "Mover al carrito"}
         </Button>
       </div>
-    </motion.li>
+    </m.li>
   );
 }
 
@@ -309,7 +309,7 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
       ) : (
         <AnimatePresence mode="wait" initial={false}>
           {empty ? (
-            <motion.div key="empty" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
+            <m.div key="empty" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
               <div className="rounded-2xl border border-dashed border-border-strong bg-bg-subtle">
                 <EmptyState
                   icon={<Heart />}
@@ -324,9 +324,9 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
                 />
               </div>
               <RecommendedProducts products={recommended} />
-            </motion.div>
+            </m.div>
           ) : (
-            <motion.ul
+            <m.ul
               key="grid"
               variants={fadeIn}
               initial="hidden"
@@ -340,7 +340,7 @@ export function WishlistView({ recommended }: { recommended: Product[] }) {
                   <SavedCard key={product.id} product={product} index={index} />
                 ))}
               </AnimatePresence>
-            </motion.ul>
+            </m.ul>
           )}
         </AnimatePresence>
       )}

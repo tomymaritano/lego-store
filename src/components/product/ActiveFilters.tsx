@@ -1,7 +1,7 @@
 "use client";
 
 import type { RefObject } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { X } from "lucide-react";
 import { scaleIn, transitions } from "@/lib/motion";
 import { listActiveFilters, type ActiveFilter } from "@/lib/productQuery";
@@ -75,7 +75,7 @@ export function ActiveFilters({ query, options, onRemove, onClear, fallbackFocus
   return (
     <AnimatePresence initial={false}>
       {active.length > 0 ? (
-        <motion.div
+        <m.div
           key="active-filters"
           variants={scaleIn}
           initial="hidden"
@@ -90,7 +90,7 @@ export function ActiveFilters({ query, options, onRemove, onClear, fallbackFocus
               {active.map((filter) => {
                 const text = describeFilter(filter, options);
                 return (
-                  <motion.li key={chipKey(filter)} layout variants={scaleIn} initial="hidden" animate="visible" exit="exit" transition={{ layout: transitions.spring }}>
+                  <m.li key={chipKey(filter)} layout variants={scaleIn} initial="hidden" animate="visible" exit="exit" transition={{ layout: transitions.spring }}>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -104,12 +104,12 @@ export function ActiveFilters({ query, options, onRemove, onClear, fallbackFocus
                       {text}
                       <X aria-hidden="true" className="size-3.5" />
                     </Button>
-                  </motion.li>
+                  </m.li>
                 );
               })}
             </AnimatePresence>
           </ul>
-          <motion.div layout transition={{ layout: transitions.spring }}>
+          <m.div layout transition={{ layout: transitions.spring }}>
             <Button
               variant="link"
               size="sm"
@@ -120,8 +120,8 @@ export function ActiveFilters({ query, options, onRemove, onClear, fallbackFocus
             >
               Limpiar todo
             </Button>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       ) : null}
     </AnimatePresence>
   );

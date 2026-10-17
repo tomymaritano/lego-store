@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { dropDown } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,7 @@ export function ThemesMenu({ themes, triggerClassName }: { themes: NavItem[]; tr
 
       <AnimatePresence>
         {open && (
-          <motion.ul
+          <m.ul
             id={listId}
             variants={dropDown}
             initial="hidden"
@@ -69,7 +69,7 @@ export function ThemesMenu({ themes, triggerClassName }: { themes: NavItem[]; tr
                 </Link>
               </li>
             ))}
-          </motion.ul>
+          </m.ul>
         )}
       </AnimatePresence>
     </div>

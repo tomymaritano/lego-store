@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Check, Heart, PackageCheck, Scale, Share2, ShoppingCart } from "lucide-react";
 import { collapse, transitions } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
@@ -131,7 +131,7 @@ export function ProductPurchase({ product }: { product: Product }) {
             data-testid="add-to-cart-btn"
           >
             <AnimatePresence mode="wait" initial={false}>
-              <motion.span
+              <m.span
                 key={ctaState}
                 className="inline-flex items-center gap-2"
                 initial={{ opacity: 0, y: 6 }}
@@ -145,7 +145,7 @@ export function ProductPurchase({ product }: { product: Product }) {
                   <ShoppingCart aria-hidden="true" />
                 )}
                 {ctaLabel}
-              </motion.span>
+              </m.span>
             </AnimatePresence>
           </Button>
 
@@ -160,7 +160,7 @@ export function ProductPurchase({ product }: { product: Product }) {
                 setHeartPops((n) => n + 1);
               }}
             >
-              <motion.span
+              <m.span
                 key={heartPops}
                 initial={heartPops ? { scale: 0.6 } : false}
                 animate={{ scale: 1 }}
@@ -168,7 +168,7 @@ export function ProductPurchase({ product }: { product: Product }) {
                 className="inline-flex"
               >
                 <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
-              </motion.span>
+              </m.span>
             </IconButton>
             <IconButton
               label={inCompare ? "Quitar de la comparación" : "Agregar a la comparación"}
@@ -189,7 +189,7 @@ export function ProductPurchase({ product }: { product: Product }) {
       {/* Below the actions, with an animated height: the CTA never moves under the pointer that just added. */}
       <AnimatePresence initial={false}>
         {inCartQuantity > 0 && (
-          <motion.div key="in-cart" variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden">
+          <m.div key="in-cart" variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden">
             <p className="flex items-center gap-2 pt-4 text-sm text-fg-secondary">
               <PackageCheck aria-hidden="true" className="size-4 shrink-0 text-info" />
               <span>
@@ -199,7 +199,7 @@ export function ProductPurchase({ product }: { product: Product }) {
                 </Link>
               </span>
             </p>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Scale } from "lucide-react";
 import { slideUp, transitions } from "@/lib/motion";
 import { MAX_COMPARE_ITEMS, useCompareIds, useCompareStore } from "@/stores";
@@ -35,7 +35,7 @@ export function CompareBar() {
   return (
     <AnimatePresence>
       {visible && (
-        <motion.aside
+        <m.aside
           key="compare-bar"
           aria-label="Comparación de productos"
           variants={slideUp}
@@ -56,7 +56,7 @@ export function CompareBar() {
             <ul className="hidden -space-x-2 sm:flex" aria-hidden="true">
               <AnimatePresence initial={false}>
                 {products.map((product) => (
-                  <motion.li
+                  <m.li
                     key={product.id}
                     layout
                     initial={{ opacity: 0, scale: 0.6 }}
@@ -66,7 +66,7 @@ export function CompareBar() {
                     className="relative size-10 overflow-hidden rounded-full border-2 border-surface-raised bg-bg-muted"
                   >
                     <ProductImage src={product.img} alt="" fill sizes="40px" className="object-contain p-1" />
-                  </motion.li>
+                  </m.li>
                 ))}
               </AnimatePresence>
             </ul>
@@ -80,7 +80,7 @@ export function CompareBar() {
               </Button>
             </div>
           </div>
-        </motion.aside>
+        </m.aside>
       )}
     </AnimatePresence>
   );

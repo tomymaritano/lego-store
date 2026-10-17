@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock, Search, TrendingUp, X } from "lucide-react";
 import { dropDown, fadeIn } from "@/lib/motion";
@@ -404,13 +404,13 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
       </p>
 
       {inline ? (
-        <motion.div variants={fadeIn} initial="hidden" animate="visible" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <m.div variants={fadeIn} initial="hidden" animate="visible" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {panel}
-        </motion.div>
+        </m.div>
       ) : (
         <AnimatePresence>
           {isOpen && (
-            <motion.div
+            <m.div
               variants={dropDown}
               initial="hidden"
               animate="visible"
@@ -420,7 +420,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
               className="absolute top-full right-0 left-0 z-50 mt-2 max-h-[min(32rem,calc(100dvh-6rem))] overflow-y-auto rounded-2xl border border-border bg-surface-raised text-fg shadow-xl"
             >
               {panel}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       )}

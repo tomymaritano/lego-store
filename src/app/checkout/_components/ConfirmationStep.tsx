@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { ArrowRight, Mail, Truck } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
@@ -27,7 +27,7 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
   useEffect(() => headingRef.current?.focus(), []);
 
   return (
-    <motion.section
+    <m.section
       aria-labelledby="confirmation-title"
       variants={scaleIn}
       initial="hidden"
@@ -36,18 +36,18 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
       data-testid="order-confirmation"
       className="mx-auto max-w-xl rounded-2xl border border-border bg-surface p-6 text-center shadow-card sm:p-10"
     >
-      <motion.div variants={staggerContainer(0.06, 0.1)} initial="hidden" animate="visible" className="flex flex-col items-center">
-        <motion.span
+      <m.div variants={staggerContainer(0.06, 0.1)} initial="hidden" animate="visible" className="flex flex-col items-center">
+        <m.span
           variants={successPop}
           aria-hidden="true"
           className="mb-6 flex size-20 items-center justify-center rounded-full bg-success text-on-success shadow-card"
         >
           <svg viewBox="0 0 24 24" fill="none" className="size-10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-            <motion.path d="M5 12.5l4.5 4.5L19 7.5" variants={drawPath} />
+            <m.path d="M5 12.5l4.5 4.5L19 7.5" variants={drawPath} />
           </svg>
-        </motion.span>
+        </m.span>
 
-        <motion.h1
+        <m.h1
           variants={staggerItem}
           id="confirmation-title"
           ref={headingRef}
@@ -55,12 +55,12 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
           className="mb-2 scroll-mt-32 text-2xl text-fg sm:text-3xl outline-none"
         >
           ¡Gracias por tu compra!
-        </motion.h1>
-        <motion.p variants={staggerItem} className="mb-6 text-fg-secondary">
+        </m.h1>
+        <m.p variants={staggerItem} className="mb-6 text-fg-secondary">
           Tu pedido está confirmado y ya lo estamos preparando.
-        </motion.p>
+        </m.p>
 
-        <motion.dl variants={staggerItem} className="mb-6 grid w-full gap-3 rounded-xl bg-bg-subtle p-4 text-left sm:grid-cols-2">
+        <m.dl variants={staggerItem} className="mb-6 grid w-full gap-3 rounded-xl bg-bg-subtle p-4 text-left sm:grid-cols-2">
           <div>
             <dt className="text-caption text-fg-muted">Número de pedido</dt>
             <dd className="font-mono text-lg font-bold text-fg" data-testid="order-id">
@@ -73,9 +73,9 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
               <dd className="text-lg font-bold text-fg tabular-nums">{formatPrice(total)}</dd>
             </div>
           )}
-        </motion.dl>
+        </m.dl>
 
-        <motion.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-sm text-fg-secondary">
+        <m.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-sm text-fg-secondary">
           {email && (
             <li className="flex items-start gap-2">
               <Mail aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />
@@ -90,9 +90,9 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
               Llega en {deliveryDays.min} a {deliveryDays.max} días hábiles.
             </span>
           </li>
-        </motion.ul>
+        </m.ul>
 
-        <motion.div variants={staggerItem} className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+        <m.div variants={staggerItem} className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
           <Button size="lg" render={<Link href="/" />}>
             Seguir comprando
             <ArrowRight aria-hidden="true" />
@@ -100,8 +100,8 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
           <Button size="lg" variant="outline" render={<Link href="/contacto" />}>
             ¿Necesitas ayuda?
           </Button>
-        </motion.div>
-      </motion.div>
-    </motion.section>
+        </m.div>
+      </m.div>
+    </m.section>
   );
 }

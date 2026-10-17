@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { CheckCircle2, Send } from "lucide-react";
 import { fadeInUp, scaleIn } from "@/lib/motion";
 import { simulateRequest } from "@/lib/forms";
@@ -53,7 +53,7 @@ export function ContactForm() {
   return (
     <AnimatePresence mode="wait" initial={false}>
       {sentTo ? (
-        <motion.div
+        <m.div
           key="sent"
           variants={scaleIn}
           initial="hidden"
@@ -76,9 +76,9 @@ export function ContactForm() {
           <Button variant="secondary" className="mt-2" onClick={() => setSentTo(null)}>
             Enviar otro mensaje
           </Button>
-        </motion.div>
+        </m.div>
       ) : (
-        <motion.form
+        <m.form
           key="form"
           variants={fadeInUp}
           initial="hidden"
@@ -159,7 +159,7 @@ export function ContactForm() {
               {isSubmitting ? "Enviando…" : "Enviar mensaje"}
             </Button>
           </div>
-        </motion.form>
+        </m.form>
       )}
     </AnimatePresence>
   );

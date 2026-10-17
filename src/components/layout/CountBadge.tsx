@@ -1,29 +1,35 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { AnimatePresence, motion, useAnimate, useReducedMotion } from "motion/react";
-import { transitions } from "@/lib/motion";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import { duration, ease, transitions } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useStoresHydrated } from "@/stores";
 
 /**
  * Bumps the returned element when `count` goes up after the stores have
  * hydrated: real add-to-cart/wishlist/compare feedback, never on page load
- * (the hydrated value is the baseline) nor on removals.
+ * (the hydrated value is the baseline) nor on removals. Web Animations API
+ * (not motion's useAnimate) so the Navbar does not pull the animation engine
+ * into every route's first load.
  */
 function useBumpOnIncrease<T extends HTMLElement>(count: number) {
   const hydrated = useStoresHydrated();
   const reduceMotion = useReducedMotion();
-  const [scope, animate] = useAnimate<T>();
+  const scope = useRef<T>(null);
   const previous = useRef<number | null>(null);
 
   useEffect(() => {
     if (!hydrated) return;
     const before = previous.current;
     previous.current = count;
-    if (before === null || count <= before || reduceMotion || !scope.current) return;
-    animate(scope.current, { scale: [1, 1.25, 0.95, 1] }, transitions.slow);
-  }, [hydrated, count, reduceMotion, animate, scope]);
+    const element = scope.current;
+    if (before === null || count <= before || reduceMotion || typeof element?.animate !== "function") return;
+    element.animate(
+      { scale: [1, 1.25, 0.95, 1] },
+      { duration: duration.slow * 1000, easing: `cubic-bezier(${ease.emphasized.join(", ")})` }
+    );
+  }, [hydrated, count, reduceMotion]);
 
   return scope;
 }
@@ -59,7 +65,7 @@ export function CountIcon({ icon, count, testId, tone = "primary" }: CountIconPr
       {hydrated ? (
         <AnimatePresence initial={false}>
           {count > 0 && (
-            <motion.span
+            <m.span
               key="badge"
               aria-hidden="true"
               initial={{ scale: 0.4, opacity: 0 }}
@@ -73,7 +79,7 @@ export function CountIcon({ icon, count, testId, tone = "primary" }: CountIconPr
               data-testid={testId}
             >
               {count > 99 ? "99+" : count}
-            </motion.span>
+            </m.span>
           )}
         </AnimatePresence>
       ) : null}

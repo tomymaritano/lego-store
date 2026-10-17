@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { PartyPopper, Truck } from "lucide-react";
 import { transitions } from "@/lib/motion";
 import { quoteShipping } from "@/lib/pricing";
@@ -35,7 +35,7 @@ export function FreeShippingProgress({ subtotal, className }: { subtotal: number
         )}
       </p>
       <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-bg-muted">
-        <motion.div
+        <m.div
           className={cn("h-full origin-left rounded-full", free ? "bg-success" : "bg-primary")}
           initial={false}
           animate={{ scaleX: progress }}

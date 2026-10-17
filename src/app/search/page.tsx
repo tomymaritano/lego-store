@@ -6,7 +6,7 @@ import { pageMetadata } from "@/lib/metadata";
 import { parseProductQuery } from "@/lib/productQuery";
 import { pluralize } from "@/lib/utils";
 import { Breadcrumbs, Button, EmptyState } from "@/components/ui";
-import { CatalogView } from "@/components/product";
+import { CatalogView } from "@/components/product/CatalogView";
 
 interface SearchPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

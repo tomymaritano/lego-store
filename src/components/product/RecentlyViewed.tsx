@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ProductImage } from "./ProductImage";
-import { motion, useReducedMotion } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import { transitions } from "@/lib/motion";
 import { useRecentlyViewedIds, useRecentlyViewedStore, useStoreHydrated } from "@/stores";
@@ -75,7 +75,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
 
         <ul ref={scrollRef} className="-mx-4 flex gap-4 overflow-x-auto px-4 motion-safe:scroll-smooth pt-1 pb-4 scrollbar-hide">
           {products.map((product, index) => (
-            <motion.li
+            <m.li
               key={product.id}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0, transition: { ...transitions.base, delay: Math.min(index * STAGGER, MAX_STAGGER) } }}
@@ -100,7 +100,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
                   <Price value={product.price} size="sm" className="mt-1" />
                 </div>
               </Link>
-            </motion.li>
+            </m.li>
           ))}
         </ul>
       </div>

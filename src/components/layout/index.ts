@@ -2,4 +2,4 @@ export { Navbar } from "./Navbar";
 export { Footer } from "./Footer";
 export { PageTransition } from "./PageTransition";
 export { ClientProviders } from "./ClientProviders";
-export { NavLink, isCurrentPath } from "./NavLink";
+export { NavLink } from "./NavLink";

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Heart, Scale, ShoppingCart } from "lucide-react";
 import { staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -32,10 +32,10 @@ const itemClasses =
 
 function Group({ title, children, columns = 1 }: { title: string; children: ReactNode; columns?: 1 | 2 }) {
   return (
-    <motion.section variants={staggerItem} aria-label={title}>
+    <m.section variants={staggerItem} aria-label={title}>
       <h2 className="mb-2 px-4 text-caption font-semibold tracking-wider text-fg-muted uppercase">{title}</h2>
       <ul className={columns === 2 ? "grid grid-cols-2 gap-0.5" : "space-y-0.5"}>{children}</ul>
-    </motion.section>
+    </m.section>
   );
 }
 
@@ -59,7 +59,7 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
           <SheetTitle>Menú</SheetTitle>
         </SheetHeader>
         <SheetBody>
-          <motion.nav
+          <m.nav
             aria-label="Menú móvil"
             variants={staggerContainer(0.05, 0.05)}
             initial="hidden"
@@ -126,7 +126,7 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
                 </li>
               ))}
             </Group>
-          </motion.nav>
+          </m.nav>
         </SheetBody>
         <SheetFooter className="flex-row items-center justify-between">
           <span className="text-sm font-medium text-fg-secondary">Tema</span>

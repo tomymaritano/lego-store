@@ -2,7 +2,7 @@
 
 import type { Ref } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Trash2 } from "lucide-react";
 import { dismissible, transitions } from "@/lib/motion";
 import { formatPrice } from "@/lib/utils";
@@ -31,7 +31,7 @@ export function CartLine({ item, onQuantityChange, onRemove, ref }: CartLineProp
   const titleId = `cart-line-${item.id}`;
 
   return (
-    <motion.li
+    <m.li
       ref={ref}
       layout
       variants={dismissible}
@@ -103,6 +103,6 @@ export function CartLine({ item, onQuantityChange, onRemove, ref }: CartLineProp
           <p className="text-caption font-medium text-warning">Máximo disponible: {item.stock}</p>
         ) : null}
       </div>
-    </motion.li>
+    </m.li>
   );
 }

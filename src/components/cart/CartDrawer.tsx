@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ShoppingCart, Trash2 } from "lucide-react";
 import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { dismissible, fadeIn, transitions } from "@/lib/motion";
@@ -69,7 +69,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         ) : (
           <AnimatePresence mode="wait" initial={false}>
             {empty ? (
-              <motion.div key="empty" variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="flex flex-1 items-center justify-center">
+              <m.div key="empty" variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="flex flex-1 items-center justify-center">
                 <EmptyState
                   icon={<ShoppingCart />}
                   title="Tu carrito está vacío"
@@ -81,9 +81,9 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                     </Button>
                   }
                 />
-              </motion.div>
+              </m.div>
             ) : (
-              <motion.div key="lines" variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="flex min-h-0 flex-1 flex-col">
+              <m.div key="lines" variants={fadeIn} initial="hidden" animate="visible" exit="exit" className="flex min-h-0 flex-1 flex-col">
                 <div className="border-b border-border px-4 py-3">
                   <FreeShippingProgress subtotal={subtotal} />
                 </div>
@@ -92,7 +92,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   <ul className="space-y-3 p-4" aria-label="Productos en el carrito">
                     <AnimatePresence initial={false} mode="popLayout">
                       {cart.map((item) => (
-                        <motion.li
+                        <m.li
                           key={item.id}
                           layout
                           variants={dismissible}
@@ -150,7 +150,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                               </div>
                             </div>
                           </div>
-                        </motion.li>
+                        </m.li>
                       ))}
                     </AnimatePresence>
                   </ul>
@@ -185,7 +185,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                     </Button>
                   </div>
                 </SheetFooter>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         )}

@@ -2,7 +2,7 @@
 
 import { useRef, useState, type MouseEvent } from "react";
 import Image from "next/image";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ZoomIn } from "lucide-react";
 import { scaleIn } from "@/lib/motion";
 import { PLACEHOLDER_IMAGE, cn } from "@/lib/utils";
@@ -62,7 +62,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
 
         <AnimatePresence>
           {lens && (
-            <motion.span
+            <m.span
               aria-hidden="true"
               variants={scaleIn}
               initial="hidden"
@@ -79,7 +79,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
                   transform: "translate(-37.5%, -37.5%)",
                 }}
               />
-            </motion.span>
+            </m.span>
           )}
         </AnimatePresence>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Moon, Sun, Monitor } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { m, AnimatePresence } from "motion/react";
 import { useStoreHydrated, useThemeStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import { transitions } from "@/lib/motion";
@@ -37,7 +37,7 @@ export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) 
         className="overflow-hidden"
       >
         <AnimatePresence mode="wait" initial={false}>
-          <motion.span
+          <m.span
             key={theme}
             className="flex"
             initial={{ scale: 0.5, rotate: -90, opacity: 0 }}
@@ -46,7 +46,7 @@ export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) 
             transition={transitions.fast}
           >
             <Icon aria-hidden="true" className="size-5" />
-          </motion.span>
+          </m.span>
         </AnimatePresence>
       </IconButton>
 

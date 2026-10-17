@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { Eye, Heart, Scale } from "lucide-react";
 import { hoverLift } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
@@ -38,7 +38,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
   const titleId = `${useId()}-title`;
 
   return (
-    <motion.article
+    <m.article
       {...hoverLift}
       aria-labelledby={titleId}
       className={cn(
@@ -168,6 +168,6 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
           className="relative z-10 mt-2 w-full"
         />
       </div>
-    </motion.article>
+    </m.article>
   );
 }

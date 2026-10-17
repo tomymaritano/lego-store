@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
 /** True when `pathname` is `href` or lives under it ("/" only matches itself). */
-export function isCurrentPath(pathname: string, href: string) {
+function isCurrentPath(pathname: string, href: string) {
   const path = href.split(/[?#]/)[0];
   if (path === "/") return pathname === "/";
   return pathname === path || pathname.startsWith(`${path}/`);

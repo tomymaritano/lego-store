@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { AnimatePresence, motion, useIsPresent, type PanInfo } from "motion/react";
+import { AnimatePresence, m, useIsPresent, type PanInfo } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { gallerySlide } from "@/lib/motion";
 import { calculateDiscount, cn } from "@/lib/utils";
@@ -98,7 +98,7 @@ export function ProductGallery({ product }: { product: Product }) {
         </div>
 
         <AnimatePresence initial={false} custom={direction}>
-          <motion.div
+          <m.div
             key={gallery.selectedSrc}
             data-slide={gallery.selectedSrc}
             custom={direction}
@@ -125,7 +125,7 @@ export function ProductGallery({ product }: { product: Product }) {
             style={touch && count > 1 ? { touchAction: "pan-y" } : undefined}
           >
             <Slide src={gallery.selectedSrc} alt={product.name} />
-          </motion.div>
+          </m.div>
         </AnimatePresence>
 
         {count > 1 && (

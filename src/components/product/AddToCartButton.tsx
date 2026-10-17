@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Check, ShoppingCart } from "lucide-react";
 import { transitions } from "@/lib/motion";
 import { useProductActions } from "@/hooks/useProductActions";
@@ -48,7 +48,7 @@ export function AddToCartButton({
       data-in-cart={inCart || undefined}
     >
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span
+        <m.span
           key={state}
           className="inline-flex items-center gap-2"
           initial={{ opacity: 0, y: 6 }}
@@ -58,7 +58,7 @@ export function AddToCartButton({
         >
           {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
           {state === "soldout" ? "Agotado" : state === "in" ? "Ver carrito" : addLabel}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </Button>
   );

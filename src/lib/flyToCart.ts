@@ -1,4 +1,3 @@
-import { animate } from "motion";
 import { duration, ease } from "@/lib/motion";
 
 /** The Navbar cart button (CountIcon) is the landing spot. */
@@ -10,6 +9,11 @@ const CART_SELECTOR = "[data-testid='cart-button']";
  * bumps (CountIcon). Purely decorative: a detached, aria-hidden,
  * pointer-events:none clone that never blocks interaction. Skipped under
  * reduced motion, or when either end is off screen.
+ *
+ * Runs on the Web Animations API rather than motion's `animate()`: it is
+ * called from product cards on every page, and the native API keeps the
+ * animation engine out of the first-load bundle (motion's features load
+ * lazily, see ClientProviders).
  */
 export function flyToCart(source: Element | null, imageSrc: string) {
   if (!source || typeof window === "undefined") return;
@@ -32,6 +36,7 @@ export function flyToCart(source: Element | null, imageSrc: string) {
   const dy = to.top + to.height / 2 - (startY + size / 2);
 
   const ghost = document.createElement("img");
+  if (typeof ghost.animate !== "function") return;
   ghost.src = imageSrc;
   ghost.alt = "";
   ghost.setAttribute("aria-hidden", "true");
@@ -44,19 +49,21 @@ export function flyToCart(source: Element | null, imageSrc: string) {
     objectFit: "contain",
     pointerEvents: "none",
     zIndex: "60",
-    willChange: "transform, opacity",
+    willChange: "transform, translate, scale, opacity",
   });
   document.body.appendChild(ghost);
 
-  // Arc: x moves linearly while y eases in, so the picture lifts then drops into the cart.
-  animate(
-    ghost,
-    {
-      x: [0, dx],
-      y: [0, dy],
-      scale: [1, 0.15],
-      opacity: [1, 1, 0.4],
-    },
-    { duration: duration.slow, ease: ease.emphasized, y: { duration: duration.slow, ease: ease.exit } }
-  ).finished.finally(() => ghost.remove());
+  const ms = duration.slow * 1000;
+  const curve = (points: readonly number[]) => `cubic-bezier(${points.join(", ")})`;
+  // Arc: x (translate) and y (transform) run on separate curves, so the
+  // picture lifts, then drops into the cart while it shrinks and fades.
+  const flights = [
+    ghost.animate({ translate: ["0px 0px", `${dx}px 0px`] }, { duration: ms, easing: curve(ease.emphasized), fill: "forwards" }),
+    ghost.animate({ transform: ["translateY(0px)", `translateY(${dy}px)`] }, { duration: ms, easing: curve(ease.exit), fill: "forwards" }),
+    ghost.animate(
+      { scale: [1, 0.15], opacity: [1, 1, 0.4] },
+      { duration: ms, easing: curve(ease.emphasized), fill: "forwards" }
+    ),
+  ];
+  Promise.allSettled(flights.map((flight) => flight.finished)).finally(() => ghost.remove());
 }

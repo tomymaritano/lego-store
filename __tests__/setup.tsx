@@ -41,3 +41,16 @@ if (typeof window !== "undefined" && !("IntersectionObserver" in window)) {
   }
   Object.assign(window, { IntersectionObserver: IntersectionObserverStub });
 }
+
+// The app renders motion's light `m.*` elements under <LazyMotion> (ClientProviders),
+// which loads the animation features asynchronously. Components tested on
+// their own have no LazyMotion around them, so map `m` to the full `motion`
+// (same API, features bundled) and make LazyMotion a passthrough.
+vi.mock("motion/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("motion/react")>();
+  return {
+    ...actual,
+    m: actual.motion,
+    LazyMotion: ({ children }: { children: React.ReactNode }) => children,
+  };
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { transitions } from "@/lib/motion";
@@ -63,7 +63,7 @@ export function QuantitySelector({
         )}
       >
         <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
+          <m.span
             key={value}
             initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -71,7 +71,7 @@ export function QuantitySelector({
             transition={transitions.fast}
           >
             {value}
-          </motion.span>
+          </m.span>
         </AnimatePresence>
       </span>
       <output aria-live="polite" aria-atomic="true" className="sr-only">

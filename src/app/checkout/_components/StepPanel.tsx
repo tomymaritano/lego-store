@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef } from "react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { stepSlide } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +37,7 @@ export function StepPanel({ titleId, title, icon, focusHeading, aside, className
   }, [focusHeading]);
 
   return (
-    <motion.section
+    <m.section
       aria-labelledby={titleId}
       variants={stepSlide}
       custom={direction}
@@ -64,7 +64,7 @@ export function StepPanel({ titleId, title, icon, focusHeading, aside, className
         {aside}
       </div>
       {children}
-    </motion.section>
+    </m.section>
   );
 }
 

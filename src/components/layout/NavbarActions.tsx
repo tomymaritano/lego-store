@@ -1,16 +1,38 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Heart, Menu, Scale, Search, ShoppingCart, User } from "lucide-react";
 import { pluralize } from "@/lib/utils";
 import { useCartCount, useCartDrawerOpen, useCompareCount, useUiStore, useWishlistCount } from "@/stores";
 import { IconButton, ThemeToggle, showToast } from "@/components/ui";
-import { CartDrawer } from "@/components/cart/CartDrawer";
 import type { NavItem } from "@/config/navigation";
 import { CountIcon } from "./CountBadge";
-import { MobileMenu } from "./MobileMenu";
-import { MobileSearch } from "./MobileSearch";
+
+// The three panels load on demand: they are on every page but rarely opened,
+// so their code (Base UI dialog, cart lines, search combobox) stays out of the
+// first-load bundle. Each trigger preloads its panel on hover/focus/press, and
+// a panel stays mounted after its first open so it can animate out.
+const loadCartDrawer = () => import("@/components/cart/CartDrawer");
+const loadMobileMenu = () => import("./MobileMenu");
+const loadMobileSearch = () => import("./MobileSearch");
+const CartDrawer = dynamic(() => loadCartDrawer().then((mod) => mod.CartDrawer), { ssr: false });
+const MobileMenu = dynamic(() => loadMobileMenu().then((mod) => mod.MobileMenu), { ssr: false });
+const MobileSearch = dynamic(() => loadMobileSearch().then((mod) => mod.MobileSearch), { ssr: false });
+
+const preload = (load: () => Promise<unknown>) => ({
+  onPointerEnter: () => void load(),
+  onFocus: () => void load(),
+  onPointerDown: () => void load(),
+});
+
+/** True from the first time `open` is true (lazy panels mount once, then stay). */
+function useOpenedOnce(open: boolean) {
+  const [opened, setOpened] = useState(open);
+  if (open && !opened) setOpened(true);
+  return opened || open;
+}
 
 const withCount = (name: string, count: number) => (count > 0 ? `${name}, ${pluralize(count, "producto")}` : name);
 
@@ -25,13 +47,23 @@ export function NavbarActions({ links, themes }: { links: NavItem[]; themes: Nav
   const isCartOpen = useCartDrawerOpen();
   const setIsCartOpen = useUiStore((state) => state.setCartDrawerOpen);
 
+  const searchMounted = useOpenedOnce(isSearchOpen);
+  const menuMounted = useOpenedOnce(isMenuOpen);
+  const cartMounted = useOpenedOnce(isCartOpen);
+
   const cartCount = useCartCount();
   const wishlistCount = useWishlistCount();
   const compareCount = useCompareCount();
 
   return (
     <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
-      <IconButton label="Buscar" className="md:hidden" onClick={() => setIsSearchOpen(true)} aria-haspopup="dialog">
+      <IconButton
+        label="Buscar"
+        className="md:hidden"
+        onClick={() => setIsSearchOpen(true)}
+        aria-haspopup="dialog"
+        {...preload(loadMobileSearch)}
+      >
         <Search aria-hidden="true" />
       </IconButton>
 
@@ -77,6 +109,7 @@ export function NavbarActions({ links, themes }: { links: NavItem[]; themes: Nav
         aria-haspopup="dialog"
         onClick={() => setIsCartOpen(true)}
         data-testid="cart-button"
+        {...preload(loadCartDrawer)}
       >
         <CountIcon
           icon={<ShoppingCart aria-hidden="true" className="size-5" />}
@@ -85,20 +118,28 @@ export function NavbarActions({ links, themes }: { links: NavItem[]; themes: Nav
         />
       </IconButton>
 
-      <IconButton label="Abrir menú" className="lg:hidden" aria-haspopup="dialog" onClick={() => setIsMenuOpen(true)}>
+      <IconButton
+        label="Abrir menú"
+        className="lg:hidden"
+        aria-haspopup="dialog"
+        onClick={() => setIsMenuOpen(true)}
+        {...preload(loadMobileMenu)}
+      >
         <Menu aria-hidden="true" />
       </IconButton>
 
-      <MobileSearch open={isSearchOpen} onOpenChange={setIsSearchOpen} />
-      <MobileMenu
-        open={isMenuOpen}
-        onOpenChange={setIsMenuOpen}
-        links={links}
-        themes={themes}
-        counts={{ cart: cartCount, wishlist: wishlistCount, compare: compareCount }}
-        onOpenCart={() => setIsCartOpen(true)}
-      />
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      {searchMounted ? <MobileSearch open={isSearchOpen} onOpenChange={setIsSearchOpen} /> : null}
+      {menuMounted ? (
+        <MobileMenu
+          open={isMenuOpen}
+          onOpenChange={setIsMenuOpen}
+          links={links}
+          themes={themes}
+          counts={{ cart: cartCount, wishlist: wishlistCount, compare: compareCount }}
+          onOpenCart={() => setIsCartOpen(true)}
+        />
+      ) : null}
+      {cartMounted ? <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} /> : null}
     </div>
   );
 }

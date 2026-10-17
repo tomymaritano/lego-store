@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatePresence, motion } from "motion/react";
+import { useState, type FormEvent } from "react";
+import { AnimatePresence, m } from "motion/react";
 import { CheckCircle2, Send } from "lucide-react";
 import { fadeInUp } from "@/lib/motion";
 import { simulateRequest } from "@/lib/forms";
 import { cn } from "@/lib/utils";
-import { newsletterSchema, type NewsletterInput } from "@/lib/validations";
+import { validateNewsletterEmail } from "@/lib/validations/newsletter";
 import { Button, Field, Input, showToast } from "@/components/ui";
 
 interface NewsletterFormProps {
@@ -24,49 +22,69 @@ interface NewsletterFormProps {
 /**
  * Newsletter sign-up (mock: validates, simulates the request and confirms
  * with a toast plus an inline message). Used by the Footer and the home page.
+ * Deliberately dependency-free (no zod / react-hook-form): it renders in the
+ * root layout, so whatever it imports ships on every route.
  */
 export function NewsletterForm({ className, labelledBy }: NewsletterFormProps) {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [subscribed, setSubscribed] = useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<NewsletterInput>({ resolver: zodResolver(newsletterSchema), defaultValues: { email: "" } });
 
-  const onSubmit = async ({ email }: NewsletterInput) => {
-    await simulateRequest();
-    reset();
-    setSubscribed(email);
-    showToast.success("¡Listo! Te enviamos tu cupón de 10% de descuento");
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (submitting) return;
+    const result = validateNewsletterEmail(email);
+    if (!result.ok) {
+      setError(result.error);
+      event.currentTarget.querySelector("input")?.focus();
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      await simulateRequest();
+      setEmail("");
+      setSubscribed(result.email);
+      showToast.success("¡Listo! Te enviamos tu cupón de 10% de descuento");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className={cn("w-full lg:w-auto", className)}>
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={onSubmit}
         noValidate
         aria-labelledby={labelledBy}
         className="flex w-full flex-col gap-3 sm:flex-row sm:items-start"
       >
-        <Field label="Tu email" hideLabel error={errors.email?.message} className="sm:min-w-72">
+        <Field label="Tu email" hideLabel error={error ?? undefined} className="sm:min-w-72">
           <Input
             type="email"
+            name="email"
             autoComplete="email"
             inputMode="email"
             placeholder="tu@email.com"
-            {...register("email", { onChange: () => setSubscribed(null) })}
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setSubscribed(null);
+              // Clear a shown error as soon as the value becomes valid.
+              if (error && validateNewsletterEmail(event.target.value).ok) setError(null);
+            }}
           />
         </Field>
-        <Button type="submit" variant="secondary" className="whitespace-nowrap" loading={isSubmitting}>
-          {isSubmitting ? null : <Send aria-hidden="true" />}
-          {isSubmitting ? "Enviando…" : "Suscribirse"}
+        <Button type="submit" variant="secondary" className="whitespace-nowrap" loading={submitting}>
+          {submitting ? null : <Send aria-hidden="true" />}
+          {submitting ? "Enviando…" : "Suscribirse"}
         </Button>
       </form>
       <div role="status">
         <AnimatePresence>
           {subscribed ? (
-            <motion.p
+            <m.p
               key="ok"
               variants={fadeInUp}
               initial="hidden"
@@ -76,7 +94,7 @@ export function NewsletterForm({ className, labelledBy }: NewsletterFormProps) {
             >
               <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
               Suscribimos {subscribed}. Revisa tu correo.
-            </motion.p>
+            </m.p>
           ) : null}
         </AnimatePresence>
       </div>

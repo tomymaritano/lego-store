@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ProductGrid } from "@/components/product";
+import { ProductGrid } from "@/components/product/ProductGrid";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 import { SectionHeader } from "./SectionHeader";

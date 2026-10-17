@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { fadeIn, fadeInUp } from "@/lib/motion";
 import { pluralize } from "@/lib/utils";
@@ -104,7 +104,7 @@ export function CartView({ recommended }: { recommended: Product[] }) {
       ) : (
         <AnimatePresence mode="wait" initial={false}>
           {empty ? (
-            <motion.div key="empty" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
+            <m.div key="empty" variants={fadeInUp} initial="hidden" animate="visible" exit="exit">
               <div className="rounded-2xl border border-dashed border-border-strong bg-bg-subtle">
                 <EmptyState
                   icon={<ShoppingBag />}
@@ -119,9 +119,9 @@ export function CartView({ recommended }: { recommended: Product[] }) {
                 />
               </div>
               <RecommendedProducts products={recommended} />
-            </motion.div>
+            </m.div>
           ) : (
-            <motion.div
+            <m.div
               key="lines"
               variants={fadeIn}
               initial="hidden"
@@ -143,7 +143,7 @@ export function CartView({ recommended }: { recommended: Product[] }) {
               </ul>
 
               <OrderSummary subtotal={subtotal} count={count} className="lg:sticky lg:top-24" />
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       )}

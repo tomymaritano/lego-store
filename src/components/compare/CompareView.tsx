@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ChevronsLeftRight, Plus, Scale, X } from "lucide-react";
 import { fadeIn, fadeInUp, gridItem, transitions } from "@/lib/motion";
 import { COMPARE_ROWS, differingRows, type CompareRowKey } from "@/lib/compare";
@@ -11,7 +11,8 @@ import { MAX_COMPARE_ITEMS, positionIn, useCompareIds, useCompareStore, useStore
 import { productActionCopy } from "@/hooks/useProductActions";
 import { useProductsByIds } from "@/hooks/useProductsByIds";
 import { Badge, Button, Checkbox, EmptyState, IconButton, Price, Rating, Skeleton, showToast } from "@/components/ui";
-import { AddToCartButton, ProductImage } from "@/components/product";
+import { AddToCartButton } from "@/components/product/AddToCartButton";
+import { ProductImage } from "@/components/product/ProductImage";
 import { CategoryName } from "@/providers/CategoriesProvider";
 import type { Product } from "@/types";
 
@@ -136,7 +137,7 @@ export function CompareView() {
       ) : (
         <AnimatePresence mode="wait" initial={false}>
           {empty ? (
-            <motion.div
+            <m.div
               key="empty"
               variants={fadeInUp}
               initial="hidden"
@@ -155,9 +156,9 @@ export function CompareView() {
                   </Button>
                 }
               />
-            </motion.div>
+            </m.div>
           ) : (
-            <motion.div key="table" variants={fadeIn} initial="hidden" animate="visible" exit="exit">
+            <m.div key="table" variants={fadeIn} initial="hidden" animate="visible" exit="exit">
               {products.length > 1 ? (
                 <p className="mb-3 flex items-center gap-1.5 text-caption text-fg-muted md:hidden">
                   <ChevronsLeftRight aria-hidden="true" className="size-4" />
@@ -182,14 +183,14 @@ export function CompareView() {
                         <span className="text-caption font-semibold tracking-wider uppercase">Producto</span>
                       </td>
                       {products.map((product, index) => (
-                        <motion.th
+                        <m.th
                           key={product.id}
                           {...cellMotion}
                           scope="col"
                           className={cn(VALUE_CELL, "border-b border-border align-top font-normal")}
                           data-testid="compare-column"
                         >
-                          <motion.div variants={gridItem} custom={index} initial="hidden" animate="visible" className="relative">
+                          <m.div variants={gridItem} custom={index} initial="hidden" animate="visible" className="relative">
                             <IconButton
                               label={`Quitar ${product.name} de la comparación`}
                               variant="secondary"
@@ -217,8 +218,8 @@ export function CompareView() {
                                 {product.name}
                               </span>
                             </Link>
-                          </motion.div>
-                        </motion.th>
+                          </m.div>
+                        </m.th>
                       ))}
                       {canAddMore ? (
                         <td className={cn(VALUE_CELL, "border-b border-border align-top")}>
@@ -261,7 +262,7 @@ export function CompareView() {
                             </span>
                           </th>
                           {products.map((product) => (
-                            <motion.td
+                            <m.td
                               key={product.id}
                               {...cellMotion}
                               className={cn(
@@ -271,7 +272,7 @@ export function CompareView() {
                               )}
                             >
                               {renderValue(product, row.key)}
-                            </motion.td>
+                            </m.td>
                           ))}
                           {canAddMore ? (
                             <td
@@ -291,7 +292,7 @@ export function CompareView() {
                         Acciones
                       </th>
                       {products.map((product) => (
-                        <motion.td key={product.id} {...cellMotion} className={VALUE_CELL}>
+                        <m.td key={product.id} {...cellMotion} className={VALUE_CELL}>
                           <div className="flex flex-col gap-2">
                             <AddToCartButton product={product} addLabel="Agregar" className="w-full" />
                             <Button variant="ghost" size="sm" className="w-full" render={<Link href={`/item/${product.id}`} />}>
@@ -299,14 +300,14 @@ export function CompareView() {
                               <span className="sr-only"> de {product.name}</span>
                             </Button>
                           </div>
-                        </motion.td>
+                        </m.td>
                       ))}
                       {canAddMore ? <td className={VALUE_CELL} /> : null}
                     </tr>
                   </tbody>
                 </table>
               </div>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       )}

@@ -6,8 +6,9 @@ import type { Transition, Variants } from "motion/react";
  * in sync. Everything here is fast (150–300ms) and never delays interaction.
  *
  * Variant labels are always `hidden` / `visible` / `exit`, so containers and
- * items compose: <motion.ul variants={staggerContainer()} initial="hidden"
- * animate="visible"> with <motion.li variants={staggerItem}>.
+ * items compose: <m.ul variants={staggerContainer()} initial="hidden"
+ * animate="visible"> with <m.li variants={staggerItem}>. Components render
+ * motion's light `m.*` elements; ClientProviders loads the features lazily.
  *
  * Reduced motion is handled once by <MotionConfig reducedMotion="user"> in
  * ClientProviders: transform animations are skipped, opacity still fades.
@@ -130,7 +131,7 @@ export function staggerContainer(stagger = 0.04, delayChildren = 0): Variants {
   };
 }
 
-/** Child of `staggerContainer`. */
+/** Child of `staggerContainer` (the name call sites use; same curve as fadeInUp). */
 export const staggerItem: Variants = fadeInUp;
 
 /** Seconds between grid cards, and the cap that keeps a full page within the motion budget. */
@@ -165,21 +166,11 @@ export const riseIn: Variants = {
 
 /**
  * Hover lift for cards and other containers. Spread on a motion element:
- * <motion.article {...hoverLift}>. Hover only: a container is not a control.
+ * <m.article {...hoverLift}>. Hover only: a container is not a control
+ * (`whileTap` would make Motion add tabindex="0" to it).
  */
 export const hoverLift = {
   whileHover: { y: -4 },
-  transition: transitions.fast,
-} as const;
-
-/**
- * Hover lift + press, for elements that are themselves controls (a motion
- * button or link). Never spread on a container: `whileTap` makes Motion add
- * tabindex="0", turning the container into an empty keyboard stop.
- */
-export const pressable = {
-  whileHover: { y: -4 },
-  whileTap: { scale: 0.98 },
   transition: transitions.fast,
 } as const;
 

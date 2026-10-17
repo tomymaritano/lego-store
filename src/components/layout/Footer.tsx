@@ -4,7 +4,7 @@ import { Clock, Mail, MapPin, Phone, RotateCcw, Shield, Truck } from "lucide-rea
 import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { companyLinks, helpLinks, legalLinks, themeLinks, type NavItem } from "@/config/navigation";
-import { NewsletterForm } from "@/components/forms";
+import { NewsletterForm } from "@/components/forms/NewsletterForm";
 import { socialIcons } from "@/components/icons/SocialIcons";
 import type { Category } from "@/types";
 

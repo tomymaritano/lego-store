@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui";
-import { ProductList } from "@/components/product";
+import { ProductList } from "@/components/product/ProductList";
 import { pluralize } from "@/lib/utils";
 import type { PaginatedResponse, Product } from "@/types";
 import { SectionHeader } from "./SectionHeader";

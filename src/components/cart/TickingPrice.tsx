@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { transitions } from "@/lib/motion";
 import { cn, formatPrice } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ export function TickingPrice({ value, className, ...props }: { value: number; cl
   return (
     <span className={cn("relative inline-flex overflow-hidden tabular-nums", className)} {...props}>
       <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span
+        <m.span
           key={value}
           initial={{ y: "-60%", opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -21,7 +21,7 @@ export function TickingPrice({ value, className, ...props }: { value: number; cl
           transition={transitions.fast}
         >
           {formatPrice(value)}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </span>
   );

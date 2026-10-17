@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-/** Footer / home newsletter sign-up. */
-export const newsletterSchema = z.object({
-  email: z.string().trim().min(1, "Ingresa tu email").pipe(z.email("Ingresa un email válido")),
-});
-
-export type NewsletterInput = z.infer<typeof newsletterSchema>;
-
 export const CONTACT_TOPICS = [
   { value: "pedido", label: "Estado de un pedido" },
   { value: "envio", label: "Envíos y entregas" },

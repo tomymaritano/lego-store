@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatePresence, LayoutGroup, motion } from "motion/react";
+import { AnimatePresence, LayoutGroup, m } from "motion/react";
 import { CheckCircle, MessageSquare, PenLine, ThumbsUp } from "lucide-react";
 import { collapse, fadeInUp, transitions } from "@/lib/motion";
 import { cn, pluralize } from "@/lib/utils";
@@ -171,7 +171,7 @@ export function ProductReviews({ productId, focusRequest }: ProductReviewsProps)
       <div id="review-form-panel" ref={formPanelRef}>
         <AnimatePresence initial={false}>
           {showForm && (
-            <motion.div
+            <m.div
               key="review-form"
               variants={collapse}
               initial="hidden"
@@ -185,7 +185,7 @@ export function ProductReviews({ productId, focusRequest }: ProductReviewsProps)
               }}
             >
               <ReviewForm productId={productId} onDone={closeForm} />
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>
@@ -215,7 +215,7 @@ export function ProductReviews({ productId, focusRequest }: ProductReviewsProps)
                 <li key={rating} className="flex items-center gap-3">
                   <span className="w-20 shrink-0 text-sm text-fg-secondary">{pluralize(rating, "estrella")}</span>
                   <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-bg-muted">
-                    <motion.span
+                    <m.span
                       className="block h-full origin-left rounded-full bg-rating"
                       initial={{ scaleX: 0 }}
                       whileInView={{ scaleX: percentage / 100 }}
@@ -274,7 +274,7 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
   };
 
   return (
-    <motion.li
+    <m.li
       layout="position"
       variants={fadeInUp}
       initial="hidden"
@@ -318,7 +318,7 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
             focusableWhenDisabled
             aria-pressed={hasMarked}
           >
-            <motion.span
+            <m.span
               key={hasMarked ? "voted" : "idle"}
               initial={hasMarked ? { scale: 0.6, rotate: -12 } : false}
               animate={{ scale: 1, rotate: 0 }}
@@ -326,12 +326,12 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
               className="inline-flex"
             >
               <ThumbsUp aria-hidden="true" className={cn(hasMarked && "fill-current")} />
-            </motion.span>
+            </m.span>
             Útil ({review.helpful})
           </Button>
         </div>
       </article>
-    </motion.li>
+    </m.li>
   );
 }
 

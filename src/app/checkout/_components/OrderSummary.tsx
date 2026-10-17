@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Lock, RotateCcw, ShieldCheck } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { fadeIn } from "@/lib/motion";
@@ -97,7 +97,7 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
           />
           <AnimatePresence>
             {isProcessing && (
-              <motion.div
+              <m.div
                 variants={fadeIn}
                 initial="hidden"
                 animate="visible"
@@ -107,7 +107,7 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
               >
                 <Spinner className="size-5" />
                 Procesando el pago…
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>

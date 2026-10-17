@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { fadeIn } from "@/lib/motion";
 import { orderTotals } from "@/lib/pricing";
 import { useCartItems, useCartStore, useCheckoutStore, useStoreHydrated } from "@/stores";
@@ -155,7 +155,7 @@ export function CheckoutFlow() {
           // Its "¡Gracias por tu compra!" is the page's h1.
           <ConfirmationStep key="confirmation" orderId={orderId} total={orderTotal} email={shippingInfo?.email ?? null} />
         ) : (
-          <motion.div key="checkout" variants={fadeIn} initial="hidden" animate="visible" exit="exit">
+          <m.div key="checkout" variants={fadeIn} initial="hidden" animate="visible" exit="exit">
             <CheckoutHeader />
             <div className="mb-8">
               <Stepper current={step} />
@@ -194,7 +194,7 @@ export function CheckoutFlow() {
 
               <OrderSummary lines={cart} isProcessing={isProcessing} />
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </StepDirectionContext.Provider>

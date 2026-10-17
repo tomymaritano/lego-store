@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import dynamic from "next/dynamic";
+import { AnimatePresence, m } from "motion/react";
 import { gridItem, transitions } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/types";
 import { ProductCard } from "./ProductCard";
-import { QuickViewModal } from "./QuickViewModal";
+
+// The quick-view dialog loads on demand (first hover/focus on the grid
+// preloads it) and stays mounted after the first open so it can animate out.
+const loadQuickView = () => import("./QuickViewModal");
+const QuickViewModal = dynamic(() => loadQuickView().then((mod) => mod.QuickViewModal), { ssr: false });
 
 export interface ProductGridProps {
   products: Product[];
@@ -50,14 +55,21 @@ export function ProductGrid({
   className,
 }: ProductGridProps) {
   const [quickView, setQuickView] = useState<Product | null>(null);
+  const [quickViewMounted, setQuickViewMounted] = useState(false);
+  if (quickView && !quickViewMounted) setQuickViewMounted(true);
 
   return (
     <>
       <ul
         aria-label={label}
         aria-busy={busy || undefined}
+        onPointerEnter={() => void loadQuickView()}
+        onFocus={() => void loadQuickView()}
         className={cn(
           "grid gap-4 md:gap-6",
+          // Cards leaving a filtered list (popLayout lifts them out of the flow)
+          // sit under the ones gliding into place and no longer take clicks.
+          "[&>[data-motion-pop-id]]:pointer-events-none [&>[data-motion-pop-id]]:z-0",
           COLUMNS[columns],
           "transition-opacity duration-base ease-standard",
           busy && "opacity-60",
@@ -66,7 +78,7 @@ export function ProductGrid({
       >
         <AnimatePresence initial={reveal === "in-view"} mode="popLayout">
           {products.map((product, index) => (
-            <motion.li
+            <m.li
               key={product.id}
               layout="position"
               custom={index % batchSize}
@@ -74,18 +86,20 @@ export function ProductGrid({
               initial="hidden"
               exit="exit"
               {...(reveal === "in-view"
-                ? { whileInView: "visible", viewport: { once: true, margin: "0px 0px -64px" } }
+                ? { whileInView: "visible", viewport: { once: true, amount: "some" } }
                 : { animate: "visible" })}
               transition={{ layout: transitions.spring }}
-              className="h-full"
+              className="relative z-1 h-full"
             >
               <ProductCard product={product} onQuickView={setQuickView} priority={index < eagerCount} />
-            </motion.li>
+            </m.li>
           ))}
         </AnimatePresence>
       </ul>
 
-      <QuickViewModal product={quickView} isOpen={!!quickView} onClose={() => setQuickView(null)} />
+      {quickViewMounted ? (
+        <QuickViewModal product={quickView} isOpen={!!quickView} onClose={() => setQuickView(null)} />
+      ) : null}
     </>
   );
 }
