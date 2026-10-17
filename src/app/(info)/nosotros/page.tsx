@@ -75,8 +75,8 @@ export default async function AboutPage() {
       </Prose>
 
       <div className="mt-10 flex flex-wrap gap-3">
-        <Button render={<Link href="/" />}>Explorar la tienda</Button>
-        <Button variant="secondary" render={<Link href="/contacto" />}>
+        <Button size="lg" render={<Link href="/" />}>Explorar la tienda</Button>
+        <Button size="lg" variant="secondary" render={<Link href="/contacto" />}>
           Escríbenos
         </Button>
       </div>

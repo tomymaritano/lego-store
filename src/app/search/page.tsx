@@ -94,7 +94,11 @@ async function NoResults({ q }: { q: string }) {
         icon={<SearchX />}
         title={`No encontramos sets para “${q}”`}
         description="Revisa la ortografía, prueba con menos palabras o explora alguna de estas sugerencias."
-        action={<Button render={<Link href="/search" />}>Ver todo el catálogo</Button>}
+        action={
+          <Button size="lg" render={<Link href="/search" />}>
+            Ver todo el catálogo
+          </Button>
+        }
       />
       <div className="grid gap-8 px-6 pb-10 sm:grid-cols-2 sm:px-10">
         <nav aria-labelledby="suggest-themes-title">
