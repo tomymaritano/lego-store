@@ -1,8 +1,9 @@
 import { ImageResponse } from "next/og";
 import { siteConfig } from "@/config/site";
 import { brand } from "@/lib/og/brand";
+import { defaultOgImage } from "@/lib/metadata";
 
-export const alt = `${siteConfig.name}: sets LEGO originales`;
+export const alt = defaultOgImage.alt;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
