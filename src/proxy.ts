@@ -12,8 +12,7 @@ import { loginHref } from "@/lib/auth/callback-url";
  * protected page, Server Action and Route Handler checks again on the server
  * (src/lib/auth/session.ts), including the admin role, so a route this
  * matcher misses is still protected. Only page loads (GET/HEAD) are
- * redirected: a Server Action POST without a session reaches its own check,
- * which answers in a way the action's caller understands.
+ * redirected, and this check never writes cookies (see requireSession).
  *
  * /category/<id> and /item/<id>: unknown ids get a real 404 before any
  * rendering (the not-found page would otherwise be rendered with a 200 by
@@ -28,18 +27,35 @@ const exists: Record<string, (id: string) => Promise<unknown>> = {
   item: getProductById,
 };
 
-const requireSession = auth((request) => {
-  if (request.auth?.user?.id || !["GET", "HEAD"].includes(request.method)) return NextResponse.next();
-  const { pathname, search } = request.nextUrl;
-  return NextResponse.redirect(new URL(loginHref(`${pathname}${search}`), request.nextUrl));
-});
+/*
+ * Read-only on purpose. Auth.js's wrapper re-issues the session cookie
+ * (Set-Cookie) on every request it sees, including <Link> prefetches of
+ * /account and /admin. A prefetch that left before logout and answered after
+ * it would write the old token back and silently undo the logout (the same
+ * race could overwrite the token a password change just renewed). So the
+ * wrapper only decides, and proxy() answers with a fresh response that sets
+ * no cookies. Consequence: the session is not slid forward here; it lasts
+ * SESSION_MAX_AGE_SECONDS from login (or from the last renewal by a Server
+ * Action, e.g. a password change).
+ */
+const SIGNED_IN = "x-proxy-signed-in";
+const checkSession = auth((request) => new Response(null, { headers: { [SIGNED_IN]: request.auth?.user?.id ? "1" : "0" } }));
 
 /** Auth.js's wrapper takes a route context; proxy has no route params. */
 const NO_PARAMS = { params: Promise.resolve({}) };
 
+async function requireSession(request: NextRequest): Promise<Response> {
+  // A Server Action POST without a session reaches its own check, which answers in a way its caller understands.
+  if (!["GET", "HEAD"].includes(request.method)) return NextResponse.next();
+  const decision = await checkSession(request, NO_PARAMS);
+  if (decision?.headers.get(SIGNED_IN) === "1") return NextResponse.next();
+  const { pathname, search } = request.nextUrl;
+  return NextResponse.redirect(new URL(loginHref(`${pathname}${search}`), request.nextUrl));
+}
+
 export async function proxy(request: NextRequest): Promise<Response> {
   const [, section = "", rawId] = request.nextUrl.pathname.split("/");
-  if (PROTECTED.has(section)) return (await requireSession(request, NO_PARAMS)) ?? NextResponse.next();
+  if (PROTECTED.has(section)) return requireSession(request);
 
   let id: string;
   try {

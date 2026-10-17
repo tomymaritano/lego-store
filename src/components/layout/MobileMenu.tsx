@@ -85,14 +85,14 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
                     </span>
                   </li>
                   <li>
-                    <NavLink href="/account" onClick={close} className={itemClasses}>
+                    <NavLink href="/account" prefetch={false} onClick={close} className={itemClasses}>
                       <UserRound aria-hidden="true" className="size-5" />
                       Mi cuenta
                     </NavLink>
                   </li>
                   {account.role === "ADMIN" ? (
                     <li>
-                      <NavLink href="/admin" onClick={close} className={itemClasses}>
+                      <NavLink href="/admin" prefetch={false} onClick={close} className={itemClasses}>
                         <LayoutDashboard aria-hidden="true" className="size-5" />
                         Administración
                       </NavLink>

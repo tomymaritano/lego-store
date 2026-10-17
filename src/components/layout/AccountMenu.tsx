@@ -90,16 +90,17 @@ export function AccountMenu({ account, logoutAction, className }: AccountMenuPro
               <p className="truncate font-semibold text-fg">{name}</p>
               {account.name ? <p className="truncate text-caption text-fg-muted">{account.email}</p> : null}
             </div>
+            {/* No prefetch: these pages are per-user, and a prefetch racing logout must not matter (proxy.ts). */}
             <ul className="space-y-0.5 py-1.5">
               <li>
-                <Link href="/account" onClick={() => setOpen(false)} className={itemClasses}>
+                <Link href="/account" prefetch={false} onClick={() => setOpen(false)} className={itemClasses}>
                   <UserRound aria-hidden="true" />
                   Mi cuenta
                 </Link>
               </li>
               {account.role === "ADMIN" ? (
                 <li>
-                  <Link href="/admin" onClick={() => setOpen(false)} className={itemClasses}>
+                  <Link href="/admin" prefetch={false} onClick={() => setOpen(false)} className={itemClasses}>
                     <LayoutDashboard aria-hidden="true" />
                     Administración
                   </Link>
