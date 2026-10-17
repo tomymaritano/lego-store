@@ -20,5 +20,8 @@ describe("cn", () => {
   it("keeps a size token and a colour token together", () => {
     expect(cn("text-label", "text-fg")).toBe("text-label text-fg");
     expect(cn("text-display", "text-fg-muted")).toBe("text-display text-fg-muted");
+    expect(cn("text-heading", "text-fg")).toBe("text-heading text-fg");
+    expect(cn("text-headline", "text-on-primary")).toBe("text-headline text-on-primary");
+    expect(cn("text-title", "text-heading")).toBe("text-heading");
   });
 });

@@ -21,7 +21,7 @@ interface OrderTotalsProps {
 export function OrderTotals({ subtotal, count, testIdPrefix = "order", className }: OrderTotalsProps) {
   const shipping = quoteShipping(subtotal);
   return (
-    <dl className={cn("space-y-3 text-sm", className)}>
+    <dl className={cn("space-y-3 text-label font-normal", className)}>
       <div className="flex justify-between gap-4">
         <dt className="text-fg-secondary">Subtotal ({pluralize(count, "producto")})</dt>
         <dd className="text-fg">

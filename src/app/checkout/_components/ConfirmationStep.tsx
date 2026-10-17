@@ -67,14 +67,14 @@ export function ConfirmationStep({ orderId, total, email, lines = [] }: Confirma
         <m.dl variants={staggerItem} className="mb-6 grid w-full gap-3 rounded-xl bg-bg-subtle p-4 text-left sm:grid-cols-2">
           <div>
             <dt className="text-caption text-fg-muted">Número de pedido</dt>
-            <dd className="font-mono text-lg font-bold text-fg" data-testid="order-id">
+            <dd className="font-mono text-title text-fg" data-testid="order-id">
               {orderId}
             </dd>
           </div>
           {total !== null && (
             <div className="sm:text-right">
               <dt className="text-caption text-fg-muted">Total pagado</dt>
-              <dd className="text-lg font-bold text-fg tabular-nums">{formatPrice(total)}</dd>
+              <dd className="text-title text-fg tabular-nums">{formatPrice(total)}</dd>
             </div>
           )}
         </m.dl>
@@ -85,7 +85,7 @@ export function ConfirmationStep({ orderId, total, email, lines = [] }: Confirma
           </m.div>
         ) : null}
 
-        <m.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-sm text-fg-secondary">
+        <m.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-label font-normal text-fg-secondary">
           {email && (
             <li className="flex items-start gap-2">
               <Mail aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />

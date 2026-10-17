@@ -18,18 +18,18 @@ export function ReviewSummary({ reviews }: { reviews: readonly Review[] }) {
   return (
     <div className="grid gap-8 rounded-2xl border border-border bg-bg-subtle p-6 md:grid-cols-[auto_1fr] md:gap-12">
       <div className="flex flex-col items-center gap-2 md:items-start">
-        <p className="text-5xl font-bold tabular-nums">
+        <p className="text-display font-bold tabular-nums">
           {average.toLocaleString("es-AR")}
           <span className="sr-only"> de 5</span>
         </p>
         <Rating value={average} size="lg" />
-        <p className="text-sm text-fg-muted">Basado en {pluralize(total, "reseña")}</p>
+        <p className="text-label font-normal text-fg-muted">Basado en {pluralize(total, "reseña")}</p>
       </div>
 
       <ul className="space-y-2 self-center" aria-label="Distribución de valoraciones">
         {distribution.map(({ rating, count, share }) => (
           <li key={rating} className="flex items-center gap-3">
-            <span className="w-20 shrink-0 text-sm text-fg-secondary">{pluralize(rating, "estrella")}</span>
+            <span className="w-20 shrink-0 text-label font-normal text-fg-secondary">{pluralize(rating, "estrella")}</span>
             <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-bg-muted">
               <m.span
                 className="block h-full origin-left rounded-full bg-rating"
@@ -39,7 +39,7 @@ export function ReviewSummary({ reviews }: { reviews: readonly Review[] }) {
                 transition={transitions.slow}
               />
             </span>
-            <span className="w-8 text-right text-sm text-fg-muted tabular-nums">
+            <span className="w-8 text-right text-label font-normal text-fg-muted tabular-nums">
               {count}
               <span className="sr-only"> {count === 1 ? "reseña" : "reseñas"}</span>
             </span>

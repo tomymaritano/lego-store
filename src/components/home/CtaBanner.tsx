@@ -25,7 +25,7 @@ export function CtaBanner() {
               <h2 id="cta-title" className="mt-3 text-on-info-surface">
                 Arma tu próxima aventura
               </h2>
-              <p className="mt-3 text-lg">
+              <p className="mt-3 text-title font-normal">
                 Filtra por tema, edad o cantidad de piezas y encuentra el set ideal para regalar o para tu colección.
               </p>
             </div>

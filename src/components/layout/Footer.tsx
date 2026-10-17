@@ -30,10 +30,10 @@ function LinkColumn({ title, links }: { title: string; links: NavItem[] }) {
   const id = `footer-${title.toLowerCase().replace(/\s+/g, "-")}`;
   return (
     <section aria-labelledby={id}>
-      <h2 id={id} className="mb-4 text-sm font-bold tracking-wider text-fg uppercase">
+      <h2 id={id} className="mb-4 text-label font-bold tracking-wider text-fg uppercase">
         {title}
       </h2>
-      <ul className="space-y-3 text-sm">
+      <ul className="space-y-3 text-label font-normal">
         {links.map((link) => (
           <li key={link.href}>
             <Link href={link.href} className={`inline-block ${linkClasses}`}>
@@ -76,7 +76,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
                 </span>
                 <span>
                   <span className="block font-semibold text-fg">{feature.title}</span>
-                  <span className="block text-sm text-fg-secondary">{feature.text}</span>
+                  <span className="block text-label font-normal text-fg-secondary">{feature.text}</span>
                 </span>
               </Link>
             </li>
@@ -104,12 +104,12 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
               />
             </Link>
 
-            <p className="mb-6 max-w-sm text-sm leading-relaxed text-fg-secondary">
+            <p className="mb-6 max-w-sm text-label font-normal leading-relaxed text-fg-secondary">
               Tu tienda favorita de LEGO. Construye mundos increíbles pieza a pieza, con productos originales y
               garantía oficial.
             </p>
 
-            <address className="mb-6 space-y-3 text-sm not-italic">
+            <address className="mb-6 space-y-3 text-label font-normal not-italic">
               <a href={`mailto:${contact.email}`} className={`flex w-fit items-center gap-3 ${linkClasses}`}>
                 <Mail aria-hidden="true" className="size-4 shrink-0" />
                 {contact.email}
@@ -166,7 +166,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
             <h2 id="footer-newsletter-title" className="text-title text-fg">
               Suscríbete al newsletter
             </h2>
-            <p className="mt-1 text-sm text-fg-secondary">
+            <p className="mt-1 text-label font-normal text-fg-secondary">
               Ofertas exclusivas y novedades en tu correo. Te regalamos 10% en tu primera compra.
             </p>
           </div>
@@ -177,7 +177,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
       {/* Bottom bar; also holds the room reserved for the compare bar (globals.css) */}
       <div data-footer-bottom className="border-t border-border bg-bg-muted">
         <div className="container-custom flex flex-col items-center justify-between gap-4 py-6 text-center md:flex-row md:text-left">
-          <div className="text-sm text-fg-secondary">
+          <div className="text-label font-normal text-fg-secondary">
             <p>© {new Date().getFullYear()} {siteConfig.name}. Proyecto de portafolio.</p>
             <p className="text-caption text-fg-muted">LEGO® es una marca de The LEGO Group, que no patrocina esta tienda.</p>
           </div>

@@ -38,8 +38,8 @@ export default async function AboutPage() {
             key={stat.label}
             className="flex flex-col-reverse rounded-2xl border border-border bg-bg-subtle p-5 text-center"
           >
-            <dt className="text-sm text-fg-secondary">{stat.label}</dt>
-            <dd className="text-3xl font-extrabold text-fg tabular-nums">{stat.value}</dd>
+            <dt className="text-label font-normal text-fg-secondary">{stat.label}</dt>
+            <dd className="text-headline font-extrabold text-fg tabular-nums">{stat.value}</dd>
           </div>
         ))}
       </dl>

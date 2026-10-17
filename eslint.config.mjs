@@ -31,6 +31,8 @@ const SVG_COLOR_ATTRS = "^(fill|stroke|stopColor|floodColor|lightingColor|color)
 const SVG_COLOR = "^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?[(]|okl(ch|ab)[(])";
 // Tailwind numeric timing / stock easing: duration-300, ease-in-out. Use duration-fast/base/slow + ease-standard/emphasized/exit.
 const TW_TIMING = "(^|[\\s\"'`:])(duration-\\d+|ease-(in|out|in-out|linear))(?![\\w-])";
+// Stock Tailwind font sizes: text-sm, md:text-2xl. App code uses the type scale (text-caption … text-display).
+const TW_FONT_SIZE = "(^|[\\s\"'`:])text-(xs|sm|base|lg|[2-9]?xl)(?![\\w-])";
 // Motion props that take timing values.
 const MOTION_PROPS = "^(transition|animate|initial|exit|whileHover|whileTap|whileInView|whileFocus|variants)$";
 
@@ -44,6 +46,8 @@ const motionMessage =
   "Usá los presets de @/lib/motion (transitions.fast/base/slow, fadeInUp, staggerItem…) en vez de duraciones numéricas sueltas.";
 const twTimingMessage =
   "Usá los tokens de movimiento (duration-fast/base/slow, ease-standard/emphasized/exit) en vez de duration-300 / ease-in-out.";
+const typeScaleMessage =
+  "Usá la escala tipográfica (text-caption, text-label, text-body, text-title, text-heading, text-headline, text-display) en vez de text-sm / text-2xl.";
 const transitionScaleMessage =
   "En Tailwind v4 scale-*/rotate-*/translate-* usan sus propias propiedades CSS: listá scale/rotate/translate en transition-[...], no `transform`.";
 
@@ -63,6 +67,8 @@ const rawColorSelectors = [
 ];
 const aliasSelectors = literal(LEGACY_ALIAS, aliasMessage);
 const darkSelectors = literal(DARK_VARIANT, darkMessage);
+// App code only: primitives keep their own compact sizes (e.g. Button sizes).
+const typeScaleSelectors = literal(TW_FONT_SIZE, typeScaleMessage);
 const DURATION = "Property[key.name='duration'][value.type='Literal']";
 const motionSelectors = [
   // Inline in a motion prop: transition={{ duration: 0.6 }}.
@@ -84,12 +90,19 @@ export default defineConfig([
   ...nextTs,
   ...storybook.configs["flat/recommended"],
 
-  // App code: raw palette, legacy aliases, ad-hoc dark: and numeric motion timing are errors.
+  // App code: raw palette, legacy aliases, ad-hoc dark:, numeric motion timing and stock font sizes are errors.
   {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/components/ui/**"],
     rules: {
-      "no-restricted-syntax": ["error", ...rawColorSelectors, ...aliasSelectors, ...darkSelectors, ...motionSelectors],
+      "no-restricted-syntax": [
+        "error",
+        ...rawColorSelectors,
+        ...aliasSelectors,
+        ...darkSelectors,
+        ...motionSelectors,
+        ...typeScaleSelectors,
+      ],
     },
   },
   // Primitives: same rules, except that `dark:` is allowed here.

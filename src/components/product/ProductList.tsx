@@ -77,7 +77,7 @@ export function LoadMore({ products, hasNextPage, fetchNextPage, isFetchingNextP
       <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
 
       {isStale ? null : isFetchingNextPage ? (
-        <p className="flex items-center gap-2 text-sm text-fg-muted">
+        <p className="flex items-center gap-2 text-label font-normal text-fg-muted">
           <Spinner className="size-5" />
           Cargando más productos…
         </p>
@@ -86,7 +86,7 @@ export function LoadMore({ products, hasNextPage, fetchNextPage, isFetchingNextP
           {isFetchNextPageError ? "Reintentar" : "Cargar más productos"}
         </Button>
       ) : (
-        <p className="text-sm text-fg-muted">
+        <p className="text-label font-normal text-fg-muted">
           {loaded === 1 ? "Este es el único producto" : `Has visto los ${loaded} productos`}
         </p>
       )}

@@ -72,7 +72,7 @@ export function ReviewForm({ productId, onDone, onReady }: ReviewFormProps) {
       aria-labelledby="review-form-title"
       className="space-y-5 rounded-2xl border border-border bg-surface p-6 shadow-card"
     >
-      <h3 id="review-form-title" className="text-lg font-bold">
+      <h3 id="review-form-title" className="text-title">
         Escribir una reseña
       </h3>
       <Controller

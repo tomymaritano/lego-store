@@ -27,8 +27,8 @@ export function InfoPageHeader({ title, description, icon, meta }: InfoPageHeade
         ) : null}
         <div>
           <h1 className="text-headline">{title}</h1>
-          {description ? <p className="mt-3 max-w-2xl text-lg text-fg-secondary">{description}</p> : null}
-          {meta ? <p className="mt-2 text-sm text-fg-muted">{meta}</p> : null}
+          {description ? <p className="mt-3 max-w-2xl text-title font-normal text-fg-secondary">{description}</p> : null}
+          {meta ? <p className="mt-2 text-label font-normal text-fg-muted">{meta}</p> : null}
         </div>
       </div>
     </header>
@@ -42,7 +42,7 @@ export function Prose({ className, ...props }: ComponentProps<"div">) {
       className={cn(
         "space-y-4 text-body text-fg-secondary",
         "[&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-heading [&_h2:first-child]:mt-0",
-        "[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-lg",
+        "[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-title",
         "[&_strong]:font-semibold [&_strong]:text-fg",
         "[&_a]:rounded-sm [&_a]:font-medium [&_a]:text-info [&_a]:underline [&_a]:underline-offset-4 [&_a:hover]:no-underline",
         "[&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-6 [&_li]:marker:text-fg-muted",
@@ -64,8 +64,8 @@ export function FactCard({ icon, title, children }: { icon: ReactNode; title: st
         {icon}
       </span>
       <div>
-        <h2 className="text-base font-semibold text-fg">{title}</h2>
-        <p className="mt-1 text-sm text-fg-secondary">{children}</p>
+        <h2 className="text-body font-semibold text-fg">{title}</h2>
+        <p className="mt-1 text-label font-normal text-fg-secondary">{children}</p>
       </div>
     </li>
   );
@@ -75,8 +75,8 @@ export function FactCard({ icon, title, children }: { icon: ReactNode; title: st
 export function TableOfContents({ items }: { items: { id: string; title: string }[] }) {
   return (
     <nav aria-label="En esta página" className="mb-10 rounded-2xl border border-border bg-bg-subtle p-5">
-      <h2 className="mb-3 text-sm font-bold tracking-wider text-fg uppercase">En esta página</h2>
-      <ol className="grid list-decimal gap-x-8 gap-y-1.5 pl-5 text-sm sm:grid-cols-2">
+      <h2 className="mb-3 text-label font-bold tracking-wider text-fg uppercase">En esta página</h2>
+      <ol className="grid list-decimal gap-x-8 gap-y-1.5 pl-5 text-label font-normal sm:grid-cols-2">
         {items.map((item) => (
           <li key={item.id} className="marker:text-fg-muted">
             <a

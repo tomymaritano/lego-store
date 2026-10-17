@@ -3,7 +3,7 @@ import { infoNav } from "@/config/navigation";
 import { NavLink } from "@/components/layout";
 
 const linkClasses =
-  "block rounded-lg border-l-2 border-transparent px-3 py-2 text-sm font-medium text-fg-secondary transition-colors duration-fast ease-standard hover:bg-bg-muted hover:text-fg aria-[current=page]:border-primary aria-[current=page]:bg-bg-muted aria-[current=page]:text-fg";
+  "block rounded-lg border-l-2 border-transparent px-3 py-2 text-label font-medium text-fg-secondary transition-colors duration-fast ease-standard hover:bg-bg-muted hover:text-fg aria-[current=page]:border-primary aria-[current=page]:bg-bg-muted aria-[current=page]:text-fg";
 
 /**
  * Shell of the static info pages (help, company, legal): the page on the

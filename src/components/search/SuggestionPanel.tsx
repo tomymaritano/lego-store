@@ -106,14 +106,14 @@ export function SuggestionPanel({
                 <ProductImage src={product.img} alt="" fill sizes="48px" className="object-contain p-1" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="line-clamp-1 text-sm font-medium text-fg-secondary">
+                <span className="line-clamp-1 text-label font-medium text-fg-secondary">
                   <Highlight text={product.name} query={query} />
                 </span>
                 <span className="block text-caption text-fg-muted">
                   <Highlight text={product.theme} query={query} />
                 </span>
               </span>
-              <span className="text-sm font-bold text-fg tabular-nums">{formatPrice(product.price)}</span>
+              <span className="text-label font-bold text-fg tabular-nums">{formatPrice(product.price)}</span>
             </Link>
           </li>
         ))}
@@ -135,7 +135,7 @@ export function SuggestionPanel({
               onClick={() => onSearch(term)}
               onPointerMove={() => onActivate(index)}
               className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-fg-secondary transition-colors duration-fast ease-standard",
+                "flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-label font-normal text-fg-secondary transition-colors duration-fast ease-standard",
                 activeIndex === index && "bg-bg-muted text-fg"
               )}
             >
@@ -158,7 +158,7 @@ export function SuggestionPanel({
       {showNoResults && (
         <div className="p-6 text-center">
           <p className="text-fg-secondary">No se encontraron productos para &quot;{query}&quot;</p>
-          <p className="mt-1 text-sm text-fg-muted">Intenta con otros términos de búsqueda</p>
+          <p className="mt-1 text-label font-normal text-fg-muted">Intenta con otros términos de búsqueda</p>
         </div>
       )}
 

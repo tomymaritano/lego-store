@@ -50,16 +50,16 @@ export default function ReturnsPage() {
             <li key={step.title} className="flex gap-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
               <span
                 aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-lg font-extrabold text-on-primary"
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-title font-extrabold text-on-primary"
               >
                 {index + 1}
               </span>
               <div>
-                <h3 className="text-base font-semibold text-fg">
+                <h3 className="text-body font-semibold text-fg">
                   <span className="sr-only">Paso {index + 1}: </span>
                   {step.title}
                 </h3>
-                <p className="mt-1 text-sm text-fg-secondary">{step.text}</p>
+                <p className="mt-1 text-label font-normal text-fg-secondary">{step.text}</p>
               </div>
             </li>
           ))}

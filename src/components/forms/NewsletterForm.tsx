@@ -90,7 +90,7 @@ export function NewsletterForm({ className, labelledBy }: NewsletterFormProps) {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="mt-2 flex items-center gap-2 text-sm font-medium text-success"
+              className="mt-2 flex items-center gap-2 text-label font-medium text-success"
             >
               <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
               Suscribimos {subscribed}. Revisa tu correo.

@@ -115,7 +115,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
                           <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="line-clamp-2 text-sm font-medium text-fg">
+                              <h3 className="line-clamp-2 text-label font-medium text-fg">
                                 <Link
                                   href={`/item/${item.id}`}
                                   onClick={onClose}
@@ -157,7 +157,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 </SheetBody>
 
                 <SheetFooter className="gap-4">
-                  <dl className="space-y-1.5 text-sm">
+                  <dl className="space-y-1.5 text-label font-normal">
                     <div className="flex justify-between text-fg-secondary">
                       <dt>Subtotal</dt>
                       <dd className="tabular-nums">{formatPrice(subtotal)}</dd>
@@ -168,7 +168,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         {shipping.free ? "Gratis" : formatPrice(shipping.cost)}
                       </dd>
                     </div>
-                    <div className="flex justify-between border-t border-border pt-2 text-lg font-bold text-fg">
+                    <div className="flex justify-between border-t border-border pt-2 text-title text-fg">
                       <dt>Total</dt>
                       <dd className="tabular-nums" data-testid="cart-drawer-total">
                         {formatPrice(subtotal + shipping.cost)}

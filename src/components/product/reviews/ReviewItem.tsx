@@ -47,7 +47,7 @@ export function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHe
       <article className="flex items-start gap-4">
         <span
           aria-hidden="true"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-muted text-sm font-bold text-fg-secondary"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-muted text-label font-bold text-fg-secondary"
         >
           {initials(review.userName)}
         </span>
@@ -63,11 +63,11 @@ export function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHe
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Rating value={review.rating} />
-            <time dateTime={review.date} className="text-sm text-fg-muted">
+            <time dateTime={review.date} className="text-label font-normal text-fg-muted">
               {formatReviewDate(review.date)}
             </time>
           </div>
-          <h3 className="text-base font-semibold">{review.title}</h3>
+          <h3 className="text-body font-semibold">{review.title}</h3>
           <p className="text-fg-secondary">{review.comment}</p>
           <Button
             variant="ghost"

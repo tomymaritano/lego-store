@@ -16,7 +16,7 @@ export function FreeShippingProgress({ subtotal, className }: { subtotal: number
 
   return (
     <div className={cn("space-y-2", className)} data-testid="free-shipping">
-      <p aria-live="polite" className="flex items-center gap-2 text-sm text-fg-secondary">
+      <p aria-live="polite" className="flex items-center gap-2 text-label font-normal text-fg-secondary">
         {free ? (
           <>
             <PartyPopper aria-hidden="true" className="size-4 shrink-0 text-success" />

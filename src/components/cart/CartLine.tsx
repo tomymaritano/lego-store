@@ -73,7 +73,7 @@ export function CartLine({ item, onQuantityChange, onRemove, priority = false, r
                 {item.name}
               </Link>
             </h2>
-            <p className="mt-0.5 text-sm text-fg-muted tabular-nums">
+            <p className="mt-0.5 text-label font-normal text-fg-muted tabular-nums">
               <span className="sr-only">Precio unitario: </span>
               {formatPrice(item.price)} c/u
             </p>
@@ -99,7 +99,7 @@ export function CartLine({ item, onQuantityChange, onRemove, priority = false, r
           />
           <p className="flex items-baseline gap-1.5 text-fg">
             <span className="text-caption text-fg-muted">Subtotal</span>
-            <TickingPrice value={lineTotal} className="text-lg font-bold" data-testid="cart-line-total" />
+            <TickingPrice value={lineTotal} className="text-title" data-testid="cart-line-total" />
           </p>
         </div>
         {item.quantity >= item.stock ? (

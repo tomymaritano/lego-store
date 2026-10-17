@@ -104,7 +104,7 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
               <li>
                 <Button
                   variant="ghost"
-                  className={cn(itemClasses, "h-auto w-full justify-start text-base")}
+                  className={cn(itemClasses, "h-auto w-full justify-start text-body")}
                   onClick={() => {
                     close();
                     onOpenCart();
@@ -129,7 +129,7 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
           </m.nav>
         </SheetBody>
         <SheetFooter className="flex-row items-center justify-between">
-          <span className="text-sm font-medium text-fg-secondary">Tema</span>
+          <span className="text-label font-medium text-fg-secondary">Tema</span>
           <ThemeToggle showLabel />
         </SheetFooter>
       </SheetContent>

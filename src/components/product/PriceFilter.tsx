@@ -70,7 +70,7 @@ export function PriceFilter({
       <legend className="float-left mb-1 flex w-full items-baseline justify-between gap-2 text-label text-fg">
         Precio
         {/* Visual summary; each thumb announces its own value. */}
-        <span aria-hidden="true" className="text-sm font-normal text-fg-secondary tabular-nums">
+        <span aria-hidden="true" className="text-label font-normal text-fg-secondary tabular-nums">
           {formatPrice(range[0])} – {formatPrice(range[1])}
         </span>
       </legend>

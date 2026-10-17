@@ -50,7 +50,7 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
                     <h3 className="text-title">{category.name}</h3>
                     <span className="text-caption text-fg-muted">{pluralize(category.productCount, "set")}</span>
                   </div>
-                  <p className="mt-1 text-sm text-fg-muted">{category.description}</p>
+                  <p className="mt-1 text-label font-normal text-fg-muted">{category.description}</p>
                   <span className="mt-4 flex items-center text-label text-info">
                     Ver colección
                     <ArrowRight

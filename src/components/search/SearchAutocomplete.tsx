@@ -216,7 +216,7 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false, vari
           autoFocus={autoFocus}
           leftIcon={<Search />}
           className={cn(
-            "rounded-full pr-10 text-sm [&::-webkit-search-cancel-button]:hidden",
+            "rounded-full pr-10 text-label font-normal [&::-webkit-search-cancel-button]:hidden",
             inline ? "h-12 text-body" : "h-10"
           )}
           data-testid="search-input"

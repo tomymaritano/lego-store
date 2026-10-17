@@ -45,7 +45,7 @@ export function Stepper({ current }: { current: CheckoutStep }) {
                 animate={{ scale: isActive ? 1.08 : 1 }}
                 transition={transitions.spring}
                 className={cn(
-                  "relative z-10 flex size-8 items-center justify-center rounded-full text-sm font-bold ring-4 ring-bg-subtle",
+                  "relative z-10 flex size-8 items-center justify-center rounded-full text-label font-bold ring-4 ring-bg-subtle",
                   "transition-colors duration-base ease-standard",
                   isActive && "bg-primary text-on-primary",
                   isCompleted && "bg-success text-on-success",
@@ -54,7 +54,7 @@ export function Stepper({ current }: { current: CheckoutStep }) {
               >
                 {isCompleted ? <Check className="size-4" strokeWidth={3} /> : index + 1}
               </m.span>
-              <span className={cn("text-sm", isActive ? "font-semibold text-fg" : "text-fg-muted")}>
+              <span className={cn("text-label font-normal", isActive ? "font-semibold text-fg" : "text-fg-muted")}>
                 {step.label}
                 {isCompleted && <span className="sr-only"> (completado)</span>}
               </span>

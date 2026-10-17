@@ -30,7 +30,7 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
   return (
     <>
       <aside aria-label="Promoción" className="bg-brand-red text-on-brand-red">
-        <p className="container-custom flex flex-wrap items-center justify-center gap-x-2 py-2 text-center text-sm font-medium">
+        <p className="container-custom flex flex-wrap items-center justify-center gap-x-2 py-2 text-center text-label font-medium">
           <Truck aria-hidden="true" className="size-4 shrink-0" />
           <span>Envío gratis en compras desde {formatPrice(siteConfig.commerce.freeShippingThreshold)}</span>
           <Link
@@ -58,7 +58,7 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
                 </li>
               ))}
               <li>
-                <ThemesMenu themes={themeLinks} triggerClassName="h-10 px-3 text-base font-medium" />
+                <ThemesMenu themes={themeLinks} triggerClassName="h-10 px-3 text-body font-medium" />
               </li>
             </ul>
           </nav>

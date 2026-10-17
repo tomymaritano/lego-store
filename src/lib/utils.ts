@@ -7,7 +7,7 @@ import { extendTailwindMerge } from "tailwind-merge";
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
-      "font-size": [{ text: ["caption", "label", "body", "title", "display"] }],
+      "font-size": [{ text: ["caption", "label", "body", "title", "heading", "headline", "display"] }],
       shadow: [{ shadow: ["card"] }],
       // Motion tokens from globals.css, so `cn(base, className)` overrides them.
       duration: [{ duration: ["fast", "base", "slow"] }],

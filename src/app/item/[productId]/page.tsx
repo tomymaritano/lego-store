@@ -98,12 +98,12 @@ export default async function ItemPage({ params }: ItemPageProps) {
             <div className="space-y-6">
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold tracking-wider text-info uppercase">{product.theme}</p>
+                  <p className="text-label tracking-wider text-info uppercase">{product.theme}</p>
                   <Badge variant="neutral">{product.highlight}</Badge>
                 </div>
                 <h1 className="text-headline text-balance">{product.name}</h1>
                 {/* Catalogue rating (same as the product cards), labelled as such; the link counts the reviews in the tab. */}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label font-normal">
                   <Rating value={product.rating} showValue />
                   <span className="text-fg-muted">valoración general</span>
                   <span aria-hidden="true" className="text-fg-muted">
@@ -120,7 +120,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
                 size="lg"
               />
 
-              <p className="text-lg leading-relaxed text-fg-secondary">{product.shortDescription}</p>
+              <p className="text-title font-normal leading-relaxed text-fg-secondary">{product.shortDescription}</p>
 
               <div className="rounded-2xl border border-border bg-surface p-5 shadow-card sm:p-6">
                 <ProductPurchase product={product} />
@@ -145,14 +145,14 @@ export default async function ItemPage({ params }: ItemPageProps) {
             <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <div className="space-y-4">
                 <h2 className="sr-only">Descripción</h2>
-                <p className="max-w-prose text-lg leading-relaxed text-fg-secondary">{product.description}</p>
+                <p className="max-w-prose text-body leading-relaxed text-fg-secondary">{product.description}</p>
               </div>
               <ul className="grid grid-cols-2 gap-3 self-start" aria-label="Lo esencial">
                 {facts.map(({ icon: Icon, label, value }) => (
                   <li key={label} className="flex flex-col gap-1 rounded-xl border border-border bg-bg-subtle p-4">
                     <Icon aria-hidden="true" className="size-5 text-info" />
                     <span className="text-caption text-fg-muted">{label}</span>
-                    <span className="text-sm font-semibold text-fg">{value}</span>
+                    <span className="text-label text-fg">{value}</span>
                   </li>
                 ))}
               </ul>
@@ -161,7 +161,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
           specs={
             <div>
               <h2 className="sr-only">Especificaciones</h2>
-              <dl className="grid grid-cols-1 gap-x-10 text-sm sm:grid-cols-2">
+              <dl className="grid grid-cols-1 gap-x-10 text-label font-normal sm:grid-cols-2">
                 {specs.map((spec) => (
                   <div key={spec.label} className="flex justify-between gap-4 border-b border-border py-3">
                     <dt className="text-fg-muted">{spec.label}</dt>

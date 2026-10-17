@@ -85,7 +85,7 @@ export function ReviewStep({
           onEdit={onEditShipping}
           disabled={isProcessing}
         >
-          <address className="space-y-0.5 text-sm text-fg-secondary not-italic" data-testid="review-shipping">
+          <address className="space-y-0.5 text-label font-normal text-fg-secondary not-italic" data-testid="review-shipping">
             <p className="font-medium text-fg">
               {shippingInfo.firstName} {shippingInfo.lastName}
             </p>
@@ -109,7 +109,7 @@ export function ReviewStep({
           onEdit={onEditPayment}
           disabled={isProcessing}
         >
-          <div className="space-y-0.5 text-sm text-fg-secondary" data-testid="review-payment">
+          <div className="space-y-0.5 text-label font-normal text-fg-secondary" data-testid="review-payment">
             <p className="font-medium text-fg">
               {CARD_BRAND_LABELS[payment.brand]} <span className="font-mono">{maskedNumber(payment.last4)}</span>
             </p>

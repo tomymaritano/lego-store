@@ -77,14 +77,14 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
                 </span>
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="line-clamp-2 text-sm font-medium text-fg">{line.name}</span>
+                <span className="line-clamp-2 text-label font-medium text-fg">{line.name}</span>
                 {line.quantity > 1 && (
                   <span className="text-caption text-fg-muted tabular-nums">
                     {line.quantity} × {formatPrice(line.price)}
                   </span>
                 )}
               </span>
-              <span className="text-sm font-semibold text-fg tabular-nums">{formatPrice(line.price * line.quantity)}</span>
+              <span className="text-label text-fg tabular-nums">{formatPrice(line.price * line.quantity)}</span>
             </li>
           ))}
         </ul>
@@ -104,7 +104,7 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
                 animate="visible"
                 exit="exit"
                 aria-hidden="true"
-                className="absolute inset-0 top-2 flex items-center justify-center gap-2 rounded-lg bg-surface/85 text-sm font-medium text-fg backdrop-blur-sm"
+                className="absolute inset-0 top-2 flex items-center justify-center gap-2 rounded-lg bg-surface/85 text-label font-medium text-fg backdrop-blur-sm"
               >
                 <Spinner className="size-5" />
                 Procesando el pago…

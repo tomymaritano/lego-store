@@ -171,7 +171,7 @@ export function CompareView() {
                 </p>
               ) : null}
               <CompareScroller labelledBy="compare-title">
-                <table className="w-full border-separate border-spacing-0 text-sm" data-highlight={showDifferences || undefined}>
+                <table className="w-full border-separate border-spacing-0 text-label font-normal" data-highlight={showDifferences || undefined}>
                   <caption className="sr-only">
                     Características de los productos seleccionados
                     {showDifferences ? ". Las filas con valores distintos están resaltadas." : ""}
@@ -214,7 +214,7 @@ export function CompareView() {
                                   className="object-contain p-2 transition-[scale] duration-slow ease-emphasized group-hover:scale-105"
                                 />
                               </span>
-                              <span className="line-clamp-2 text-sm font-semibold text-fg group-hover:text-info">
+                              <span className="line-clamp-2 text-label text-fg group-hover:text-info">
                                 {product.name}
                               </span>
                             </Link>
@@ -225,7 +225,7 @@ export function CompareView() {
                         <td className={cn(VALUE_CELL, "border-b border-border align-top")}>
                           <Link
                             href="/"
-                            className="mx-auto flex h-40 max-w-40 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border-strong p-3 text-center text-sm text-fg-muted transition-colors duration-fast hover:border-info hover:text-info"
+                            className="mx-auto flex h-40 max-w-40 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border-strong p-3 text-center text-label font-normal text-fg-muted transition-colors duration-fast hover:border-info hover:text-info"
                           >
                             <Plus aria-hidden="true" className="size-5" />
                             Agregar producto

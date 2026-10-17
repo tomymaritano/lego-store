@@ -138,7 +138,7 @@ export function PaymentStep({ summary, focusHeading, onSubmit, onBack }: Payment
           </Field>
         </div>
 
-        <p className="flex items-start gap-3 rounded-xl bg-bg-subtle p-4 text-sm text-fg-secondary">
+        <p className="flex items-start gap-3 rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary">
           <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
           <span>
             Pago protegido con cifrado. Esta tienda es una demo: no se cobra nada ni se guardan los datos de la tarjeta.

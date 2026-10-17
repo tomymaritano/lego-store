@@ -28,7 +28,7 @@ export default function NotFound() {
               <span className={`h-3 w-5 rounded-t-md ${brick.className} brightness-95`} />
             </div>
             <span
-              className={`flex h-24 w-20 items-center justify-center rounded-xl text-5xl font-extrabold shadow-lg ${brick.className}`}
+              className={`flex h-24 w-20 items-center justify-center rounded-xl text-display shadow-lg ${brick.className}`}
             >
               {brick.digit}
             </span>
@@ -37,7 +37,7 @@ export default function NotFound() {
       </div>
 
       <h1 className="text-headline">Esta pieza no está en la caja</h1>
-      <p className="mt-3 max-w-md text-lg text-fg-secondary">
+      <p className="mt-3 max-w-md text-title font-normal text-fg-secondary">
         La página que buscas no existe o se movió. Prueba buscando el set o vuelve al inicio.
       </p>
 
@@ -53,7 +53,7 @@ export default function NotFound() {
       </div>
 
       <nav aria-label="Ayuda" className="mt-10">
-        <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
+        <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-label font-normal">
           {helpLinks.map((link) => (
             <li key={link.href}>
               <Link href={link.href} className="rounded-sm text-fg-secondary underline-offset-4 hover:text-fg hover:underline">

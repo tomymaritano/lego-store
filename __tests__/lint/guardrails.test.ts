@@ -111,6 +111,29 @@ describe("design-system guardrails", () => {
     });
   });
 
+  describe("type scale", () => {
+    it.each([
+      ["text-sm", `<p className="text-sm text-fg" />`],
+      ["md:text-2xl", `<h2 className="text-title md:text-2xl" />`],
+      ["text-xl in a template", "<p className={`p-2 text-xl`} />"],
+    ])("flags %s in app code", async (_name, body) => {
+      const hits = await guardrailHits(jsx(body), APP_FILE);
+      expect(hits.length).toBeGreaterThan(0);
+      expect(hits.every((m) => m.severity === 2)).toBe(true);
+    });
+
+    it.each([
+      ["tokens", `<p className="text-label text-caption text-body text-title text-heading text-headline text-display" />`],
+      ["colours that look like sizes", `<p className="text-fg-secondary text-on-primary text-sale" />`],
+    ])("allows %s in app code", async (_name, body) => {
+      expect(await guardrailHits(jsx(body), APP_FILE)).toEqual([]);
+    });
+
+    it("leaves primitives their own sizes", async () => {
+      expect(await guardrailHits(jsx(`<button className="text-sm" />`), UI_FILE)).toEqual([]);
+    });
+  });
+
   describe("data access", () => {
     const importData = `import { products } from "@/data/products";
 export const n = products.length;

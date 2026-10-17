@@ -88,7 +88,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
 
         <span
           aria-hidden="true"
-          className="absolute right-4 bottom-4 flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1.5 text-sm font-medium text-fg shadow-md transition-opacity duration-base ease-standard pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:opacity-100"
+          className="absolute right-4 bottom-4 flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1.5 text-label font-medium text-fg shadow-md transition-opacity duration-base ease-standard pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-visible:opacity-100"
         >
           <ZoomIn className="size-4" />
           Ampliar

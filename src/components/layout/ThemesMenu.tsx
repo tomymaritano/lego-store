@@ -63,7 +63,7 @@ export function ThemesMenu({ themes, triggerClassName }: { themes: NavItem[]; tr
                 <Link
                   href={theme.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-lg px-3 py-2 text-sm font-medium text-fg-secondary transition-colors duration-fast ease-standard hover:bg-bg-muted hover:text-fg focus-visible:bg-bg-muted focus-visible:text-fg"
+                  className="block rounded-lg px-3 py-2 text-label font-medium text-fg-secondary transition-colors duration-fast ease-standard hover:bg-bg-muted hover:text-fg focus-visible:bg-bg-muted focus-visible:text-fg"
                 >
                   {theme.name}
                 </Link>

@@ -96,17 +96,17 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
       {/* Info */}
       <div className="flex flex-col p-6 md:w-1/2">
         <span className="text-caption font-semibold tracking-wider text-info uppercase">{product.theme}</span>
-        <DialogTitle className="mt-2 pr-8 text-2xl font-bold">{product.name}</DialogTitle>
+        <DialogTitle className="mt-2 pr-8 text-heading">{product.name}</DialogTitle>
 
         <Rating className="mt-3" value={product.rating} showValue />
 
         <Price className="mt-4" size="lg" value={product.price} originalValue={discounted ? product.originalPrice : undefined} />
 
         {product.description && (
-          <DialogDescription className="mt-4 line-clamp-3 text-sm text-fg-secondary">{product.description}</DialogDescription>
+          <DialogDescription className="mt-4 line-clamp-3 text-label font-normal text-fg-secondary">{product.description}</DialogDescription>
         )}
 
-        <dl className="mt-4 space-y-2 text-sm">
+        <dl className="mt-4 space-y-2 text-label font-normal">
           {product.pieces && (
             <div className="flex justify-between border-b border-border py-2">
               <dt className="text-fg-muted">Piezas</dt>
@@ -145,7 +145,7 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
             {!isAvailable ? "Agotado" : cartIsFull ? "Ver carrito" : "Agregar al carrito"}
           </Button>
           {inCartQuantity > 0 ? (
-            <p className="text-center text-sm text-fg-secondary">
+            <p className="text-center text-label font-normal text-fg-secondary">
               Ya tienes {inCartQuantity} en el carrito
             </p>
           ) : null}

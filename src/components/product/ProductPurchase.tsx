@@ -30,7 +30,7 @@ export function StockStatus({ stock }: { stock: number }) {
           : `¡Últimas ${stock} unidades!`
         : `En stock · ${stock} unidades disponibles`;
   return (
-    <p className="flex items-center gap-2 text-sm font-semibold" data-testid="stock-status">
+    <p className="flex items-center gap-2 text-label" data-testid="stock-status">
       <span
         aria-hidden="true"
         className={cn(
@@ -190,7 +190,7 @@ export function ProductPurchase({ product }: { product: Product }) {
       <AnimatePresence initial={false}>
         {inCartQuantity > 0 && (
           <m.div key="in-cart" variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden">
-            <p className="flex items-center gap-2 pt-4 text-sm text-fg-secondary">
+            <p className="flex items-center gap-2 pt-4 text-label font-normal text-fg-secondary">
               <PackageCheck aria-hidden="true" className="size-4 shrink-0 text-info" />
               <span>
                 Tienes {inCartQuantity} en tu carrito ·{" "}

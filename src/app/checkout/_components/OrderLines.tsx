@@ -14,11 +14,11 @@ export function OrderLines({ lines, label }: { lines: readonly CartItem[]; label
           <span className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-bg-subtle">
             <ProductImage src={line.image} alt="" fill sizes="48px" className="object-contain p-1" />
           </span>
-          <span className="min-w-0 flex-1 text-left text-sm">
+          <span className="min-w-0 flex-1 text-left text-label font-normal">
             <span className="line-clamp-1 font-medium text-fg">{line.name}</span>
             <span className="text-caption text-fg-muted">Cantidad: {line.quantity}</span>
           </span>
-          <span className="text-sm font-semibold text-fg tabular-nums">{formatPrice(line.price * line.quantity)}</span>
+          <span className="text-label text-fg tabular-nums">{formatPrice(line.price * line.quantity)}</span>
         </li>
       ))}
     </ul>
