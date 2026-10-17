@@ -169,6 +169,7 @@ export function Footer() {
                   <li key={link.name}>
                     <Link
                       href={link.href}
+                      prefetch={false}
                       className="text-gray-400 hover:text-lego-yellow transition-colors text-sm inline-block hover:translate-x-1 duration-200"
                     >
                       {link.name}
@@ -221,16 +222,16 @@ export function Footer() {
 
             {/* Legal Links */}
             <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-500">
-              <Link href="/privacy" className="hover:text-white transition-colors">
+              <Link href="/privacy" prefetch={false} className="hover:text-white transition-colors">
                 Privacidad
               </Link>
-              <Link href="/terms" className="hover:text-white transition-colors">
+              <Link href="/terms" prefetch={false} className="hover:text-white transition-colors">
                 Términos
               </Link>
-              <Link href="/cookies" className="hover:text-white transition-colors">
+              <Link href="/cookies" prefetch={false} className="hover:text-white transition-colors">
                 Cookies
               </Link>
-              <Link href="/accessibility" className="hover:text-white transition-colors">
+              <Link href="/accessibility" prefetch={false} className="hover:text-white transition-colors">
                 Accesibilidad
               </Link>
             </div>
