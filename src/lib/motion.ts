@@ -58,11 +58,27 @@ export const scaleIn: Variants = {
   exit: { opacity: 0, scale: 0.98, transition: transitions.exit },
 };
 
-/** Wizard steps (checkout): enter from the right, leave to the left. */
+/**
+ * Wizard steps (checkout). `custom` is the direction of travel (1 = forward,
+ * -1 = back): going forward the new step enters from the right and the old
+ * one leaves to the left; going back it mirrors. Pass the same `custom` to
+ * AnimatePresence so the exiting step uses the latest direction.
+ */
 export const stepSlide: Variants = {
-  hidden: { opacity: 0, x: 20 },
+  hidden: (direction: number = 1) => ({ opacity: 0, x: direction * 24 }),
   visible: { opacity: 1, x: 0, transition: transitions.slow },
-  exit: { opacity: 0, x: -20, transition: transitions.exit },
+  exit: (direction: number = 1) => ({ opacity: 0, x: direction * -24, transition: transitions.exit }),
+};
+
+/** Success mark: the circle pops in with a spring, then the tick draws itself. */
+export const successPop: Variants = {
+  hidden: { opacity: 0, scale: 0.6 },
+  visible: { opacity: 1, scale: 1, transition: { type: "spring", stiffness: 380, damping: 18 } },
+};
+
+export const drawPath: Variants = {
+  hidden: { pathLength: 0 },
+  visible: { pathLength: 1, transition: { ...transitions.slow, delay: duration.fast } },
 };
 
 /**

@@ -14,14 +14,15 @@ describe("checkoutStore", () => {
   it("keeps only a summary of the card, never the number or the CVV", () => {
     useCheckoutStore.getState().setPaymentInfo(card);
     const state = useCheckoutStore.getState();
-    expect(state.paymentSummary).toEqual({ cardName: "Ana Pérez", expiryDate: "12/29", last4: "1234" });
+    expect(state.paymentSummary).toEqual({ brand: "visa", cardName: "Ana Pérez", expiryDate: "12/29", last4: "1234" });
     const serialized = JSON.stringify(state);
     expect(serialized).not.toContain("4111");
     expect(serialized).not.toContain("987");
   });
 
   it("summarizes any card format", () => {
-    expect(summarizePayment({ ...card, cardNumber: "5555-4444-3333-2222" }).last4).toBe("2222");
+    expect(summarizePayment({ ...card, cardNumber: "5555-4444-3333-2222" })).toMatchObject({ last4: "2222", brand: "mastercard" });
+    expect(summarizePayment({ ...card, cardNumber: "3782 822463 10005" })).toMatchObject({ last4: "0005", brand: "amex" });
   });
 
   it("is not persisted", () => {
@@ -32,7 +33,7 @@ describe("checkoutStore", () => {
       phone: "1155555555",
       address: "Calle 123",
       city: "CABA",
-      state: "CABA",
+      state: "Ciudad Autónoma de Buenos Aires",
       zipCode: "1000",
       country: "Argentina",
     });
@@ -43,7 +44,7 @@ describe("checkoutStore", () => {
   it("processes the order, moves to confirmation and drops the payment summary", async () => {
     vi.useFakeTimers();
     useCheckoutStore.getState().setPaymentInfo(card);
-    const pending = useCheckoutStore.getState().processOrder();
+    const pending = useCheckoutStore.getState().processOrder({ total: 1198 });
     expect(useCheckoutStore.getState().isProcessing).toBe(true);
     await vi.runAllTimersAsync();
     const orderId = await pending;
@@ -52,6 +53,7 @@ describe("checkoutStore", () => {
       currentStep: "confirmation",
       isProcessing: false,
       orderId,
+      orderTotal: 1198,
       paymentSummary: null,
     });
   });

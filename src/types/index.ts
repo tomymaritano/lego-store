@@ -211,8 +211,11 @@ export interface PaymentInfo {
   cvv: string;
 }
 
+export type CardBrand = "visa" | "mastercard" | "amex" | "unknown";
+
 /** What survives the payment step: never the card number or the CVV. */
 export interface PaymentSummary {
+  brand: CardBrand;
   cardName: string;
   last4: string;
   expiryDate: string;
