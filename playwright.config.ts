@@ -39,6 +39,9 @@ export default defineConfig({
       url: PROD_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,
+      // Separate build folder: building into .next while `next dev` reads it
+      // broke dev requests mid-run ("Unexpected end of JSON input").
+      env: { NEXT_DIST_DIR: ".next-e2e" },
     },
   ],
 });
