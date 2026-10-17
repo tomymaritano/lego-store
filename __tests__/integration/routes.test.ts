@@ -98,3 +98,51 @@ describe("proxy (real 404 status)", () => {
     expect(res.headers.get("x-middleware-rewrite")).toMatch(/\/not-found\/__missing$/);
   });
 });
+
+describe("proxy (protected sections)", () => {
+  const SECRET = process.env.AUTH_SECRET ?? "integration-test-secret";
+  process.env.AUTH_SECRET = SECRET;
+
+  /** A request carrying a session cookie signed like Auth.js signs it. */
+  async function withSession(path: string, method = "GET") {
+    const { encode } = await import("next-auth/jwt");
+    const salt = "authjs.session-token";
+    const token = await encode({ token: { sub: "someone", role: "USER", sv: 0 }, secret: SECRET, salt });
+    // Auth.js builds its session URL from Host and X-Forwarded-Proto, which Next sets on every
+    // real request (without the protocol it assumes https and looks for the __Secure- cookie).
+    return new NextRequest(new URL(path, "http://localhost"), {
+      method,
+      headers: { host: "localhost", "x-forwarded-proto": "http", cookie: `${salt}=${token}` },
+    });
+  }
+
+  it.each([
+    ["/account", "/login?callbackUrl=%2Faccount"],
+    ["/account/orders/abc?tab=1", "/login?callbackUrl=%2Faccount%2Forders%2Fabc%3Ftab%3D1"],
+    ["/admin", "/login?callbackUrl=%2Fadmin"],
+  ])("sends a visitor without a session from %s to login", async (path, location) => {
+    const res = await proxy(request(path));
+    expect(res.status).toBe(307);
+    expect(new URL(res.headers.get("location")!).pathname + new URL(res.headers.get("location")!).search).toBe(location);
+  });
+
+  it("lets a signed session through (the pages then check the user and role in the database)", async () => {
+    for (const path of ["/account", "/admin"]) {
+      const res = await proxy(await withSession(path));
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("ignores a cookie that was not signed with the secret", async () => {
+    const forged = new NextRequest(new URL("/admin", "http://localhost"), {
+      headers: { host: "localhost", "x-forwarded-proto": "http", cookie: "authjs.session-token=not-a-real-token" },
+    });
+    expect((await proxy(forged)).status).toBe(307);
+  });
+
+  it("leaves Server Action POSTs to their own checks (no redirect on POST)", async () => {
+    const res = await proxy(new NextRequest(new URL("/account", "http://localhost"), { method: "POST" }));
+    expect(res.headers.get("location")).toBeNull();
+  });
+});

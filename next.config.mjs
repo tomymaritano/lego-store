@@ -9,6 +9,10 @@ const nextConfig = {
   turbopack: {
     root: import.meta.dirname,
   },
+  experimental: {
+    // forbidden() (src/lib/auth/session.ts requireAdmin): a real 403 with src/app/forbidden.tsx.
+    authInterrupts: true,
+  },
   images: {
     // AVIF first (noticeably smaller than WebP for the set renders), WebP as
     // the fallback. Optimised variants are cached, so the slower AVIF encode

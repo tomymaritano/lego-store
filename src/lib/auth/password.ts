@@ -1,8 +1,10 @@
 import bcrypt from "bcryptjs";
+import { MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, isPasswordTooLong } from "./password-rules";
 
 /*
  * Password hashing (bcrypt, pure JS: no native build on Windows or Vercel).
- * Used by registration/login and by the seed for the admin user.
+ * Used by registration/login and by the seed for the admin user. The length
+ * rules live in ./password-rules.ts (no bcrypt, safe for any bundle).
  *
  * bcrypt only reads the first 72 bytes of its input and silently ignores the
  * rest, so two long passwords sharing those bytes would verify as equal.
@@ -13,13 +15,7 @@ import bcrypt from "bcryptjs";
 
 const COST = 12;
 
-export const MIN_PASSWORD_LENGTH = 8;
-/** bcrypt's input limit, in UTF-8 bytes ("ñ" or an emoji count as more than one). */
-export const MAX_PASSWORD_BYTES = 72;
-
-export function isPasswordTooLong(password: string): boolean {
-  return new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES;
-}
+export { MIN_PASSWORD_LENGTH, MAX_PASSWORD_BYTES, isPasswordTooLong };
 
 export function hashPassword(password: string): Promise<string> {
   if (isPasswordTooLong(password)) {
