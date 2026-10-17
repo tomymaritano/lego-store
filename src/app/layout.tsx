@@ -71,7 +71,7 @@ export default async function RootLayout({
           <CategoriesProvider categories={categories}>
             <ClientProviders>
               <Navbar categories={categories} />
-              <main id="main-content" className="flex-1 scroll-mt-20 outline-none" tabIndex={-1}>
+              <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
                 {children}
               </main>
               <Footer categories={categories} />

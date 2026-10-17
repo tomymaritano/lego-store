@@ -257,6 +257,9 @@
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
 
+  /* Sticky site header height (h-16 bar). Also the scroll offset for anchors and focus (see html below). */
+  --spacing-header: 4rem;
+
   /* Type scale (text-caption, text-label, text-body, text-title, text-display) */
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
@@ -317,6 +320,11 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  /* Anchors, focus() and scrollIntoView stop below the sticky header (plus a little air). */
+  html {
+    scroll-padding-top: calc(var(--spacing-header) + --spacing(4));
   }
 
   input::placeholder,

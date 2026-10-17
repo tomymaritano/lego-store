@@ -313,7 +313,16 @@ function ReviewForm({ productId, onDone }: { productId: string; onDone: () => vo
       noValidate
       onSubmit={handleSubmit(onSubmit, (invalid) => {
         const first = FIELD_ORDER.find((name) => invalid[name]);
-        if (first) setFocus(first);
+        if (!first) return;
+        setFocus(first);
+        // focus() only scrolls the control itself into view; bring its whole group (legend,
+        // stars, error) to the middle of the viewport so the sticky header never covers it.
+        // setFocus focuses in a timeout, so this one is queued right after it.
+        setTimeout(() => {
+          const focused = document.activeElement;
+          const group = focused instanceof HTMLElement ? focused.closest("fieldset, [data-slot='field']") : null;
+          group?.scrollIntoView?.({ block: "center" });
+        });
       })}
       aria-labelledby="review-form-title"
       className="space-y-5 rounded-2xl border border-border bg-surface p-6 shadow-card"

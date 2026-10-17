@@ -9,7 +9,7 @@ import { SectionHeader } from "./SectionHeader";
 /** Every set, with infinite scroll; filtering and sorting live on /search. */
 export function CatalogSection({ firstPage }: { firstPage: PaginatedResponse<Product> }) {
   return (
-    <section id="products" aria-labelledby="products-title" className="scroll-mt-20 bg-bg py-16 md:py-20">
+    <section id="products" aria-labelledby="products-title" className="bg-bg py-16 md:py-20">
       <div className="container-custom">
         <SectionHeader
           id="products-title"

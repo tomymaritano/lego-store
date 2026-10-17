@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ProductReviews, sortReviews } from "@/components/product/ProductReviews";
 import { mockReviews, useReviewStore } from "@/stores/reviewStore";
@@ -89,5 +89,19 @@ describe("ProductReviews", () => {
     const saved = useReviewStore.getState().reviews.find((r) => r.productId === "2");
     expect(saved).toMatchObject({ userName: "Ana", rating: 4, title: "Genial", verified: false, helpful: 0 });
     await waitFor(() => expect(screen.getByRole("button", { name: "Escribir reseña" })).toHaveFocus());
+  });
+
+  it("scrolls the whole invalid group (legend, stars, error) to the middle, clear of the sticky header", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { value: scrollIntoView, configurable: true });
+    try {
+      render(<ProductReviews productId="2" />);
+      fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
+      fireEvent.click(screen.getByRole("button", { name: "Publicar reseña" }));
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" }));
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen.getByRole("radiogroup", { name: /Tu calificación/ }));
+    } finally {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    }
   });
 });

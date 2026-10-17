@@ -117,7 +117,7 @@ export function CatalogView({
         </div>
       </aside>
 
-      <section ref={resultsRef} aria-labelledby={resultsTitleId} className="min-w-0 scroll-mt-24">
+      <section ref={resultsRef} aria-labelledby={resultsTitleId} className="min-w-0">
         <h2 id={resultsTitleId} className="sr-only">
           Productos
         </h2>

@@ -38,7 +38,7 @@ export function ProductDetailsTabs({ productId, description, specs }: ProductDet
   }, []);
 
   return (
-    <section id={REVIEWS_HASH} aria-label="Detalles del producto" className="scroll-mt-24">
+    <section id={REVIEWS_HASH} aria-label="Detalles del producto">
       <Tabs value={tab} onValueChange={(value) => setTab(value as DetailsTab)}>
         <TabsList aria-label="Detalles del producto">
           <TabsTrigger value="description">Descripción</TabsTrigger>
