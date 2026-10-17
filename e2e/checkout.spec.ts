@@ -224,11 +224,18 @@ test.describe("Checkout", () => {
     await page.getByRole("button", { name: /Continuar al pago/ }).click();
     await fillPayment(page);
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
+    // The mock payment is a 1.2 s timer: stop the page's clock right after it
+    // starts, so it cannot fire while we navigate away (on a busy dev server
+    // the navigation could take longer and the test raced the payment).
+    await page.clock.install();
     await page.getByRole("button", { name: /Confirmar pedido/ }).click();
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1);
     await expect(page.getByTestId("place-order")).toHaveAttribute("aria-busy", "true");
 
-    await page.getByRole("navigation", { name: "Ruta de navegación" }).getByRole("link", { name: "Carrito" }).click();
+    // force: with the clock stopped no animation frame runs, so the link never "settles".
+    await page.getByRole("navigation", { name: "Ruta de navegación" }).getByRole("link", { name: "Carrito" }).click({ force: true });
     await expect(page).toHaveURL(/\/cart$/);
+    await page.clock.resume();
     await expect(page.getByText(/Cancelamos el pago porque saliste del checkout/)).toBeVisible();
     // Past the mock payment's delay: still no order, the cart is intact.
     await page.waitForTimeout(1_500);
