@@ -29,13 +29,14 @@ describe("compare rows", () => {
   });
 
   it("flags only the rows whose values differ", () => {
-    const other = { ...base, id: "2", price: 649, theme: "Marvel", stock: 1 };
+    const other = { ...base, id: "2", price: 649, theme: "Marvel" };
     expect([...differingRows([base, other])].sort()).toEqual(["price", "theme"]);
   });
 
-  it("compares availability, not the exact stock", () => {
-    expect(compareValue({ ...base, stock: 3 }, "availability")).toBe(compareValue(base, "availability"));
-    const soldOut = { ...base, id: "2", stock: 0 };
-    expect(differingRows([base, soldOut]).has("availability")).toBe(true);
+  it("compares the stock count the availability cell shows", () => {
+    expect(differingRows([base, { ...base, id: "2", stock: 3 }]).has("availability")).toBe(true);
+    expect(differingRows([base, { ...base, id: "2" }]).has("availability")).toBe(false);
+    expect(differingRows([base, { ...base, id: "2", stock: 0 }]).has("availability")).toBe(true);
+    expect(compareValue({ ...base, stock: -1 }, "availability")).toBe(compareValue({ ...base, stock: 0 }, "availability"));
   });
 });

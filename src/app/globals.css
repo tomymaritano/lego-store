@@ -56,6 +56,7 @@
   --blue-700: #0d4f9e;
   --blue-800: #0a3a75;
   --blue-900: #06234a;
+  --blue-850: #1f3550; /* muted deep blue: tints on dark surfaces */
 
   /* Warm stone neutrals */
   --stone-0: #ffffff;
@@ -139,6 +140,9 @@
   /* White tile behind product/category photos: some are opaque JPEGs with a
      white background, so every photo sits on the same tile in both themes. */
   --photo-tile: var(--stone-0);
+  /* Tint for highlighted table rows (compare "Resaltar diferencias"): a blue
+     wash that reads on the surface in both themes and keeps body text AA. */
+  --row-highlight: var(--blue-50);
 
   /* ---- Elevation (dark-aware) ------------------------------------------- */
   --shadow-color: 28 25 23;
@@ -191,6 +195,7 @@
 
   --badge-neutral: var(--stone-750);
   --info-surface: var(--blue-800);
+  --row-highlight: var(--blue-850);
 
   --shadow-color: 0 0 0;
   --elevation-sm: 0 1px 2px rgb(var(--shadow-color) / 0.3);
@@ -238,6 +243,7 @@
   --color-info-surface: var(--info-surface);
   --color-on-info-surface: var(--on-info-surface);
   --color-photo-tile: var(--photo-tile);
+  --color-row-highlight: var(--row-highlight);
 
   /* Shadows */
   --shadow-sm: var(--elevation-sm);

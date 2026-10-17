@@ -13,7 +13,10 @@ export const COMPARE_ROWS = [
 
 export type CompareRowKey = (typeof COMPARE_ROWS)[number]["key"];
 
-/** The value a row compares (what "different" means for it). */
+/**
+ * The value a row compares (what "different" means for it). It must match
+ * what the cell shows: availability shows the stock count, so it compares it.
+ */
 export function compareValue(product: Product, key: CompareRowKey): string | number {
   switch (key) {
     case "price":
@@ -21,7 +24,7 @@ export function compareValue(product: Product, key: CompareRowKey): string | num
     case "rating":
       return product.rating;
     case "availability":
-      return product.stock > 0 ? "in-stock" : "sold-out";
+      return Math.max(0, product.stock);
     default:
       return product[key];
   }

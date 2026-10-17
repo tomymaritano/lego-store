@@ -68,6 +68,7 @@ const pairs: Array<[string, string, number]> = [
   ["border-strong", "surface", UI],
   ["rating", "bg", UI],
   ["rating", "surface", UI],
+  ...["fg", "fg-secondary", "fg-muted", "info"].map((fg): [string, string, number] => [fg, "row-highlight", TEXT]),
 ];
 
 describe.each([
@@ -76,6 +77,16 @@ describe.each([
 ])("contrast (%s)", (_mode, vars) => {
   it.each(pairs)("%s on %s >= %s:1", (fg, bg, min) => {
     expect(contrast(resolve(vars, fg), resolve(vars, bg))).toBeGreaterThanOrEqual(min);
+  });
+});
+
+describe("row highlight", () => {
+  // Compare "Resaltar diferencias": the tint must be visible on the table surface.
+  it.each([
+    ["light", light],
+    ["dark", dark],
+  ])("stands out from the surface (%s)", (_mode, vars) => {
+    expect(contrast(resolve(vars, "row-highlight"), resolve(vars, "surface"))).toBeGreaterThanOrEqual(1.1);
   });
 });
 

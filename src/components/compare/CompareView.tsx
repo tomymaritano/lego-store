@@ -250,7 +250,8 @@ export function CompareView() {
                             className={cn(
                               STICKY_LABEL,
                               "border-b font-medium text-fg transition-colors duration-base",
-                              marked && "bg-bg-muted"
+                              marked &&
+                                "bg-row-highlight before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-info"
                             )}
                           >
                             <span className="flex items-center gap-2">
@@ -266,7 +267,7 @@ export function CompareView() {
                               className={cn(
                                 VALUE_CELL,
                                 "border-b border-border text-fg transition-colors duration-base",
-                                marked && "bg-bg-muted"
+                                marked && "bg-row-highlight"
                               )}
                             >
                               {renderValue(product, row.key)}
