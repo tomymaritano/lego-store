@@ -1,3 +1,5 @@
+import { FREE_SHIPPING_FROM, SHIPPING_COST } from "@/lib/pricing";
+
 /**
  * Store-wide settings: identity (metadata), locale, contact details and
  * commerce rules. Read by the root layout (metadata), the shell (Navbar,
@@ -31,9 +33,9 @@ export const siteConfig = {
     { name: "X", href: "https://x.com/LEGO_Group" },
   ],
   commerce: {
-    /** Orders at or above this subtotal ship free. */
-    freeShippingThreshold: 5000,
-    shippingCost: 299,
+    /** Orders at or above this subtotal ship free (rules live in lib/pricing). */
+    freeShippingThreshold: FREE_SHIPPING_FROM,
+    shippingCost: SHIPPING_COST,
     /** Days a customer has to return an order. */
     returnDays: 30,
     /** Business days for standard delivery (min–max). */

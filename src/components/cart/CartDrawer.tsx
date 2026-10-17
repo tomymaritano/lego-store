@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, ShoppingCart, Trash2 } from "lucide-react";
 import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { dismissible, fadeIn, transitions } from "@/lib/motion";
-import { quoteShipping } from "@/lib/shipping";
+import { quoteShipping } from "@/lib/pricing";
 import { formatPrice, pluralize } from "@/lib/utils";
 import {
   Button,

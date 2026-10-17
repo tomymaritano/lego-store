@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { CartItem, ProductSummary } from "@/types";
+import { linesSubtotal } from "@/lib/pricing";
 import { PLACEHOLDER_IMAGE, isRecord, persistStorage } from "./persist";
 import { insertAt, type RestorePosition } from "./restorePosition";
 
@@ -117,7 +118,7 @@ export const useCartItems = () => useCartStore((state) => state.cart);
 export const useCartCount = () => useCartStore((state) => state.cart.reduce((sum, line) => sum + line.quantity, 0));
 
 export const useCartSubtotal = () =>
-  useCartStore((state) => state.cart.reduce((sum, line) => sum + line.quantity * line.price, 0));
+  useCartStore((state) => linesSubtotal(state.cart));
 
 export const useIsInCart = (id: string) => useCartStore((state) => state.cart.some((line) => line.id === id));
 

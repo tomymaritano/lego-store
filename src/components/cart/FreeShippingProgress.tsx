@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import { PartyPopper, Truck } from "lucide-react";
 import { transitions } from "@/lib/motion";
-import { quoteShipping } from "@/lib/shipping";
+import { quoteShipping } from "@/lib/pricing";
 import { cn, formatPrice } from "@/lib/utils";
 
 /**
