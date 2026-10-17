@@ -71,6 +71,13 @@ export interface RatingInputProps {
   error?: string;
   size?: keyof typeof sizes;
   className?: string;
+  /**
+   * Ref to the radio that holds the group's tab stop (the checked one, or the
+   * first): lets a form library focus the rating when it is invalid.
+   */
+  inputRef?: React.Ref<HTMLInputElement>;
+  /** Fired when focus leaves a radio (form "touched" state). */
+  onBlur?: () => void;
 }
 
 /**
@@ -88,6 +95,8 @@ export function RatingInput({
   error,
   size = "lg",
   className,
+  inputRef,
+  onBlur,
 }: RatingInputProps) {
   const autoId = React.useId();
   const groupName = name ?? `rating-${autoId}`;
@@ -125,11 +134,13 @@ export function RatingInput({
               onMouseEnter={() => !disabled && setHovered(option)}
             >
               <input
+                ref={value === option || (value < 1 && option === 1) ? inputRef : undefined}
                 type="radio"
                 name={groupName}
                 value={option}
                 checked={value === option}
                 onChange={() => onValueChange(option)}
+                onBlur={onBlur}
                 required={required}
                 aria-describedby={errorId}
                 className="peer sr-only"

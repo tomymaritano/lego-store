@@ -1,13 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { CheckCircle, MessageSquare, ThumbsUp, User } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
+import { CheckCircle, MessageSquare, PenLine, ThumbsUp } from "lucide-react";
 import { collapse, fadeInUp, transitions } from "@/lib/motion";
 import { cn, pluralize } from "@/lib/utils";
+import { REVIEW_COMMENT_MAX, REVIEW_TITLE_MAX, reviewSchema, type ReviewInput } from "@/lib/validations";
 import { useReviewStore } from "@/stores/reviewStore";
 import type { Review } from "@/types";
-import { Badge, Button, Field, Input, Rating, RatingInput, Textarea } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Field,
+  Input,
+  Rating,
+  RatingInput,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+  showToast,
+} from "@/components/ui";
 
 interface ProductReviewsProps {
   productId: string;
@@ -15,13 +32,58 @@ interface ProductReviewsProps {
 
 const reviewCount = (n: number) => pluralize(n, "reseña");
 
-/** Reviews for one product: summary, rating distribution, list and a form to add one. */
+export const REVIEW_SORTS = [
+  { value: "recent", label: "Más recientes" },
+  { value: "helpful", label: "Más útiles" },
+  { value: "highest", label: "Mejor valoradas" },
+  { value: "lowest", label: "Peor valoradas" },
+] as const;
+
+export type ReviewSort = (typeof REVIEW_SORTS)[number]["value"];
+
+const comparators: Record<ReviewSort, (a: Review, b: Review) => number> = {
+  recent: (a, b) => b.date.localeCompare(a.date),
+  helpful: (a, b) => b.helpful - a.helpful || b.date.localeCompare(a.date),
+  highest: (a, b) => b.rating - a.rating || b.date.localeCompare(a.date),
+  lowest: (a, b) => a.rating - b.rating || b.date.localeCompare(a.date),
+};
+
+/** A copy of `reviews` in the chosen order (ties: newest first). */
+export function sortReviews(reviews: readonly Review[], sort: ReviewSort): Review[] {
+  return [...reviews].sort(comparators[sort]);
+}
+
+/** Dates are stored as YYYY-MM-DD; formatted in UTC so the day never shifts with the visitor's zone. */
+const dateFormat = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const formatReviewDate = (date: string) => {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? date : dateFormat.format(parsed);
+};
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join("");
+
+/**
+ * Reviews for one product: average and rating histogram, a sortable list
+ * with "útil" votes, and a validated form to add one. Reviews still live in
+ * the client-side reviewStore (mock) until the backend provides them.
+ */
 export function ProductReviews({ productId }: ProductReviewsProps) {
   const [showForm, setShowForm] = useState(false);
+  const [sort, setSort] = useState<ReviewSort>("recent");
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const allReviews = useReviewStore((state) => state.reviews);
   const markHelpful = useReviewStore((state) => state.markHelpful);
 
-  const reviews = useMemo(() => allReviews.filter((r) => r.productId === productId), [allReviews, productId]);
+  const reviews = useMemo(
+    () => sortReviews(allReviews.filter((r) => r.productId === productId), sort),
+    [allReviews, productId, sort]
+  );
 
   const averageRating = useMemo(() => {
     if (reviews.length === 0) return 0;
@@ -34,78 +96,109 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     return { rating, count, percentage: reviews.length > 0 ? (count / reviews.length) * 100 : 0 };
   });
 
-  return (
-    <section aria-labelledby="reviews-title" className="border-t border-border py-12">
-      <div className="container-custom space-y-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 id="reviews-title" className="text-title">
-              Reseñas de clientes
-            </h2>
-            <p className="text-fg-muted">{reviewCount(reviews.length)}</p>
-          </div>
-          <Button
-            variant={showForm ? "secondary" : "primary"}
-            onClick={() => setShowForm((open) => !open)}
-            aria-expanded={showForm}
-            aria-controls="review-form"
-          >
-            {showForm ? "Cancelar" : "Escribir reseña"}
-          </Button>
-        </div>
+  const closeForm = () => {
+    setShowForm(false);
+    toggleRef.current?.focus();
+  };
 
+  return (
+    <section aria-labelledby="reviews-title" className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 id="reviews-title" className="text-title">
+            Reseñas de clientes
+          </h2>
+          <p className="text-fg-muted">{reviewCount(reviews.length)}</p>
+        </div>
+        <Button
+          ref={toggleRef}
+          variant={showForm ? "secondary" : "primary"}
+          onClick={() => setShowForm((open) => !open)}
+          aria-expanded={showForm}
+          aria-controls="review-form-panel"
+        >
+          {showForm ? null : <PenLine aria-hidden="true" />}
+          {showForm ? "Cancelar" : "Escribir reseña"}
+        </Button>
+      </div>
+
+      <div id="review-form-panel">
         <AnimatePresence initial={false}>
           {showForm && (
             <motion.div key="review-form" variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden">
-              <ReviewForm productId={productId} onClose={() => setShowForm(false)} />
+              <ReviewForm productId={productId} onDone={closeForm} />
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
 
-        <div className="grid gap-8 rounded-2xl border border-border bg-bg-subtle p-6 md:grid-cols-2">
-          <div className="flex flex-col items-center gap-2 md:items-start">
-            <p className="text-5xl font-bold tabular-nums">{averageRating || "–"}</p>
-            <Rating value={averageRating} size="lg" />
-            <p className="text-sm text-fg-muted">Basado en {reviewCount(reviews.length)}</p>
-          </div>
-
-          <ul className="space-y-2" aria-label="Distribución de valoraciones">
-            {distribution.map(({ rating, count, percentage }) => (
-              <li key={rating} className="flex items-center gap-3">
-                <span className="w-20 text-sm text-fg-secondary">{pluralize(rating, "estrella")}</span>
-                <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-bg-muted">
-                  <motion.span
-                    className="block h-full rounded-full bg-rating"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${percentage}%` }}
-                    transition={transitions.slow}
-                  />
-                </span>
-                <span className="w-8 text-right text-sm text-fg-muted tabular-nums">
-                  {count}
-                  <span className="sr-only"> {count === 1 ? "reseña" : "reseñas"}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+      <div className="grid gap-8 rounded-2xl border border-border bg-bg-subtle p-6 md:grid-cols-[auto_1fr] md:gap-12">
+        <div className="flex flex-col items-center gap-2 md:items-start">
+          <p className="text-5xl font-bold tabular-nums">
+            {averageRating ? averageRating.toLocaleString("es-AR") : "–"}
+            <span className="sr-only"> de 5</span>
+          </p>
+          <Rating value={averageRating} size="lg" />
+          <p className="text-sm text-fg-muted">Basado en {reviewCount(reviews.length)}</p>
         </div>
 
-        {reviews.length === 0 ? (
-          <div className="flex flex-col items-center gap-1 py-12 text-center text-fg-muted">
-            <MessageSquare aria-hidden="true" className="mb-2 size-8" />
-            <p>Aún no hay reseñas para este producto.</p>
-            <p className="text-sm">¡Sé el primero en dejar tu opinión!</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
-            <AnimatePresence initial={false}>
-              {reviews.map((review) => (
-                <ReviewItem key={review.id} review={review} onMarkHelpful={markHelpful} />
-              ))}
-            </AnimatePresence>
-          </ul>
-        )}
+        <ul className="space-y-2 self-center" aria-label="Distribución de valoraciones">
+          {distribution.map(({ rating, count, percentage }) => (
+            <li key={rating} className="flex items-center gap-3">
+              <span className="w-20 shrink-0 text-sm text-fg-secondary">{pluralize(rating, "estrella")}</span>
+              <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-bg-muted">
+                <motion.span
+                  className="block h-full origin-left rounded-full bg-rating"
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: percentage / 100 }}
+                  viewport={{ once: true }}
+                  transition={transitions.slow}
+                />
+              </span>
+              <span className="w-8 text-right text-sm text-fg-muted tabular-nums">
+                {count}
+                <span className="sr-only"> {count === 1 ? "reseña" : "reseñas"}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
+
+      {reviews.length === 0 ? (
+        <div className="flex flex-col items-center gap-1 py-12 text-center text-fg-muted">
+          <MessageSquare aria-hidden="true" className="mb-2 size-8" />
+          <p>Aún no hay reseñas para este producto.</p>
+          <p className="text-sm">¡Sé el primero en dejar tu opinión!</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {reviews.length > 1 && (
+            <Field label="Ordenar reseñas" className="sm:w-64">
+              <Select items={REVIEW_SORTS} value={sort} onValueChange={(value) => value && setSort(value as ReviewSort)}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {REVIEW_SORTS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+          <LayoutGroup>
+            <ul className="divide-y divide-border" aria-label="Reseñas">
+              <AnimatePresence initial={false}>
+                {reviews.map((review) => (
+                  <ReviewItem key={review.id} review={review} onMarkHelpful={markHelpful} />
+                ))}
+              </AnimatePresence>
+            </ul>
+          </LayoutGroup>
+        </div>
+      )}
     </section>
   );
 }
@@ -120,10 +213,22 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
   };
 
   return (
-    <motion.li layout variants={fadeInUp} initial="hidden" animate="visible" exit="exit" className="py-6 first:pt-0">
+    <motion.li
+      layout="position"
+      variants={fadeInUp}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      transition={transitions.spring}
+      className="py-6"
+      data-testid="review"
+    >
       <article className="flex items-start gap-4">
-        <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-muted">
-          <User className="size-5 text-fg-muted" />
+        <span
+          aria-hidden="true"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-muted text-sm font-bold text-fg-secondary"
+        >
+          {initials(review.userName)}
         </span>
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -135,10 +240,10 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Rating value={review.rating} />
             <time dateTime={review.date} className="text-sm text-fg-muted">
-              {review.date}
+              {formatReviewDate(review.date)}
             </time>
           </div>
           <h3 className="text-base font-semibold">{review.title}</h3>
@@ -146,12 +251,21 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-3"
+            className={cn("-ml-3", hasMarked && "text-info")}
             onClick={handleHelpful}
             disabled={hasMarked}
+            focusableWhenDisabled
             aria-pressed={hasMarked}
           >
-            <ThumbsUp aria-hidden="true" className={cn(hasMarked && "fill-current")} />
+            <motion.span
+              key={hasMarked ? "voted" : "idle"}
+              initial={hasMarked ? { scale: 0.6, rotate: -12 } : false}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={transitions.spring}
+              className="inline-flex"
+            >
+              <ThumbsUp aria-hidden="true" className={cn(hasMarked && "fill-current")} />
+            </motion.span>
             Útil ({review.helpful})
           </Button>
         </div>
@@ -160,61 +274,94 @@ function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: 
   );
 }
 
-function ReviewForm({ productId, onClose }: { productId: string; onClose: () => void }) {
-  const addReview = useReviewStore((state) => state.addReview);
-  const [rating, setRating] = useState(0);
-  const [title, setTitle] = useState("");
-  const [comment, setComment] = useState("");
-  const [name, setName] = useState("");
-  const complete = rating > 0 && title.trim() && comment.trim() && name.trim();
+const defaultValues: ReviewInput = { rating: 0, name: "", title: "", comment: "" };
+/** Fields in on-screen order. react-hook-form would focus by registration order, where the Controller-driven rating comes last. */
+const FIELD_ORDER = ["rating", "name", "title", "comment"] as const satisfies readonly (keyof ReviewInput)[];
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!complete) return;
+/**
+ * New review form (react-hook-form + zod). Validates on submit, then as the
+ * visitor fixes each field; focus moves to the first invalid field.
+ */
+function ReviewForm({ productId, onDone }: { productId: string; onDone: () => void }) {
+  const addReview = useReviewStore((state) => state.addReview);
+  const {
+    register,
+    control,
+    handleSubmit,
+    setFocus,
+    formState: { errors, isSubmitting },
+  } = useForm<ReviewInput>({ resolver: zodResolver(reviewSchema), defaultValues, mode: "onTouched", shouldFocusError: false });
+  const commentLength = useWatch({ control, name: "comment" })?.length ?? 0;
+
+  const onSubmit = (data: ReviewInput) => {
     addReview({
       productId,
-      userId: `user-${Date.now()}`,
-      userName: name.trim(),
-      rating,
-      title: title.trim(),
-      comment: comment.trim(),
+      userId: "guest",
+      userName: data.name,
+      rating: data.rating,
+      title: data.title,
+      comment: data.comment,
       verified: false,
     });
-    onClose();
+    showToast.success("¡Gracias! Tu reseña fue publicada.");
+    onDone();
   };
 
   return (
     <form
       id="review-form"
-      onSubmit={handleSubmit}
+      noValidate
+      onSubmit={handleSubmit(onSubmit, (invalid) => {
+        const first = FIELD_ORDER.find((name) => invalid[name]);
+        if (first) setFocus(first);
+      })}
       aria-labelledby="review-form-title"
-      className="space-y-4 rounded-2xl border border-border bg-surface p-6"
+      className="space-y-5 rounded-2xl border border-border bg-surface p-6 shadow-card"
     >
       <h3 id="review-form-title" className="text-lg font-bold">
         Escribir una reseña
       </h3>
-      <RatingInput label="Tu calificación" value={rating} onValueChange={setRating} required />
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Tu nombre" required>
-          <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+      <Controller
+        control={control}
+        name="rating"
+        render={({ field, fieldState }) => (
+          <RatingInput
+            label="Tu calificación"
+            value={field.value}
+            onValueChange={field.onChange}
+            onBlur={field.onBlur}
+            inputRef={field.ref}
+            error={fieldState.error?.message}
+            required
+          />
+        )}
+      />
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label="Tu nombre" required error={errors.name?.message}>
+          <Input autoComplete="name" {...register("name")} />
         </Field>
-        <Field label="Título" required>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Resume tu experiencia" />
+        <Field label="Título" required error={errors.title?.message}>
+          <Input placeholder="Resume tu experiencia" maxLength={REVIEW_TITLE_MAX} {...register("title")} />
         </Field>
       </div>
-      <Field label="Tu reseña" required>
+      <Field
+        label="Tu reseña"
+        required
+        error={errors.comment?.message}
+        hint={`${commentLength} / ${REVIEW_COMMENT_MAX} caracteres`}
+      >
         <Textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
           placeholder="Cuéntanos más sobre tu experiencia con este producto…"
           rows={4}
+          maxLength={REVIEW_COMMENT_MAX}
+          {...register("comment")}
         />
       </Field>
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" disabled={!complete}>
+        <Button type="submit" loading={isSubmitting}>
           Publicar reseña
         </Button>
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={onDone}>
           Cancelar
         </Button>
       </div>

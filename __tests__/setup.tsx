@@ -25,3 +25,19 @@ vi.mock("next/image", () => ({
 beforeEach(() => {
   globalThis.localStorage?.clear();
 });
+
+// jsdom has no IntersectionObserver (motion's whileInView needs one): a no-op stub.
+if (typeof window !== "undefined" && !("IntersectionObserver" in window)) {
+  class IntersectionObserverStub {
+    readonly root = null;
+    readonly rootMargin = "";
+    readonly thresholds = [];
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  Object.assign(window, { IntersectionObserver: IntersectionObserverStub });
+}
