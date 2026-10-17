@@ -3,7 +3,7 @@
  * have no password: they exist only to author reviews (and the past orders
  * that make some of them "compra verificada"), nobody can log in as them.
  */
-import { mockReviews } from "@/stores/mockReviews";
+import { mockReviews } from "./mock-reviews";
 
 export interface SampleUser {
   key: string;
@@ -36,8 +36,7 @@ export interface HandwrittenReview {
 }
 
 /**
- * The reviews the mock UI ships with (src/stores/mockReviews.ts, the single
- * copy of their text), attributed to the sample user with the same name.
+ * The handwritten reviews (./mock-reviews.ts), attributed to the sample user with the same name.
  */
 export const handwrittenReviews: HandwrittenReview[] = mockReviews.map((review) => {
   const user = sampleUsers.find((u) => u.name === review.userName);

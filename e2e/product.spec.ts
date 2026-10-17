@@ -70,13 +70,17 @@ test.describe("Product page", () => {
   test("the review form validates in Spanish and publishes a review", async ({ page }) => {
     await page.goto("/item/2");
     await page.waitForLoadState("networkidle");
-    // Item 2 has no reviews yet: the link under the title opens the form on its first field.
-    await page.getByRole("link", { name: "Escribir una reseña" }).click();
-    await expect(page.getByRole("tab", { name: /Reseñas/ })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("radio", { name: "1 estrella" })).toBeFocused();
-    // No score or histogram for a product without reviews, only the empty state.
-    await expect(page.getByRole("heading", { level: 3, name: "Aún no hay reseñas" })).toBeVisible();
-    await expect(page.getByRole("list", { name: "Distribución de valoraciones" })).toHaveCount(0);
+    // The link, the tab badge and the list all count the seeded reviews in the database.
+    const link = page.getByRole("link", { name: /^Ver \d+ reseñas?$/ });
+    const published = Number((await link.textContent())!.match(/\d+/)![0]);
+    expect(published).toBeGreaterThan(0);
+    const tab = page.getByRole("tab", { name: /Reseñas/ });
+    await expect(tab).toContainText(String(published));
+    await link.click();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("region", { name: "Reseñas de clientes" }).getByTestId("review")).toHaveCount(published);
+    await page.getByRole("button", { name: "Escribir reseña" }).click();
+    await expect(page.getByRole("button", { name: "Publicar reseña" })).toBeVisible();
 
     await page.getByRole("button", { name: "Publicar reseña" }).click();
     await expect(page.getByText("Elige una calificación de 1 a 5 estrellas")).toBeVisible();
@@ -93,14 +97,15 @@ test.describe("Product page", () => {
     await page.getByRole("button", { name: "Publicar reseña" }).click();
 
     await expect(page.getByRole("heading", { level: 3, name: "Precioso en la repisa" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: /Reseñas/ })).toContainText("1");
+    await expect(tab).toContainText(String(published + 1));
+    await expect(link).toHaveText(`Ver ${published + 1} reseñas`);
   });
 
   test("an invalid review submit shows the focused rating group below the sticky header", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 600 });
     await page.goto("/item/1");
     await page.waitForLoadState("networkidle");
-    await page.getByRole("link", { name: /Ver 2 reseñas/ }).click();
+    await page.getByRole("link", { name: /^Ver \d+ reseñas?$/ }).click();
     await page.getByRole("button", { name: "Escribir reseña" }).click();
     await page.getByRole("button", { name: "Publicar reseña" }).focus();
     await page.keyboard.press("Enter");

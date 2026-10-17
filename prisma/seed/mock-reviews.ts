@@ -1,10 +1,11 @@
 import type { Review } from "@/types";
 
 /*
- * The mock reviews the UI ships with until the reviews stage serves them from
- * the database. The single copy of this text: prisma/seed/sample-reviews.ts
- * seeds the same reviews (matched to sample users by userName), so the store
- * and the database agree. Plain data, no store code, so the seed can import it.
+ * The handwritten demo reviews (they used to ship in the client review store;
+ * the product page now reads them from the database). Seed source only:
+ * ./sample-reviews.ts attributes each one to the sample user with the same
+ * userName. The id and helpful fields are not seeded (the database assigns
+ * ids, and "útil" votes are seeded as ReviewHelpful rows).
  */
 
 /** Seed reviews; productId matches the catalogue ids in src/data/products.ts. */

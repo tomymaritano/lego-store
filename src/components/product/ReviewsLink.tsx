@@ -16,13 +16,14 @@ export function reviewsLinkTarget(count: number): { label: string; hash: string 
 }
 
 /**
- * Link under the product title to the Reseñas tab. Its count comes from the
- * same source as the tab (reviewStore), so it never promises reviews the tab
- * does not have; the stars next to it are the catalogue rating, labelled as
- * such by the page. ProductDetailsTabs reacts to the fragment and moves focus.
+ * Link under the product title to the Reseñas tab. It counts what the tab
+ * lists: the published reviews (publishedCount, from the database: the same
+ * reviews behind the rating next to it) plus the ones this visitor wrote in
+ * this browser. ProductDetailsTabs reacts to the fragment and moves focus.
  */
-export function ReviewsLink({ productId }: { productId: string }) {
-  const count = useReviewStore((state) => state.reviews.filter((r) => r.productId === productId).length);
+export function ReviewsLink({ productId, publishedCount }: { productId: string; publishedCount: number }) {
+  const ownCount = useReviewStore((state) => state.reviews.filter((r) => r.productId === productId).length);
+  const count = publishedCount + ownCount;
   const { label, hash } = reviewsLinkTarget(count);
   return (
     <a

@@ -5,7 +5,7 @@ import { ProductGallery, gallerySources } from "@/components/product/ProductGall
 import { StockStatus } from "@/components/product/ProductPurchase";
 import { ReviewsLink, reviewsLinkTarget } from "@/components/product/ReviewsLink";
 import { REVIEWS_HASH, WRITE_REVIEW_HASH } from "@/components/product/anchors";
-import { mockReviews, useReviewStore } from "@/stores/reviewStore";
+import { useReviewStore } from "@/stores/reviewStore";
 import { useRecentlyViewedStore } from "@/stores";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { PLACEHOLDER_IMAGE } from "@/lib/utils";
@@ -110,16 +110,27 @@ describe("product structured data", () => {
 });
 
 describe("ReviewsLink", () => {
-  beforeEach(() => useReviewStore.setState({ reviews: mockReviews }));
+  beforeEach(() => useReviewStore.setState({ reviews: [], helpfulVotes: [] }));
 
-  it("counts the reviews the tab will show, from the same store", () => {
-    const count = mockReviews.filter((r) => r.productId === "1").length;
-    render(<ReviewsLink productId="1" />);
-    expect(screen.getByRole("link", { name: `Ver ${count} reseñas` })).toHaveAttribute("href", `#${REVIEWS_HASH}`);
+  it("counts the published reviews (the ones behind the rating) plus the visitor's own", () => {
+    render(<ReviewsLink productId="1" publishedCount={4} />);
+    expect(screen.getByRole("link", { name: "Ver 4 reseñas" })).toHaveAttribute("href", `#${REVIEWS_HASH}`);
+    act(() =>
+      useReviewStore.getState().addReview({
+        productId: "1",
+        userId: "me",
+        userName: "Yo",
+        rating: 5,
+        title: "Genial",
+        comment: "Muy buen set",
+        verified: false,
+      })
+    );
+    expect(screen.getByRole("link", { name: "Ver 5 reseñas" })).toBeInTheDocument();
   });
 
   it("offers to write the first review (not \"no reviews\") when there are none", () => {
-    render(<ReviewsLink productId="no-reviews" />);
+    render(<ReviewsLink productId="no-reviews" publishedCount={0} />);
     expect(screen.getByRole("link", { name: "Escribir una reseña" })).toHaveAttribute("href", `#${WRITE_REVIEW_HASH}`);
     expect(screen.queryByText(/Aún sin reseñas/)).toBeNull();
     expect(reviewsLinkTarget(1)).toEqual({ label: "Ver 1 reseña", hash: REVIEWS_HASH });

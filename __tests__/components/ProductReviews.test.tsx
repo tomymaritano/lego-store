@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ProductReviews, sortReviews } from "@/components/product/ProductReviews";
-import { mockReviews, useReviewStore } from "@/stores/reviewStore";
+import { useReviewStore } from "@/stores/reviewStore";
+import { mockReviews } from "../../prisma/seed/mock-reviews";
 import type { Review } from "@/types";
 
 const review = (id: string, rating: number, helpful: number, date: string): Review => ({
@@ -42,25 +43,27 @@ describe("ProductReviews", () => {
   beforeAll(async () => {
     await import("@/components/product/reviews/ReviewForm");
   });
-  beforeEach(() => useReviewStore.setState({ reviews: mockReviews }));
+  beforeEach(() => useReviewStore.setState({ reviews: [], helpfulVotes: [] }));
+  // Published reviews of product 1, as the product page reads them from the database.
+  const published = mockReviews.filter((r) => r.productId === "1");
 
   it("shows the product's reviews with h2 > h3 headings inside a labelled section", () => {
-    render(<ProductReviews productId="1" />);
+    render(<ProductReviews productId="1" publishedReviews={published} />);
     const section = screen.getByRole("region", { name: "Reseñas de clientes" });
     const titles = within(section).getAllByRole("heading", { level: 3 });
-    expect(titles.length).toBe(mockReviews.filter((r) => r.productId === "1").length);
+    expect(titles.length).toBe(published.length);
     expect(within(section).queryByRole("heading", { level: 4 })).toBeNull();
   });
 
   it("formats dates in Spanish and lists the newest first", () => {
-    render(<ProductReviews productId="1" />);
+    render(<ProductReviews productId="1" publishedReviews={published} />);
     const times = screen.getAllByRole("listitem").flatMap((li) => Array.from(li.querySelectorAll("time")));
     expect(times.map((t) => t.getAttribute("datetime"))).toEqual(["2024-01-15", "2024-01-10"]);
     expect(times[0]).toHaveTextContent("15 de enero de 2024");
   });
 
   it("counts a helpful vote once and keeps focus on the button", () => {
-    render(<ProductReviews productId="1" />);
+    render(<ProductReviews productId="1" publishedReviews={published} />);
     const [first] = screen.getAllByRole("button", { name: /Útil/ });
     const before = Number(first.textContent?.match(/\((\d+)\)/)?.[1]);
     fireEvent.click(first);
@@ -68,6 +71,23 @@ describe("ProductReviews", () => {
     expect(first).toHaveTextContent(`Útil (${before + 1})`);
     expect(first).toHaveAttribute("aria-pressed", "true");
     expect(first).toHaveAttribute("aria-disabled", "true");
+    expect(useReviewStore.getState().helpfulVotes).toHaveLength(1);
+  });
+
+  it("lists the visitor's own reviews of the product above the published ones", () => {
+    useReviewStore.getState().addReview({
+      productId: "1",
+      userId: "me",
+      userName: "Yo",
+      rating: 3,
+      title: "La mía",
+      comment: "Escrita en este navegador",
+      verified: false,
+    });
+    render(<ProductReviews productId="1" publishedReviews={published} />);
+    const titles = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent);
+    expect(titles).toHaveLength(published.length + 1);
+    expect(titles[0]).toBe("La mía");
   });
 
   it("shows Spanish validation messages and focuses the first invalid field", async () => {
@@ -124,17 +144,17 @@ describe("ProductReviews", () => {
   });
 
   it("moves focus to the heading, or opens the form on its first field, when a link asks", async () => {
-    const { rerender } = render(<ProductReviews productId="1" focusRequest={null} />);
-    rerender(<ProductReviews productId="1" focusRequest={{ target: "heading" }} />);
+    const { rerender } = render(<ProductReviews productId="1" publishedReviews={published} focusRequest={null} />);
+    rerender(<ProductReviews productId="1" publishedReviews={published} focusRequest={{ target: "heading" }} />);
     expect(screen.getByRole("heading", { level: 2, name: "Reseñas de clientes" })).toHaveFocus();
 
-    await act(async () => rerender(<ProductReviews productId="1" focusRequest={{ target: "form" }} />));
+    await act(async () => rerender(<ProductReviews productId="1" publishedReviews={published} focusRequest={{ target: "form" }} />));
     expect(screen.getByRole("button", { name: "Cancelar", expanded: true })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("radio", { name: "1 estrella" })).toHaveFocus());
 
     // The form is already open: a new request focuses it again.
     screen.getByRole("heading", { level: 2, name: "Reseñas de clientes" }).focus();
-    rerender(<ProductReviews productId="1" focusRequest={{ target: "form" }} />);
+    rerender(<ProductReviews productId="1" publishedReviews={published} focusRequest={{ target: "form" }} />);
     expect(screen.getByRole("radio", { name: "1 estrella" })).toHaveFocus();
   });
 });

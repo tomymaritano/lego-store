@@ -6,7 +6,8 @@ import { AnimatePresence, LayoutGroup, m } from "motion/react";
 import { MessageSquare, PenLine } from "lucide-react";
 import { collapse } from "@/lib/motion";
 import { pluralize } from "@/lib/utils";
-import { useReviewStore } from "@/stores/reviewStore";
+import { productReviewList, useReviewStore } from "@/stores/reviewStore";
+import type { Review } from "@/types";
 import {
   Button,
   EmptyState,
@@ -39,18 +40,23 @@ export interface ReviewsFocusRequest {
 
 interface ProductReviewsProps {
   productId: string;
+  /** Published reviews (database), from the product page. */
+  publishedReviews?: readonly Review[];
   /** Each new request moves focus once: to the heading, or opens the form and focuses its first field. */
   focusRequest?: ReviewsFocusRequest | null;
 }
 
 const reviewCount = (n: number) => pluralize(n, "reseña");
 
+const NO_REVIEWS: readonly Review[] = [];
+
 /**
  * Reviews for one product: summary (average + histogram), a sortable list
- * with "útil" votes, and a validated form to add one. Reviews still live in
- * the client-side reviewStore (mock) until the backend provides them.
+ * with "útil" votes, and a validated form to add one. Lists the published
+ * reviews plus the ones this visitor wrote; the visitor's own reviews and
+ * votes stay in the browser (reviewStore) until the reviews stage saves them.
  */
-export function ProductReviews({ productId, focusRequest }: ProductReviewsProps) {
+export function ProductReviews({ productId, publishedReviews = NO_REVIEWS, focusRequest }: ProductReviewsProps) {
   const [showForm, setShowForm] = useState(false);
   const [sort, setSort] = useState<ReviewSort>("recent");
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -70,12 +76,13 @@ export function ProductReviews({ productId, focusRequest }: ProductReviewsProps)
       setShowForm(true);
     }
   }
-  const allReviews = useReviewStore((state) => state.reviews);
+  const ownReviews = useReviewStore((state) => state.reviews);
+  const helpfulVotes = useReviewStore((state) => state.helpfulVotes);
   const markHelpful = useReviewStore((state) => state.markHelpful);
 
   const reviews = useMemo(
-    () => sortReviews(allReviews.filter((r) => r.productId === productId), sort),
-    [allReviews, productId, sort]
+    () => sortReviews(productReviewList(publishedReviews, ownReviews, helpfulVotes, productId), sort),
+    [publishedReviews, ownReviews, helpfulVotes, productId, sort]
   );
 
   const focusFirstField = () => {

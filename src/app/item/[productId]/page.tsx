@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Award, Blocks, RotateCcw, Shield, Sparkles, Truck, Users } from "lucide-react";
-import { getCategoryById, getProductById, getProducts, getRelatedProducts } from "@/lib/api";
+import { getCategoryById, getProductById, getProductReviews, getProducts, getRelatedProducts } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
 import { defaultOgImage, pageMetadata } from "@/lib/metadata";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
@@ -46,7 +46,9 @@ const perks = [
 /**
  * Product page (Server Component, statically generated per product). Unknown
  * ids get a real 404 from src/proxy.ts before rendering; notFound() here is
- * the fallback. Client islands: gallery, buy box, details tabs (reviews),
+ * the fallback. Reviews are read from the database here (tagged with the
+ * product, so a review write regenerates the page). Client islands: gallery,
+ * buy box, details tabs (reviews),
  * related grid and the recently viewed strip.
  */
 export default async function ItemPage({ params }: ItemPageProps) {
@@ -54,9 +56,10 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const product = await getProductById(productId);
   if (!product) notFound();
 
-  const [category, related] = await Promise.all([
+  const [category, related, reviews] = await Promise.all([
     getCategoryById(product.category),
     getRelatedProducts(product.id, 4),
+    getProductReviews(product.id),
   ]);
   const categoryName = category?.name ?? product.category;
 
@@ -102,14 +105,14 @@ export default async function ItemPage({ params }: ItemPageProps) {
                   <Badge variant="neutral">{product.highlight}</Badge>
                 </div>
                 <h1 className="text-headline text-balance">{product.name}</h1>
-                {/* Catalogue rating (same as the product cards), labelled as such; the link counts the reviews in the tab. */}
+                {/* Rating, link and tab all come from the same reviews in the database (plus the visitor's own, in the link and tab). */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label font-normal">
                   <Rating value={product.rating} unrated={product.reviewCount === 0} showValue />
                   {product.reviewCount > 0 ? <span className="text-fg-muted">valoración general</span> : null}
                   <span aria-hidden="true" className="text-fg-muted">
                     ·
                   </span>
-                  <ReviewsLink productId={product.id} />
+                  <ReviewsLink productId={product.id} publishedCount={reviews.length} />
                 </div>
               </div>
 
@@ -141,6 +144,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
         <ProductDetailsTabs
           productId={product.id}
+          reviews={reviews}
           description={
             <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <div className="space-y-4">
