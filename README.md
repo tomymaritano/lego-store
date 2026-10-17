@@ -133,24 +133,36 @@ scripts/               Presupuesto de JS y capturas del README
   Skeleton, QuantitySelector, Spinner, Toast, Breadcrumbs, ThemeToggle. Cada
   uno con stories en claro y oscuro.
 - **Guardas de ESLint** (errores en todo `src/`): colores crudos de la paleta,
-  alias heredados, `dark:` y duraciones numéricas de movimiento. Dentro de
-  `ui/` rigen las mismas reglas, salvo que `dark:` está permitido.
+  alias heredados, `dark:`, duraciones numéricas de movimiento y tamaños de
+  texto de Tailwind (`text-sm`, `text-2xl`…: se usa la escala `text-caption`,
+  `text-label`, `text-body`, `text-title`, `text-heading`, `text-headline`,
+  `text-display`). Dentro de `ui/` rigen las mismas reglas, salvo que `dark:`
+  y los tamaños compactos de los primitivos están permitidos.
 - **Movimiento**: presets en `src/lib/motion.ts` (150–300 ms) y
   `<MotionConfig reducedMotion="user">`; respetan `prefers-reduced-motion`. Los
-  componentes usan `m.*` dentro de `<LazyMotion>`: las features de motion se
-  cargan de forma asíncrona, fuera del JS de primera carga.
+  componentes usan `m.*` dentro de `<LazyMotion>` (el bundle de features se
+  pide aparte, aunque Turbopack hoy lo deja en el chunk compartido de motion:
+  unos 45 kB gzip en la primera carga).
 
 ## Rendimiento
 
+- Inicio, fichas y categorías se prerenderizan sin `loading.tsx`: el HTML
+  estático trae el contenido en orden y el texto del hero (el LCP) se pinta en
+  el primer frame. Los filtros de una categoría viven en la URL y se aplican en
+  el cliente, así que la ruta sigue siendo estática.
 - Los paneles poco usados (carrito lateral, menú y búsqueda móviles, vista
   rápida, formulario de reseñas) se cargan bajo demanda con `next/dynamic` y se
-  precargan al pasar el puntero o enfocar su botón.
+  precargan al pasar el puntero o enfocar su botón. Sonner (toasts) y las
+  reseñas de la ficha se cargan después de hidratar.
+- Imágenes en AVIF (WebP de respaldo) con `sizes` ajustados a cada grilla.
 - `npm run size` mide el JS de primera carga por ruta (gzip, sin los polyfills
   `noModule`) contra un presupuesto por ruta; CI lo corre en cada PR.
-- Lighthouse CI (`lighthouserc.json`) audita `/`, `/item/1`, `/category/helmet`
-  y `/cart`. El objetivo de SEO 100 aplica solo a las rutas indexables: `/cart`
-  y `/checkout` son `noindex` a propósito (lo correcto en páginas
-  transaccionales), así que no se afirma SEO sobre ellas. `/checkout` no está en
+- Lighthouse CI (`lighthouserc.json`, móvil simulado) audita `/`, `/item/1`,
+  `/category/helmet` y `/cart`; la última corrida local dio rendimiento 80-82
+  (mediana), accesibilidad 100 y buenas prácticas 100. El gate de SEO de CI es
+  ≥ 90 en las rutas indexables (`/`, fichas y categorías), y el objetivo es 100,
+  que hoy cumplen. `/cart` y `/checkout` son `noindex` a propósito (lo correcto
+  en páginas transaccionales), así que no se afirma SEO sobre ellas. `/checkout` no está en
   Lighthouse: sin carrito redirige a `/cart` y el informe mediría esa página;
   su accesibilidad se audita con axe en `e2e/checkout.spec.ts`, paso a paso y
   con un carrito cargado.
@@ -171,8 +183,9 @@ scripts/               Presupuesto de JS y capturas del README
   orden, precio), `search` (búsqueda y combobox), `product` (ficha), `cart`
   (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
   (favoritos, comparador y su barra), `checkout` (con axe), `shell` (navbar,
-  footer, páginas de información, 404), `state` (estado persistido) y el
-  proyecto `prod` (navegación y transiciones sobre el build de producción).
+  footer, páginas de información, 404), `state` (estado persistido), `a11y`
+  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro) y el proyecto `prod`
+  (navegación, transiciones y rutas estáticas sobre el build de producción).
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de

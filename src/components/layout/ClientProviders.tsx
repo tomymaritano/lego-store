@@ -15,11 +15,12 @@ import { ThemeSync } from "./ThemeSync";
  *
  * Motion runs through LazyMotion: components use the light `m.*` elements
  * and the feature bundle (animation, gestures, layout, drag: domMax, needed
- * app-wide for the layout animations) loads asynchronously from
- * lib/motion-features, outside every route's first-load JS (checked with
- * `npm run size`). The `m` elements and AnimatePresence still bring motion's
- * core, about 45 kB gzip. `strict` makes a stray full `motion.*` import throw
- * in development.
+ * app-wide for the layout animations) is requested from lib/motion-features.
+ * Note: Turbopack currently places domMax's modules in the shared motion
+ * chunk the `m` elements already load (~45 kB gzip in every route's first
+ * load, measured with `npm run size`); switching to domAnimation saves
+ * ~14 kB but drops layout and drag. `strict` makes a stray full `motion.*`
+ * import throw in development.
  */
 const loadMotionFeatures = () => import("@/lib/motion-features").then((mod) => mod.default);
 
