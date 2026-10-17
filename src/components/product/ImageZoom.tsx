@@ -57,7 +57,9 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
           sizes="(min-width: 1024px) 50vw, 100vw"
           className="object-contain p-8 transition-[scale] duration-slow ease-emphasized group-hover:scale-105 motion-reduce:group-hover:scale-100"
           onError={() => setFailedSrc(src)}
-          preload
+          // The product page's LCP: `preload` alone left the <img> lazy (next/image warned).
+          loading="eager"
+          fetchPriority="high"
         />
 
         <AnimatePresence>
