@@ -30,17 +30,20 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
+  id             String    @id @default(cuid())
+  name           String?
   /// Always stored lowercased: the app normalises it before every write and lookup.
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
   /// bcrypt hash (src/lib/auth/password.ts). Null for OAuth-only users.
-  passwordHash  String?
-  role          Role      @default(USER)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  passwordHash   String?
+  role           Role      @default(USER)
+  /// Bumped when the password changes: session tokens carry the version they
+  /// were issued with, and an older one no longer counts (src/lib/auth/session.ts).
+  sessionVersion Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   accounts      Account[]
   sessions      Session[]
@@ -98,14 +101,14 @@ model VerificationToken {
 
 model Category {
   /// URL slug, e.g. "helmet" (Product.categoryId, /category/<id>).
-  id          String    @id
+  id          String   @id
   name        String
   description String
   image       String
   /// Navigation order.
   position    Int
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   products Product[]
 
@@ -241,42 +244,42 @@ enum OrderStatus {
 }
 
 model Order {
-  id                    String      @id @default(cuid())
+  id     String      @id @default(cuid())
   /// Null for guest checkouts (never linked to an account created later).
-  userId                String?
+  userId String?
   /// Contact email from the shipping form (lowercased).
-  email                 String
-  status                OrderStatus @default(PENDING)
+  email  String
+  status OrderStatus @default(PENDING)
 
   // Shipping address, as entered (snapshot).
-  firstName             String
-  lastName              String
-  phone                 String
-  address               String
-  city                  String
-  state                 String
-  zipCode               String
-  country               String
+  firstName String
+  lastName  String
+  phone     String
+  address   String
+  city      String
+  state     String
+  zipCode   String
+  country   String
 
   // Amounts in pesos, computed on the server: total = subtotal + shipping (check constraint).
-  subtotal              Int
-  shipping              Int
-  total                 Int
-  currency              String      @default("ars")
+  subtotal Int
+  shipping Int
+  total    Int
+  currency String @default("ars")
 
-  stripePaymentIntentId String?     @unique
-  stripeRefundId        String?     @unique
+  stripePaymentIntentId String? @unique
+  stripeRefundId        String? @unique
   /// What the review step and the order page show ("visa", "4242"); never card data.
   paymentBrand          String?
   paymentLast4          String?
 
-  paidAt                DateTime?
-  shippedAt             DateTime?
-  deliveredAt           DateTime?
-  cancelledAt           DateTime?
-  cancelReason          String?
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  paidAt       DateTime?
+  shippedAt    DateTime?
+  deliveredAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   items OrderItem[]
@@ -310,4 +313,21 @@ model ProcessedStripeEvent {
   id          String   @id
   type        String
   processedAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiting (src/lib/rate-limit): one fixed-window counter per key, shared
+// by every server instance. Expired rows are reused by the next hit and swept
+// now and then; nothing else reads them.
+// ---------------------------------------------------------------------------
+
+model RateLimit {
+  /// "<limiter>:<subject>", e.g. "login-email:ana@example.com".
+  key     String   @id
+  /// Hits in the current window (> 0, check constraint).
+  count   Int
+  /// End of the current window (database clock).
+  resetAt DateTime
+
+  @@index([resetAt])
 }

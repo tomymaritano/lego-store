@@ -320,7 +320,8 @@ async function seedOrders(
 async function demoteDevAdmin(db: PrismaClient): Promise<boolean> {
   const { count } = await db.user.updateMany({
     where: { email: DEV_ADMIN.email, OR: [{ role: "ADMIN" }, { passwordHash: { not: null } }] },
-    data: { role: "USER", passwordHash: null },
+    // Bumping the session version also signs out every session it already had.
+    data: { role: "USER", passwordHash: null, sessionVersion: { increment: 1 } },
   });
   return count > 0;
 }
@@ -339,7 +340,8 @@ async function seedAdmin(db: PrismaClient, admin: { email: string; password: str
   await db.user.upsert({
     where: { email },
     create: { email, name: "Admin", role: "ADMIN", passwordHash },
-    update: { role: "ADMIN", passwordHash },
+    // A new password signs out the sessions opened with the old one (src/lib/auth/session.ts).
+    update: { role: "ADMIN", passwordHash, ...(keepHash ? {} : { sessionVersion: { increment: 1 } }) },
   });
   return email;
 }
