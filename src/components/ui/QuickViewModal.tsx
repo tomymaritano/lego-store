@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
@@ -24,15 +24,29 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   const [selectedImage, setSelectedImage] = useState(0);
 
   const addItem = useCartStore((state) => state.addItem);
-  const isInCart = useCartStore((state) => state.isInCart);
   const addToWishlist = useWishlistStore((state) => state.addToWishlist);
   const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
-  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
+
+  const inCartRaw = useCartStore((state) =>
+    state.cart.some((item) => item.id === product?.id)
+  );
+  const inWishlistRaw = useWishlistStore((state) =>
+    state.wishlist.some((item) => item.id === product?.id)
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!product) return null;
 
-  const inCart = hydrated && isInCart(product.id);
-  const inWishlist = hydrated && isInWishlist(product.id);
+  const inCart = hydrated && inCartRaw;
+  const inWishlist = hydrated && inWishlistRaw;
 
   const images = [product.img, product.imageSecondary].filter(Boolean) as string[];
 

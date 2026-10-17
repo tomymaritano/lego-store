@@ -25,10 +25,14 @@ export default function ItemPage({ params }: ItemPageProps) {
   const product = products.find((p) => p.id === productId);
 
   const addItem = useCartStore((state) => state.addItem);
-  const isInCart = useCartStore((state) => state.isInCart);
   const addToWishlist = useWishlistStore((state) => state.addToWishlist);
   const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
-  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
+  const inCartRaw = useCartStore((state) =>
+    state.cart.some((item) => item.id === product?.id)
+  );
+  const inWishlistRaw = useWishlistStore((state) =>
+    state.wishlist.some((item) => item.id === product?.id)
+  );
   const addToRecentlyViewed = useRecentlyViewedStore((state) => state.addItem);
   const hasTrackedRef = useRef(false);
 
@@ -44,8 +48,8 @@ export default function ItemPage({ params }: ItemPageProps) {
     notFound();
   }
 
-  const inCart = hydrated && isInCart(product.id);
-  const inWishlist = hydrated && isInWishlist(product.id);
+  const inCart = hydrated && inCartRaw;
+  const inWishlist = hydrated && inWishlistRaw;
 
   const handleAddToCart = () => {
     addItem(product, quantity);

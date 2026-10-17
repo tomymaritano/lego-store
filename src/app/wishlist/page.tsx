@@ -17,7 +17,7 @@ export default function WishlistPage() {
   const clearWishlist = useWishlistStore((state) => state.clearWishlist);
 
   const addItem = useCartStore((state) => state.addItem);
-  const isInCart = useCartStore((state) => state.isInCart);
+  const cart = useCartStore((state) => state.cart);
 
   if (!hydrated) {
     return (
@@ -78,7 +78,7 @@ export default function WishlistPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence mode="popLayout">
           {wishlist.map((item) => {
-            const inCart = isInCart(item.id);
+            const inCart = cart.some((cartItem) => cartItem.id === item.id);
 
             return (
               <motion.div

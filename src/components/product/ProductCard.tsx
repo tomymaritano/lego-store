@@ -22,14 +22,18 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
 
   const addItem = useCartStore((state) => state.addItem);
-  const isInCart = useCartStore((state) => state.isInCart);
   const addToWishlist = useWishlistStore((state) => state.addToWishlist);
   const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
-  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
   const { addToCompare, removeFromCompare, isInCompare, canAddMore } = useCompareStore();
 
-  const inCart = hydrated && isInCart(product.id);
-  const inWishlist = hydrated && isInWishlist(product.id);
+  const inCartRaw = useCartStore((state) =>
+    state.cart.some((item) => item.id === product.id)
+  );
+  const inCart = hydrated && inCartRaw;
+  const inWishlistRaw = useWishlistStore((state) =>
+    state.wishlist.some((item) => item.id === product.id)
+  );
+  const inWishlist = hydrated && inWishlistRaw;
   const inCompare = hydrated && isInCompare(product.id);
 
   const handleAddToCart = (e: React.MouseEvent) => {
