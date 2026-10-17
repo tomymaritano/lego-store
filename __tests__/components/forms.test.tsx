@@ -64,7 +64,8 @@ describe("NewsletterForm", () => {
   });
 });
 
-describe("ContactForm", () => {
+// Whole form flows: slow when the full suite runs in parallel.
+describe("ContactForm", { timeout: 20_000 }, () => {
   // The validators load on demand (lib/validations/lazy): warm the module once so a
   // busy parallel run does not spend the first test's timeout importing zod.
   beforeAll(async () => {
@@ -117,5 +118,5 @@ describe("ContactForm", () => {
 
     await user.click(screen.getByRole("button", { name: "Enviar otro mensaje" }));
     expect(await screen.findByRole("button", { name: "Enviar mensaje" })).toBeInTheDocument();
-  }, 15_000); // a whole form flow: slow when the full suite runs in parallel
+  });
 });
