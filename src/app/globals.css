@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800;900&display=swap");
-
 @import "tailwindcss";
 
 /* Dark mode is class based: <html class="dark"> */
@@ -254,7 +252,8 @@
 }
 
 @theme {
-  --font-sans: "Barlow", system-ui, sans-serif;
+  /* --font-barlow is set on <html> by next/font (app/layout.tsx): self-hosted, preloaded, with a metric-matched fallback. */
+  --font-sans: var(--font-barlow, "Barlow"), system-ui, sans-serif;
 
   /* Radius scale. xl/2xl keep the values of the Tailwind 3 config. */
   --radius-sm: 0.25rem;
@@ -346,7 +345,7 @@
   body {
     color: var(--fg);
     background: var(--bg);
-    font-family: "Barlow", system-ui, sans-serif;
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition:

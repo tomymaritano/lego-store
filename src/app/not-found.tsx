@@ -28,7 +28,7 @@ export default function NotFound() {
               <span className={`h-3 w-5 rounded-t-md ${brick.className} brightness-95`} />
             </div>
             <span
-              className={`flex h-24 w-20 items-center justify-center rounded-xl text-5xl font-black shadow-lg ${brick.className}`}
+              className={`flex h-24 w-20 items-center justify-center rounded-xl text-5xl font-extrabold shadow-lg ${brick.className}`}
             >
               {brick.digit}
             </span>

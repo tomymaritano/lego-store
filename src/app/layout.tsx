@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Barlow } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { CategoriesProvider } from "@/providers/CategoriesProvider";
@@ -7,6 +8,16 @@ import { Toaster } from "@/components/ui";
 import { getCategories } from "@/lib/api";
 import { THEME_SCRIPT } from "@/lib/theme";
 import { siteConfig } from "@/config/site";
+
+// Self-hosted by next/font: no render-blocking request to Google, preloaded
+// woff2 and a size-adjusted fallback (no layout shift on swap). Only the
+// weights the type scale uses (regular to extrabold).
+const barlow = Barlow({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-barlow",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -55,7 +66,7 @@ export default async function RootLayout({
   const categories = (await getCategories()).map(({ id, name }) => ({ id, name }));
 
   return (
-    <html lang="es-AR" className="motion-safe:scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="es-AR" className={`${barlow.variable} motion-safe:scroll-smooth`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Applies the saved theme before first paint (no light/dark flash). See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
