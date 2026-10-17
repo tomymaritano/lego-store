@@ -21,7 +21,7 @@ vi.mock("next/image", () => ({
   },
 }));
 
-// Reset localStorage before each test
+// Reset localStorage before each test (absent in node-environment tests)
 beforeEach(() => {
-  localStorage.clear();
+  globalThis.localStorage?.clear();
 });
