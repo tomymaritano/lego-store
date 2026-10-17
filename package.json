@@ -16,9 +16,11 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@base-ui/react": "^1.9.0",
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.104.3",
     "@tanstack/react-query-devtools": "^5.104.3",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.58.0",
     "motion": "^14.3.0",
@@ -37,6 +39,7 @@
     "@storybook/addon-a11y": "^10.6.2",
     "@storybook/addon-docs": "^10.6.2",
     "@storybook/addon-onboarding": "^10.6.2",
+    "@storybook/addon-themes": "^10.6.2",
     "@storybook/addon-vitest": "^10.6.2",
     "@storybook/nextjs-vite": "^10.6.2",
     "@tailwindcss/postcss": "^4.3.3",
