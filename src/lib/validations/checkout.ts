@@ -53,7 +53,9 @@ export const paymentSchema = z
   .superRefine(({ cardNumber, cvv }, ctx) => {
     const brand = detectCardBrand(cardNumber);
     const digits = onlyDigits(cardNumber);
-    if (digits.length > 0 && digits.length !== cardLength(brand)) {
+    if (digits.length > 0 && brand === "unknown") {
+      ctx.addIssue({ code: "custom", path: ["cardNumber"], message: "Aceptamos Visa, Mastercard o American Express" });
+    } else if (digits.length > 0 && digits.length !== cardLength(brand)) {
       ctx.addIssue({ code: "custom", path: ["cardNumber"], message: `El número debe tener ${cardLength(brand)} dígitos` });
     } else if (digits.length > 0 && !passesLuhn(digits)) {
       ctx.addIssue({ code: "custom", path: ["cardNumber"], message: "Revisa el número: no es una tarjeta válida" });

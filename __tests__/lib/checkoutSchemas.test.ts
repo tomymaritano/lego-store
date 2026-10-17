@@ -72,6 +72,13 @@ describe("paymentSchema", () => {
     });
   });
 
+  it("rejects brands the store does not accept, even with a valid number", () => {
+    // Discover: passes Luhn and has 16 digits, but only Visa, Mastercard and Amex are accepted.
+    expect(messages(paymentSchema.safeParse({ ...payment, cardNumber: "6011 1111 1111 1117" }))).toMatchObject({
+      cardNumber: "Aceptamos Visa, Mastercard o American Express",
+    });
+  });
+
   it("asks for every empty field", () => {
     expect(messages(paymentSchema.safeParse({ cardNumber: "", cardName: "", expiryDate: "", cvv: "" }))).toMatchObject({
       cardNumber: "Ingresa el número de tarjeta",
