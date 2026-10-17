@@ -63,7 +63,6 @@ A modern, production-ready e-commerce template built with Next.js 14, TypeScript
 - **Type Safety** - Full TypeScript coverage
 - **API Layer** - Abstracted data layer, easy to connect to any backend
 - **Performance** - Optimized images, lazy loading, code splitting
-- **i18n Ready** - Spanish and English translations included
 - **Testing** - Vitest unit tests, Playwright E2E tests, Storybook
 
 ## Quick Start
