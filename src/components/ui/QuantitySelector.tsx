@@ -19,7 +19,12 @@ export interface QuantitySelectorProps {
   className?: string;
 }
 
-/** − value + stepper. Buttons disable at the bounds; the value is announced politely. */
+/**
+ * − value + stepper. At the bounds the buttons become aria-disabled but stay
+ * focusable (focusableWhenDisabled), so keyboard focus is never dropped.
+ * The animated digits are aria-hidden; a separate sr-only live region
+ * announces only the new value.
+ */
 export function QuantitySelector({
   value,
   onValueChange,
@@ -46,12 +51,12 @@ export function QuantitySelector({
         variant="ghost"
         onClick={() => set(value - 1)}
         disabled={disabled || value <= min}
+        focusableWhenDisabled
       >
         <Minus aria-hidden="true" />
       </IconButton>
-      <output
-        aria-live="polite"
-        aria-atomic="true"
+      <span
+        aria-hidden="true"
         className={cn(
           "relative flex justify-center overflow-hidden font-semibold text-fg tabular-nums",
           size === "sm" ? "w-7 text-sm" : "w-10 text-base"
@@ -68,6 +73,9 @@ export function QuantitySelector({
             {value}
           </motion.span>
         </AnimatePresence>
+      </span>
+      <output aria-live="polite" aria-atomic="true" className="sr-only">
+        {value}
       </output>
       <IconButton
         label="Aumentar cantidad"
@@ -75,6 +83,7 @@ export function QuantitySelector({
         variant="ghost"
         onClick={() => set(value + 1)}
         disabled={disabled || value >= max}
+        focusableWhenDisabled
       >
         <Plus aria-hidden="true" />
       </IconButton>

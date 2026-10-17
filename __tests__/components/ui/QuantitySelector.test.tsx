@@ -17,10 +17,12 @@ describe("QuantitySelector", () => {
     expect(screen.getByRole("button", { name: "Aumentar cantidad" })).toBeInTheDocument();
   });
 
-  it("disables decrement at the minimum", () => {
+  it("marks decrement aria-disabled at the minimum (still focusable)", () => {
     render(<Controlled initial={1} min={1} />);
-    expect(screen.getByRole("button", { name: "Disminuir cantidad" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Aumentar cantidad" })).toBeEnabled();
+    const decrement = screen.getByRole("button", { name: "Disminuir cantidad" });
+    expect(decrement).toHaveAttribute("aria-disabled", "true");
+    expect(decrement).not.toHaveAttribute("disabled");
+    expect(screen.getByRole("button", { name: "Aumentar cantidad" })).not.toHaveAttribute("aria-disabled", "true");
   });
 
   it("increments up to max and then disables increment", async () => {
@@ -29,8 +31,35 @@ describe("QuantitySelector", () => {
     const increment = screen.getByRole("button", { name: "Aumentar cantidad" });
 
     await user.click(increment);
-    expect(screen.getByRole("status")).toHaveTextContent("3");
-    expect(increment).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(/^3$/);
+    expect(increment).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps keyboard focus on the button when it reaches the bound", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    function Spy() {
+      const [value, setValue] = useState(4);
+      return (
+        <QuantitySelector
+          value={value}
+          onValueChange={(v) => {
+            onValueChange(v);
+            setValue(v);
+          }}
+          max={5}
+        />
+      );
+    }
+    render(<Spy />);
+    const increment = screen.getByRole("button", { name: "Aumentar cantidad" });
+    increment.focus();
+    await user.keyboard("{Enter}");
+    expect(increment).toHaveAttribute("aria-disabled", "true");
+    expect(increment).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent(/^5$/);
   });
 
   it("never emits values outside the bounds", async () => {
