@@ -22,17 +22,28 @@ export const CATALOG_TAGS = {
 
 const REVALIDATE_SECONDS = 3600;
 
-/** Wraps `fn` in the data cache; the key includes the arguments. */
+/**
+ * Wraps `fn` in the data cache; the key includes the arguments.
+ *
+ * Every distinct key is a persisted cache entry, so only reads whose
+ * arguments come from a small, known set may be cached. When `shouldCache`
+ * is given and says no (free text, price bounds, arbitrary filter values,
+ * deep pages: anything a visitor can vary without limit), the read goes
+ * straight to the database instead of creating a new entry.
+ */
 export function cached<A extends unknown[], R>(
   key: string,
   fn: (...args: A) => Promise<R>,
-  tags: (...args: NoInfer<A>) => string[]
+  tags: (...args: NoInfer<A>) => string[],
+  shouldCache?: (...args: NoInfer<A>) => boolean | Promise<boolean>
 ): (...args: A) => Promise<R> {
-  return (...args: A) =>
-    unstable_cache(() => fn(...args), [key, JSON.stringify(args)], {
+  return async (...args: A) => {
+    if (shouldCache && !(await shouldCache(...args))) return fn(...args);
+    return unstable_cache(() => fn(...args), [key, JSON.stringify(args)], {
       tags: tags(...args),
       revalidate: REVALIDATE_SECONDS,
     })();
+  };
 }
 
 /**

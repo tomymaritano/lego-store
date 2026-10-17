@@ -193,6 +193,12 @@ export async function getProducts(db: Db): Promise<Product[]> {
   return rows.map(toProduct);
 }
 
+/** Every product id (for bounding cache keys to ids that exist). */
+export async function getProductIds(db: Db): Promise<string[]> {
+  const rows = await db.product.findMany({ select: { id: true }, orderBy: { id: "asc" } });
+  return rows.map((row) => row.id);
+}
+
 export async function getProductById(db: Db, id: string): Promise<Product | null> {
   const row = await db.product.findUnique({ where: { id }, select: productSelect });
   return row ? toProduct(row) : null;
