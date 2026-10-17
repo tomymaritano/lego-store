@@ -94,7 +94,7 @@ export default function CartPage() {
                   </Link>
                   <p className="text-lg font-bold text-foreground-primary mt-1">{formatPrice(item.price)}</p>
 
-                  <div className="flex items-center justify-between mt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-3">
                     <QuantitySelector
                       value={item.quantity}
                       onValueChange={(quantity) => setQuantity(item.id, quantity)}

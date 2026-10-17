@@ -426,7 +426,7 @@ function ShippingForm({ initialData, onSubmit }: ShippingFormProps) {
           </div>
         </div>
 
-        <div className="flex justify-between pt-4">
+        <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-between">
           <Button variant="ghost" render={<Link href="/cart" />}>
             <ChevronLeft className="w-4 h-4 mr-2" />
             Volver al carrito
@@ -592,7 +592,7 @@ function PaymentForm({ initialData, onSubmit, onBack }: PaymentFormProps) {
           </p>
         </div>
 
-        <div className="flex justify-between pt-4">
+        <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-between">
           <Button variant="ghost" type="button" onClick={onBack}>
             <ChevronLeft className="w-4 h-4 mr-2" />
             Volver
@@ -660,7 +660,7 @@ function ReviewStep({ shippingInfo, paymentInfo, onBack, onPlaceOrder, isProcess
       </div>
 
       {/* Actions */}
-      <div className="flex justify-between pt-4">
+      <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-between">
         <Button variant="ghost" onClick={onBack} disabled={isProcessing}>
           <ChevronLeft className="w-4 h-4 mr-2" />
           Volver
