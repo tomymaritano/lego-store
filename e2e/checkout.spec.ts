@@ -5,7 +5,7 @@ const AXE_PATH = path.join(process.cwd(), "node_modules", "axe-core", "axe.min.j
 
 /** Runs axe (WCAG 2.1 A/AA) on the page and returns the serious/critical rule ids. */
 async function seriousAxeViolations(page: Page) {
-  await page.addScriptTag({ path: AXE_PATH });
+  if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ path: AXE_PATH });
   return page.evaluate(async () => {
     const axe = (window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<{ violations: { id: string; impact: string; nodes: { target: string[] }[] }[] }> } }).axe;
     const { violations } = await axe.run(document, {
@@ -78,8 +78,9 @@ test.describe("Checkout", () => {
     await expect(stepper(page).locator("[aria-current='step']")).toContainText("Pago");
     await expect(stepper(page)).toContainText("Envío (completado)");
 
-    // Lighthouse skips /checkout (it redirects without a cart): axe audits every step here.
-    expect(await seriousAxeViolations(page)).toEqual([]);
+    // Lighthouse skips /checkout (it redirects without a cart): axe audits every step here,
+    // polling because a step that just slid in is still fading (axe reads that as low contrast).
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
     await fillPayment(page);
     await expect(page.getByLabel(/^Número de tarjeta/)).toHaveValue("4242 4242 4242 4242");
@@ -90,7 +91,7 @@ test.describe("Checkout", () => {
     await expect(page.getByTestId("review-shipping")).toContainText("Córdoba X5000ABC");
     await expect(page.getByTestId("review-payment")).toContainText("Visa •••• 4242");
     await expect(page.getByTestId("review-total")).toHaveText(/2\.746/);
-    expect(await seriousAxeViolations(page)).toEqual([]);
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
     await page.getByRole("button", { name: /Confirmar pedido/ }).click();
     await expect(page.getByTestId("place-order")).toHaveAttribute("aria-busy", "true");
@@ -106,7 +107,7 @@ test.describe("Checkout", () => {
     await expect(confirmation.getByTestId("order-id")).toHaveText(/^LEGO-[A-Z0-9]+$/);
     await expect(confirmation).toContainText("ana@example.com");
     await expect(confirmation).toContainText(/2\.746/);
-    expect(await seriousAxeViolations(page)).toEqual([]);
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
     // The cart is now empty, but the confirmation stays (no redirect to the cart).
     await expect(page.getByTestId("cart-count")).toHaveCount(0);
