@@ -12,7 +12,7 @@ interface UseInfiniteScrollReturn<T> {
   isLoading: boolean;
   loadMore: () => void;
   reset: () => void;
-  sentinelRef: React.RefObject<HTMLDivElement>;
+  sentinelRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function useInfiniteScroll<T>({

@@ -98,7 +98,7 @@ export default function HomePage() {
                   alt="LEGO Captain Rex Helmet"
                   fill
                   className="object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
-                  priority
+                  preload
                 />
               </div>
             </motion.div>

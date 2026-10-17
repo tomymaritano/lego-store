@@ -50,7 +50,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
           alt={alt}
           fill
           className="object-contain p-8 transition-transform duration-300 group-hover:scale-105"
-          priority
+          preload
         />
 
         {/* Zoom Lens (visible on hover) */}
@@ -120,7 +120,6 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
                 fill
                 className="object-contain"
                 sizes="100vw"
-                priority
               />
             </motion.div>
 
