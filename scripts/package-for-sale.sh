@@ -33,10 +33,11 @@ cp -r screenshots "${PACKAGE_DIR}/" 2>/dev/null || mkdir -p "${PACKAGE_DIR}/scre
 # Copy config files
 cp package.json "${PACKAGE_DIR}/"
 cp tsconfig.json "${PACKAGE_DIR}/"
-cp tailwind.config.ts "${PACKAGE_DIR}/" 2>/dev/null || true
+cp eslint.config.mjs "${PACKAGE_DIR}/"
 cp postcss.config.mjs "${PACKAGE_DIR}/"
 cp next.config.mjs "${PACKAGE_DIR}/"
 cp vitest.config.ts "${PACKAGE_DIR}/" 2>/dev/null || true
+cp vitest.shims.d.ts "${PACKAGE_DIR}/" 2>/dev/null || true
 cp playwright.config.ts "${PACKAGE_DIR}/" 2>/dev/null || true
 cp components.json "${PACKAGE_DIR}/" 2>/dev/null || true
 
@@ -47,7 +48,6 @@ cp LICENSE "${PACKAGE_DIR}/"
 cp MARKETPLACE.md "${PACKAGE_DIR}/"
 
 # Copy dot files
-cp .eslintrc.json "${PACKAGE_DIR}/" 2>/dev/null || true
 cp .prettierrc "${PACKAGE_DIR}/" 2>/dev/null || true
 cp .env.example "${PACKAGE_DIR}/" 2>/dev/null || echo "NEXT_PUBLIC_API_URL=" > "${PACKAGE_DIR}/.env.example"
 
