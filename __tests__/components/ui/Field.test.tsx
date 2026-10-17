@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { Field, Input, RadioGroup, RadioGroupItem, Slider, Textarea } from "@/components/ui";
+import { Field, Input, RadioGroup, RadioGroupItem, Select, SelectTrigger, SelectValue, Slider, Textarea } from "@/components/ui";
 
 describe("Field", () => {
   it("associates the label with the control", () => {
@@ -98,5 +98,29 @@ describe("Field", () => {
     expect(slider).toBeDisabled();
     expect(slider).toHaveAttribute("aria-invalid", "true");
     expect(container.querySelector("label[for]")).toBeNull();
+  });
+
+  it("exposes a required RadioGroup to assistive tech", () => {
+    render(
+      <Field label="Envío" required>
+        <RadioGroup defaultValue="a">
+          <RadioGroupItem value="a" label="Estándar" />
+        </RadioGroup>
+      </Field>
+    );
+    expect(screen.getByRole("radiogroup", { name: "Envío" })).toHaveAttribute("aria-required", "true");
+  });
+
+  it("marks a Select trigger required from the Field", () => {
+    render(
+      <Field label="Provincia" required>
+        <Select items={[{ value: "ba", label: "Buenos Aires" }]}>
+          <SelectTrigger>
+            <SelectValue placeholder="Elegí" />
+          </SelectTrigger>
+        </Select>
+      </Field>
+    );
+    expect(screen.getByRole("combobox", { name: /Provincia/ })).toHaveAttribute("aria-required", "true");
   });
 });

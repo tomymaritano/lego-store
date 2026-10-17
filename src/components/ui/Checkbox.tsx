@@ -28,7 +28,7 @@ function Checkbox({ className, label, description, indeterminate, ...props }: Ch
     <BaseCheckbox.Root data-slot="checkbox" indeterminate={indeterminate} className={cn(boxClasses, !label && className)} {...props}>
       <BaseCheckbox.Indicator
         keepMounted
-        className="flex transition-[opacity,transform] duration-fast ease-standard data-unchecked:scale-50 data-unchecked:opacity-0"
+        className="flex transition-[opacity,scale] duration-fast ease-standard data-unchecked:scale-50 data-unchecked:opacity-0"
       >
         {indeterminate ? (
           <Minus aria-hidden="true" className="size-3.5" strokeWidth={3} />

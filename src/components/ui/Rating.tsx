@@ -100,7 +100,6 @@ export function RatingInput({
       data-slot="rating-input"
       className={cn("flex flex-col gap-1.5", className)}
       disabled={disabled}
-      aria-invalid={error ? true : undefined}
       aria-describedby={errorId}
     >
       <legend className={cn("mb-1.5 text-label text-fg", hideLabel && "sr-only")}>
@@ -128,6 +127,9 @@ export function RatingInput({
                 checked={value === option}
                 onChange={() => onValueChange(option)}
                 required={required}
+                // aria-invalid is not supported on role=group, so each radio carries it.
+                aria-invalid={error ? true : undefined}
+                aria-describedby={errorId}
                 className="peer sr-only"
               />
               <span className="sr-only">{option === 1 ? "1 estrella" : `${option} estrellas`}</span>

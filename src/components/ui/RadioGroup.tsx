@@ -18,9 +18,9 @@ export interface RadioGroupProps extends Omit<React.ComponentProps<typeof BaseRa
 function RadioGroup({ className, ...props }: RadioGroupProps) {
   // A group is not label[for]-able: the Field label names it via aria-labelledby.
   const { field, controlProps } = useFieldControl(props, { labelable: false });
-  const { id: _id, required: _required, ...groupProps } = controlProps as typeof controlProps & { id?: string; required?: boolean };
+  // Only the id is dropped (no element carries it); `required` reaches Base UI, which sets aria-required.
+  const { id: _id, ...groupProps } = controlProps as typeof controlProps & { id?: string };
   void _id;
-  void _required;
   return (
     <BaseRadioGroup
       data-slot="radio-group"
@@ -52,7 +52,7 @@ function RadioGroupItem({ className, label, description, ...props }: RadioGroupI
       >
         <BaseRadio.Indicator
           keepMounted
-          className="size-2.5 rounded-full bg-fg transition-[opacity,transform] duration-fast ease-standard data-unchecked:scale-0 data-unchecked:opacity-0"
+          className="size-2.5 rounded-full bg-fg transition-[opacity,scale] duration-fast ease-standard data-unchecked:scale-0 data-unchecked:opacity-0"
         />
       </BaseRadio.Root>
       <span className="flex flex-col">

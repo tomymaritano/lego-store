@@ -96,6 +96,11 @@ export function Field({
   );
 }
 
+/** The surrounding Field's wiring, or null outside a Field. */
+export function useField() {
+  return React.useContext(FieldContext);
+}
+
 export interface FieldControlProps {
   id?: string;
   "aria-describedby"?: string;

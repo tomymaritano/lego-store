@@ -10,7 +10,7 @@ import { Spinner } from "./Spinner";
 const buttonVariants = cva(
   [
     "relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold select-none",
-    "transition-[background-color,color,border-color,box-shadow,transform] duration-fast ease-standard",
+    "transition-[background-color,color,border-color,box-shadow,scale] duration-fast ease-standard",
     "outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
     "active:scale-[0.97] motion-reduce:active:scale-100",
     "disabled:pointer-events-none disabled:opacity-50 data-disabled:pointer-events-none data-disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",

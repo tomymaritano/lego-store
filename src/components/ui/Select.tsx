@@ -5,7 +5,7 @@ import { Select as BaseSelect } from "@base-ui/react/select";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { controlClasses } from "./Input";
-import { useFieldControl } from "./Field";
+import { useField, useFieldControl } from "./Field";
 
 /**
  * Select on Base UI. Pass `items` to Select so SelectValue can show labels:
@@ -17,7 +17,22 @@ import { useFieldControl } from "./Field";
  *     </Select>
  *   </Field>
  */
-const Select = BaseSelect.Root;
+function Select<Value, Multiple extends boolean | undefined = false>({
+  required,
+  disabled,
+  ...props
+}: React.ComponentProps<typeof BaseSelect.Root<Value, Multiple>>) {
+  // Base UI derives aria-required / native validation on the trigger from the Root,
+  // so the Field's `required` and `disabled` are forwarded here.
+  const field = useField();
+  return (
+    <BaseSelect.Root<Value, Multiple>
+      required={required ?? (field?.required || undefined)}
+      disabled={disabled ?? (field?.disabled || undefined)}
+      {...props}
+    />
+  );
+}
 
 interface SelectTriggerProps extends Omit<React.ComponentProps<typeof BaseSelect.Trigger>, "className"> {
   className?: string;
@@ -68,7 +83,7 @@ function SelectContent({ className, children, sideOffset = 6, alignItemWithTrigg
           data-slot="select-content"
           className={cn(
             "max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) overflow-y-auto rounded-xl border border-border bg-surface-raised p-1 text-fg shadow-lg outline-none",
-            "transition-[opacity,transform] duration-fast ease-standard data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0",
+            "transition-[opacity,scale] duration-fast ease-standard data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0",
             className
           )}
           {...props}

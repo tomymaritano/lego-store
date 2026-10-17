@@ -35,8 +35,8 @@ function Slider({ className, thumbLabels, formatValueText, value, defaultValue, 
       {...props}
     >
       <BaseSlider.Control className="relative flex h-6 w-full touch-none items-center select-none data-disabled:opacity-50">
-        {/* Light: neutral track (4.8:1 on bg) with an fg range; dark: muted track with the yellow range. Both >= 3:1. */}
-        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-border-strong dark:bg-bg-muted">
+        {/* Track uses border-strong in both themes: light 4.8:1 on bg; dark 5.19:1 on bg, 4.29:1 on surface (WCAG 1.4.11). */}
+        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-border-strong">
           <BaseSlider.Indicator className="rounded-full bg-fg dark:bg-primary" />
         </BaseSlider.Track>
         {values.map((_, index) => (
@@ -55,7 +55,7 @@ function Slider({ className, thumbLabels, formatValueText, value, defaultValue, 
             getAriaValueText={formatValueText ? (_formatted, v) => formatValueText(v) : undefined}
             className={cn(
               "block size-5 rounded-full border-2 border-fg bg-primary shadow-md",
-              "transition-[box-shadow,transform] duration-fast ease-standard",
+              "transition-[box-shadow,scale] duration-fast ease-standard",
               "outline-none has-focus-visible:ring-2 has-focus-visible:ring-focus-ring has-focus-visible:ring-offset-2 has-focus-visible:ring-offset-bg",
               "hover:scale-110 data-dragging:scale-110 motion-reduce:hover:scale-100"
             )}

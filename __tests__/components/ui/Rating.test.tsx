@@ -64,10 +64,14 @@ describe("RatingInput", () => {
     expect(screen.getByRole("radio", { name: "3 estrellas" })).toHaveFocus();
   });
 
-  it("announces an error and marks the group invalid", () => {
+  it("announces an error and marks every radio invalid", () => {
     render(<RatingInput label="Tu calificación" value={0} onValueChange={() => {}} error="Elegí una calificación" />);
     const group = screen.getByRole("group", { name: "Tu calificación" });
-    expect(group).toHaveAttribute("aria-invalid", "true");
+    expect(group).not.toHaveAttribute("aria-invalid");
     expect(group).toHaveAccessibleDescription("Elegí una calificación");
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toHaveAttribute("aria-invalid", "true");
+      expect(radio).toHaveAccessibleDescription("Elegí una calificación");
+    }
   });
 });
