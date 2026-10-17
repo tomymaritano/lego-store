@@ -29,13 +29,13 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
 
   return (
     <>
-      <aside aria-label="Promoción" className="bg-sale text-on-sale">
+      <aside aria-label="Promoción" className="bg-brand-red text-on-brand-red">
         <p className="container-custom flex flex-wrap items-center justify-center gap-x-2 py-2 text-center text-sm font-medium">
           <Truck aria-hidden="true" className="size-4 shrink-0" />
           <span>Envío gratis en compras desde {formatPrice(siteConfig.commerce.freeShippingThreshold)}</span>
           <Link
             href="/envios"
-            className="rounded-sm font-semibold underline underline-offset-2 hover:no-underline focus-visible:outline-on-sale"
+            className="rounded-sm font-semibold underline underline-offset-2 hover:no-underline focus-visible:outline-on-brand-red"
           >
             Ver condiciones
           </Link>

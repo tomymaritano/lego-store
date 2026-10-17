@@ -8,8 +8,9 @@
 
    Three tiers:
    1. Primitives (raw palette). Plain CSS vars, NOT exposed as Tailwind
-      utilities, so components cannot reach for them directly. (ESLint still
-      flags the old lego-* / gray-* alias names should anyone re-add them.)
+      utilities, so components cannot reach for them directly. Tailwind's
+      own default palette is reset (`--color-*: initial`), and ESLint
+      rejects raw palette class names as a second barrier.
    2. Semantic tokens (what a colour is for). Defined in :root and overridden
       in .dark. Only this tier changes between themes.
    3. Component tokens, only where a component needs a colour no semantic
@@ -122,13 +123,17 @@
   /* ---- 3. Component ------------------------------------------------------ */
   /* Brand fills for product badges; they sit on photos, so they stay the
      same in both themes and always carry white text. */
+  --badge-sale: var(--red-600);
+  --on-badge-sale: var(--stone-0);
+  --badge-new: var(--blue-600);
+  --on-badge-new: var(--stone-0);
   --badge-limited: var(--orange-700);
   --on-badge-limited: var(--stone-0);
   --badge-exclusive: var(--purple-700);
   --on-badge-exclusive: var(--stone-0);
   --badge-neutral: var(--stone-100);
-  /* LEGO red for accents on the always-yellow hero: the yellow does not
-     change with the theme, so neither does its red (pill, badge, brick). */
+  /* LEGO red for accents on the always-yellow hero and the promo strip:
+     it does not change with the theme (pill, badge, brick, promo bar). */
   --brand-red: var(--red-600);
   --on-brand-red: var(--stone-0);
   /* Solid blue band (CTA banner, hero brick). Unlike --info, which is tuned
@@ -205,6 +210,11 @@
 
 /* Semantic + component tokens as Tailwind utilities. */
 @theme inline {
+  /* Drop Tailwind's default palette first: bg-gray-500, text-red-600,
+     bg-white... no longer exist as utilities. Colours come only from the
+     semantic and component tokens below. */
+  --color-*: initial;
+
   --color-bg: var(--bg);
   --color-bg-subtle: var(--bg-subtle);
   --color-bg-muted: var(--bg-muted);
@@ -231,6 +241,10 @@
   --color-rating: var(--rating);
   --color-sale: var(--sale);
   --color-on-sale: var(--on-sale);
+  --color-badge-sale: var(--badge-sale);
+  --color-on-badge-sale: var(--on-badge-sale);
+  --color-badge-new: var(--badge-new);
+  --color-on-badge-new: var(--on-badge-new);
   --color-badge-limited: var(--badge-limited);
   --color-on-badge-limited: var(--on-badge-limited);
   --color-badge-exclusive: var(--badge-exclusive);
@@ -454,4 +468,15 @@ html[data-compare-bar] [data-footer-bottom] {
 
 .disclosure[open]::details-content {
   block-size: auto;
+}
+
+/* Print: scroll reveals (motion's inline opacity/transform) never ran for
+   content below the fold, so force it visible and in place on paper. */
+@media print {
+  [style*="opacity"] {
+    opacity: 1 !important;
+  }
+  [style*="transform"] {
+    transform: none !important;
+  }
 }

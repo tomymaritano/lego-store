@@ -57,6 +57,8 @@ const pairs: Array<[string, string, number]> = [
     [c, "bg-subtle", TEXT],
     [c, "surface", TEXT],
   ]),
+  ["on-badge-sale", "badge-sale", TEXT],
+  ["on-badge-new", "badge-new", TEXT],
   ["on-badge-limited", "badge-limited", TEXT],
   ["on-badge-exclusive", "badge-exclusive", TEXT],
   ["fg", "badge-neutral", TEXT],
