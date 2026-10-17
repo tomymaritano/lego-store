@@ -9,7 +9,7 @@ export const SHIPPING_COST = 299;
 /** Orders whose subtotal reaches this amount ship free. */
 export const FREE_SHIPPING_FROM = 5000;
 
-export interface ShippingQuote {
+interface ShippingQuote {
   /** Shipping charged for this subtotal (0 when free or the cart is empty). */
   cost: number;
   free: boolean;
@@ -19,7 +19,7 @@ export interface ShippingQuote {
   progress: number;
 }
 
-export interface PricedLine {
+interface PricedLine {
   price: number;
   quantity: number;
 }

@@ -112,7 +112,7 @@ export function serializeProductQuery(query: ProductQuery): URLSearchParams {
 // Active filters (chips, "clear all")
 // ---------------------------------------------------------------------------
 
-export type ListFilterField = keyof typeof LIST_KEYS;
+type ListFilterField = keyof typeof LIST_KEYS;
 
 /** One removable filter of a query. Price is one chip for its min and max. */
 export type ActiveFilter =

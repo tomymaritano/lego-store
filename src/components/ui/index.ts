@@ -7,6 +7,13 @@
 // does not define. To add a primitive, copy it from the shadcn Base UI docs into a
 // PascalCase file and re-tokenise it (surface-raised, fg-muted, focus-ring, border-strong,
 // bg-muted, surface); the ESLint guardrails flag anything left untokenised.
+//
+// This barrel is the design system's public API, not only what the app uses
+// today: composable parts (DialogClose, DialogFooter, CardDescription,
+// CardFooter), the variant helpers (buttonVariants, badgeVariants) for styling
+// a non-button element like one, and useFieldControl for custom controls
+// inside a Field are exported on purpose (Card and Dialog stories show the
+// composable parts).
 export { Button, buttonVariants, type ButtonProps } from "./Button";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Spinner } from "./Spinner";

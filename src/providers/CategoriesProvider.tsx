@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { Category } from "@/types";
 
-export type CategoryRef = Pick<Category, "id" | "name">;
+type CategoryRef = Pick<Category, "id" | "name">;
 
 const CategoriesContext = createContext<readonly CategoryRef[]>([]);
 

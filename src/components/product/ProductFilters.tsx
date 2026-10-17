@@ -9,7 +9,7 @@ import type { FacetCounts, FilterOption, FilterOptions, ProductFilters as Filter
 type ListField = "themes" | "types" | "ages" | "pieces" | "highlights";
 type CountedFacet = ListField | "categories" | "ratings";
 
-export interface ProductFiltersProps {
+interface ProductFiltersProps {
   /** Values and counts in the page's scope (getFilterOptions). */
   options: FilterOptions;
   /**
