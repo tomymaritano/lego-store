@@ -109,4 +109,17 @@ describe("useCatalogQuery", () => {
     expect(push).toHaveBeenLastCalledWith(null, "", "/search?q=star&sort=rating");
     push.mockRestore();
   });
+
+  it("ignores the route's scope keys (a stray ?category= on a category page)", async () => {
+    nav.search = "category=technic&theme=Marvel";
+    nav.pathname = "/category/helmet";
+    const { useCatalogQuery } = await import("@/hooks/useCatalogQuery");
+    const push = vi.spyOn(window.history, "pushState");
+    const { result } = renderHook(() => useCatalogQuery(["category"]));
+    expect(result.current.query).toEqual({ themes: ["Marvel"] });
+
+    act(() => result.current.clear());
+    expect(push).toHaveBeenLastCalledWith(null, "", "/category/helmet");
+    push.mockRestore();
+  });
 });

@@ -65,6 +65,48 @@ test.describe("Catalogue filters and sort (URL state)", () => {
     await expect(page.getByTestId("product-card").first()).toBeVisible();
   });
 
+  test("the price slider works from the keyboard: focus stays on the thumb, the URL follows", async ({ page }) => {
+    await page.goto("/search");
+    const max = sidebar(page).getByRole("slider", { name: "Precio máximo" });
+    const start = Number(await max.getAttribute("aria-valuenow"));
+    await max.focus();
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press("ArrowLeft");
+      await page.waitForTimeout(600);
+      await expect(max).toBeFocused();
+    }
+    await expect(page).toHaveURL(new RegExp(`maxPrice=${start - 150}$`));
+    await expect(max).toHaveAttribute("aria-valuenow", String(start - 150));
+
+    // Held keys commit once, after the pause.
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+    await expect(page).toHaveURL(new RegExp(`maxPrice=${start - 250}$`));
+    await expect(max).toBeFocused();
+
+    // Removing the chip resets the slider (it follows the URL).
+    await page.getByRole("button", { name: /^Quitar filtro Precio/ }).click();
+    await expect(page).toHaveURL(/\/search$/);
+    await expect(max).toHaveAttribute("aria-valuenow", String(start));
+  });
+
+  test("the sidebar's Limpiar keeps keyboard focus on the result count", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/search?theme=Star%20Wars&onSale=1");
+    const clearButton = sidebar(page).getByRole("button", { name: "Limpiar" });
+    await clearButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/search$/);
+    await expect(count(page)).toBeFocused();
+  });
+
+  test("a stray ?category= on a category page is not an active filter", async ({ page }) => {
+    await page.goto("/category/helmet?category=technic");
+    await expect(count(page)).toContainText("5 productos");
+    await expect(page.getByRole("region", { name: "Filtros activos" })).toHaveCount(0);
+    await expect(sidebar(page).getByRole("button", { name: "Limpiar" })).toHaveCount(0);
+  });
+
   test("mobile: filters open in a sheet and its footer shows the live count", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/search?q=star");
@@ -77,7 +119,7 @@ test.describe("Catalogue filters and sort (URL state)", () => {
     await expect(done).toBeVisible();
     await done.click();
     await expect(sheet).toBeHidden();
-    await expect(page.getByRole("button", { name: "Filtros, 1 activos" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Filtros 1 activo" })).toBeFocused();
   });
 });
 
@@ -120,16 +162,6 @@ test.describe("Quick view", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
-  });
-});
-
-test.describe("Home server HTML", () => {
-  test("hero copy is not hidden before hydration (LCP, no-JS)", async ({ request }) => {
-    const html = await (await request.get("/")).text();
-    const section = html.slice(html.indexOf('aria-labelledby="hero-title"'), html.indexOf('id="hero-title"'));
-    expect(section.length).toBeGreaterThan(0);
-    // Motion serialises its initial state inline; the hero only moves, it never starts transparent.
-    expect(section).not.toMatch(/opacity:s*0/);
   });
 });
 

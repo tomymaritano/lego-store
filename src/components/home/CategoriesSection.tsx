@@ -73,10 +73,13 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
                     variant="secondary"
                     size="sm"
                     className="rounded-full bg-surface"
-                    render={<Link href={`/category/${category.id}`} aria-label={`${category.name}, ${pluralize(category.productCount, "set")}`} />}
+                    render={<Link href={`/category/${category.id}`} />}
                   >
                     {category.name}
-                    <span className="text-caption font-normal text-fg-muted">{category.productCount}</span>
+                    <span className="text-caption font-normal text-fg-muted">
+                      {category.productCount}
+                      <span className="sr-only">{category.productCount === 1 ? " set" : " sets"}</span>
+                    </span>
                   </Button>
                 </StaggerItem>
               ))}

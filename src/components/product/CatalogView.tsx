@@ -49,7 +49,8 @@ const EAGER_IMAGES = 3;
  * and in a bottom sheet on phones.
  */
 export function CatalogView({ initialPage, initialQuery, scope, options, showCategories = false }: CatalogViewProps) {
-  const { query, update, setQuery, clear } = useCatalogQuery();
+  // The route's scope (the category in the path) is not a URL filter.
+  const { query, update, setQuery, clear } = useCatalogQuery(scope ? (Object.keys(scope) as (keyof ProductQuery)[]) : []);
   const apiQuery = { ...query, ...scope };
   const pages = useProductPages({ query: apiQuery, initialPage, initialQuery: { ...initialQuery, ...scope } });
 
@@ -85,12 +86,22 @@ export function CatalogView({ initialPage, initialQuery, scope, options, showCat
               Filtros
             </h2>
             {filterCount > 0 ? (
-              <Button variant="link" size="sm" onClick={clear}>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  clear();
+                  // The button unmounts with the last filter: keep keyboard focus nearby.
+                  requestAnimationFrame(() => countRef.current?.focus());
+                }}
+              >
                 Limpiar
               </Button>
             ) : null}
           </div>
           {filters}
+          {/* Hints that the list goes on below the fold of this scroller. */}
+          <div aria-hidden="true" className="pointer-events-none sticky bottom-0 -mx-5 mt-3 -mb-5 h-8 rounded-b-2xl bg-linear-to-t from-surface to-transparent" />
         </div>
       </aside>
 
@@ -116,14 +127,15 @@ export function CatalogView({ initialPage, initialQuery, scope, options, showCat
             <Sheet>
               <SheetTrigger
                 render={
-                  <Button variant="secondary" className="shrink-0 lg:hidden" aria-label={filterCount ? `Filtros, ${filterCount} activos` : "Filtros"} />
+                  <Button variant="secondary" className="shrink-0 lg:hidden" />
                 }
               >
                 <SlidersHorizontal aria-hidden="true" />
                 Filtros
                 {filterCount > 0 ? (
-                  <Badge variant="new" aria-hidden="true" className="px-2">
+                  <Badge variant="new" className="px-2">
                     {filterCount}
+                    <span className="sr-only">{filterCount === 1 ? " activo" : " activos"}</span>
                   </Badge>
                 ) : null}
               </SheetTrigger>

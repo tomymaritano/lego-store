@@ -12,19 +12,24 @@ import type { ProductQuery } from "@/types";
  * on the server (results come from GET /api/products).
  *
  * Paging is never put in the URL (infinite scroll), and the path scope
- * (/category/[id]) stays in the path.
+ * (/category/[id]) stays in the path: pass its keys as `scopeKeys` so a
+ * stray `?category=` on that page is ignored (no chip, no extra fetch) and
+ * dropped from the URL on the next change.
  */
-export function useCatalogQuery() {
+export function useCatalogQuery(scopeKeys: readonly (keyof ProductQuery)[] = []) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const search = searchParams.toString();
 
+  const scopeKey = scopeKeys.join(",");
   const query = useMemo(() => {
     const { page: _page, limit: _limit, ...rest } = parseProductQuery(new URLSearchParams(search));
     void _page;
     void _limit;
+    const ignored = scopeKey ? scopeKey.split(",") : [];
+    for (const key of ignored) delete rest[key as keyof typeof rest];
     return rest;
-  }, [search]);
+  }, [search, scopeKey]);
 
   const setQuery = useCallback(
     (next: ProductQuery) => {
