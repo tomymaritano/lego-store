@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence } from "motion/react";
 import { orderTotals } from "@/lib/pricing";
 import { useCartItems, useCartStore, useCheckoutStore, useStoreHydrated } from "@/stores";
-import { Skeleton, showToast } from "@/components/ui";
+import { Breadcrumbs, Skeleton, showToast } from "@/components/ui";
 import type { CheckoutStep, PaymentInfo, ShippingInfo } from "@/types";
 import { ConfirmationStep } from "./ConfirmationStep";
 import { OrderSummary } from "./OrderSummary";
@@ -17,6 +17,16 @@ import { Stepper } from "./Stepper";
 import { stepIndex } from "./steps";
 
 const checkout = useCheckoutStore.getState;
+
+/** Breadcrumbs and h1 while the purchase is in progress (not on the confirmation). */
+function CheckoutHeader() {
+  return (
+    <>
+      <Breadcrumbs items={[{ label: "Carrito", href: "/cart" }, { label: "Checkout" }]} />
+      <h1 className="mt-4 mb-8 text-3xl md:text-4xl">Finalizar compra</h1>
+    </>
+  );
+}
 
 /**
  * The checkout wizard (client island). Steps slide in the direction of
@@ -90,13 +100,16 @@ export function CheckoutFlow() {
 
   if (!hydrated || (cart.length === 0 && step !== "confirmation")) {
     return (
-      <div aria-busy="true" className="space-y-8">
-        <Skeleton className="mx-auto h-14 w-full max-w-xl" />
-        <div className="grid gap-8 lg:grid-cols-3">
-          <Skeleton className="h-112 lg:col-span-2" />
-          <Skeleton className="h-80" />
+      <>
+        <CheckoutHeader />
+        <div aria-busy="true" className="space-y-8">
+          <Skeleton className="mx-auto h-14 w-full max-w-xl" />
+          <div className="grid gap-8 lg:grid-cols-3">
+            <Skeleton className="h-112 lg:col-span-2" />
+            <Skeleton className="h-80" />
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -104,6 +117,8 @@ export function CheckoutFlow() {
 
   return (
     <StepDirectionContext.Provider value={direction}>
+      {/* On the confirmation, its "¡Gracias por tu compra!" is the page's h1. */}
+      {!confirmed && <CheckoutHeader />}
       {!confirmed && (
         <div className="mb-8">
           <Stepper current={step} />

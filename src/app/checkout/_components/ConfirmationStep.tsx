@@ -19,7 +19,8 @@ const { deliveryDays } = siteConfig.commerce;
 
 /**
  * Order placed: an animated tick, the order number and what happens next.
- * Focus moves to the heading so the success is announced.
+ * Its heading is the page's h1 (the checkout header is gone by then); focus
+ * moves to it so the success is announced.
  */
 export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -46,7 +47,7 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
           </svg>
         </motion.span>
 
-        <motion.h2
+        <motion.h1
           variants={staggerItem}
           id="confirmation-title"
           ref={headingRef}
@@ -54,7 +55,7 @@ export function ConfirmationStep({ orderId, total, email }: ConfirmationStepProp
           className="mb-2 scroll-mt-32 text-2xl text-fg sm:text-3xl outline-none"
         >
           ¡Gracias por tu compra!
-        </motion.h2>
+        </motion.h1>
         <motion.p variants={staggerItem} className="mb-6 text-fg-secondary">
           Tu pedido está confirmado y ya lo estamos preparando.
         </motion.p>
