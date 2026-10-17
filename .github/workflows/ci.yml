@@ -153,6 +153,9 @@ jobs:
       # artifacts, never published to public storage. SEO is asserted only on
       # indexable pages: /cart is noindex on purpose. /checkout is left out: with
       # an empty cart it redirects to /cart; e2e/checkout.spec.ts audits it with axe.
+      # Performance stays a warning: local medians sit at 0.80-0.82 (Oct 2026), too
+      # close to the 0.8 line for a runner's noise; make it an error once they clear it
+      # comfortably.
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:
