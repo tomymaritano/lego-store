@@ -20,7 +20,8 @@ export default function NotFound() {
           <div
             key={index}
             className="animate-brick-drop flex flex-col items-center"
-            style={{ animationDelay: `${index * 90}ms` }}
+            // Stagger derived from the motion tokens (half a fast step per brick).
+            style={{ animationDelay: `calc(var(--duration-fast) * ${index} / 2)` }}
           >
             <div className="flex gap-2">
               <span className={`h-3 w-5 rounded-t-md ${brick.className} brightness-95`} />

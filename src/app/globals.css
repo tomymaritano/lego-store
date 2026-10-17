@@ -389,6 +389,8 @@
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      /* Staggers too: with fill-mode both, a delay would leave items blank. */
+      animation-delay: 0s !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       /* Smooth scrolling (scroll-smooth) is motion too; JS scrollBy picks its own behavior. */
