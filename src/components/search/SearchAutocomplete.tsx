@@ -158,7 +158,16 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
   const showNoResults = searching && !isFetching && data !== undefined && total === 0;
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div
+      ref={containerRef}
+      className={cn("relative", className)}
+      onBlur={(event) => {
+        // Keep the panel while focus moves inside it (chips, "Ver los N resultados");
+        // close it once keyboard focus leaves the combobox altogether.
+        const next = event.relatedTarget as Node | null;
+        if (!next || !containerRef.current?.contains(next)) close();
+      }}
+    >
       <form
         role="search"
         onSubmit={(event) => {
@@ -220,6 +229,8 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
             initial="hidden"
             animate="visible"
             exit="exit"
+            // Clicking inside the panel must not blur the input (that would close it before the click lands).
+            onMouseDown={(event) => event.preventDefault()}
             className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-surface-raised text-fg shadow-xl"
           >
             <ul id={listboxId} role="listbox" aria-label="Sugerencias de búsqueda" className="p-2 empty:hidden">

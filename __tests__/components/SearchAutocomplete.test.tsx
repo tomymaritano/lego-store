@@ -80,3 +80,35 @@ describe("SearchAutocomplete", () => {
     );
   });
 });
+
+describe("SearchAutocomplete focus handling", () => {
+  beforeEach(() => {
+    mockFetch(() => ({ items: [], total: 0 }));
+  });
+
+  it("closes when keyboard focus leaves the combobox", () => {
+    renderWithQuery(
+      <>
+        <SearchAutocomplete />
+        <button type="button">Después</button>
+      </>
+    );
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    expect(input).toHaveAttribute("aria-expanded", "true");
+
+    const outside = screen.getByRole("button", { name: "Después" });
+    fireEvent.blur(input, { relatedTarget: outside });
+    expect(input).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("stays open while focus moves inside the panel", () => {
+    renderWithQuery(<SearchAutocomplete />);
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+
+    const chip = screen.getByRole("button", { name: "Star Wars" });
+    fireEvent.blur(input, { relatedTarget: chip });
+    expect(input).toHaveAttribute("aria-expanded", "true");
+  });
+});
