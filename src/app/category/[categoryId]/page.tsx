@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { products } from "@/data/products";
 import { ProductList } from "@/components/product";
@@ -40,9 +41,9 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
       {/* Header */}
       <div className="mb-8">
         <nav className="text-sm text-gray-500 mb-4">
-          <a href="/" className="hover:text-lego-blue">
+          <Link href="/" className="hover:text-lego-blue">
             Inicio
-          </a>
+          </Link>
           <span className="mx-2">/</span>
           <span className="text-gray-900">{categoryName}</span>
         </nav>

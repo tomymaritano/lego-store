@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Moon, Sun, Monitor } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useThemeStore } from "@/stores/themeStore";
+import { useHydration } from "@/hooks/useHydration";
 import { cn } from "@/lib/utils";
 
 interface ThemeToggleProps {
@@ -12,12 +12,8 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydration();
   const { theme, toggleTheme } = useThemeStore();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return (
@@ -64,12 +60,8 @@ export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) 
 
 // Full Theme Selector with all options
 export function ThemeSelector({ className }: { className?: string }) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydration();
   const { theme, setTheme } = useThemeStore();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) return null;
 

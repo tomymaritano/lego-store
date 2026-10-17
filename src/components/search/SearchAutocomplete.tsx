@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -50,22 +50,14 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
 
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
-  const [suggestions, setSuggestions] = useState<Product[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-
-  // Load recent searches
-  useEffect(() => {
-    setRecentSearches(getRecentSearches());
-  }, []);
+  const [prevDebouncedQuery, setPrevDebouncedQuery] = useState(debouncedQuery);
 
   // Search products with debounced query (300ms delay)
-  useEffect(() => {
-    if (debouncedQuery.length < 2) {
-      setSuggestions([]);
-      return;
-    }
+  const suggestions = useMemo<Product[]>(() => {
+    if (debouncedQuery.length < 2) return [];
 
     const searchTerms = debouncedQuery.toLowerCase().split(" ");
     const results = products.filter((product) => {
@@ -73,9 +65,14 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
       return searchTerms.every((term) => searchableText.includes(term));
     });
 
-    setSuggestions(results.slice(0, MAX_SUGGESTIONS));
-    setSelectedIndex(-1);
+    return results.slice(0, MAX_SUGGESTIONS);
   }, [debouncedQuery]);
+
+  // Reset keyboard selection when the results change
+  if (debouncedQuery !== prevDebouncedQuery) {
+    setPrevDebouncedQuery(debouncedQuery);
+    setSelectedIndex(-1);
+  }
 
   // Handle click outside
   useEffect(() => {
@@ -87,6 +84,16 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleSearch = useCallback((searchQuery: string) => {
+    if (searchQuery.trim()) {
+      saveRecentSearch(searchQuery.trim());
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setQuery("");
+      setIsOpen(false);
+      onClose?.();
+    }
+  }, [router, onClose]);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback(
@@ -125,19 +132,9 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
           break;
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [suggestions, recentSearches, selectedIndex, query, router, onClose]
+    [suggestions, recentSearches, selectedIndex, query, router, onClose, handleSearch]
   );
 
-  const handleSearch = useCallback((searchQuery: string) => {
-    if (searchQuery.trim()) {
-      saveRecentSearch(searchQuery.trim());
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setQuery("");
-      setIsOpen(false);
-      onClose?.();
-    }
-  }, [router, onClose]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,7 +157,10 @@ export function SearchAutocomplete({ onClose, className, autoFocus = false }: Se
           placeholder="Buscar sets, temas, personajes..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            setRecentSearches(getRecentSearches());
+            setIsOpen(true);
+          }}
           onKeyDown={handleKeyDown}
           autoFocus={autoFocus}
           className="w-full pl-11 pr-10 py-2.5 bg-background-secondary border-0 rounded-full text-sm text-foreground-primary placeholder:text-foreground-muted focus:outline-none focus:ring-2 focus:ring-lego-yellow transition-all"

@@ -22,6 +22,14 @@ export function useInfiniteScroll<T>({
 }: UseInfiniteScrollOptions<T>): UseInfiniteScrollReturn<T> {
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [prevItems, setPrevItems] = useState(items);
+
+  // Reset when items change (adjusting state during render, no effect needed)
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setPage(1);
+    setIsLoading(false);
+  }
   const sentinelRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -45,11 +53,6 @@ export function useInfiniteScroll<T>({
     setPage(1);
     setIsLoading(false);
   }, []);
-
-  // Reset when items change
-  useEffect(() => {
-    reset();
-  }, [items, reset]);
 
   // Set up intersection observer
   useEffect(() => {

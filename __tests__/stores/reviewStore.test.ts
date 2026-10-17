@@ -72,7 +72,7 @@ describe("Review Store", () => {
   });
 
   it("should include required fields when adding a review", () => {
-    const { addReview, getProductReviews } = useReviewStore.getState();
+    const { addReview } = useReviewStore.getState();
     const productId = "test-product-fields";
 
     addReview({
