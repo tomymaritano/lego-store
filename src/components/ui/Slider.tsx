@@ -16,8 +16,11 @@ export interface SliderProps extends Omit<React.ComponentProps<typeof BaseSlider
   formatValueText?: (value: number) => string;
 }
 
-function Slider({ className, thumbLabels, formatValueText, value, defaultValue, min = 0, max = 100, ...props }: SliderProps) {
-  const { field } = useFieldControl({});
+function Slider({ className, thumbLabels, formatValueText, value, defaultValue, min = 0, max = 100, disabled, ...props }: SliderProps) {
+  // A slider is not label[for]-able: it is named through aria-labelledby.
+  const { field } = useFieldControl({}, { labelable: false });
+  const isDisabled = disabled ?? field?.disabled ?? false;
+  const invalid = field?.invalid ?? false;
   const values = Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [typeof value === "number" ? value : typeof defaultValue === "number" ? defaultValue : min];
 
   return (
@@ -27,17 +30,25 @@ function Slider({ className, thumbLabels, formatValueText, value, defaultValue, 
       defaultValue={defaultValue}
       min={min}
       max={max}
+      disabled={isDisabled}
       className={cn("w-full", className)}
       {...props}
     >
       <BaseSlider.Control className="relative flex h-6 w-full touch-none items-center select-none data-disabled:opacity-50">
-        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-bg-muted">
-          <BaseSlider.Indicator className="rounded-full bg-primary" />
+        {/* Light: neutral track (4.8:1 on bg) with an fg range; dark: muted track with the yellow range. Both >= 3:1. */}
+        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-border-strong dark:bg-bg-muted">
+          <BaseSlider.Indicator className="rounded-full bg-fg dark:bg-primary" />
         </BaseSlider.Track>
         {values.map((_, index) => (
           <BaseSlider.Thumb
             key={index}
             index={index}
+            // aria-invalid belongs on the <input type="range">, which Base UI only exposes by ref.
+            inputRef={(input: HTMLInputElement | null) => {
+              if (!input) return;
+              if (invalid) input.setAttribute("aria-invalid", "true");
+              else input.removeAttribute("aria-invalid");
+            }}
             aria-labelledby={thumbLabels?.[index] ? undefined : field?.labelId}
             aria-describedby={[field?.hintId, field?.errorId].filter(Boolean).join(" ") || undefined}
             getAriaLabel={thumbLabels ? (i) => thumbLabels[i] ?? "" : undefined}

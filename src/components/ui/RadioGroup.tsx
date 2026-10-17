@@ -16,7 +16,8 @@ export interface RadioGroupProps extends Omit<React.ComponentProps<typeof BaseRa
  * the group is labelled by the Field label and described by its hint/error.
  */
 function RadioGroup({ className, ...props }: RadioGroupProps) {
-  const { field, controlProps } = useFieldControl(props);
+  // A group is not label[for]-able: the Field label names it via aria-labelledby.
+  const { field, controlProps } = useFieldControl(props, { labelable: false });
   const { id: _id, required: _required, ...groupProps } = controlProps as typeof controlProps & { id?: string; required?: boolean };
   void _id;
   void _required;

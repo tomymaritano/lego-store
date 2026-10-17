@@ -4,7 +4,11 @@ import { Toaster as SonnerToaster, toast } from "sonner";
 import { CheckCircle2, XCircle, AlertTriangle, Info, ShoppingCart, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Sonner, themed with design tokens (no richColors: our tokens carry contrast). */
+/**
+ * Sonner, themed with design tokens (no richColors: our tokens carry contrast).
+ * `unstyled` drops Sonner's rule that hides the content of collapsed back
+ * toasts; globals.css restores it (see "Sonner: unstyled toasts").
+ */
 export function Toaster() {
   return (
     <SonnerToaster
@@ -15,7 +19,7 @@ export function Toaster() {
         unstyled: true,
         classNames: {
           toast:
-            "flex w-full items-center gap-3 rounded-xl border border-border bg-surface-raised p-4 text-fg shadow-xl",
+            "flex w-full items-center gap-3 overflow-hidden rounded-xl border border-border bg-surface-raised p-4 text-fg shadow-xl",
           title: "text-sm font-semibold",
           description: "text-caption text-fg-muted",
           icon: "shrink-0",

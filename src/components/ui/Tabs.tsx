@@ -10,7 +10,11 @@ function Tabs({ className, ...props }: WithClassName<React.ComponentProps<typeof
   return <BaseTabs.Root data-slot="tabs" className={cn("flex flex-col gap-4", className)} {...props} />;
 }
 
-/** Tab list with an animated underline that slides to the active tab. */
+/**
+ * Tab list with an animated underline that slides to the active tab.
+ * The underline is fg in light mode (yellow on white is only 1.42:1) and
+ * brand yellow in dark mode, so the selected state always reaches 3:1.
+ */
 function TabsList({ className, children, ...props }: WithClassName<React.ComponentProps<typeof BaseTabs.List>>) {
   return (
     <BaseTabs.List
@@ -21,7 +25,7 @@ function TabsList({ className, children, ...props }: WithClassName<React.Compone
       {children}
       <BaseTabs.Indicator
         className={cn(
-          "absolute bottom-0 left-0 h-0.5 w-(--active-tab-width) translate-x-(--active-tab-left) rounded-full bg-primary",
+          "absolute bottom-0 left-0 h-0.5 w-(--active-tab-width) translate-x-(--active-tab-left) rounded-full bg-fg dark:bg-primary",
           "transition-[translate,width] duration-base ease-emphasized"
         )}
       />

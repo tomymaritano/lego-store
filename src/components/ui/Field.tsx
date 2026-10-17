@@ -11,6 +11,8 @@ interface FieldContextValue {
   invalid: boolean;
   required: boolean;
   disabled: boolean;
+  /** Called by group-type controls (RadioGroup, Slider) that are named via aria-labelledby. */
+  setLabelable: (labelable: boolean) => void;
 }
 
 const FieldContext = React.createContext<FieldContextValue | null>(null);
@@ -50,6 +52,8 @@ export function Field({
 }: FieldProps) {
   const autoId = React.useId();
   const controlId = id ?? `field-${autoId}`;
+  // Group-type controls have no element with `controlId`, so the label drops `for`.
+  const [labelable, setLabelable] = React.useState(true);
   const value: FieldContextValue = {
     controlId,
     labelId: `${controlId}-label`,
@@ -58,6 +62,7 @@ export function Field({
     invalid: Boolean(error),
     required,
     disabled,
+    setLabelable,
   };
 
   return (
@@ -65,7 +70,7 @@ export function Field({
       <div data-slot="field" data-invalid={value.invalid || undefined} className={cn("flex flex-col gap-1.5", className)} {...props}>
         <label
           id={value.labelId}
-          htmlFor={controlId}
+          htmlFor={labelable ? controlId : undefined}
           className={cn("text-label text-fg", disabled && "opacity-60", hideLabel && "sr-only")}
         >
           {label}
@@ -101,10 +106,21 @@ export interface FieldControlProps {
 
 /**
  * Merges a control's own props with the surrounding Field's wiring.
- * Outside a Field it returns the props unchanged.
+ * Outside a Field it returns the props unchanged. Group-type controls
+ * (RadioGroup, Slider) pass `{ labelable: false }` so the label drops its
+ * `for` (there is no element with that id) and names them via aria-labelledby.
  */
-export function useFieldControl<P extends FieldControlProps>(props: P & { invalid?: boolean }) {
+export function useFieldControl<P extends FieldControlProps>(
+  props: P & { invalid?: boolean },
+  { labelable = true }: { labelable?: boolean } = {}
+) {
   const field = React.useContext(FieldContext);
+  const setLabelable = field?.setLabelable;
+  React.useLayoutEffect(() => {
+    if (!setLabelable || labelable) return;
+    setLabelable(false);
+    return () => setLabelable(true);
+  }, [setLabelable, labelable]);
   const { invalid, ...rest } = props;
   const describedBy =
     [props["aria-describedby"], field?.hintId, field?.errorId].filter(Boolean).join(" ") || undefined;

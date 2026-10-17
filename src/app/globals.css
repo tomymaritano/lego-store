@@ -435,6 +435,13 @@
   }
 }
 
+/* Sonner: unstyled toasts. Sonner only hides the content of collapsed
+   toasts stacked behind the front one for [data-styled='true']; we use
+   `unstyled`, so re-apply it or the back toast shows through. */
+[data-sonner-toast][data-expanded="false"][data-front="false"] > * {
+  opacity: 0;
+}
+
 @utility container-custom {
   @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
 }

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { Field, Input, Textarea } from "@/components/ui";
+import { Field, Input, RadioGroup, RadioGroupItem, Slider, Textarea } from "@/components/ui";
 
 describe("Field", () => {
   it("associates the label with the control", () => {
@@ -74,5 +74,29 @@ describe("Field", () => {
       </>
     );
     expect(screen.getByLabelText("Uno").id).not.toBe(screen.getByLabelText("Dos").id);
+  });
+
+  it("labels a RadioGroup via aria-labelledby without a dangling label[for]", () => {
+    const { container } = render(
+      <Field label="Envío">
+        <RadioGroup defaultValue="a">
+          <RadioGroupItem value="a" label="Estándar" />
+        </RadioGroup>
+      </Field>
+    );
+    expect(screen.getByRole("radiogroup", { name: "Envío" })).toBeInTheDocument();
+    expect(container.querySelector("label[for]")).toBeNull();
+  });
+
+  it("disables and invalidates a Slider from the Field", () => {
+    const { container } = render(
+      <Field label="Precio máximo" disabled error="Fuera de rango">
+        <Slider defaultValue={50} />
+      </Field>
+    );
+    const slider = screen.getByRole("slider", { name: "Precio máximo" });
+    expect(slider).toBeDisabled();
+    expect(slider).toHaveAttribute("aria-invalid", "true");
+    expect(container.querySelector("label[for]")).toBeNull();
   });
 });

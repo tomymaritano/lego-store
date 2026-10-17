@@ -1,3 +1,4 @@
+import * as React from "react";
 import Link from "next/link";
 import { ChevronRight, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,18 +8,17 @@ export interface BreadcrumbItem {
   href?: string;
 }
 
-interface BreadcrumbsProps {
+export interface BreadcrumbsProps extends Omit<React.ComponentProps<"nav">, "children"> {
   /** Trail after "Inicio". The last item is the current page. */
   items: BreadcrumbItem[];
-  className?: string;
 }
 
 const linkClasses =
   "rounded-sm text-fg-muted transition-colors duration-fast hover:text-fg hover:underline underline-offset-4";
 
-export function Breadcrumbs({ items, className }: BreadcrumbsProps) {
+export function Breadcrumbs({ items, className, ...props }: BreadcrumbsProps) {
   return (
-    <nav aria-label="Ruta de navegación" className={cn("py-4", className)}>
+    <nav aria-label="Ruta de navegación" data-slot="breadcrumbs" {...props} className={cn("py-4", className)}>
       <ol className="flex flex-wrap items-center gap-1 text-sm">
         <li className="flex items-center">
           <Link href="/" className={cn(linkClasses, "flex items-center gap-1")}>

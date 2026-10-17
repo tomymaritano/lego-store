@@ -86,7 +86,7 @@ function SelectItem({ className, children, ...props }: Omit<React.ComponentProps
       data-slot="select-item"
       className={cn(
         "relative flex cursor-default items-center gap-2 rounded-lg py-2 pr-8 pl-3 text-sm outline-none select-none",
-        "data-highlighted:bg-bg-muted data-selected:font-semibold data-disabled:pointer-events-none data-disabled:opacity-50",
+        "data-highlighted:bg-bg-muted data-highlighted:ring-2 data-highlighted:ring-focus-ring data-highlighted:ring-inset data-selected:font-semibold data-disabled:pointer-events-none data-disabled:opacity-50",
         className
       )}
       {...props}

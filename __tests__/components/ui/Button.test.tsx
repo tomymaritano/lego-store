@@ -36,6 +36,30 @@ describe("Button", () => {
     await user.click(button);
     expect(onClick).not.toHaveBeenCalled();
   });
+
+  it("makes a disabled link-button inert (no focus, no click, no Enter)", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <>
+        <Button render={<a href="#pagar" />} disabled onClick={onClick}>
+          Pagar
+        </Button>
+        <button type="button">Después</button>
+      </>
+    );
+    const link = screen.getByRole("link", { name: "Pagar" });
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAttribute("tabindex", "-1");
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Después" })).toHaveFocus();
+
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    link.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(onClick).not.toHaveBeenCalled();
+  });
 });
 
 describe("IconButton", () => {

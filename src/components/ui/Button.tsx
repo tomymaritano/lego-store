@@ -79,15 +79,34 @@ function Button({
     </>
   );
 
+  // Non-button elements (e.g. a Next <Link>) have no native `disabled`, so
+  // when disabled/loading we make them inert ourselves: out of the tab order
+  // (unless focusableWhenDisabled) and clicks/Enter swallowed before the
+  // user's handler or the link navigation run.
+  const inert = Boolean(disabled || loading);
+  const swallow = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
   const asElement = useRender({
     enabled: Boolean(render) && !nativeButton,
     render: render as useRender.RenderProp,
     props: {
       ...props,
+      ...(inert
+        ? {
+            onClick: swallow,
+            onKeyDown: (event: React.KeyboardEvent) => {
+              if (event.key === "Enter" || event.key === " ") swallow(event);
+            },
+            tabIndex: focusableWhenDisabled ? 0 : -1,
+          }
+        : null),
       "data-slot": "button",
+      "data-disabled": inert || undefined,
       className: classes,
       "aria-busy": loading || undefined,
-      "aria-disabled": disabled || loading || undefined,
+      "aria-disabled": inert || undefined,
       children: content,
     },
   });
