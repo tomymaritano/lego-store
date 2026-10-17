@@ -1,54 +1,63 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { Product } from "@/types";
+import { idsFrom, isRecord, persistStorage } from "./persist";
 
-const MAX_COMPARE_ITEMS = 4;
+export const MAX_COMPARE_ITEMS = 4;
+
+export type CompareResult = "added" | "removed" | "full";
 
 interface CompareState {
-  items: Product[];
-  addToCompare: (product: Product) => boolean;
-  removeFromCompare: (productId: string) => void;
+  /** Product ids, in the order they were added. Products are fetched by id. */
+  ids: string[];
+  /** Returns false when the list is full or already has the id. */
+  addToCompare: (id: string) => boolean;
+  removeFromCompare: (id: string) => void;
+  toggleCompare: (id: string) => CompareResult;
   clearCompare: () => void;
-  isInCompare: (productId: string) => boolean;
-  canAddMore: () => boolean;
 }
 
 export const useCompareStore = create<CompareState>()(
   persist(
     (set, get) => ({
-      items: [],
+      ids: [],
 
-      addToCompare: (product) => {
-        const state = get();
-        if (state.items.length >= MAX_COMPARE_ITEMS) {
-          return false;
-        }
-        if (state.isInCompare(product.id)) {
-          return false;
-        }
-        set({ items: [...state.items, product] });
+      addToCompare: (id) => {
+        const { ids } = get();
+        if (ids.includes(id) || ids.length >= MAX_COMPARE_ITEMS) return false;
+        set({ ids: [...ids, id] });
         return true;
       },
 
-      removeFromCompare: (productId) => {
-        set((state) => ({
-          items: state.items.filter((item) => item.id !== productId),
-        }));
+      removeFromCompare: (id) => set((state) => ({ ids: state.ids.filter((item) => item !== id) })),
+
+      toggleCompare: (id) => {
+        if (get().ids.includes(id)) {
+          get().removeFromCompare(id);
+          return "removed";
+        }
+        return get().addToCompare(id) ? "added" : "full";
       },
 
-      clearCompare: () => set({ items: [] }),
-
-      isInCompare: (productId) => {
-        return get().items.some((item) => item.id === productId);
-      },
-
-      canAddMore: () => {
-        return get().items.length < MAX_COMPARE_ITEMS;
-      },
+      clearCompare: () => set({ ids: [] }),
     }),
     {
       name: "lego-compare-storage",
-      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      storage: createJSONStorage(persistStorage),
+      skipHydration: true,
+      partialize: (state) => ({ ids: state.ids }),
+      // v0 stored full product snapshots in `items`; keep only their ids.
+      migrate: (persisted) => ({
+        ids: idsFrom(isRecord(persisted) ? (persisted.ids ?? persisted.items) : undefined, MAX_COMPARE_ITEMS),
+      }),
     }
   )
 );
+
+// ---- Selectors -------------------------------------------------------------
+
+export const useCompareIds = () => useCompareStore((state) => state.ids);
+
+export const useCompareCount = () => useCompareStore((state) => state.ids.length);
+
+export const useIsInCompare = (id: string) => useCompareStore((state) => state.ids.includes(id));

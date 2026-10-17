@@ -1,38 +1,37 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { Product } from "@/types";
+import { idsFrom, isRecord, persistStorage } from "./persist";
 
-const MAX_RECENTLY_VIEWED = 10;
+export const MAX_RECENTLY_VIEWED = 10;
 
 interface RecentlyViewedState {
-  items: Product[];
-  addItem: (product: Product) => void;
+  /** Product ids, most recent first. */
+  ids: string[];
+  /** Moves (or adds) the id to the front. */
+  addItem: (id: string) => void;
   clearAll: () => void;
-  getItems: () => Product[];
 }
 
 export const useRecentlyViewedStore = create<RecentlyViewedState>()(
   persist(
-    (set, get) => ({
-      items: [],
-
-      addItem: (product: Product) => {
-        set((state) => {
-          // Remove if already exists
-          const filtered = state.items.filter((item) => item.id !== product.id);
-          // Add to beginning and limit
-          const newItems = [product, ...filtered].slice(0, MAX_RECENTLY_VIEWED);
-          return { items: newItems };
-        });
-      },
-
-      clearAll: () => set({ items: [] }),
-
-      getItems: () => get().items,
+    (set) => ({
+      ids: [],
+      addItem: (id) =>
+        set((state) => ({ ids: [id, ...state.ids.filter((item) => item !== id)].slice(0, MAX_RECENTLY_VIEWED) })),
+      clearAll: () => set({ ids: [] }),
     }),
     {
       name: "lego-recently-viewed",
-      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      storage: createJSONStorage(persistStorage),
+      skipHydration: true,
+      partialize: (state) => ({ ids: state.ids }),
+      // v0 stored full product snapshots in `items`; keep only their ids.
+      migrate: (persisted) => ({
+        ids: idsFrom(isRecord(persisted) ? (persisted.ids ?? persisted.items) : undefined, MAX_RECENTLY_VIEWED),
+      }),
     }
   )
 );
+
+export const useRecentlyViewedIds = () => useRecentlyViewedStore((state) => state.ids);

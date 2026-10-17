@@ -1,91 +1,44 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+"use client";
 
-interface UseInfiniteScrollOptions<T> {
-  items: T[];
-  itemsPerPage?: number;
-  threshold?: number;
+import { useEffect, useRef } from "react";
+
+interface UseInfiniteScrollOptions {
+  /** Called when the sentinel scrolls into view (and `enabled`). */
+  onLoadMore: () => void;
+  enabled: boolean;
+  /** Start loading this far before the sentinel is visible. */
+  rootMargin?: string;
 }
 
-interface UseInfiniteScrollReturn<T> {
-  displayedItems: T[];
-  hasMore: boolean;
-  isLoading: boolean;
-  loadMore: () => void;
-  reset: () => void;
-  sentinelRef: React.RefObject<HTMLDivElement | null>;
-}
+/**
+ * Returns a ref for a sentinel element placed after a list; when it comes
+ * into view, `onLoadMore` runs. The caller owns the data (e.g. React Query's
+ * useInfiniteQuery) and keeps a "Cargar más" button as a fallback.
+ */
+export function useInfiniteScroll<T extends Element = HTMLDivElement>({
+  onLoadMore,
+  enabled,
+  rootMargin = "400px 0px",
+}: UseInfiniteScrollOptions) {
+  const sentinelRef = useRef<T>(null);
+  const callbackRef = useRef(onLoadMore);
 
-export function useInfiniteScroll<T>({
-  items,
-  itemsPerPage = 8,
-  threshold = 0.1,
-}: UseInfiniteScrollOptions<T>): UseInfiniteScrollReturn<T> {
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [prevItems, setPrevItems] = useState(items);
-
-  // Reset when items change (adjusting state during render, no effect needed)
-  if (items !== prevItems) {
-    setPrevItems(items);
-    setPage(1);
-    setIsLoading(false);
-  }
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-
-  const totalItems = items.length;
-  const displayedCount = page * itemsPerPage;
-  const hasMore = displayedCount < totalItems;
-  const displayedItems = items.slice(0, displayedCount);
-
-  const loadMore = useCallback(() => {
-    if (!hasMore || isLoading) return;
-
-    setIsLoading(true);
-    // Simulate loading delay for smooth UX
-    setTimeout(() => {
-      setPage((prev) => prev + 1);
-      setIsLoading(false);
-    }, 300);
-  }, [hasMore, isLoading]);
-
-  const reset = useCallback(() => {
-    setPage(1);
-    setIsLoading(false);
-  }, []);
-
-  // Set up intersection observer
   useEffect(() => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
+    callbackRef.current = onLoadMore;
+  }, [onLoadMore]);
 
-    observerRef.current = new IntersectionObserver(
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!enabled || !node || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoading) {
-          loadMore();
-        }
+        if (entries.some((entry) => entry.isIntersecting)) callbackRef.current();
       },
-      { threshold }
+      { rootMargin }
     );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [enabled, rootMargin]);
 
-    if (sentinelRef.current) {
-      observerRef.current.observe(sentinelRef.current);
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [hasMore, isLoading, loadMore, threshold]);
-
-  return {
-    displayedItems,
-    hasMore,
-    isLoading,
-    loadMore,
-    reset,
-    sentinelRef,
-  };
+  return sentinelRef;
 }

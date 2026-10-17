@@ -2,8 +2,7 @@
 
 import { Moon, Sun, Monitor } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useThemeStore } from "@/stores/themeStore";
-import { useHydration } from "@/hooks/useHydration";
+import { useStoreHydrated, useThemeStore } from "@/stores";
 import { cn } from "@/lib/utils";
 import { transitions } from "@/lib/motion";
 import { IconButton } from "./IconButton";
@@ -17,10 +16,13 @@ const themeLabels = { light: "Claro", dark: "Oscuro", system: "Sistema" } as con
 const icons = { light: Sun, dark: Moon, system: Monitor } as const;
 
 export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) {
-  const mounted = useHydration();
-  const { theme, toggleTheme } = useThemeStore();
+  // Until the persisted preference is loaded the store holds the default,
+  // so render a placeholder instead of a possibly wrong icon.
+  const hydrated = useStoreHydrated(useThemeStore);
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
 
-  if (!mounted) {
+  if (!hydrated) {
     return <div aria-hidden="true" className={cn("size-10 rounded-full bg-bg-muted", className)} />;
   }
 

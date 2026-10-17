@@ -1,116 +1,46 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useRecentlyViewedStore } from "@/stores/recentlyViewedStore";
-import type { Product } from "@/types";
+import { MAX_RECENTLY_VIEWED, useRecentlyViewedStore } from "@/stores/recentlyViewedStore";
 
-const mockProduct: Product = {
-  id: "test-1",
-  name: "Test Product",
-  price: 999,
-  img: "/test.jpg",
-  images: ["/test.jpg"],
-  theme: "Test Theme",
-  category: "helmet",
-  rating: 4.5,
-  stock: 10,
-  description: "A test product",
-  age: "18+",
-  pieces: "100",
-  type: "set",
-  interests: [],
-  highlight: "",
-  shortDescription: "",
-  isNew: false,
-  isOnSale: false,
-};
-
-const mockProduct2: Product = {
-  ...mockProduct,
-  id: "test-2",
-  name: "Test Product 2",
-};
-
-const mockProduct3: Product = {
-  ...mockProduct,
-  id: "test-3",
-  name: "Test Product 3",
-};
-
-describe("Recently Viewed Store", () => {
+describe("recentlyViewedStore", () => {
   beforeEach(() => {
-    useRecentlyViewedStore.setState({ items: [] });
+    useRecentlyViewedStore.setState({ ids: [] });
   });
 
-  it("should add an item to recently viewed", () => {
-    const { addItem, getItems } = useRecentlyViewedStore.getState();
-
-    addItem(mockProduct);
-
-    const items = getItems();
-    expect(items).toHaveLength(1);
-    expect(items[0].id).toBe("test-1");
+  it("puts the latest product first", () => {
+    const { addItem } = useRecentlyViewedStore.getState();
+    addItem("1");
+    addItem("2");
+    expect(useRecentlyViewedStore.getState().ids).toEqual(["2", "1"]);
   });
 
-  it("should add items to the beginning of the list", () => {
-    const { addItem, getItems } = useRecentlyViewedStore.getState();
-
-    addItem(mockProduct);
-    addItem(mockProduct2);
-
-    const items = getItems();
-    expect(items).toHaveLength(2);
-    expect(items[0].id).toBe("test-2");
-    expect(items[1].id).toBe("test-1");
+  it("moves a revisited product to the front without duplicating it", () => {
+    const { addItem } = useRecentlyViewedStore.getState();
+    addItem("1");
+    addItem("2");
+    addItem("1");
+    expect(useRecentlyViewedStore.getState().ids).toEqual(["1", "2"]);
   });
 
-  it("should not duplicate items, just move to front", () => {
-    const { addItem, getItems } = useRecentlyViewedStore.getState();
-
-    addItem(mockProduct);
-    addItem(mockProduct2);
-    addItem(mockProduct); // Add first product again
-
-    const items = getItems();
-    expect(items).toHaveLength(2);
-    expect(items[0].id).toBe("test-1"); // Should be at front now
-    expect(items[1].id).toBe("test-2");
+  it(`keeps the last ${MAX_RECENTLY_VIEWED}`, () => {
+    const { addItem } = useRecentlyViewedStore.getState();
+    for (let i = 1; i <= MAX_RECENTLY_VIEWED + 3; i++) addItem(String(i));
+    const ids = useRecentlyViewedStore.getState().ids;
+    expect(ids).toHaveLength(MAX_RECENTLY_VIEWED);
+    expect(ids[0]).toBe(String(MAX_RECENTLY_VIEWED + 3));
   });
 
-  it("should limit to 10 items maximum", () => {
-    const { addItem, getItems } = useRecentlyViewedStore.getState();
-
-    // Add 12 products
-    for (let i = 1; i <= 12; i++) {
-      addItem({ ...mockProduct, id: `test-${i}`, name: `Product ${i}` });
-    }
-
-    const items = getItems();
-    expect(items).toHaveLength(10);
-    expect(items[0].id).toBe("test-12"); // Most recent
-    expect(items[9].id).toBe("test-3"); // Oldest kept
+  it("clears", () => {
+    useRecentlyViewedStore.getState().addItem("1");
+    useRecentlyViewedStore.getState().clearAll();
+    expect(useRecentlyViewedStore.getState().ids).toEqual([]);
   });
 
-  it("should clear all items", () => {
-    const { addItem, clearAll, getItems } = useRecentlyViewedStore.getState();
-
-    addItem(mockProduct);
-    addItem(mockProduct2);
-
-    expect(getItems()).toHaveLength(2);
-
-    clearAll();
-
-    expect(getItems()).toHaveLength(0);
-  });
-
-  it("should return items via getItems", () => {
-    const { addItem, getItems } = useRecentlyViewedStore.getState();
-
-    addItem(mockProduct);
-    addItem(mockProduct2);
-    addItem(mockProduct3);
-
-    const items = getItems();
-    expect(items).toHaveLength(3);
-    expect(items.map(i => i.id)).toEqual(["test-3", "test-2", "test-1"]);
+  it("migrates v0 (full products) to ids", async () => {
+    localStorage.setItem(
+      "lego-recently-viewed",
+      JSON.stringify({ state: { items: [{ id: "7", name: "Batmobile" }, { id: "1" }] }, version: 0 })
+    );
+    await useRecentlyViewedStore.persist.rehydrate();
+    expect(useRecentlyViewedStore.getState().ids).toEqual(["7", "1"]);
   });
 });

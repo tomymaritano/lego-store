@@ -6,10 +6,6 @@ const meta: Meta<typeof ProductCard> = {
   component: ProductCard,
   parameters: {
     layout: "centered",
-    // TODO(ui-overhaul pages stage): ProductCard still uses raw brand colours
-    // (lego-blue/red text, 10px badges) that fail color-contrast. Back to
-    // "error" once it is rebuilt on Badge/Price/Rating.
-    a11y: { test: "todo" },
   },
   tags: ["autodocs"],
   decorators: [
@@ -115,4 +111,13 @@ export const WithSecondaryImage: Story = {
       imageSecondary: "https://www.lego.com/cdn/cs/set/assets/bltd9dfc1fa25e3b4e8/75349-alt.png",
     },
   },
+};
+
+export const LowStock: Story = {
+  args: { product: { ...baseProduct, stock: 3 } },
+};
+
+export const Dark: Story = {
+  args: { product: { ...baseProduct, isNew: true, isOnSale: true, originalPrice: 999 } },
+  globals: { theme: "dark" },
 };

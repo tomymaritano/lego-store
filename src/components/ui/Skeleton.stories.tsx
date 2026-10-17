@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { CartItemSkeleton, ProductCardSkeleton, Skeleton } from "./Skeleton";
+import { ProductCardSkeleton, ProductListSkeleton, Skeleton } from "./Skeleton";
 
 const meta = {
   title: "UI/Skeleton",
@@ -15,11 +15,11 @@ export const Default: Story = {};
 
 function Gallery() {
   return (
-    <div className="grid max-w-3xl gap-6 sm:grid-cols-2" aria-busy="true">
-      <ProductCardSkeleton />
-      <div className="rounded-2xl border border-border">
-        <CartItemSkeleton />
+    <div className="max-w-5xl space-y-6" aria-busy="true">
+      <div className="max-w-xs">
+        <ProductCardSkeleton />
       </div>
+      <ProductListSkeleton count={4} />
     </div>
   );
 }

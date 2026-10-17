@@ -1,7 +1,15 @@
-export { useCartStore, type CartItem } from "./cartStore";
-export { useWishlistStore, type WishlistItem } from "./wishlistStore";
-export { useRecentlyViewedStore } from "./recentlyViewedStore";
-export { useCheckoutStore, type CheckoutStep, type ShippingInfo, type PaymentInfo } from "./checkoutStore";
+export { useCartStore, useCartItems, useCartCount, useCartSubtotal, useIsInCart } from "./cartStore";
+export { useWishlistStore, useWishlistItems, useWishlistCount, useIsInWishlist } from "./wishlistStore";
+export {
+  useCompareStore,
+  useCompareIds,
+  useCompareCount,
+  useIsInCompare,
+  MAX_COMPARE_ITEMS,
+  type CompareResult,
+} from "./compareStore";
+export { useRecentlyViewedStore, useRecentlyViewedIds } from "./recentlyViewedStore";
+export { useCheckoutStore, summarizePayment } from "./checkoutStore";
 export { useThemeStore } from "./themeStore";
-export { useReviewStore, type Review } from "./reviewStore";
-export { useCompareStore } from "./compareStore";
+export { useReviewStore } from "./reviewStore";
+export { StoreHydrator, useStoresHydrated, useStoreHydrated } from "./hydration";

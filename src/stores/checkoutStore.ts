@@ -1,77 +1,57 @@
 import { create } from "zustand";
+import type { CheckoutStep, PaymentInfo, PaymentSummary, ShippingInfo } from "@/types";
 
-export interface ShippingInfo {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  address: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-}
-
-export interface PaymentInfo {
-  cardNumber: string;
-  cardName: string;
-  expiryDate: string;
-  cvv: string;
-}
-
-export type CheckoutStep = "shipping" | "payment" | "review" | "confirmation";
-
+/**
+ * Checkout wizard state. In memory only (never persisted) and it never holds
+ * the card number or the CVV: the payment form keeps those while its step is
+ * open and hands over a summary (last 4 digits, name, expiry) on submit.
+ */
 interface CheckoutState {
   currentStep: CheckoutStep;
   shippingInfo: ShippingInfo | null;
-  paymentInfo: PaymentInfo | null;
+  paymentSummary: PaymentSummary | null;
   orderId: string | null;
   isProcessing: boolean;
 
   setStep: (step: CheckoutStep) => void;
   setShippingInfo: (info: ShippingInfo) => void;
+  /** Stores only the summary of the card; the full data is dropped here. */
   setPaymentInfo: (info: PaymentInfo) => void;
   processOrder: () => Promise<string>;
   resetCheckout: () => void;
 }
 
-export const useCheckoutStore = create<CheckoutState>((set) => ({
-  currentStep: "shipping",
+export function summarizePayment({ cardNumber, cardName, expiryDate }: PaymentInfo): PaymentSummary {
+  return { cardName, expiryDate, last4: cardNumber.replace(/\D/g, "").slice(-4) };
+}
+
+const ORDER_DELAY_MS = 1200;
+
+const initialState = {
+  currentStep: "shipping" as CheckoutStep,
   shippingInfo: null,
-  paymentInfo: null,
+  paymentSummary: null,
   orderId: null,
   isProcessing: false,
+};
+
+export const useCheckoutStore = create<CheckoutState>((set) => ({
+  ...initialState,
 
   setStep: (step) => set({ currentStep: step }),
 
   setShippingInfo: (info) => set({ shippingInfo: info }),
 
-  setPaymentInfo: (info) => set({ paymentInfo: info }),
+  setPaymentInfo: (info) => set({ paymentSummary: summarizePayment(info) }),
 
   processOrder: async () => {
     set({ isProcessing: true });
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Generate order ID
+    // Mock payment gateway.
+    await new Promise((resolve) => setTimeout(resolve, ORDER_DELAY_MS));
     const orderId = `LEGO-${Date.now().toString(36).toUpperCase()}`;
-
-    set({
-      orderId,
-      isProcessing: false,
-      currentStep: "confirmation",
-    });
-
+    set({ orderId, isProcessing: false, currentStep: "confirmation", paymentSummary: null });
     return orderId;
   },
 
-  resetCheckout: () =>
-    set({
-      currentStep: "shipping",
-      shippingInfo: null,
-      paymentInfo: null,
-      orderId: null,
-      isProcessing: false,
-    }),
+  resetCheckout: () => set(initialState),
 }));

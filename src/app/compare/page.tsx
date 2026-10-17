@@ -2,26 +2,80 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Scale, X, ShoppingCart, ChevronLeft } from "lucide-react";
 import { motion } from "motion/react";
+import { Check, ChevronLeft, Plus, Scale, ShoppingCart, X } from "lucide-react";
 import { fadeInUp } from "@/lib/motion";
-import { useCompareStore } from "@/stores/compareStore";
-import { useCartStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
-import { formatPrice, cn } from "@/lib/utils";
-import { Button, Skeleton, showToast } from "@/components/ui";
+import { cn } from "@/lib/utils";
+import { MAX_COMPARE_ITEMS, useCompareIds, useCompareStore, useStoreHydrated } from "@/stores";
+import { useProductActions } from "@/hooks/useProductActions";
+import { useProductsByIds } from "@/hooks/useProductsByIds";
+import { Badge, Button, EmptyState, IconButton, Price, Rating, Skeleton } from "@/components/ui";
 import { PageTransition } from "@/components/layout";
+import type { Product } from "@/types";
+
+const specs: { label: string; render: (p: Product) => React.ReactNode }[] = [
+  { label: "Categoría", render: (p) => <span className="capitalize">{p.category}</span> },
+  { label: "Tema", render: (p) => p.theme },
+  { label: "Piezas", render: (p) => p.pieces || "N/D" },
+  { label: "Edad", render: (p) => p.age },
+  { label: "Calificación", render: (p) => <Rating value={p.rating} showValue size="sm" className="justify-center" /> },
+  {
+    label: "Disponibilidad",
+    render: (p) =>
+      p.stock > 0 ? <Badge variant="success">{p.stock} disponibles</Badge> : <Badge variant="danger">Agotado</Badge>,
+  },
+];
+
+function ProductHeader({ product }: { product: Product }) {
+  const { toggleCompare } = useProductActions(product);
+  return (
+    <motion.div variants={fadeInUp} initial="hidden" animate="visible" className="relative">
+      <IconButton
+        label={`Quitar ${product.name} de la comparación`}
+        variant="secondary"
+        size="icon-sm"
+        className="absolute -top-2 -right-2 z-10"
+        onClick={toggleCompare}
+      >
+        <X aria-hidden="true" />
+      </IconButton>
+      <Link href={`/item/${product.id}`} className="group block rounded-xl">
+        <span className="relative mx-auto mb-3 block size-32 rounded-xl bg-bg-subtle">
+          <Image src={product.img} alt="" fill sizes="128px" className="object-contain p-2" />
+        </span>
+        <span className="line-clamp-2 text-sm font-semibold text-fg group-hover:text-info">{product.name}</span>
+      </Link>
+    </motion.div>
+  );
+}
+
+function ProductActions({ product }: { product: Product }) {
+  const { inCart, isAvailable, addToCart } = useProductActions(product);
+  return (
+    <div className="flex flex-col gap-2">
+      <Button onClick={() => addToCart()} disabled={!isAvailable || inCart} size="sm" className="w-full">
+        {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
+        {inCart ? "En el carrito" : "Agregar"}
+      </Button>
+      <Button variant="secondary" size="sm" className="w-full" render={<Link href={`/item/${product.id}`} />}>
+        Ver detalles
+      </Button>
+    </div>
+  );
+}
 
 export default function ComparePage() {
-  const hydrated = useHydration();
-  const { items, removeFromCompare, clearCompare } = useCompareStore();
-  const addToCart = useCartStore((state) => state.addItem);
+  const hydrated = useStoreHydrated(useCompareStore);
+  const ids = useCompareIds();
+  const clearCompare = useCompareStore((state) => state.clearCompare);
+  const { products, isLoading } = useProductsByIds(ids);
 
-  if (!hydrated) {
+  if (!hydrated || isLoading) {
     return (
-      <div className="container-custom py-8">
-        <Skeleton className="h-10 w-48 mb-8" />
-        <div className="grid grid-cols-4 gap-4">
+      <div className="container-custom py-8" aria-busy="true">
+        <h1 className="sr-only">Comparar productos</h1>
+        <Skeleton className="mb-8 h-10 w-48" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-96" />
           ))}
@@ -30,194 +84,114 @@ export default function ComparePage() {
     );
   }
 
-  if (items.length === 0) {
+  if (products.length === 0) {
     return (
       <PageTransition>
         <div className="container-custom py-16">
-          <div className="max-w-md mx-auto text-center">
-            <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-              <Scale className="w-12 h-12 text-foreground-muted" />
-            </div>
-            <h1 className="text-2xl font-bold mb-4 text-foreground-primary">No hay productos para comparar</h1>
-            <p className="text-foreground-muted mb-8">
-              Agrega productos a la comparación para ver sus características lado a lado.
-            </p>
-            <Button size="lg" render={<Link href="/" />}>
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Explorar productos
-            </Button>
-          </div>
+          <h1 className="sr-only">Comparar productos</h1>
+          <EmptyState
+            icon={<Scale />}
+            title="No hay productos para comparar"
+            description="Agrega productos a la comparación para ver sus características lado a lado."
+            action={
+              <Button size="lg" render={<Link href="/" />}>
+                <ChevronLeft aria-hidden="true" />
+                Explorar productos
+              </Button>
+            }
+          />
         </div>
       </PageTransition>
     );
   }
 
-  const handleAddToCart = (item: typeof items[0]) => {
-    addToCart(item, 1);
-    showToast.cart(`${item.name} agregado al carrito`);
-  };
-
-  const specs = [
-    { key: "category", label: "Categoría" },
-    { key: "theme", label: "Tema" },
-    { key: "pieces", label: "Piezas" },
-    { key: "age", label: "Edad" },
-    { key: "rating", label: "Calificación" },
-    { key: "stock", label: "Disponibilidad" },
-  ];
+  const emptySlots = Math.max(0, MAX_COMPARE_ITEMS - products.length);
+  const empty = (key: string) =>
+    Array.from({ length: emptySlots }, (_, i) => <td key={`${key}-${i}`} className="p-4" />);
 
   return (
     <PageTransition>
       <div className="container-custom py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground-primary">Comparar Productos</h1>
-            <p className="text-foreground-muted">{items.length} de 4 productos máximo</p>
+            <h1 className="text-3xl md:text-4xl">Comparar productos</h1>
+            <p className="mt-1 text-fg-muted">
+              {products.length} de {MAX_COMPARE_ITEMS} productos como máximo
+            </p>
           </div>
           <Button variant="outline" onClick={clearCompare}>
             Limpiar todo
           </Button>
         </div>
 
-        {/* Comparison Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[800px]">
-            {/* Product Images & Names */}
+        <div className="overflow-x-auto rounded-2xl border border-border bg-surface shadow-card">
+          <table className="w-full min-w-[800px] text-sm">
+            <caption className="sr-only">Características de los productos seleccionados</caption>
             <thead>
               <tr>
-                <th className="w-48 p-4 text-left text-sm font-medium text-foreground-muted border-b border-border">
+                <th scope="col" className="w-48 border-b border-border p-4 text-left font-medium text-fg-muted">
                   Producto
                 </th>
-                {items.map((item) => (
-                  <th key={item.id} className="p-4 border-b border-border">
-                    <motion.div
-                      variants={fadeInUp}
-                      initial="hidden"
-                      animate="visible"
-                      className="relative"
-                    >
-                      <button
-                        onClick={() => removeFromCompare(item.id)}
-                        className="absolute -top-2 -right-2 p-1 bg-background-secondary hover:bg-background-tertiary rounded-full z-10 text-foreground-primary"
-                        aria-label={`Remover ${item.name} de comparación`}
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <Link href={`/item/${item.id}`}>
-                        <div className="relative w-32 h-32 mx-auto bg-background-secondary rounded-xl mb-3">
-                          <Image
-                            src={item.img}
-                            alt={item.name}
-                            fill
-                            className="object-contain p-2"
-                          />
-                        </div>
-                        <h3 className="font-semibold text-sm line-clamp-2 text-foreground-primary hover:text-lego-blue transition-colors">
-                          {item.name}
-                        </h3>
-                      </Link>
-                    </motion.div>
+                {products.map((product) => (
+                  <th key={product.id} scope="col" className="border-b border-border p-4 align-top font-normal">
+                    <ProductHeader product={product} />
                   </th>
                 ))}
-                {/* Empty slots */}
-                {[...Array(4 - items.length)].map((_, i) => (
-                  <th key={`empty-${i}`} className="p-4 border-b border-border">
-                    <Link href="/">
-                      <div className="w-32 h-32 mx-auto bg-background-secondary rounded-xl border-2 border-dashed border-border flex items-center justify-center">
-                        <span className="text-foreground-muted text-sm text-center px-2">
-                          + Agregar producto
-                        </span>
-                      </div>
+                {Array.from({ length: emptySlots }, (_, i) => (
+                  <td key={`slot-${i}`} className="border-b border-border p-4 align-top">
+                    <Link
+                      href="/"
+                      className="mx-auto flex size-32 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border-strong text-center text-sm text-fg-muted transition-colors duration-fast hover:border-info hover:text-info"
+                    >
+                      <Plus aria-hidden="true" className="size-5" />
+                      Agregar producto
                     </Link>
-                  </th>
+                  </td>
                 ))}
               </tr>
             </thead>
 
             <tbody>
-              {/* Price Row */}
-              <tr className="bg-background-secondary">
-                <td className="p-4 font-medium text-sm text-foreground-primary">Precio</td>
-                {items.map((item) => (
-                  <td key={item.id} className="p-4 text-center">
-                    <span className="text-xl font-bold text-lego-red">
-                      {formatPrice(item.price)}
-                    </span>
-                    {item.originalPrice && (
-                      <span className="block text-sm text-foreground-muted line-through">
-                        {formatPrice(item.originalPrice)}
-                      </span>
-                    )}
+              <tr className="bg-bg-subtle">
+                <th scope="row" className="p-4 text-left font-medium text-fg">
+                  Precio
+                </th>
+                {products.map((product) => (
+                  <td key={product.id} className="p-4">
+                    <Price
+                      value={product.price}
+                      originalValue={product.isOnSale ? product.originalPrice : undefined}
+                      className="justify-center"
+                    />
                   </td>
                 ))}
-                {[...Array(4 - items.length)].map((_, i) => (
-                  <td key={`empty-price-${i}`} className="p-4" />
-                ))}
+                {empty("price")}
               </tr>
 
-              {/* Specs Rows */}
-              {specs.map((spec, idx) => (
-                <tr key={spec.key} className={idx % 2 === 0 ? "" : "bg-background-secondary"}>
-                  <td className="p-4 font-medium text-sm capitalize text-foreground-primary">{spec.label}</td>
-                  {items.map((item) => {
-                    const value = item[spec.key as keyof typeof item];
-                    return (
-                      <td key={item.id} className="p-4 text-center text-sm text-foreground-primary">
-                        {spec.key === "rating" ? (
-                          <span className="flex items-center justify-center gap-1">
-                            <span className="text-amber-500">★</span>
-                            {value}
-                          </span>
-                        ) : spec.key === "stock" ? (
-                          <span
-                            className={cn(
-                              "px-2 py-1 rounded-full text-xs font-medium",
-                              Number(value) > 0
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            )}
-                          >
-                            {Number(value) > 0 ? `${value} disponibles` : "Agotado"}
-                          </span>
-                        ) : spec.key === "pieces" ? (
-                          value?.toLocaleString() || "N/A"
-                        ) : (
-                          String(value || "N/A")
-                        )}
-                      </td>
-                    );
-                  })}
-                  {[...Array(4 - items.length)].map((_, i) => (
-                    <td key={`empty-${spec.key}-${i}`} className="p-4" />
+              {specs.map((spec, index) => (
+                <tr key={spec.label} className={cn(index % 2 === 1 && "bg-bg-subtle")}>
+                  <th scope="row" className="p-4 text-left font-medium text-fg">
+                    {spec.label}
+                  </th>
+                  {products.map((product) => (
+                    <td key={product.id} className="p-4 text-center text-fg">
+                      {spec.render(product)}
+                    </td>
                   ))}
+                  {empty(spec.label)}
                 </tr>
               ))}
 
-              {/* Actions Row */}
               <tr className="border-t border-border">
-                <td className="p-4 font-medium text-sm text-foreground-primary">Acciones</td>
-                {items.map((item) => (
-                  <td key={item.id} className="p-4 text-center">
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        onClick={() => handleAddToCart(item)}
-                        disabled={item.stock === 0}
-                        size="sm"
-                        className="w-full"
-                      >
-                        <ShoppingCart className="w-4 h-4 mr-2" />
-                        Agregar
-                      </Button>
-                      <Button variant="outline" size="sm" className="w-full" render={<Link href={`/item/${item.id}`} />}>
-                        Ver detalles
-                      </Button>
-                    </div>
+                <th scope="row" className="p-4 text-left font-medium text-fg">
+                  Acciones
+                </th>
+                {products.map((product) => (
+                  <td key={product.id} className="p-4">
+                    <ProductActions product={product} />
                   </td>
                 ))}
-                {[...Array(4 - items.length)].map((_, i) => (
-                  <td key={`empty-action-${i}`} className="p-4" />
-                ))}
+                {empty("actions")}
               </tr>
             </tbody>
           </table>

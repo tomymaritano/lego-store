@@ -5,31 +5,31 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ClientProviders } from "@/components/layout";
 import { Toaster } from "@/components/ui";
+import { getCategories } from "@/lib/api";
+import { THEME_SCRIPT } from "@/lib/theme";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
   title: {
-    default: "LEGO Store | Tienda Oficial de Sets LEGO",
-    template: "%s | LEGO Store",
+    default: siteConfig.seo.defaultTitle,
+    template: siteConfig.seo.titleTemplate,
   },
-  description: "La mejor tienda de sets LEGO. Encuentra helmets, brickheadz, vehículos y coleccionables de Star Wars, Marvel, Disney y más.",
-  keywords: ["LEGO", "tienda", "sets", "coleccionables", "Star Wars", "Marvel", "Disney", "Harry Potter", "helmets", "brickheadz"],
-  authors: [{ name: "LEGO Store" }],
-  creator: "LEGO Store",
-  publisher: "LEGO Store",
-  robots: {
-    index: true,
-    follow: true,
-  },
+  description: siteConfig.description,
+  keywords: [...siteConfig.seo.keywords],
+  authors: [{ name: siteConfig.name }],
+  creator: siteConfig.name,
+  publisher: siteConfig.name,
+  robots: { index: true, follow: true },
   openGraph: {
-    title: "LEGO Store | Tienda Oficial",
+    title: `${siteConfig.name} | Tienda Oficial`,
     description: "La mejor tienda de sets LEGO. Encuentra tu próxima construcción.",
     type: "website",
-    locale: "es_MX",
-    siteName: "LEGO Store",
+    locale: siteConfig.locale,
+    siteName: siteConfig.name,
   },
   twitter: {
     card: "summary_large_image",
-    title: "LEGO Store | Tienda Oficial",
+    title: `${siteConfig.name} | Tienda Oficial`,
     description: "La mejor tienda de sets LEGO",
   },
   manifest: "/manifest.json",
@@ -46,24 +46,29 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const categories = (await getCategories()).map(({ id, name }) => ({ id, name }));
+
   return (
     <html lang="es" className="scroll-smooth" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <body className="min-h-screen flex flex-col antialiased bg-bg text-fg transition-colors">
-        {/* Skip to content link for accessibility */}
+      <head>
+        {/* Applies the saved theme before first paint (no light/dark flash). See lib/theme.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="flex min-h-screen flex-col bg-bg text-fg antialiased">
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-100 focus:px-4 focus:py-2 focus:bg-primary focus:text-on-primary focus:rounded-lg focus:font-bold focus:shadow-lg"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-100 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:font-bold focus:text-on-primary focus:shadow-lg"
         >
           Saltar al contenido principal
         </a>
         <QueryProvider>
           <ClientProviders>
-            <Navbar />
+            <Navbar categories={categories} />
             <main id="main-content" className="flex-1" tabIndex={-1}>
               {children}
             </main>

@@ -101,13 +101,14 @@ export default defineConfig([
       "no-restricted-syntax": ["error", ...rawColorSelectors, ...aliasSelectors, ...motionSelectors],
     },
   },
-  // Data access goes through src/lib/api.
+  // Data access goes through src/lib/api (server-only): the catalogue must never
+  // be imported by pages or client components directly.
   {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/lib/api/**", "src/data/**"],
     rules: {
       "no-restricted-imports": [
-        "warn",
+        "error",
         {
           patterns: [
             {

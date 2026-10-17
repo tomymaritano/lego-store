@@ -3,10 +3,12 @@ import { useThemeStore } from "@/stores/themeStore";
 import { ThemeToggle } from "./ThemeToggle";
 
 /*
- * The store also writes the theme to <html>, which would fight the Storybook
- * theme toolbar, so stories set only the store's state (no applyTheme).
+ * The store never touches <html> (ThemeSync does, and it is not mounted here),
+ * so the Storybook theme toolbar stays in charge. Loaders hydrate the store
+ * (the app does it in StoreHydrator) and then set the state under test.
  */
-const withStoreTheme = (theme: "light" | "dark" | "system") => () => {
+const withStoreTheme = (theme: "light" | "dark" | "system") => async () => {
+  await useThemeStore.persist.rehydrate();
   useThemeStore.setState({ theme });
   return {};
 };

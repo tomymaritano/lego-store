@@ -1,8 +1,12 @@
 export { ProductCard } from "./ProductCard";
 export { ProductList } from "./ProductList";
 export { ProductFilters, type FilterState } from "./ProductFilters";
-export { ProductSort, type SortOption } from "./ProductSort";
-export { RecentlyViewed } from "./RecentlyViewed";
+export { ProductSort } from "./ProductSort";
+export { RecentlyViewed, TrackRecentlyViewed } from "./RecentlyViewed";
 export { ImageZoom } from "./ImageZoom";
 export { ProductReviews } from "./ProductReviews";
-export { CompareButton, CompareBar } from "./CompareButton";
+export { ProductThumbnails } from "./ProductThumbnails";
+export { CompareButton } from "./CompareButton";
+export { CompareBar } from "./CompareBar";
+export { ProductGallery } from "./ProductGallery";
+export { ProductPurchase } from "./ProductPurchase";

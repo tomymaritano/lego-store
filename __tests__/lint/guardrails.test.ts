@@ -107,4 +107,27 @@ describe("design-system guardrails", () => {
       expect(await guardrailHits(jsx(`<div className="md:dark:bg-primary" />`), UI_FILE)).toEqual([]);
     });
   });
+
+  describe("data access", () => {
+    const importData = `import { products } from "@/data/products";
+export const n = products.length;
+`;
+    const restricted = async (filePath: string) => {
+      const [result] = await eslint.lintText(importData, { filePath });
+      return result.messages.filter((m) => m.ruleId === "no-restricted-imports");
+    };
+
+    it.each([APP_FILE, UI_FILE, "src/components/product/ZzFixture.tsx", "src/stores/zzFixture.ts"])(
+      "is an error to import @/data in %s",
+      async (filePath) => {
+        const hits = await restricted(filePath);
+        expect(hits).toHaveLength(1);
+        expect(hits[0].severity).toBe(2);
+      }
+    );
+
+    it("is allowed inside src/lib/api", async () => {
+      expect(await restricted("src/lib/api/zzFixture.ts")).toEqual([]);
+    });
+  });
 });

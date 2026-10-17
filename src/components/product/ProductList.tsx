@@ -1,130 +1,116 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { Package } from "lucide-react";
 import { transitions } from "@/lib/motion";
-import { Package, Loader2 } from "lucide-react";
-import type { Product } from "@/types";
-import { ProductCard } from "./ProductCard";
-import { ProductListSkeleton, Button } from "@/components/ui";
-import { QuickViewModal } from "./QuickViewModal";
+import { fetchProductsPage } from "@/lib/api-client";
+import { serializeProductQuery } from "@/lib/productQuery";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { Button, EmptyState, Spinner } from "@/components/ui";
+import type { PaginatedResponse, Product, ProductQuery } from "@/types";
+import { ProductCard } from "./ProductCard";
+import { QuickViewModal } from "./QuickViewModal";
 
 interface ProductListProps {
-  products: Product[];
-  isLoading?: boolean;
+  /** First page, rendered on the server (getPaginatedProducts). */
+  initialPage: PaginatedResponse<Product>;
+  /** The query that produced it; later pages are fetched from /api/products. */
+  query?: ProductQuery;
   columns?: 3 | 4;
-  enableInfiniteScroll?: boolean;
-  itemsPerPage?: number;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
+/** Cards of the first page above the fold load their image eagerly. */
+const EAGER_IMAGES = 4;
+/** Cap the entrance stagger so a long page still lands within the motion budget. */
+const STAGGER = 0.04;
+const MAX_STAGGER = 0.24;
+
+/**
+ * Product grid with infinite scroll. The server renders page 1; the client
+ * asks GET /api/products for the next pages as the sentinel nears the
+ * viewport (with a "Cargar más" button as a fallback). Only the cards on
+ * screen ever reach the browser, never the whole catalogue.
+ */
 export function ProductList({
-  products,
-  isLoading,
+  initialPage,
+  query = {},
   columns = 4,
-  enableInfiniteScroll = true,
-  itemsPerPage = 8,
+  emptyTitle = "No se encontraron productos",
+  emptyDescription = "Intenta ajustar los filtros o buscar algo diferente. Tenemos muchos sets increíbles esperándote.",
 }: ProductListProps) {
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const baseQuery = { ...query, page: undefined, limit: initialPage.limit };
 
-  const {
-    displayedItems,
-    hasMore,
-    isLoading: isLoadingMore,
-    loadMore,
-    sentinelRef,
-  } = useInfiniteScroll({
-    items: products,
-    itemsPerPage,
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError } = useInfiniteQuery({
+    queryKey: ["products", "list", serializeProductQuery(baseQuery).toString()],
+    queryFn: ({ pageParam, signal }) => fetchProductsPage({ ...baseQuery, page: pageParam }, signal),
+    initialPageParam: initialPage.page,
+    initialData: { pages: [initialPage], pageParams: [initialPage.page] },
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    staleTime: Infinity,
   });
 
-  const displayProducts = enableInfiniteScroll ? displayedItems : products;
+  const pages = data.pages;
+  const total = pages[0]?.total ?? 0;
+  const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
 
-  if (isLoading) {
-    return <ProductListSkeleton count={8} />;
+  const sentinelRef = useInfiniteScroll({
+    onLoadMore: () => void fetchNextPage(),
+    enabled: hasNextPage && !isFetchingNextPage && !isFetchNextPageError,
+  });
+
+  if (total === 0) {
+    return <EmptyState icon={<Package />} title={emptyTitle} description={emptyDescription} />;
   }
 
-  if (products.length === 0) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-16"
-      >
-        <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Package className="w-10 h-10 text-gray-400" />
-        </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">No se encontraron productos</h3>
-        <p className="text-gray-500 max-w-md mx-auto">
-          Intenta ajustar los filtros o buscar algo diferente.
-          Tenemos muchos sets increíbles esperándote.
-        </p>
-      </motion.div>
-    );
-  }
-
-  const gridCols = columns === 3
-    ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+  const gridCols =
+    columns === 3 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 
   return (
     <>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className={`grid ${gridCols} gap-6`}
-      >
-        <AnimatePresence mode="popLayout">
-          {displayProducts.map((product, index) => (
-            <motion.div
+      <ul className={`grid ${gridCols} gap-4 md:gap-6`} aria-label={`${total} productos`}>
+        {pages.map((page, pageIndex) =>
+          page.items.map((product, index) => (
+            <motion.li
               key={product.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ ...transitions.base, delay: Math.min(index * 0.03, 0.3) }}
+              // Each page staggers in on its own, so appended rows animate too.
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0, transition: { ...transitions.slow, delay: Math.min(index * STAGGER, MAX_STAGGER) } }}
+              className="h-full"
             >
               <ProductCard
                 product={product}
                 onQuickView={setQuickViewProduct}
+                priority={pageIndex === 0 && index < EAGER_IMAGES}
               />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </motion.div>
+            </motion.li>
+          ))
+        )}
+      </ul>
 
-      {/* Infinite Scroll */}
-      {enableInfiniteScroll && (
-        <div className="mt-8">
-          {/* Sentinel Element */}
-          <div ref={sentinelRef} className="h-4" />
+      <div className="mt-8 flex flex-col items-center gap-4" aria-live="polite">
+        <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
 
-          {/* Loading State */}
-          {isLoadingMore && (
-            <div className="flex justify-center py-4">
-              <Loader2 className="w-8 h-8 animate-spin text-lego-blue" />
-            </div>
-          )}
+        {isFetchingNextPage ? (
+          <p className="flex items-center gap-2 text-sm text-fg-muted">
+            <Spinner className="size-5" />
+            Cargando más productos…
+          </p>
+        ) : hasNextPage ? (
+          <Button variant="outline" onClick={() => void fetchNextPage()}>
+            {isFetchNextPageError ? "Reintentar" : "Cargar más productos"}
+          </Button>
+        ) : (
+          <p className="text-sm text-fg-muted">
+            {loaded === 1 ? "Este es el único producto" : `Has visto los ${loaded} productos`}
+          </p>
+        )}
+      </div>
 
-          {/* Load More Button (fallback) */}
-          {hasMore && !isLoadingMore && (
-            <div className="flex justify-center">
-              <Button variant="outline" onClick={loadMore}>
-                Cargar más productos
-              </Button>
-            </div>
-          )}
-
-          {/* End Message */}
-          {!hasMore && displayProducts.length > 0 && (
-            <p className="text-center text-gray-500 py-4">
-              Has visto todos los {products.length} productos
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Quick View Modal */}
       <QuickViewModal
         product={quickViewProduct}
         isOpen={!!quickViewProduct}

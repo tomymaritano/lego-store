@@ -1,93 +1,70 @@
-"use client";
-
-import { useSearchParams } from "next/navigation";
-import { useMemo, Suspense } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, Search } from "lucide-react";
-import { products } from "@/data/products";
+import { ChevronLeft, Search, SearchX } from "lucide-react";
+import { getPaginatedProducts } from "@/lib/api";
+import { parseProductQuery, serializeProductQuery } from "@/lib/productQuery";
+import { Breadcrumbs, Button, EmptyState } from "@/components/ui";
 import { ProductList } from "@/components/product";
-import { ProductListSkeleton, Button } from "@/components/ui";
 
-function SearchContent() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get("q") || "";
+interface SearchPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
-  const results = useMemo(() => {
-    if (!query.trim()) return [];
+export async function generateMetadata({ searchParams }: SearchPageProps): Promise<Metadata> {
+  const { q } = parseProductQuery(await searchParams);
+  return {
+    title: q ? `Resultados para "${q}"` : "Buscar productos",
+    description: "Busca entre nuestra colección de sets LEGO. Encuentra helmets, brickheadz, vehículos y más.",
+    robots: { index: false, follow: true },
+  };
+}
 
-    const lowerQuery = query.toLowerCase();
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(lowerQuery) ||
-        p.description.toLowerCase().includes(lowerQuery) ||
-        p.theme.toLowerCase().includes(lowerQuery) ||
-        p.category.toLowerCase().includes(lowerQuery)
-    );
-  }, [query]);
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const query = parseProductQuery(await searchParams);
 
-  if (!query.trim()) {
+  if (!query.q) {
     return (
       <div className="container-custom py-16">
-        <div className="max-w-md mx-auto text-center">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-            <Search className="w-12 h-12 text-foreground-muted" />
-          </div>
-          <h1 className="text-2xl font-bold mb-4 text-foreground-primary">Busca productos</h1>
-          <p className="text-foreground-muted mb-8">
-            Usa la barra de búsqueda para encontrar tus sets LEGO favoritos.
-          </p>
-          <Button size="lg" render={<Link href="/" />}>
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Volver a la tienda
-          </Button>
-        </div>
+        <h1 className="sr-only">Buscar productos</h1>
+        <EmptyState
+          icon={<Search />}
+          title="Busca productos"
+          description="Usa la barra de búsqueda para encontrar tus sets LEGO favoritos."
+          action={
+            <Button size="lg" render={<Link href="/" />}>
+              <ChevronLeft aria-hidden="true" />
+              Volver a la tienda
+            </Button>
+          }
+        />
       </div>
     );
   }
 
+  const listQuery = { ...query, page: undefined };
+  const firstPage = await getPaginatedProducts(listQuery);
+
   return (
     <div className="container-custom py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <nav className="text-sm text-foreground-muted mb-4">
-          <Link href="/" className="hover:text-lego-blue">
-            Inicio
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="text-foreground-primary">Búsqueda</span>
-        </nav>
+      <Breadcrumbs items={[{ label: "Búsqueda" }]} />
 
-        <h1 className="text-3xl font-bold text-foreground-primary">
-          Resultados para &quot;{query}&quot;
-        </h1>
-        <p className="text-foreground-muted mt-2">
-          {results.length} {results.length === 1 ? "producto encontrado" : "productos encontrados"}
+      <header className="mb-8">
+        <h1 className="text-3xl md:text-4xl">Resultados para &quot;{query.q}&quot;</h1>
+        <p className="mt-2 text-fg-secondary" aria-live="polite">
+          {firstPage.total} {firstPage.total === 1 ? "producto encontrado" : "productos encontrados"}
         </p>
-      </div>
+      </header>
 
-      {/* Results */}
-      {results.length > 0 ? (
-        <ProductList products={results} />
+      {firstPage.total > 0 ? (
+        <ProductList key={serializeProductQuery(listQuery).toString()} initialPage={firstPage} query={listQuery} />
       ) : (
-        <div className="text-center py-12">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">🔍</span>
-          </div>
-          <h3 className="text-lg font-semibold mb-2 text-foreground-primary">No se encontraron resultados</h3>
-          <p className="text-foreground-muted mb-6">
-            Intenta con otras palabras clave o explora nuestras categorías.
-          </p>
-          <Button render={<Link href="/" />}>Ver todos los productos</Button>
-        </div>
+        <EmptyState
+          icon={<SearchX />}
+          title="No se encontraron resultados"
+          description="Intenta con otras palabras clave o explora nuestras categorías."
+          action={<Button render={<Link href="/" />}>Ver todos los productos</Button>}
+        />
       )}
     </div>
-  );
-}
-
-export default function SearchPage() {
-  return (
-    <Suspense fallback={<ProductListSkeleton count={6} />}>
-      <SearchContent />
-    </Suspense>
   );
 }

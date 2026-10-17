@@ -44,15 +44,7 @@ export { Badge, badgeVariants, type BadgeProps } from "./Badge";
 export { Rating, RatingInput, type RatingProps, type RatingInputProps } from "./Rating";
 export { Price, type PriceProps } from "./Price";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
-export {
-  Skeleton,
-  ProductCardSkeleton,
-  ProductListSkeleton,
-  ProductDetailSkeleton,
-  CartItemSkeleton,
-  CategoryHeaderSkeleton,
-  FilterSkeleton,
-} from "./Skeleton";
+export { Skeleton, ProductCardSkeleton, ProductListSkeleton } from "./Skeleton";
 export { QuantitySelector, type QuantitySelectorProps } from "./QuantitySelector";
 export { Toaster, showToast, toast } from "./Toast";
 export { Breadcrumbs, type BreadcrumbItem } from "./Breadcrumbs";

@@ -1,61 +1,46 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { products } from "@/data/products";
+import { getCategories, getCategoryById, getPaginatedProducts } from "@/lib/api";
+import { Breadcrumbs } from "@/components/ui";
 import { ProductList } from "@/components/product";
 
 interface CategoryPageProps {
   params: Promise<{ categoryId: string }>;
 }
 
-const categoryNames: Record<string, string> = {
-  helmet: "Helmets",
-  brickheadz: "Brickheadz",
-  cars: "Vehículos",
-};
+export async function generateStaticParams() {
+  return (await getCategories()).map((category) => ({ categoryId: category.id }));
+}
 
-export async function generateMetadata({ params }: CategoryPageProps) {
-  const { categoryId } = await params;
-  const name = categoryNames[categoryId] || categoryId;
-
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const category = await getCategoryById((await params).categoryId);
+  if (!category) return { title: "Categoría no encontrada" };
   return {
-    title: `${name} | LEGO Store`,
-    description: `Explora nuestra colección de ${name} LEGO`,
+    title: category.name,
+    description: `Explora nuestra colección de ${category.name} LEGO: ${category.description.toLowerCase()}.`,
   };
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { categoryId } = await params;
+  const category = await getCategoryById(categoryId);
+  if (!category) notFound();
 
-  const categoryProducts = products.filter(
-    (p) => p.category.toLowerCase() === categoryId.toLowerCase()
-  );
-
-  if (categoryProducts.length === 0 && !categoryNames[categoryId]) {
-    notFound();
-  }
-
-  const categoryName = categoryNames[categoryId] || categoryId;
+  const query = { category: category.id };
+  const firstPage = await getPaginatedProducts(query);
 
   return (
     <div className="container-custom py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <nav className="text-sm text-gray-500 mb-4">
-          <Link href="/" className="hover:text-lego-blue">
-            Inicio
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="text-gray-900">{categoryName}</span>
-        </nav>
+      <Breadcrumbs items={[{ label: category.name }]} />
 
-        <h1 className="text-3xl font-bold">{categoryName}</h1>
-        <p className="text-gray-600 mt-2">
-          {categoryProducts.length} productos encontrados
+      <header className="mb-8">
+        <h1 className="text-3xl md:text-4xl">{category.name}</h1>
+        <p className="mt-2 text-fg-secondary">
+          {category.description} · {firstPage.total} {firstPage.total === 1 ? "producto" : "productos"}
         </p>
-      </div>
+      </header>
 
-      {/* Products */}
-      <ProductList products={categoryProducts} />
+      <ProductList initialPage={firstPage} query={query} />
     </div>
   );
 }

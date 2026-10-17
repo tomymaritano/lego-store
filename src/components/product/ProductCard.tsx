@@ -3,261 +3,180 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "motion/react";
-import { fadeInUp, pressable, transitions } from "@/lib/motion";
-import { Heart, ShoppingCart, Star, Eye, Scale } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { Check, Eye, Heart, Scale, ShoppingCart } from "lucide-react";
+import { pressable, transitions } from "@/lib/motion";
+import { PLACEHOLDER_IMAGE, calculateDiscount, cn } from "@/lib/utils";
+import { useProductActions } from "@/hooks/useProductActions";
+import { Badge, Button, IconButton, Price, Rating } from "@/components/ui";
 import type { Product } from "@/types";
-import { useCartStore, useWishlistStore, useCompareStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
-import { formatPrice, calculateDiscount, cn } from "@/lib/utils";
-import { Button, showToast } from "@/components/ui";
 
 interface ProductCardProps {
   product: Product;
   onQuickView?: (product: Product) => void;
+  /** Eager-load the image (first row above the fold). */
+  priority?: boolean;
 }
 
-export function ProductCard({ product, onQuickView }: ProductCardProps) {
-  const hydrated = useHydration();
-  const [isHovered, setIsHovered] = useState(false);
+/**
+ * Catalogue card. The title link is stretched over the whole card, so the
+ * card is one big click target without nesting buttons inside a link; the
+ * action buttons sit above it. Actions show on hover / keyboard focus and are
+ * always visible on touch screens.
+ */
+export function ProductCard({ product, onQuickView, priority = false }: ProductCardProps) {
+  const { inCart, inWishlist, inCompare, isAvailable, addToCart, toggleWishlist, toggleCompare } =
+    useProductActions(product);
   const [imageError, setImageError] = useState(false);
+  const [secondaryError, setSecondaryError] = useState(false);
+  const showSecondary = Boolean(product.imageSecondary) && !imageError && !secondaryError;
 
-  const addItem = useCartStore((state) => state.addItem);
-  const addToWishlist = useWishlistStore((state) => state.addToWishlist);
-  const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
-  const { addToCompare, removeFromCompare, isInCompare, canAddMore } = useCompareStore();
-
-  const inCartRaw = useCartStore((state) =>
-    state.cart.some((item) => item.id === product.id)
-  );
-  const inCart = hydrated && inCartRaw;
-  const inWishlistRaw = useWishlistStore((state) =>
-    state.wishlist.some((item) => item.id === product.id)
-  );
-  const inWishlist = hydrated && inWishlistRaw;
-  const inCompare = hydrated && isInCompare(product.id);
-
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    addItem(product, 1);
-    showToast.cart(`${product.name} agregado al carrito`);
-  };
-
-  const handleToggleWishlist = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (inWishlist) {
-      removeFromWishlist(product.id);
-      showToast.wishlist("Eliminado de favoritos", false);
-    } else {
-      addToWishlist(product);
-      showToast.wishlist("Agregado a favoritos", true);
-    }
-  };
-
-  const handleQuickView = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    onQuickView?.(product);
-  };
-
-  const handleToggleCompare = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (inCompare) {
-      removeFromCompare(product.id);
-      showToast.success("Eliminado de comparación");
-    } else {
-      if (!canAddMore()) {
-        showToast.error("Máximo 4 productos para comparar");
-        return;
-      }
-      const added = addToCompare(product);
-      if (added) {
-        showToast.success("Agregado a comparación");
-      }
-    }
-  };
-
-  const displayImage = isHovered && product.imageSecondary ? product.imageSecondary : product.img;
+  const discounted = product.isOnSale && product.originalPrice ? product.originalPrice : undefined;
+  const lowStock = product.stock > 0 && product.stock <= 5;
+  const titleId = `product-${product.id}-title`;
 
   return (
-    <motion.div
-      variants={fadeInUp}
-      initial="hidden"
-      animate="visible"
+    <motion.article
       {...pressable}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="h-full"
+      aria-labelledby={titleId}
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card transition-shadow duration-base ease-standard hover:shadow-xl focus-within:shadow-xl"
       data-testid="product-card"
     >
-      <Link href={`/item/${product.id}`}>
-        <div className="group bg-surface rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-slow ease-standard h-full flex flex-col border border-border">
-          {/* Image Container */}
-          <div className="relative aspect-square bg-linear-to-br/srgb from-background-secondary to-background-tertiary overflow-hidden">
-            {/* Badges */}
-            <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
-              {product.isNew && (
-                <span className="bg-lego-blue text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
-                  Nuevo
-                </span>
-              )}
-              {product.isOnSale && product.originalPrice && (
-                <span className="bg-lego-red text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                  -{calculateDiscount(product.originalPrice, product.price)}%
-                </span>
-              )}
-              {product.highlight === "Edición Limitada" && (
-                <span className="bg-linear-to-r/srgb from-orange-500 to-amber-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                  Limitado
-                </span>
-              )}
-              {product.highlight === "Exclusivos" && (
-                <span className="bg-linear-to-r/srgb from-purple-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full">
-                  Exclusivo
-                </span>
-              )}
-            </div>
+      {/* Image */}
+      <div className="relative aspect-square overflow-hidden bg-bg-subtle">
+        <div className="absolute top-3 left-3 z-20 flex flex-col items-start gap-1.5">
+          {product.isNew && <Badge variant="new">Nuevo</Badge>}
+          {discounted && (
+            <Badge variant="sale">
+              <span className="sr-only">Descuento de </span>-{calculateDiscount(discounted, product.price)}%
+            </Badge>
+          )}
+          {product.highlight === "Edición Limitada" && <Badge variant="limited">Limitado</Badge>}
+          {product.highlight === "Exclusivos" && <Badge variant="exclusive">Exclusivo</Badge>}
+        </div>
 
-            {/* Action Buttons */}
-            <div className={cn(
-              "absolute top-3 right-3 z-10 flex flex-col gap-2 transition-all duration-base ease-standard",
-              isHovered ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4"
-            )}>
-              <button
-                onClick={handleToggleWishlist}
-                className={cn(
-                  "p-2.5 rounded-full transition-all shadow-lg",
-                  inWishlist
-                    ? "bg-lego-red text-white"
-                    : "bg-surface text-foreground-secondary hover:text-lego-red hover:bg-red-50 dark:hover:bg-red-950"
-                )}
-                aria-label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
-              >
-                <Heart className={cn("w-4 h-4", inWishlist && "fill-current")} />
-              </button>
-              <button
-                onClick={handleQuickView}
-                className="p-2.5 rounded-full bg-surface text-foreground-secondary hover:text-lego-blue hover:bg-blue-50 dark:hover:bg-blue-950 transition-all shadow-lg"
-                aria-label="Vista rápida"
-              >
-                <Eye className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleToggleCompare}
-                className={cn(
-                  "p-2.5 rounded-full transition-all shadow-lg",
-                  inCompare
-                    ? "bg-lego-blue text-white"
-                    : "bg-surface text-foreground-secondary hover:text-lego-blue hover:bg-blue-50 dark:hover:bg-blue-950"
-                )}
-                aria-label={inCompare ? "Quitar de comparación" : "Agregar a comparación"}
-              >
-                <Scale className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Product Image */}
-            <div className="relative w-full h-full p-6">
-              <Image
-                src={imageError ? "/images/placeholder.png" : displayImage}
-                alt={product.name}
-                fill
-                className={cn(
-                  "object-contain transition-all duration-slow ease-emphasized",
-                  isHovered ? "scale-110" : "scale-100"
-                )}
-                onError={() => setImageError(true)}
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              />
-            </div>
-
-            {/* Quick Add Button - Shows on Hover */}
-            <motion.div
-              initial={false}
-              animate={{ y: isHovered ? 0 : 100, opacity: isHovered ? 1 : 0 }}
-              transition={transitions.base}
-              className="absolute bottom-0 left-0 right-0 p-3"
+        <div
+          className={cn(
+            "absolute top-3 right-3 z-20 flex flex-col gap-2",
+            "transition-[opacity,translate] duration-base ease-standard",
+            "translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100",
+            "group-focus-within:translate-x-0 group-focus-within:opacity-100",
+            "pointer-coarse:translate-x-0 pointer-coarse:opacity-100"
+          )}
+        >
+          <IconButton
+            label={inWishlist ? `Quitar ${product.name} de favoritos` : `Agregar ${product.name} a favoritos`}
+            aria-pressed={inWishlist}
+            variant="secondary"
+            size="icon-sm"
+            onClick={toggleWishlist}
+            className={cn("shadow-md", inWishlist && "border-sale text-sale")}
+          >
+            <Heart aria-hidden="true" className={cn(inWishlist && "fill-current")} />
+          </IconButton>
+          {onQuickView && (
+            <IconButton
+              label={`Vista rápida de ${product.name}`}
+              variant="secondary"
+              size="icon-sm"
+              onClick={() => onQuickView(product)}
+              className="shadow-md"
             >
-              <Button
-                onClick={handleAddToCart}
-                disabled={product.stock === 0 || inCart}
-                className="w-full shadow-lg"
-                size="sm"
-                data-testid="add-to-cart-btn"
-              >
-                <ShoppingCart className="w-4 h-4 mr-2" />
-                {inCart ? "En carrito" : product.stock === 0 ? "Agotado" : "Agregar al carrito"}
-              </Button>
-            </motion.div>
+              <Eye aria-hidden="true" />
+            </IconButton>
+          )}
+          <IconButton
+            label={inCompare ? `Quitar ${product.name} de la comparación` : `Comparar ${product.name}`}
+            aria-pressed={inCompare}
+            variant="secondary"
+            size="icon-sm"
+            onClick={toggleCompare}
+            className={cn("shadow-md", inCompare && "border-info text-info")}
+          >
+            <Scale aria-hidden="true" />
+          </IconButton>
+        </div>
 
-            {/* Out of Stock Overlay */}
-            {product.stock === 0 && (
-              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
-                <span className="bg-surface text-foreground-primary px-4 py-2 rounded-full font-bold text-sm shadow-lg">
-                  Agotado
-                </span>
-              </div>
+        <div className="absolute inset-0 p-6">
+          <div className="relative size-full">
+            <Image
+              src={imageError ? PLACEHOLDER_IMAGE : product.img}
+              alt=""
+              fill
+              preload={priority}
+              className={cn(
+                "object-contain transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105",
+                showSecondary && "group-hover:opacity-0"
+              )}
+              onError={() => setImageError(true)}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            />
+            {showSecondary && (
+              <Image
+                src={product.imageSecondary!}
+                alt=""
+                fill
+                onError={() => setSecondaryError(true)}
+                className="object-contain opacity-0 transition-[scale,opacity] duration-slow ease-emphasized group-hover:scale-105 group-hover:opacity-100"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              />
             )}
           </div>
-
-          {/* Content */}
-          <div className="p-4 flex-1 flex flex-col">
-            {/* Theme Tag */}
-            <span className="text-[10px] text-lego-blue font-semibold uppercase tracking-wider">
-              {product.theme}
-            </span>
-
-            {/* Name */}
-            <h3 className="font-bold text-foreground-primary mt-1 line-clamp-2 group-hover:text-lego-blue transition-colors leading-tight" data-testid="product-name">
-              {product.name}
-            </h3>
-
-            {/* Rating */}
-            <div className="flex items-center gap-1.5 mt-2">
-              <div className="flex">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={cn(
-                      "w-3.5 h-3.5",
-                      i < Math.floor(product.rating)
-                        ? "fill-amber-400 text-amber-400"
-                        : "fill-background-tertiary text-background-tertiary"
-                    )}
-                  />
-                ))}
-              </div>
-              <span className="text-xs text-foreground-muted">
-                ({Math.floor(product.rating * 20)})
-              </span>
-            </div>
-
-            {/* Price */}
-            <div className="mt-auto pt-3 flex items-end justify-between">
-              <div>
-                <span className="text-2xl font-bold text-foreground-primary" data-testid="product-price">
-                  {formatPrice(product.price)}
-                </span>
-                {product.isOnSale && product.originalPrice && (
-                  <span className="text-sm text-foreground-muted line-through ml-2">
-                    {formatPrice(product.originalPrice)}
-                  </span>
-                )}
-              </div>
-
-              {/* Stock indicator */}
-              {product.stock > 0 && product.stock <= 5 && (
-                <span className="text-[10px] text-status-warning font-medium">
-                  ¡Solo {product.stock}!
-                </span>
-              )}
-            </div>
-          </div>
         </div>
-      </Link>
-    </motion.div>
+
+        {!isAvailable && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-overlay">
+            <Badge variant="neutral" className="px-4 py-1.5 text-label">
+              Agotado
+            </Badge>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <p className="text-caption font-semibold tracking-wider text-info uppercase">{product.theme}</p>
+
+        <h3 id={titleId} className="text-body leading-snug font-bold">
+          <Link
+            href={`/item/${product.id}`}
+            className="line-clamp-2 rounded-sm text-fg outline-none after:absolute after:inset-0 after:z-0 after:content-[''] group-hover:text-info focus-visible:ring-2 focus-visible:ring-focus-ring"
+            data-testid="product-name"
+          >
+            {product.name}
+          </Link>
+        </h3>
+
+        <Rating value={product.rating} count={Math.floor(product.rating * 20)} size="sm" />
+
+        <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+          <Price value={product.price} originalValue={discounted} size="md" data-testid="product-price" />
+          {lowStock && <span className="text-caption font-semibold text-warning">¡Solo quedan {product.stock}!</span>}
+        </div>
+
+        <Button
+          onClick={() => addToCart()}
+          disabled={!isAvailable || inCart}
+          size="sm"
+          variant={inCart ? "secondary" : "primary"}
+          className="relative z-10 mt-2 w-full"
+          data-testid="add-to-cart-btn"
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={inCart ? "in" : "out"}
+              className="inline-flex items-center gap-2"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={transitions.fast}
+            >
+              {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
+              {inCart ? "En el carrito" : isAvailable ? "Agregar al carrito" : "Agotado"}
+            </motion.span>
+          </AnimatePresence>
+        </Button>
+      </div>
+    </motion.article>
   );
 }

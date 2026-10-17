@@ -1,258 +1,264 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, ShoppingCart, Heart, Menu, User, ChevronDown } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { collapse, fadeInUp } from "@/lib/motion";
-import { useCartStore, useWishlistStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
-import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle, ThemeToggle } from "@/components/ui";
+import { usePathname } from "next/navigation";
+import { AnimatePresence, motion } from "motion/react";
+import { ChevronDown, Heart, Menu, Search, ShoppingCart, User } from "lucide-react";
+import { collapse, dropDown, transitions } from "@/lib/motion";
+import { cn, formatPrice } from "@/lib/utils";
+import { siteConfig } from "@/config/site";
+import { useCartCount, useWishlistCount } from "@/stores";
+import {
+  Button,
+  IconButton,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  ThemeToggle,
+  showToast,
+} from "@/components/ui";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { SearchAutocomplete } from "@/components/search";
-import { cn } from "@/lib/utils";
+import type { Category } from "@/types";
 
-const categories = [
-  { name: "Todos", href: "/" },
-  { name: "Helmets", href: "/category/helmet" },
-  { name: "Brickheadz", href: "/category/brickheadz" },
-  { name: "Vehículos", href: "/category/cars" },
-];
+/** Themes link to a search, which matches the theme name. */
+const themes = ["Star Wars", "Marvel", "Disney", "Harry Potter"].map((name) => ({
+  name,
+  href: `/search?q=${encodeURIComponent(name)}`,
+}));
 
-const themes = [
-  { name: "Star Wars", href: "/?theme=Star+Wars" },
-  { name: "Marvel", href: "/?theme=Marvel" },
-  { name: "Disney", href: "/?theme=Disney" },
-  { name: "Harry Potter", href: "/?theme=Harry+Potter" },
-];
+/** Categories shown inline on desktop; the mobile menu lists all of them. */
+const DESKTOP_CATEGORIES = 3;
 
-export function Navbar() {
-  const hydrated = useHydration();
+const navLinkClasses =
+  "rounded-lg px-3 py-2 font-medium text-fg-secondary transition-colors duration-fast hover:bg-bg-muted hover:text-fg";
+
+/** Count bubble on an icon button; pops when the number changes. */
+function CountBadge({ count, testId, tone }: { count: number; testId: string; tone: "primary" | "sale" }) {
+  return (
+    <AnimatePresence initial={false}>
+      {count > 0 && (
+        <motion.span
+          key={count}
+          aria-hidden="true"
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.4, opacity: 0 }}
+          transition={transitions.spring}
+          className={cn(
+            "absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-caption leading-none font-bold tabular-nums ring-2 ring-surface",
+            tone === "primary" ? "bg-primary text-on-primary" : "bg-sale text-on-sale"
+          )}
+          data-testid={testId}
+        >
+          {count}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+}
+
+export function Navbar({ categories }: { categories: Pick<Category, "id" | "name">[] }) {
+  const pathname = usePathname();
+  const themesMenuId = useId();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
 
-  const totalQuantity = useCartStore((state) => state.getTotalQuantity());
-  const wishlistCount = useWishlistStore((state) => state.getTotalWishlistQuantity());
+  const cartCount = useCartCount();
+  const wishlistCount = useWishlistCount();
+
+  const links = [{ name: "Todos", href: "/" }, ...categories.map((c) => ({ name: c.name, href: `/category/${c.id}` }))];
+  const isCurrent = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <>
-      {/* Promo Banner */}
-      <div className="bg-lego-red text-white text-center py-2 text-sm font-medium" role="banner" aria-label="Promoción">
-        <span className="hidden sm:inline" aria-hidden="true">🎁 </span>
-        <span>Envío GRATIS en compras mayores a $5,000</span>
-        <span className="hidden sm:inline" aria-hidden="true"> 🎁</span>
-      </div>
+      <p className="bg-sale py-2 text-center text-sm font-medium text-on-sale">
+        Envío gratis en compras desde {formatPrice(siteConfig.commerce.freeShippingThreshold)}
+      </p>
 
-      {/* Main Navbar */}
-      <nav className="bg-surface sticky top-0 z-40 shadow-sm border-b border-border" role="navigation" aria-label="Navegación principal">
-        <div className="container-custom">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link href="/" className="shrink-0">
-              <Image
-                src="/images/lego.png"
-                alt="LEGO Store"
-                width={80}
-                height={40}
-                className="h-10 w-auto"
-                preload
-              />
+      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 shadow-sm backdrop-blur-sm">
+        <nav aria-label="Navegación principal" className="container-custom">
+          <div className="flex h-16 items-center justify-between gap-2">
+            <Link href="/" className="shrink-0 rounded-lg">
+              <Image src="/images/lego.png" alt={`${siteConfig.name}, inicio`} width={80} height={40} className="h-10 w-auto" preload />
             </Link>
 
-            {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center gap-1" role="menubar" aria-label="Categorías">
-              {categories.map((cat) => (
-                <Link
-                  key={cat.href}
-                  href={cat.href}
-                  className="px-4 py-2 rounded-lg font-medium text-foreground-secondary hover:text-foreground-primary hover:bg-background-secondary transition-colors focus-visible:ring-2 focus-visible:ring-lego-yellow focus-visible:ring-offset-2"
-                  role="menuitem"
-                >
-                  {cat.name}
-                </Link>
+            <ul className="hidden items-center gap-1 lg:flex">
+              {links.slice(0, DESKTOP_CATEGORIES + 1).map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    aria-current={isCurrent(link.href) ? "page" : undefined}
+                    className={cn(navLinkClasses, isCurrent(link.href) && "bg-bg-muted text-fg")}
+                  >
+                    {link.name}
+                  </Link>
+                </li>
               ))}
 
-              {/* Themes Dropdown */}
-              <div
+              <li
                 className="relative"
                 onMouseEnter={() => setShowThemes(true)}
                 onMouseLeave={() => setShowThemes(false)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setShowThemes(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setShowThemes(false);
+                }}
               >
-                <button
-                  className="px-4 py-2 rounded-lg font-medium text-foreground-secondary hover:text-foreground-primary hover:bg-background-secondary transition-colors flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-lego-yellow focus-visible:ring-offset-2"
+                <Button
+                  variant="ghost"
+                  className="px-3"
                   aria-expanded={showThemes}
-                  aria-haspopup="true"
-                  aria-label="Temas, menú desplegable"
-                  onFocus={() => setShowThemes(true)}
-                  onBlur={() => setTimeout(() => setShowThemes(false), 150)}
+                  aria-controls={themesMenuId}
+                  onClick={() => setShowThemes((open) => !open)}
                 >
                   Temas
-                  <ChevronDown className={cn("w-4 h-4 transition-transform", showThemes && "rotate-180")} aria-hidden="true" />
-                </button>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={cn("transition-[rotate] duration-fast ease-standard", showThemes && "rotate-180")}
+                  />
+                </Button>
 
                 <AnimatePresence>
                   {showThemes && (
-                    <motion.div
-                      variants={fadeInUp}
+                    <motion.ul
+                      id={themesMenuId}
+                      variants={dropDown}
                       initial="hidden"
                       animate="visible"
                       exit="exit"
-                      className="absolute top-full left-0 mt-1 w-48 bg-surface rounded-xl shadow-xl border border-border py-2 z-50"
-                      role="menu"
-                      aria-label="Temas disponibles"
+                      className="absolute top-full left-0 z-50 mt-1 w-48 rounded-xl border border-border bg-surface-raised py-2 shadow-xl"
                     >
                       {themes.map((theme) => (
-                        <Link
-                          key={theme.name}
-                          href={theme.href}
-                          className="block px-4 py-2 text-sm text-foreground-secondary hover:bg-background-secondary hover:text-lego-blue focus-visible:bg-background-secondary focus-visible:text-lego-blue focus-visible:outline-hidden"
-                          role="menuitem"
-                        >
-                          {theme.name}
-                        </Link>
+                        <li key={theme.name}>
+                          <Link
+                            href={theme.href}
+                            onClick={() => setShowThemes(false)}
+                            className="block px-4 py-2 text-sm text-fg-secondary hover:bg-bg-muted hover:text-fg focus-visible:bg-bg-muted focus-visible:text-fg"
+                          >
+                            {theme.name}
+                          </Link>
+                        </li>
                       ))}
-                    </motion.div>
+                    </motion.ul>
                   )}
                 </AnimatePresence>
-              </div>
-            </div>
+              </li>
+            </ul>
 
-            {/* Search Bar - Desktop */}
-            <div className="hidden md:block flex-1 max-w-md mx-6">
+            <div className="mx-4 hidden max-w-md flex-1 md:block">
               <SearchAutocomplete />
             </div>
 
-            {/* Right Side Actions */}
             <div className="flex items-center gap-1">
-              {/* Mobile Search Toggle */}
-              <button
-                className="md:hidden p-2.5 rounded-full hover:bg-background-secondary transition-colors"
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                aria-label="Search"
+              <IconButton
+                label={isSearchOpen ? "Cerrar búsqueda" : "Buscar"}
+                aria-expanded={isSearchOpen}
+                className="md:hidden"
+                onClick={() => setIsSearchOpen((open) => !open)}
               >
-                <Search className="w-5 h-5 text-foreground-secondary" />
-              </button>
+                <Search aria-hidden="true" />
+              </IconButton>
 
-              {/* Theme Toggle */}
               <ThemeToggle />
 
-              {/* User */}
-              <button className="hidden sm:flex p-2.5 rounded-full hover:bg-background-secondary transition-colors">
-                <User className="w-5 h-5 text-foreground-secondary" />
-              </button>
+              <IconButton
+                label="Mi cuenta"
+                className="hidden sm:inline-flex"
+                onClick={() => showToast.info("Muy pronto podrás crear tu cuenta")}
+              >
+                <User aria-hidden="true" />
+              </IconButton>
 
-              {/* Wishlist */}
-              <Link href="/wishlist" className="relative p-2.5 rounded-full hover:bg-background-secondary transition-colors" data-testid="wishlist-button">
-                <Heart className="w-5 h-5 text-foreground-secondary" />
-                {hydrated && wishlistCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-lego-red text-white text-[10px] font-bold rounded-full flex items-center justify-center" data-testid="wishlist-count">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>
+              <IconButton
+                label={wishlistCount > 0 ? `Favoritos (${wishlistCount})` : "Favoritos"}
+                className="relative overflow-visible"
+                render={<Link href="/wishlist" />}
+                data-testid="wishlist-button"
+              >
+                <Heart aria-hidden="true" />
+                <CountBadge count={wishlistCount} testId="wishlist-count" tone="sale" />
+              </IconButton>
 
-              {/* Cart */}
-              <button
+              <IconButton
+                label={cartCount > 0 ? `Carrito (${cartCount} productos)` : "Carrito"}
+                className="relative overflow-visible"
                 onClick={() => setIsCartOpen(true)}
-                className="relative p-2.5 rounded-full hover:bg-background-secondary transition-colors"
-                aria-label="Cart"
                 data-testid="cart-button"
               >
-                <ShoppingCart className="w-5 h-5 text-foreground-secondary" />
-                {hydrated && totalQuantity > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-lego-yellow text-lego-black text-[10px] font-bold rounded-full flex items-center justify-center" data-testid="cart-count">
-                    {totalQuantity}
-                  </span>
-                )}
-              </button>
+                <motion.span
+                  key={cartCount}
+                  className="flex"
+                  // Remounts when the count changes: a short bump as add-to-cart feedback.
+                  initial={{ scale: 1 }}
+                  animate={{ scale: [1, 1.25, 1] }}
+                  transition={transitions.slow}
+                >
+                  <ShoppingCart aria-hidden="true" />
+                </motion.span>
+                <CountBadge count={cartCount} testId="cart-count" tone="primary" />
+              </IconButton>
 
-              {/* Mobile Menu Toggle */}
-              <button
-                className="lg:hidden p-2.5 rounded-full hover:bg-background-secondary transition-colors ml-1"
-                onClick={() => setIsMobileMenuOpen(true)}
-                aria-label="Abrir menú"
-              >
-                <Menu className="w-5 h-5 text-foreground-secondary" />
-              </button>
+              <IconButton label="Abrir menú" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+                <Menu aria-hidden="true" />
+              </IconButton>
             </div>
           </div>
 
-          {/* Mobile Search Bar */}
           <AnimatePresence>
             {isSearchOpen && (
-              <motion.div
-                variants={collapse}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                className="md:hidden overflow-hidden"
-              >
+              <motion.div variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden md:hidden">
                 <div className="pb-4">
-                  <SearchAutocomplete
-                    autoFocus
-                    onClose={() => setIsSearchOpen(false)}
-                  />
+                  <SearchAutocomplete autoFocus onClose={() => setIsSearchOpen(false)} />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </nav>
+        </nav>
+      </header>
 
-      {/* Mobile Menu Drawer */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent side="left">
           <SheetHeader>
             <SheetTitle>Menú</SheetTitle>
           </SheetHeader>
           <SheetBody>
-            <nav aria-label="Menú móvil" className="p-4">
-              {/* Categories */}
-              <div className="mb-6">
-                <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-                  Categorías
-                </h3>
-                <div className="space-y-1">
-                  {categories.map((cat) => (
-                    <Link
-                      key={cat.href}
-                      href={cat.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="block py-3 px-4 rounded-xl font-medium text-foreground-secondary hover:bg-background-secondary transition-colors"
-                    >
-                      {cat.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              {/* Themes */}
-              <div>
-                <h3 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-                  Temas
-                </h3>
-                <div className="space-y-1">
-                  {themes.map((theme) => (
-                    <Link
-                      key={theme.name}
-                      href={theme.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="block py-3 px-4 rounded-xl font-medium text-foreground-secondary hover:bg-background-secondary transition-colors"
-                    >
-                      {theme.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+            <nav aria-label="Menú móvil" className="space-y-6 p-4">
+              {[
+                { title: "Categorías", items: links },
+                { title: "Temas", items: themes },
+              ].map((group) => (
+                <section key={group.title} aria-label={group.title}>
+                  <p className="mb-3 text-caption font-semibold tracking-wider text-fg-muted uppercase">{group.title}</p>
+                  <ul className="space-y-1">
+                    {group.items.map((item) => (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          aria-current={isCurrent(item.href) ? "page" : undefined}
+                          className="block rounded-xl px-4 py-3 font-medium text-fg-secondary transition-colors duration-fast hover:bg-bg-muted hover:text-fg aria-[current=page]:bg-bg-muted aria-[current=page]:text-fg"
+                        >
+                          {item.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
             </nav>
           </SheetBody>
         </SheetContent>
       </Sheet>
 
-      {/* Cart Drawer */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>
   );

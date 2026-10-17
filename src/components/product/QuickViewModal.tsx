@@ -5,8 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Heart, ShoppingCart, ExternalLink } from "lucide-react";
 import type { Product } from "@/types";
-import { useCartStore, useWishlistStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
+import { ProductThumbnails } from "./ProductThumbnails";
+import { useProductActions } from "@/hooks/useProductActions";
 import { calculateDiscount, cn } from "@/lib/utils";
 import {
   Badge,
@@ -18,7 +18,6 @@ import {
   Price,
   QuantitySelector,
   Rating,
-  showToast,
 } from "@/components/ui";
 
 interface QuickViewModalProps {
@@ -43,35 +42,15 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 }
 
 function QuickViewBody({ product, onClose }: { product: Product; onClose: () => void }) {
-  const hydrated = useHydration();
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
 
-  const addItem = useCartStore((state) => state.addItem);
-  const addToWishlist = useWishlistStore((state) => state.addToWishlist);
-  const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
-  const inCartRaw = useCartStore((state) => state.cart.some((item) => item.id === product.id));
-  const inWishlistRaw = useWishlistStore((state) => state.wishlist.some((item) => item.id === product.id));
-
-  const inCart = hydrated && inCartRaw;
-  const inWishlist = hydrated && inWishlistRaw;
+  const { inCart, inWishlist, isAvailable, addToCart, toggleWishlist } = useProductActions(product);
   const images = [product.img, product.imageSecondary].filter(Boolean) as string[];
   const discounted = product.isOnSale && product.originalPrice;
 
   const handleAddToCart = () => {
-    addItem(product, quantity);
-    showToast.cart(`${product.name} agregado al carrito`);
-    setQuantity(1);
-  };
-
-  const handleToggleWishlist = () => {
-    if (inWishlist) {
-      removeFromWishlist(product.id);
-      showToast.wishlist("Eliminado de favoritos", false);
-    } else {
-      addToWishlist(product);
-      showToast.wishlist("Agregado a favoritos", true);
-    }
+    if (addToCart(quantity)) setQuantity(1);
   };
 
   return (
@@ -87,25 +66,14 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
           ) : null}
         </div>
 
-        {images.length > 1 && (
-          <div className="mt-4 flex justify-center gap-2">
-            {images.map((img, idx) => (
-              <button
-                key={img}
-                type="button"
-                onClick={() => setSelectedImage(idx)}
-                aria-label={`Ver imagen ${idx + 1} de ${images.length}`}
-                aria-pressed={selectedImage === idx}
-                className={cn(
-                  "size-16 overflow-hidden rounded-lg border-2 bg-surface transition-colors duration-fast",
-                  selectedImage === idx ? "border-primary" : "border-transparent hover:border-border-strong"
-                )}
-              >
-                <Image src={img} alt="" width={64} height={64} className="object-contain" />
-              </button>
-            ))}
-          </div>
-        )}
+        <ProductThumbnails
+          images={images}
+          selected={selectedImage}
+          onSelect={setSelectedImage}
+          productName={product.name}
+          size="sm"
+          className="mt-4 justify-center"
+        />
       </div>
 
       {/* Info */}
@@ -147,12 +115,12 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
             onValueChange={setQuantity}
             max={Math.max(1, product.stock)}
             label={`Cantidad de ${product.name}`}
-            disabled={product.stock === 0}
+            disabled={!isAvailable}
           />
         </div>
 
         <div className="mt-6 space-y-3">
-          <Button onClick={handleAddToCart} disabled={product.stock === 0 || inCart} className="w-full" size="lg">
+          <Button onClick={handleAddToCart} disabled={!isAvailable || inCart} className="w-full" size="lg">
             <ShoppingCart aria-hidden="true" />
             {inCart ? "Ya en el carrito" : "Agregar al carrito"}
           </Button>
@@ -160,7 +128,7 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
           <div className="flex gap-3">
             <Button
               variant="outline"
-              onClick={handleToggleWishlist}
+              onClick={toggleWishlist}
               aria-pressed={inWishlist}
               className={cn("flex-1", inWishlist && "border-sale text-sale")}
             >

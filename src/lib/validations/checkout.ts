@@ -1,19 +1,9 @@
 import { z } from "zod";
+import type { PaymentInfo, ShippingInfo } from "@/types";
 
 /**
- * Checkout Form Validation Schemas
- *
- * Using Zod for type-safe validation.
- * These schemas can be used with react-hook-form's zodResolver.
- *
- * @example
- * import { useForm } from "react-hook-form";
- * import { zodResolver } from "@hookform/resolvers/zod";
- * import { shippingSchema, type ShippingFormData } from "@/lib/validations/checkout";
- *
- * const form = useForm<ShippingFormData>({
- *   resolver: zodResolver(shippingSchema),
- * });
+ * Checkout form schemas (react-hook-form + zodResolver). The data shapes are
+ * declared once in @/types; `satisfies` keeps each schema in step with them.
  */
 
 // Shipping Information Schema
@@ -50,7 +40,7 @@ export const shippingSchema = z.object({
   country: z
     .string()
     .min(2, "El país debe tener al menos 2 caracteres"),
-});
+}) satisfies z.ZodType<ShippingInfo>;
 
 // Payment Information Schema
 export const paymentSchema = z.object({
@@ -71,16 +61,5 @@ export const paymentSchema = z.object({
     .min(3, "El CVV debe tener 3-4 dígitos")
     .max(4, "El CVV debe tener 3-4 dígitos")
     .regex(/^\d+$/, "Solo se permiten números"),
-});
+}) satisfies z.ZodType<PaymentInfo>;
 
-// Infer TypeScript types from schemas
-export type ShippingFormData = z.infer<typeof shippingSchema>;
-export type PaymentFormData = z.infer<typeof paymentSchema>;
-
-// Combined checkout schema (for full form validation)
-export const checkoutSchema = z.object({
-  shipping: shippingSchema,
-  payment: paymentSchema,
-});
-
-export type CheckoutFormData = z.infer<typeof checkoutSchema>;

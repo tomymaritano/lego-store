@@ -1,306 +1,156 @@
-"use client";
-
-import { useState, useEffect, useRef, use } from "react";
-import Image from "next/image";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Heart, ShoppingCart, Star, Minus, Plus, Share2, Truck, Shield, RotateCcw } from "lucide-react";
-import { motion } from "motion/react";
-import { fadeIn } from "@/lib/motion";
-import { products } from "@/data/products";
-import { useCartStore, useWishlistStore, useRecentlyViewedStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
-import { formatPrice, calculateDiscount, cn } from "@/lib/utils";
-import { Button, Badge, Breadcrumbs, showToast } from "@/components/ui";
-import { ImageZoom, ProductReviews, RecentlyViewed } from "@/components/product";
+import { RotateCcw, Shield, Truck } from "lucide-react";
+import { getCategoryById, getProductById, getProducts, getRelatedProducts } from "@/lib/api";
+import { formatPrice } from "@/lib/utils";
+import { siteConfig } from "@/config/site";
+import { Breadcrumbs, Price, Rating } from "@/components/ui";
+import {
+  ProductCard,
+  ProductGallery,
+  ProductPurchase,
+  ProductReviews,
+  RecentlyViewed,
+  TrackRecentlyViewed,
+} from "@/components/product";
 
 interface ItemPageProps {
   params: Promise<{ productId: string }>;
 }
 
-export default function ItemPage({ params }: ItemPageProps) {
-  const { productId } = use(params);
-  const hydrated = useHydration();
-  const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(0);
+export async function generateStaticParams() {
+  return (await getProducts()).map((product) => ({ productId: product.id }));
+}
 
-  const product = products.find((p) => p.id === productId);
+export async function generateMetadata({ params }: ItemPageProps): Promise<Metadata> {
+  const product = await getProductById((await params).productId);
+  if (!product) return { title: "Producto no encontrado" };
 
-  const addItem = useCartStore((state) => state.addItem);
-  const addToWishlist = useWishlistStore((state) => state.addToWishlist);
-  const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
-  const inCartRaw = useCartStore((state) =>
-    state.cart.some((item) => item.id === product?.id)
-  );
-  const inWishlistRaw = useWishlistStore((state) =>
-    state.wishlist.some((item) => item.id === product?.id)
-  );
-  const addToRecentlyViewed = useRecentlyViewedStore((state) => state.addItem);
-  const hasTrackedRef = useRef(false);
-
-  // Track recently viewed - runs once per product
-  useEffect(() => {
-    if (product && !hasTrackedRef.current) {
-      hasTrackedRef.current = true;
-      addToRecentlyViewed(product);
-    }
-  }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!product) {
-    notFound();
-  }
-
-  const inCart = hydrated && inCartRaw;
-  const inWishlist = hydrated && inWishlistRaw;
-
-  const handleAddToCart = () => {
-    addItem(product, quantity);
-    showToast.cart(`${quantity}x ${product.name} agregado al carrito`);
-    setQuantity(1);
+  const title = `${product.name} | ${siteConfig.name}`;
+  const description = product.shortDescription || product.description.slice(0, 160);
+  return {
+    title: product.name,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: [{ url: product.img, width: 800, height: 800, alt: product.name }],
+    },
+    twitter: { card: "summary_large_image", title, description, images: [product.img] },
   };
+}
 
-  const handleToggleWishlist = () => {
-    if (inWishlist) {
-      removeFromWishlist(product.id);
-      showToast.wishlist("Eliminado de favoritos", false);
-    } else {
-      addToWishlist(product);
-      showToast.wishlist("Agregado a favoritos", true);
-    }
-  };
+const perks = [
+  { icon: Truck, title: "Envío gratis", detail: `Desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}` },
+  { icon: Shield, title: "Garantía", detail: "Producto original" },
+  { icon: RotateCcw, title: "Devolución", detail: "30 días" },
+];
 
-  const handleShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: product.name,
-          text: `Mira este set de LEGO: ${product.name}`,
-          url: window.location.href,
-        });
-      } catch {
-        // User cancelled or error
-      }
-    } else {
-      await navigator.clipboard.writeText(window.location.href);
-      showToast.success("Enlace copiado al portapapeles");
-    }
-  };
+export default async function ItemPage({ params }: ItemPageProps) {
+  const { productId } = await params;
+  const product = await getProductById(productId);
+  if (!product) notFound();
 
-  const breadcrumbItems = [
-    { label: product.category, href: `/category/${product.category}` },
-    { label: product.name },
+  const [category, related] = await Promise.all([
+    getCategoryById(product.category),
+    getRelatedProducts(product.id, 4),
+  ]);
+
+  const specs = [
+    { label: "Categoría", value: category?.name ?? product.category },
+    { label: "Tema", value: product.theme },
+    { label: "Edad", value: product.age },
+    { label: "Piezas", value: product.pieces },
   ];
 
   return (
     <>
+      <TrackRecentlyViewed productId={product.id} />
+
       <div className="container-custom py-6">
-        {/* Breadcrumbs */}
-        <Breadcrumbs items={breadcrumbItems} />
+        <Breadcrumbs
+          items={[{ label: category?.name ?? product.category, href: `/category/${product.category}` }, { label: product.name }]}
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 mt-4">
-          {/* Images */}
-          <div className="space-y-4">
-            {/* Main Image with Zoom */}
-            <motion.div
-              key={selectedImage}
-              variants={fadeIn}
-              initial="hidden"
-              animate="visible"
-              className="relative aspect-square bg-linear-to-br/srgb from-background-secondary to-background-tertiary rounded-2xl overflow-hidden"
-            >
-              {/* Badges */}
-              <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
-                {product.isNew && <Badge variant="new">Nuevo</Badge>}
-                {product.isOnSale && product.originalPrice && (
-                  <Badge variant="sale">-{calculateDiscount(product.originalPrice, product.price)}%</Badge>
-                )}
-              </div>
+        <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
+          <ProductGallery product={product} />
 
-              <ImageZoom
-                src={product.images[selectedImage] || product.img}
-                alt={product.name}
-                className="absolute inset-0"
-              />
-            </motion.div>
-
-            {/* Thumbnails */}
-            {product.images.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                {product.images.map((img, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={cn(
-                      "relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all bg-background-secondary",
-                      selectedImage === index
-                        ? "border-lego-yellow shadow-md"
-                        : "border-transparent hover:border-border"
-                    )}
-                  >
-                    <Image src={img} alt={`${product.name} ${index + 1}`} fill className="object-contain p-2" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Product Info */}
           <div className="space-y-6">
-            {/* Theme */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-lego-blue font-semibold uppercase tracking-wider">
-                {product.theme}
-              </span>
-              <button
-                onClick={handleShare}
-                className="p-2 rounded-full hover:bg-background-secondary transition-colors"
-                aria-label="Compartir"
-              >
-                <Share2 className="w-5 h-5 text-foreground-muted" />
-              </button>
+            <div className="space-y-3">
+              <p className="text-sm font-semibold tracking-wider text-info uppercase">{product.theme}</p>
+              <h1 className="text-3xl lg:text-4xl">{product.name}</h1>
+              <Rating value={product.rating} count={Math.floor(product.rating * 20)} showValue size="lg" />
             </div>
 
-            {/* Name */}
-            <h1 className="text-3xl lg:text-4xl font-bold text-foreground-primary">{product.name}</h1>
+            <Price
+              value={product.price}
+              originalValue={product.isOnSale ? product.originalPrice : undefined}
+              showDiscount
+              size="lg"
+            />
 
-            {/* Rating */}
-            <div className="flex items-center gap-3">
-              <div className="flex">
-                {[...Array(5)].map((_, i) => (
-                  <Star
-                    key={i}
-                    className={cn(
-                      "w-5 h-5",
-                      i < Math.floor(product.rating)
-                        ? "fill-amber-400 text-amber-400"
-                        : "fill-background-tertiary text-background-tertiary"
-                    )}
-                  />
-                ))}
-              </div>
-              <span className="font-semibold text-foreground-primary">{product.rating}</span>
-              <span className="text-foreground-muted">({Math.floor(product.rating * 20)} reseñas)</span>
-            </div>
+            <p className="text-lg leading-relaxed text-fg-secondary">{product.description}</p>
 
-            {/* Price */}
-            <div className="flex items-baseline gap-3">
-              <span className="text-4xl font-bold text-foreground-primary">{formatPrice(product.price)}</span>
-              {product.isOnSale && product.originalPrice && (
-                <span className="text-xl text-foreground-muted line-through">{formatPrice(product.originalPrice)}</span>
-              )}
-            </div>
-
-            {/* Description */}
-            <p className="text-foreground-secondary leading-relaxed text-lg">{product.description}</p>
-
-            {/* Stock Status */}
-            <div className="flex items-center gap-3">
+            <p className="flex items-center gap-2 font-medium">
               <span
-                className={cn(
-                  "w-3 h-3 rounded-full animate-pulse",
-                  product.stock > 0 ? "bg-status-success" : "bg-status-error"
-                )}
+                aria-hidden="true"
+                className={product.stock > 0 ? "size-2.5 rounded-full bg-success" : "size-2.5 rounded-full bg-danger"}
               />
-              <span className={cn("font-medium", product.stock > 0 ? "text-status-success" : "text-status-error")}>
+              <span className={product.stock > 0 ? "text-success" : "text-danger"}>
                 {product.stock > 0 ? `${product.stock} unidades disponibles` : "Agotado"}
               </span>
-            </div>
+            </p>
 
-            {/* Quantity Selector */}
-            {product.stock > 0 && (
-              <div className="flex items-center gap-4">
-                <span className="text-foreground-secondary font-medium">Cantidad:</span>
-                <div className="flex items-center gap-1 bg-background-secondary rounded-xl p-1">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface text-foreground-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="w-12 text-center font-bold text-lg text-foreground-primary">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                    disabled={quantity >= product.stock}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-surface text-foreground-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
+            <ProductPurchase product={product} />
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              <Button
-                onClick={handleAddToCart}
-                disabled={product.stock === 0 || inCart}
-                className="flex-1"
-                size="lg"
-              >
-                <ShoppingCart className="w-5 h-5 mr-2" />
-                {inCart ? "En carrito" : "Agregar al carrito"}
-              </Button>
-              <Button
-                variant={inWishlist ? "primary" : "outline"}
-                size="lg"
-                onClick={handleToggleWishlist}
-                aria-label={inWishlist ? "Quitar de favoritos" : "Agregar a favoritos"}
-                className={cn(inWishlist && "bg-lego-red! text-white!")}
-              >
-                <Heart className={cn("w-5 h-5", inWishlist && "fill-current")} />
-              </Button>
-            </div>
+            <ul className="grid grid-cols-3 gap-3 pt-2">
+              {perks.map(({ icon: Icon, title, detail }) => (
+                <li key={title} className="flex flex-col items-center rounded-xl bg-bg-subtle p-3 text-center">
+                  <Icon aria-hidden="true" className="mb-2 size-6 text-info" />
+                  <span className="text-caption font-semibold text-fg">{title}</span>
+                  <span className="text-caption text-fg-muted">{detail}</span>
+                </li>
+              ))}
+            </ul>
 
-            {/* Features */}
-            <div className="grid grid-cols-3 gap-4 pt-4">
-              <div className="flex flex-col items-center text-center p-3 bg-background-secondary rounded-xl">
-                <Truck className="w-6 h-6 text-lego-blue mb-2" />
-                <span className="text-xs font-medium text-foreground-primary">Envío Gratis</span>
-                <span className="text-xs text-foreground-muted">+$5,000</span>
-              </div>
-              <div className="flex flex-col items-center text-center p-3 bg-background-secondary rounded-xl">
-                <Shield className="w-6 h-6 text-lego-blue mb-2" />
-                <span className="text-xs font-medium text-foreground-primary">Garantía</span>
-                <span className="text-xs text-foreground-muted">Original</span>
-              </div>
-              <div className="flex flex-col items-center text-center p-3 bg-background-secondary rounded-xl">
-                <RotateCcw className="w-6 h-6 text-lego-blue mb-2" />
-                <span className="text-xs font-medium text-foreground-primary">Devolución</span>
-                <span className="text-xs text-foreground-muted">30 días</span>
-              </div>
-            </div>
-
-            {/* Product Details */}
-            <div className="border-t border-border pt-6 space-y-4">
-              <h3 className="font-bold text-lg text-foreground-primary">Especificaciones</h3>
-              <dl className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-foreground-muted">Categoría</dt>
-                  <dd className="font-medium text-foreground-primary capitalize">{product.category}</dd>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-foreground-muted">Tema</dt>
-                  <dd className="font-medium text-foreground-primary">{product.theme}</dd>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-foreground-muted">Edad</dt>
-                  <dd className="font-medium text-foreground-primary">{product.age}</dd>
-                </div>
-                <div className="flex justify-between py-2 border-b border-border">
-                  <dt className="text-foreground-muted">Piezas</dt>
-                  <dd className="font-medium text-foreground-primary">{product.pieces?.toLocaleString() || "N/A"}</dd>
-                </div>
+            <section aria-labelledby="specs-title" className="space-y-4 border-t border-border pt-6">
+              <h2 id="specs-title" className="text-title">
+                Especificaciones
+              </h2>
+              <dl className="grid grid-cols-1 gap-x-6 text-sm sm:grid-cols-2">
+                {specs.map((spec) => (
+                  <div key={spec.label} className="flex justify-between border-b border-border py-2">
+                    <dt className="text-fg-muted">{spec.label}</dt>
+                    <dd className="font-medium text-fg">{spec.value}</dd>
+                  </div>
+                ))}
               </dl>
-            </div>
+            </section>
           </div>
         </div>
       </div>
 
-      {/* Reviews Section */}
       <ProductReviews productId={product.id} />
 
-      {/* Recently Viewed */}
-      <RecentlyViewed />
+      {related.length > 0 && (
+        <section aria-labelledby="related-title" className="py-12">
+          <div className="container-custom">
+            <h2 id="related-title" className="mb-6 text-title">
+              También te puede gustar
+            </h2>
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-4">
+              {related.map((item) => (
+                <li key={item.id}>
+                  <ProductCard product={item} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <RecentlyViewed excludeId={product.id} />
     </>
   );
 }

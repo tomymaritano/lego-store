@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Clock, TrendingUp, X, ArrowRight } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import { transitions } from "@/lib/motion";
-import { products } from "@/data/products";
-import { formatPrice, cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "motion/react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { ArrowRight, Clock, Search, TrendingUp, X } from "lucide-react";
+import { dropDown } from "@/lib/motion";
+import { cn, formatPrice } from "@/lib/utils";
+import { fetchSearchSuggestions } from "@/lib/api-client";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import type { Product } from "@/types";
+import { Button, IconButton, Input, Spinner } from "@/components/ui";
 
 interface SearchAutocompleteProps {
   onClose?: () => void;
@@ -21,281 +22,308 @@ interface SearchAutocompleteProps {
 const POPULAR_SEARCHES = ["Star Wars", "Marvel", "Batman", "Harry Potter", "Technic"];
 const MAX_SUGGESTIONS = 5;
 const MAX_RECENT = 5;
+const MIN_QUERY = 2;
+const DEBOUNCE_MS = 250;
+const RECENT_KEY = "lego-recent-searches";
 
-// Get recent searches from localStorage
-const getRecentSearches = (): string[] => {
-  if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem("lego-recent-searches");
-  return stored ? JSON.parse(stored) : [];
-};
+function readRecent(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string").slice(0, MAX_RECENT) : [];
+  } catch {
+    return [];
+  }
+}
 
-// Save search to recent
-const saveRecentSearch = (query: string) => {
-  if (typeof window === "undefined") return;
-  const recent = getRecentSearches();
-  const filtered = recent.filter((s) => s.toLowerCase() !== query.toLowerCase());
-  const updated = [query, ...filtered].slice(0, MAX_RECENT);
-  localStorage.setItem("lego-recent-searches", JSON.stringify(updated));
-};
+function saveRecent(query: string) {
+  try {
+    const next = [query, ...readRecent().filter((s) => s.toLowerCase() !== query.toLowerCase())].slice(0, MAX_RECENT);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // Storage unavailable (private mode): recent searches are a nicety.
+  }
+}
 
-// Clear recent searches
-const clearRecentSearches = () => {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("lego-recent-searches");
-};
-
+/**
+ * Navbar search box (ARIA combobox). Suggestions come from GET /api/search
+ * (same algorithm as /search), debounced; the catalogue never ships to the
+ * browser. Arrow keys move through the options, Enter opens one or runs
+ * the full search, Escape closes.
+ */
 export function SearchAutocomplete({ onClose, className, autoFocus = false }: SearchAutocompleteProps) {
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [query, setQuery] = useState("");
-  const debouncedQuery = useDebouncedValue(query, 300);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [prevDebouncedQuery, setPrevDebouncedQuery] = useState(debouncedQuery);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [recent, setRecent] = useState<string[]>([]);
 
-  // Search products with debounced query (300ms delay)
-  const suggestions = useMemo<Product[]>(() => {
-    if (debouncedQuery.length < 2) return [];
+  const trimmed = query.trim();
+  const debounced = useDebouncedValue(trimmed, DEBOUNCE_MS);
+  const searching = debounced.length >= MIN_QUERY;
 
-    const searchTerms = debouncedQuery.toLowerCase().split(" ");
-    const results = products.filter((product) => {
-      const searchableText = `${product.name} ${product.theme} ${product.category} ${product.description}`.toLowerCase();
-      return searchTerms.every((term) => searchableText.includes(term));
-    });
+  const { data, isFetching } = useQuery({
+    queryKey: ["search", debounced],
+    queryFn: ({ signal }) => fetchSearchSuggestions(debounced, MAX_SUGGESTIONS, signal),
+    enabled: searching,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
 
-    return results.slice(0, MAX_SUGGESTIONS);
-  }, [debouncedQuery]);
+  const suggestions = searching ? (data?.items ?? []) : [];
+  const total = searching ? (data?.total ?? 0) : 0;
+  const recentOptions = trimmed.length < MIN_QUERY ? recent : [];
+  const optionCount = suggestions.length + recentOptions.length;
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
 
-  // Reset keyboard selection when the results change
-  if (debouncedQuery !== prevDebouncedQuery) {
-    setPrevDebouncedQuery(debouncedQuery);
-    setSelectedIndex(-1);
+  // Reset the highlighted option whenever the option list changes.
+  const [prevKey, setPrevKey] = useState("");
+  const optionsKey = `${debounced}|${suggestions.length}|${recentOptions.length}`;
+  if (optionsKey !== prevKey) {
+    setPrevKey(optionsKey);
+    setActiveIndex(-1);
   }
 
-  // Handle click outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
-  const handleSearch = useCallback((searchQuery: string) => {
-    if (searchQuery.trim()) {
-      saveRecentSearch(searchQuery.trim());
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setQuery("");
-      setIsOpen(false);
-      onClose?.();
+  const close = () => {
+    setIsOpen(false);
+    setActiveIndex(-1);
+  };
+
+  const runSearch = (term: string) => {
+    const value = term.trim();
+    if (!value) return;
+    saveRecent(value);
+    router.push(`/search?q=${encodeURIComponent(value)}`);
+    setQuery("");
+    close();
+    onClose?.();
+  };
+
+  const openProduct = (id: string) => {
+    if (trimmed) saveRecent(trimmed);
+    router.push(`/item/${id}`);
+    setQuery("");
+    close();
+    onClose?.();
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        setIsOpen(true);
+        if (optionCount) setActiveIndex((i) => (i + 1) % optionCount);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        if (optionCount) setActiveIndex((i) => (i <= 0 ? optionCount - 1 : i - 1));
+        break;
+      case "Enter":
+        event.preventDefault();
+        if (activeIndex >= 0 && activeIndex < suggestions.length) openProduct(suggestions[activeIndex].id);
+        else if (activeIndex >= suggestions.length) runSearch(recentOptions[activeIndex - suggestions.length]);
+        else runSearch(query);
+        break;
+      case "Escape":
+        if (isOpen) {
+          event.preventDefault();
+          close();
+        } else if (query) {
+          setQuery("");
+        }
+        break;
     }
-  }, [router, onClose]);
-
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      const totalItems = suggestions.length + (query.length < 2 ? recentSearches.length : 0);
-
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev < totalItems - 1 ? prev + 1 : 0));
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : totalItems - 1));
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (selectedIndex >= 0) {
-            if (suggestions.length > 0 && selectedIndex < suggestions.length) {
-              const product = suggestions[selectedIndex];
-              router.push(`/item/${product.id}`);
-              onClose?.();
-            } else if (query.length < 2 && recentSearches.length > 0) {
-              const recentIndex = selectedIndex - suggestions.length;
-              if (recentIndex >= 0 && recentIndex < recentSearches.length) {
-                handleSearch(recentSearches[recentIndex]);
-              }
-            }
-          } else if (query.trim()) {
-            handleSearch(query);
-          }
-          break;
-        case "Escape":
-          setIsOpen(false);
-          inputRef.current?.blur();
-          break;
-      }
-    },
-    [suggestions, recentSearches, selectedIndex, query, router, onClose, handleSearch]
-  );
-
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleSearch(query);
   };
 
-  const handleClearRecent = () => {
-    clearRecentSearches();
-    setRecentSearches([]);
+  const clearRecent = () => {
+    try {
+      localStorage.removeItem(RECENT_KEY);
+    } catch {
+      // ignore
+    }
+    setRecent([]);
   };
 
-  const showDropdown = isOpen && (query.length >= 2 || recentSearches.length > 0 || POPULAR_SEARCHES.length > 0);
+  const showNoResults = searching && !isFetching && data !== undefined && total === 0;
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
-      <form onSubmit={handleSubmit} className="relative">
-        <input
+      <form
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          runSearch(query);
+        }}
+      >
+        <label htmlFor={`${listboxId}-input`} className="sr-only">
+          Buscar productos
+        </label>
+        <Input
           ref={inputRef}
+          id={`${listboxId}-input`}
           type="search"
-          placeholder="Buscar sets, temas, personajes..."
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls={listboxId}
+          aria-activedescendant={isOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+          autoComplete="off"
+          placeholder="Buscar sets, temas, personajes…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+          }}
           onFocus={() => {
-            setRecentSearches(getRecentSearches());
+            setRecent(readRecent());
             setIsOpen(true);
           }}
           onKeyDown={handleKeyDown}
           autoFocus={autoFocus}
-          className="w-full pl-11 pr-10 py-2.5 bg-background-secondary border-0 rounded-full text-sm text-foreground-primary placeholder:text-foreground-muted focus:outline-hidden focus:ring-2 focus:ring-lego-yellow transition-all"
+          leftIcon={<Search />}
+          className="h-10 rounded-full border-transparent bg-bg-muted pr-10 text-sm [&::-webkit-search-cancel-button]:hidden"
           data-testid="search-input"
         />
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground-muted" />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground-secondary"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <div className="absolute inset-y-0 right-1 flex items-center">
+          {isFetching && searching ? (
+            <Spinner className="mr-2 size-4 text-fg-muted" />
+          ) : query ? (
+            <IconButton
+              label="Borrar búsqueda"
+              size="icon-sm"
+              onClick={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+            >
+              <X aria-hidden="true" />
+            </IconButton>
+          ) : null}
+        </div>
       </form>
 
       <AnimatePresence>
-        {showDropdown && (
+        {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={transitions.fast}
-            className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-2xl shadow-2xl border border-border overflow-hidden z-50"
+            variants={dropDown}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute top-full right-0 left-0 z-50 mt-2 overflow-hidden rounded-2xl border border-border bg-surface-raised text-fg shadow-xl"
           >
-            {/* Product Suggestions */}
-            {suggestions.length > 0 && (
-              <div className="p-2">
-                <p className="text-xs font-semibold text-foreground-muted uppercase tracking-wider px-3 py-2">
+            <ul id={listboxId} role="listbox" aria-label="Sugerencias de búsqueda" className="p-2 empty:hidden">
+              {suggestions.length > 0 && (
+                <li role="presentation" className="px-3 py-2 text-caption font-semibold tracking-wider text-fg-muted uppercase">
                   Productos
-                </p>
-                {suggestions.map((product, index) => (
+                </li>
+              )}
+              {suggestions.map((product, index) => (
+                <li key={product.id} role="presentation">
                   <Link
-                    key={product.id}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={activeIndex === index}
+                    tabIndex={-1}
                     href={`/item/${product.id}`}
-                    onClick={() => {
-                      saveRecentSearch(query);
-                      onClose?.();
+                    onClick={(event) => {
+                      event.preventDefault();
+                      openProduct(product.id);
                     }}
+                    onPointerMove={() => setActiveIndex(index)}
                     className={cn(
-                      "flex items-center gap-3 p-2 rounded-xl transition-colors",
-                      selectedIndex === index ? "bg-background-secondary" : "hover:bg-background-secondary"
+                      "flex items-center gap-3 rounded-xl p-2 transition-colors duration-fast",
+                      activeIndex === index && "bg-bg-muted"
                     )}
                     data-testid="search-result"
                   >
-                    <div className="relative w-12 h-12 bg-background-secondary rounded-lg shrink-0">
-                      <Image
-                        src={product.img}
-                        alt={product.name}
-                        fill
-                        className="object-contain p-1"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground-primary line-clamp-1">{product.name}</p>
-                      <p className="text-xs text-foreground-muted">{product.theme}</p>
-                    </div>
-                    <span className="text-sm font-bold text-foreground-primary">
-                      {formatPrice(product.price)}
+                    <span className="relative size-12 shrink-0 rounded-lg bg-bg-subtle">
+                      <Image src={product.img} alt="" fill sizes="48px" className="object-contain p-1" />
                     </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-1 text-sm font-medium">{product.name}</span>
+                      <span className="text-caption text-fg-muted">{product.theme}</span>
+                    </span>
+                    <span className="text-sm font-bold tabular-nums">{formatPrice(product.price)}</span>
                   </Link>
-                ))}
+                </li>
+              ))}
 
-                {/* View All Results */}
-                <button
-                  onClick={() => handleSearch(query)}
-                  className="w-full mt-1 p-3 text-sm font-medium text-lego-blue hover:bg-blue-50 dark:hover:bg-blue-950 rounded-xl flex items-center justify-center gap-2 transition-colors"
-                >
-                  Ver todos los resultados
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+              {recentOptions.length > 0 && (
+                <li role="presentation" className="flex items-center justify-between px-3 py-2">
+                  <span className="flex items-center gap-2 text-caption font-semibold tracking-wider text-fg-muted uppercase">
+                    <Clock aria-hidden="true" className="size-3" />
+                    Búsquedas recientes
+                  </span>
+                </li>
+              )}
+              {recentOptions.map((term, i) => {
+                const index = suggestions.length + i;
+                return (
+                  <li
+                    key={term}
+                    id={optionId(index)}
+                    role="option"
+                    aria-selected={activeIndex === index}
+                    onClick={() => runSearch(term)}
+                    onPointerMove={() => setActiveIndex(index)}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-fg-secondary transition-colors duration-fast",
+                      activeIndex === index && "bg-bg-muted text-fg"
+                    )}
+                  >
+                    <Clock aria-hidden="true" className="size-4 text-fg-muted" />
+                    {term}
+                  </li>
+                );
+              })}
+            </ul>
+
+            {suggestions.length > 0 && (
+              <div className="px-2 pb-2">
+                <Button variant="ghost" className="w-full text-info" onClick={() => runSearch(query)}>
+                  Ver los {total} resultados
+                  <ArrowRight aria-hidden="true" />
+                </Button>
               </div>
             )}
 
-            {/* No Results */}
-            {query.length >= 2 && suggestions.length === 0 && (
-              <div className="p-6 text-center">
-                <p className="text-foreground-secondary">No se encontraron productos para &quot;{query}&quot;</p>
-                <p className="text-sm text-foreground-muted mt-1">Intenta con otros términos de búsqueda</p>
+            {showNoResults && (
+              <div className="p-6 text-center" role="status">
+                <p className="text-fg-secondary">No se encontraron productos para &quot;{debounced}&quot;</p>
+                <p className="mt-1 text-sm text-fg-muted">Intenta con otros términos de búsqueda</p>
               </div>
             )}
 
-            {/* Recent Searches & Popular - Show when not typing */}
-            {query.length < 2 && (
-              <div className="p-2">
-                {/* Recent Searches */}
-                {recentSearches.length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <p className="text-xs font-semibold text-foreground-muted uppercase tracking-wider flex items-center gap-2">
-                        <Clock className="w-3 h-3" />
-                        Búsquedas recientes
-                      </p>
-                      <button
-                        onClick={handleClearRecent}
-                        className="text-xs text-foreground-muted hover:text-foreground-secondary"
-                      >
-                        Borrar
-                      </button>
-                    </div>
-                    {recentSearches.map((search, index) => (
-                      <button
-                        key={search}
-                        onClick={() => handleSearch(search)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 rounded-xl text-sm text-foreground-secondary flex items-center gap-2 transition-colors",
-                          selectedIndex === index ? "bg-background-secondary" : "hover:bg-background-secondary"
-                        )}
-                      >
-                        <Clock className="w-4 h-4 text-foreground-muted" />
-                        {search}
-                      </button>
-                    ))}
+            {trimmed.length < MIN_QUERY && (
+              <div className="space-y-2 p-2 pt-0">
+                {recentOptions.length > 0 && (
+                  <div className="flex justify-end px-1">
+                    <Button variant="link" size="sm" className="text-caption" onClick={clearRecent}>
+                      Borrar recientes
+                    </Button>
                   </div>
                 )}
-
-                {/* Popular Searches */}
-                <div>
-                  <p className="text-xs font-semibold text-foreground-muted uppercase tracking-wider px-3 py-2 flex items-center gap-2">
-                    <TrendingUp className="w-3 h-3" />
-                    Búsquedas populares
-                  </p>
-                  <div className="px-3 pb-2 flex flex-wrap gap-2">
-                    {POPULAR_SEARCHES.map((term) => (
-                      <button
-                        key={term}
-                        onClick={() => handleSearch(term)}
-                        className="px-3 py-1.5 bg-background-secondary hover:bg-background-tertiary rounded-full text-sm text-foreground-secondary transition-colors"
-                      >
-                        {term}
-                      </button>
-                    ))}
-                  </div>
+                <p className="flex items-center gap-2 px-3 py-2 text-caption font-semibold tracking-wider text-fg-muted uppercase">
+                  <TrendingUp aria-hidden="true" className="size-3" />
+                  Búsquedas populares
+                </p>
+                <div className="flex flex-wrap gap-2 px-3 pb-2">
+                  {POPULAR_SEARCHES.map((term) => (
+                    <Button key={term} variant="secondary" size="sm" className="rounded-full" onClick={() => runSearch(term)}>
+                      {term}
+                    </Button>
+                  ))}
                 </div>
               </div>
             )}

@@ -2,31 +2,89 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ShoppingCart, Trash2, ChevronLeft } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { Check, ChevronLeft, Heart, ShoppingCart, Trash2 } from "lucide-react";
 import { scaleIn, transitions } from "@/lib/motion";
-import { useWishlistStore, useCartStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
-import { formatPrice } from "@/lib/utils";
-import { products } from "@/data/products";
-import { Button, Skeleton } from "@/components/ui";
+import { useStoreHydrated, useWishlistItems, useWishlistStore } from "@/stores";
+import { useProductActions } from "@/hooks/useProductActions";
+import { useProductsByIds } from "@/hooks/useProductsByIds";
+import { Button, EmptyState, IconButton, Price, Skeleton } from "@/components/ui";
+import type { Product, WishlistItem } from "@/types";
+
+/** One saved product: fresh catalogue data when loaded, the stored snapshot until then. */
+function WishlistCard({ item, product }: { item: WishlistItem; product?: Product }) {
+  const summary = product ?? { id: item.id, name: item.name, price: item.price, img: item.image, stock: item.stock };
+  const { inCart, isAvailable, addToCart, toggleWishlist } = useProductActions(summary);
+
+  return (
+    <motion.li
+      layout
+      transition={transitions.spring}
+      variants={scaleIn}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card"
+    >
+      <div className="relative aspect-square bg-bg-subtle">
+        <Image src={summary.img} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain p-4" />
+        <IconButton
+          label={`Quitar ${summary.name} de favoritos`}
+          variant="secondary"
+          size="icon-sm"
+          className="absolute top-3 right-3 z-10 shadow-md hover:text-danger"
+          onClick={toggleWishlist}
+        >
+          <Trash2 aria-hidden="true" />
+        </IconButton>
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <h2 className="text-body font-semibold">
+          <Link
+            href={`/item/${summary.id}`}
+            className="line-clamp-2 text-fg after:absolute after:inset-0 after:content-[''] hover:text-info"
+          >
+            {summary.name}
+          </Link>
+        </h2>
+        <Price
+          value={summary.price}
+          originalValue={product?.isOnSale ? product.originalPrice : undefined}
+          size="md"
+        />
+        {!isAvailable && <p className="text-sm font-medium text-danger">Producto agotado</p>}
+
+        <Button
+          onClick={() => addToCart()}
+          disabled={!isAvailable || inCart}
+          variant={inCart ? "secondary" : "primary"}
+          size="sm"
+          className="relative z-10 mt-auto w-full"
+        >
+          {inCart ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
+          {inCart ? "En el carrito" : "Agregar al carrito"}
+        </Button>
+      </div>
+    </motion.li>
+  );
+}
 
 export default function WishlistPage() {
-  const hydrated = useHydration();
-  const wishlist = useWishlistStore((state) => state.wishlist);
-  const removeFromWishlist = useWishlistStore((state) => state.removeFromWishlist);
+  const hydrated = useStoreHydrated(useWishlistStore);
+  const wishlist = useWishlistItems();
   const clearWishlist = useWishlistStore((state) => state.clearWishlist);
-
-  const addItem = useCartStore((state) => state.addItem);
-  const cart = useCartStore((state) => state.cart);
+  const { products } = useProductsByIds(wishlist.map((item) => item.id));
+  const fresh = new Map(products.map((p) => [p.id, p]));
 
   if (!hydrated) {
     return (
-      <div className="container-custom py-8">
-        <Skeleton className="h-10 w-48 mb-8" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="container-custom py-8" aria-busy="true">
+        <h1 className="sr-only">Lista de deseos</h1>
+        <Skeleton className="mb-8 h-10 w-48" />
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-64" />
+            <Skeleton key={i} className="h-80" />
           ))}
         </div>
       </div>
@@ -36,104 +94,43 @@ export default function WishlistPage() {
   if (wishlist.length === 0) {
     return (
       <div className="container-custom py-16">
-        <div className="max-w-md mx-auto text-center">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-            <Heart className="w-12 h-12 text-foreground-muted" />
-          </div>
-          <h1 className="text-2xl font-bold mb-4 text-foreground-primary">Tu lista de deseos está vacía</h1>
-          <p className="text-foreground-muted mb-8">
-            Guarda tus productos favoritos para comprarlos más tarde.
-          </p>
-          <Button size="lg" render={<Link href="/" />}>
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Explorar productos
-          </Button>
-        </div>
+        <h1 className="sr-only">Lista de deseos</h1>
+        <EmptyState
+          icon={<Heart />}
+          title="Tu lista de deseos está vacía"
+          description="Guarda tus productos favoritos para comprarlos más tarde."
+          action={
+            <Button size="lg" render={<Link href="/" />}>
+              <ChevronLeft aria-hidden="true" />
+              Explorar productos
+            </Button>
+          }
+        />
       </div>
     );
   }
 
-  const handleAddToCart = (item: (typeof wishlist)[0]) => {
-    const product = products.find((p) => p.id === item.id);
-    if (product) {
-      addItem(product, 1);
-    }
-  };
-
   return (
     <div className="container-custom py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground-primary">Lista de deseos</h1>
-          <p className="text-foreground-muted mt-1">{wishlist.length} productos guardados</p>
+          <h1 className="text-3xl md:text-4xl">Lista de deseos</h1>
+          <p className="mt-1 text-fg-muted">
+            {wishlist.length} {wishlist.length === 1 ? "producto guardado" : "productos guardados"}
+          </p>
         </div>
         <Button variant="ghost" onClick={clearWishlist}>
           Vaciar lista
         </Button>
       </div>
 
-      {/* Wishlist Items */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <AnimatePresence mode="popLayout">
-          {wishlist.map((item) => {
-            const inCart = cart.some((cartItem) => cartItem.id === item.id);
-
-            return (
-              <motion.div
-                key={item.id}
-                layout
-                transition={transitions.spring}
-                variants={scaleIn}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                className="bg-surface rounded-xl shadow-card overflow-hidden border border-border"
-              >
-                {/* Image */}
-                <Link href={`/item/${item.id}`} className="block relative aspect-square bg-background-secondary">
-                  <Image src={item.image} alt={item.name} fill className="object-contain p-4" />
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      removeFromWishlist(item.id);
-                    }}
-                    className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-xs rounded-full text-lego-red hover:bg-white transition-colors"
-                    aria-label="Quitar de favoritos"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </Link>
-
-                {/* Info */}
-                <div className="p-4">
-                  <Link href={`/item/${item.id}`} className="hover:text-lego-blue transition-colors">
-                    <h3 className="font-semibold line-clamp-2 text-foreground-primary">{item.name}</h3>
-                  </Link>
-
-                  <p className="text-xl font-bold text-foreground-primary mt-2">{formatPrice(item.price)}</p>
-
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      onClick={() => handleAddToCart(item)}
-                      disabled={item.stock === 0 || inCart}
-                      className="flex-1"
-                      size="sm"
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      {inCart ? "En carrito" : "Agregar"}
-                    </Button>
-                  </div>
-
-                  {item.stock === 0 && (
-                    <p className="text-sm text-status-error mt-2 text-center">Producto agotado</p>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
+      <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-label="Productos guardados">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {wishlist.map((item) => (
+            <WishlistCard key={item.id} item={item} product={fresh.get(item.id)} />
+          ))}
         </AnimatePresence>
-      </div>
+      </ul>
     </div>
   );
 }

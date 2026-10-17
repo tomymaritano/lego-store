@@ -4,8 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { ShoppingCart, Trash2 } from "lucide-react";
-import { useCartStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
+import { useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { formatPrice } from "@/lib/utils";
 import { transitions } from "@/lib/motion";
 import {
@@ -28,11 +27,11 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
-  const hydrated = useHydration();
-  const cart = useCartStore((state) => state.cart);
+  const hydrated = useStoreHydrated(useCartStore);
+  const cart = useCartItems();
+  const totalPrice = useCartSubtotal();
   const removeItem = useCartStore((state) => state.removeItem);
   const setQuantity = useCartStore((state) => state.setQuantity);
-  const totalPrice = useCartStore((state) => state.cart.reduce((acc, item) => acc + item.quantity * item.price, 0));
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>

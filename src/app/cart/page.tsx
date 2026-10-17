@@ -2,29 +2,35 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2, ChevronLeft, ShoppingBag } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { ChevronLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { dismissible, transitions } from "@/lib/motion";
-import { useCartStore } from "@/stores";
-import { useHydration } from "@/hooks/useHydration";
 import { formatPrice } from "@/lib/utils";
-import { Button, QuantitySelector, Skeleton } from "@/components/ui";
+import { siteConfig } from "@/config/site";
+import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
+import { productActionCopy } from "@/hooks/useProductActions";
+import { Button, EmptyState, IconButton, QuantitySelector, Skeleton, showToast } from "@/components/ui";
 
 export default function CartPage() {
-  const hydrated = useHydration();
-  const cart = useCartStore((state) => state.cart);
+  const hydrated = useStoreHydrated(useCartStore);
+  const cart = useCartItems();
+  const count = useCartCount();
+  const subtotal = useCartSubtotal();
   const removeItem = useCartStore((state) => state.removeItem);
   const setQuantity = useCartStore((state) => state.setQuantity);
   const clearCart = useCartStore((state) => state.clearCart);
-  const getTotalPrice = useCartStore((state) => state.getTotalPrice);
-  const getTotalQuantity = useCartStore((state) => state.getTotalQuantity);
+
+  const { freeShippingThreshold, shippingCost } = siteConfig.commerce;
+  const shipping = subtotal >= freeShippingThreshold ? 0 : shippingCost;
+  const missingForFreeShipping = freeShippingThreshold - subtotal;
 
   if (!hydrated) {
     return (
-      <div className="container-custom py-8">
-        <Skeleton className="h-10 w-48 mb-8" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-4">
+      <div className="container-custom py-8" aria-busy="true">
+        <h1 className="sr-only">Carrito de compras</h1>
+        <Skeleton className="mb-8 h-10 w-48" />
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-32" />
             ))}
@@ -38,42 +44,41 @@ export default function CartPage() {
   if (cart.length === 0) {
     return (
       <div className="container-custom py-16">
-        <div className="max-w-md mx-auto text-center">
-          <div className="w-24 h-24 bg-background-secondary rounded-full flex items-center justify-center mx-auto mb-6">
-            <ShoppingBag className="w-12 h-12 text-foreground-muted" />
-          </div>
-          <h1 className="text-2xl font-bold mb-4 text-foreground-primary">Tu carrito está vacío</h1>
-          <p className="text-foreground-muted mb-8">
-            Parece que aún no has agregado productos a tu carrito. ¡Explora nuestra tienda!
-          </p>
-          <Button size="lg" render={<Link href="/" />}>
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Explorar productos
-          </Button>
-        </div>
+        <h1 className="sr-only">Carrito de compras</h1>
+        <EmptyState
+          icon={<ShoppingBag />}
+          title="Tu carrito está vacío"
+          description="Parece que aún no has agregado productos a tu carrito. ¡Explora nuestra tienda!"
+          action={
+            <Button size="lg" render={<Link href="/" />}>
+              <ChevronLeft aria-hidden="true" />
+              Explorar productos
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
     <div className="container-custom py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground-primary">Carrito de compras</h1>
-          <p className="text-foreground-muted mt-1">{getTotalQuantity()} productos</p>
+          <h1 className="text-3xl md:text-4xl">Carrito de compras</h1>
+          <p className="mt-1 text-fg-muted">
+            {count} {count === 1 ? "producto" : "productos"}
+          </p>
         </div>
         <Button variant="ghost" onClick={clearCart}>
           Vaciar carrito
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Cart Items */}
-        <div className="lg:col-span-2 space-y-4">
-          <AnimatePresence mode="popLayout">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <ul className="space-y-4 lg:col-span-2" aria-label="Productos en el carrito">
+          <AnimatePresence mode="popLayout" initial={false}>
             {cart.map((item) => (
-              <motion.div
+              <motion.li
                 key={item.id}
                 layout
                 transition={transitions.spring}
@@ -81,23 +86,24 @@ export default function CartPage() {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="bg-surface rounded-xl p-4 shadow-card flex gap-4 border border-border"
+                className="flex gap-4 rounded-2xl border border-border bg-surface p-4 shadow-card"
+                data-testid="cart-item"
               >
-                {/* Image */}
-                <Link href={`/item/${item.id}`} className="shrink-0">
-                  <div className="relative w-24 h-24 bg-background-secondary rounded-lg overflow-hidden">
-                    <Image src={item.image} alt={item.name} fill className="object-contain p-2" />
-                  </div>
+                <Link href={`/item/${item.id}`} className="shrink-0 rounded-lg" tabIndex={-1} aria-hidden="true">
+                  <span className="relative block size-24 overflow-hidden rounded-lg bg-bg-subtle">
+                    <Image src={item.image} alt="" fill sizes="96px" className="object-contain p-2" />
+                  </span>
                 </Link>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <Link href={`/item/${item.id}`} className="hover:text-lego-blue transition-colors">
-                    <h3 className="font-semibold truncate text-foreground-primary">{item.name}</h3>
-                  </Link>
-                  <p className="text-lg font-bold text-foreground-primary mt-1">{formatPrice(item.price)}</p>
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-body font-semibold">
+                    <Link href={`/item/${item.id}`} className="text-fg hover:text-info">
+                      {item.name}
+                    </Link>
+                  </h2>
+                  <p className="mt-1 text-lg font-bold text-fg tabular-nums">{formatPrice(item.price)}</p>
 
-                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mt-3">
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                     <QuantitySelector
                       value={item.quantity}
                       onValueChange={(quantity) => setQuantity(item.id, quantity)}
@@ -106,58 +112,69 @@ export default function CartPage() {
                       label={`Cantidad de ${item.name}`}
                     />
 
-                    <div className="flex items-center gap-4">
-                      <span className="text-foreground-muted text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-fg-muted tabular-nums">
                         Subtotal: {formatPrice(item.price * item.quantity)}
                       </span>
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="p-2 text-foreground-muted hover:text-lego-red transition-colors"
-                        aria-label="Eliminar"
+                      <IconButton
+                        label={`Eliminar ${item.name} del carrito`}
+                        size="icon-sm"
+                        className="hover:text-danger"
+                        onClick={() => {
+                          removeItem(item.id);
+                          showToast.info(productActionCopy.removedFromCart(item.name));
+                        }}
                       >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                        <Trash2 aria-hidden="true" />
+                      </IconButton>
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </motion.li>
             ))}
           </AnimatePresence>
-        </div>
+        </ul>
 
-        {/* Order Summary */}
-        <div className="lg:col-span-1">
-          <div className="bg-surface rounded-xl p-6 shadow-card sticky top-24 border border-border">
-            <h2 className="text-xl font-bold mb-4 text-foreground-primary">Resumen del pedido</h2>
+        <aside aria-labelledby="summary-title" className="lg:col-span-1">
+          <div className="sticky top-24 rounded-2xl border border-border bg-surface p-6 shadow-card">
+            <h2 id="summary-title" className="mb-4 text-title">
+              Resumen del pedido
+            </h2>
 
-            <div className="space-y-3 text-sm">
+            <dl className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-foreground-muted">Subtotal ({getTotalQuantity()} productos)</span>
-                <span className="text-foreground-primary">{formatPrice(getTotalPrice())}</span>
+                <dt className="text-fg-muted">Subtotal ({count} productos)</dt>
+                <dd className="text-fg tabular-nums">{formatPrice(subtotal)}</dd>
               </div>
               <div className="flex justify-between">
-                <span className="text-foreground-muted">Envío</span>
-                <span className="text-status-success">Gratis</span>
+                <dt className="text-fg-muted">Envío</dt>
+                <dd className={shipping === 0 ? "font-semibold text-success" : "text-fg tabular-nums"}>
+                  {shipping === 0 ? "Gratis" : formatPrice(shipping)}
+                </dd>
               </div>
+            </dl>
+
+            {missingForFreeShipping > 0 && (
+              <p className="mt-3 rounded-lg bg-bg-subtle p-3 text-caption text-fg-secondary">
+                Te faltan {formatPrice(missingForFreeShipping)} para el envío gratis.
+              </p>
+            )}
+
+            <div className="mt-4 flex justify-between border-t border-border pt-4 text-lg font-bold text-fg">
+              <span>Total</span>
+              <span className="tabular-nums">{formatPrice(subtotal + shipping)}</span>
             </div>
 
-            <div className="border-t border-border mt-4 pt-4">
-              <div className="flex justify-between text-lg font-bold">
-                <span className="text-foreground-primary">Total</span>
-                <span className="text-foreground-primary">{formatPrice(getTotalPrice())}</span>
-              </div>
-            </div>
-
-            <Button className="w-full mt-6" size="lg">
+            <Button className="mt-6 w-full" size="lg" render={<Link href="/checkout" />}>
               Finalizar compra
             </Button>
 
-            <Button variant="outline" className="w-full mt-4" render={<Link href="/" />}>
-              <ChevronLeft className="w-4 h-4 mr-2" />
+            <Button variant="outline" className="mt-4 w-full" render={<Link href="/" />}>
+              <ChevronLeft aria-hidden="true" />
               Seguir comprando
             </Button>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
