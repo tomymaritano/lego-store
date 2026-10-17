@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Lock, RotateCcw, ShieldCheck } from "lucide-react";
 import { siteConfig } from "@/config/site";
@@ -21,8 +22,32 @@ interface OrderSummaryProps {
  * Checkout sidebar: the lines being bought and the same totals block the cart
  * page shows (OrderTotals, lib/pricing), so the amounts always agree.
  */
+/**
+ * True while the element's content is taller than the element, so a scroll
+ * container joins the tab order only when there is something to scroll
+ * (WCAG 2.1.1: keyboard users must be able to reach it).
+ */
+function useOverflowsY<T extends HTMLElement>(contentKey: unknown) {
+  const ref = useRef<T>(null);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    for (const child of Array.from(el.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, [contentKey]);
+
+  return [ref, overflows] as const;
+}
+
 export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps) {
   const count = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const [listRef, listScrolls] = useOverflowsY<HTMLUListElement>(lines.length);
 
   return (
     <Card role="region" aria-labelledby="checkout-summary-title" className="lg:sticky lg:top-24">
@@ -32,7 +57,14 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
         </h2>
       </CardHeader>
       <CardContent className="space-y-5">
-        <ul className="max-h-72 space-y-3 overflow-y-auto pr-1" aria-label="Productos">
+        {/* pt-2/pr-2 keep the quantity badges (offset outside each thumbnail) clear of the scroll clip. */}
+        <ul
+          ref={listRef}
+          aria-label="Productos del pedido"
+          tabIndex={listScrolls ? 0 : undefined}
+          data-testid="checkout-lines"
+          className="-mt-2 max-h-72 space-y-3 overflow-y-auto rounded-lg pt-2 pr-2"
+        >
           {lines.map((line) => (
             <li key={line.id} className="flex items-center gap-3" data-testid="checkout-line">
               <span className="relative size-16 shrink-0 rounded-lg bg-photo-tile">
@@ -70,7 +102,7 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
                 animate="visible"
                 exit="exit"
                 aria-hidden="true"
-                className="absolute inset-0 flex items-center justify-center gap-2 text-sm font-medium text-fg"
+                className="absolute inset-0 top-2 flex items-center justify-center gap-2 rounded-lg bg-surface/85 text-sm font-medium text-fg backdrop-blur-sm"
               >
                 <Spinner className="size-5" />
                 Procesando el pago…
