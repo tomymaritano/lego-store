@@ -17,4 +17,4 @@ export { ProductGallery } from "./ProductGallery";
 export { ProductPurchase } from "./ProductPurchase";
 export { ProductDetailsTabs } from "./ProductDetailsTabs";
 export { ReviewsLink } from "./ReviewsLink";
-export { REVIEWS_HASH } from "./anchors";
+export { REVIEWS_HASH, WRITE_REVIEW_HASH } from "./anchors";

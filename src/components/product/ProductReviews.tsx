@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
@@ -13,6 +13,7 @@ import type { Review } from "@/types";
 import {
   Badge,
   Button,
+  EmptyState,
   Field,
   Input,
   Rating,
@@ -26,8 +27,15 @@ import {
   showToast,
 } from "@/components/ui";
 
+/** Where to move focus when the reviews tab is opened from a link (see ProductDetailsTabs). */
+export interface ReviewsFocusRequest {
+  target: "heading" | "form";
+}
+
 interface ProductReviewsProps {
   productId: string;
+  /** Each new request moves focus once: to the heading, or opens the form and focuses its first field. */
+  focusRequest?: ReviewsFocusRequest | null;
 }
 
 const reviewCount = (n: number) => pluralize(n, "reseña");
@@ -73,10 +81,24 @@ const initials = (name: string) =>
  * with "útil" votes, and a validated form to add one. Reviews still live in
  * the client-side reviewStore (mock) until the backend provides them.
  */
-export function ProductReviews({ productId }: ProductReviewsProps) {
+export function ProductReviews({ productId, focusRequest }: ProductReviewsProps) {
   const [showForm, setShowForm] = useState(false);
   const [sort, setSort] = useState<ReviewSort>("recent");
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const formPanelRef = useRef<HTMLDivElement>(null);
+  /** True while the form is opening for a "write a review" link; focus waits for the open animation. */
+  const [focusFormWhenOpen, setFocusFormWhenOpen] = useState(false);
+  const [handledRequest, setHandledRequest] = useState<ReviewsFocusRequest | null>(null);
+
+  // A new "write a review" request opens the form (state adjusted during render, not in an effect).
+  if (focusRequest && focusRequest !== handledRequest) {
+    setHandledRequest(focusRequest);
+    if (focusRequest.target === "form" && !showForm) {
+      setFocusFormWhenOpen(true);
+      setShowForm(true);
+    }
+  }
   const allReviews = useReviewStore((state) => state.reviews);
   const markHelpful = useReviewStore((state) => state.markHelpful);
 
@@ -96,6 +118,30 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     return { rating, count, percentage: reviews.length > 0 ? (count / reviews.length) * 100 : 0 };
   });
 
+  const focusFirstField = () => {
+    const panel = formPanelRef.current;
+    const radio =
+      panel?.querySelector<HTMLInputElement>('input[type="radio"]:checked') ??
+      panel?.querySelector<HTMLInputElement>('input[type="radio"]');
+    if (!radio) return;
+    radio.focus({ preventScroll: true });
+    // Show the form from its top (legend and stars), below the sticky header (scroll-padding).
+    panel?.querySelector("form")?.scrollIntoView?.({ block: "start" });
+  };
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (focusRequest.target === "heading") {
+      // The link already scrolled to the tabs; the heading sits right below them.
+      headingRef.current?.focus({ preventScroll: true });
+    } else if (!focusFormWhenOpen) {
+      // The form was already open: focus it now (otherwise its open animation does).
+      focusFirstField();
+    }
+    // Only a new request moves focus, not later changes to the form state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
+
   const closeForm = () => {
     setShowForm(false);
     toggleRef.current?.focus();
@@ -105,10 +151,10 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     <section aria-labelledby="reviews-title" className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 id="reviews-title" className="text-title">
+          <h2 id="reviews-title" ref={headingRef} tabIndex={-1} className="rounded-sm text-title outline-none">
             Reseñas de clientes
           </h2>
-          <p className="text-fg-muted">{reviewCount(reviews.length)}</p>
+          {reviews.length > 0 && <p className="text-fg-muted">{reviewCount(reviews.length)}</p>}
         </div>
         <Button
           ref={toggleRef}
@@ -122,81 +168,96 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
         </Button>
       </div>
 
-      <div id="review-form-panel">
+      <div id="review-form-panel" ref={formPanelRef}>
         <AnimatePresence initial={false}>
           {showForm && (
-            <motion.div key="review-form" variants={collapse} initial="hidden" animate="visible" exit="exit" className="overflow-hidden">
+            <motion.div
+              key="review-form"
+              variants={collapse}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="overflow-hidden"
+              onAnimationComplete={(definition) => {
+                if (definition !== "visible" || !focusFormWhenOpen) return;
+                setFocusFormWhenOpen(false);
+                focusFirstField();
+              }}
+            >
               <ReviewForm productId={productId} onDone={closeForm} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <div className="grid gap-8 rounded-2xl border border-border bg-bg-subtle p-6 md:grid-cols-[auto_1fr] md:gap-12">
-        <div className="flex flex-col items-center gap-2 md:items-start">
-          <p className="text-5xl font-bold tabular-nums">
-            {averageRating ? averageRating.toLocaleString("es-AR") : "–"}
-            <span className="sr-only"> de 5</span>
-          </p>
-          <Rating value={averageRating} size="lg" />
-          <p className="text-sm text-fg-muted">Basado en {reviewCount(reviews.length)}</p>
-        </div>
-
-        <ul className="space-y-2 self-center" aria-label="Distribución de valoraciones">
-          {distribution.map(({ rating, count, percentage }) => (
-            <li key={rating} className="flex items-center gap-3">
-              <span className="w-20 shrink-0 text-sm text-fg-secondary">{pluralize(rating, "estrella")}</span>
-              <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-bg-muted">
-                <motion.span
-                  className="block h-full origin-left rounded-full bg-rating"
-                  initial={{ scaleX: 0 }}
-                  whileInView={{ scaleX: percentage / 100 }}
-                  viewport={{ once: true }}
-                  transition={transitions.slow}
-                />
-              </span>
-              <span className="w-8 text-right text-sm text-fg-muted tabular-nums">
-                {count}
-                <span className="sr-only"> {count === 1 ? "reseña" : "reseñas"}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
       {reviews.length === 0 ? (
-        <div className="flex flex-col items-center gap-1 py-12 text-center text-fg-muted">
-          <MessageSquare aria-hidden="true" className="mb-2 size-8" />
-          <p>Aún no hay reseñas para este producto.</p>
-          <p className="text-sm">¡Sé el primero en dejar tu opinión!</p>
-        </div>
+        <EmptyState
+          icon={<MessageSquare />}
+          headingLevel="h3"
+          title="Aún no hay reseñas"
+          description="¿Ya lo armaste? Cuéntales a otros fans qué te pareció."
+          className="rounded-2xl border border-dashed border-border bg-bg-subtle"
+        />
       ) : (
-        <div className="space-y-4">
-          {reviews.length > 1 && (
-            <Field label="Ordenar reseñas" className="sm:w-64">
-              <Select items={REVIEW_SORTS} value={sort} onValueChange={(value) => value && setSort(value as ReviewSort)}>
-                <SelectTrigger size="sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REVIEW_SORTS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-          <LayoutGroup>
-            <ul className="divide-y divide-border" aria-label="Reseñas">
-              <AnimatePresence initial={false}>
-                {reviews.map((review) => (
-                  <ReviewItem key={review.id} review={review} onMarkHelpful={markHelpful} />
-                ))}
-              </AnimatePresence>
+        <div className="space-y-8">
+          <div className="grid gap-8 rounded-2xl border border-border bg-bg-subtle p-6 md:grid-cols-[auto_1fr] md:gap-12">
+            <div className="flex flex-col items-center gap-2 md:items-start">
+              <p className="text-5xl font-bold tabular-nums">
+                {averageRating.toLocaleString("es-AR")}
+                <span className="sr-only"> de 5</span>
+              </p>
+              <Rating value={averageRating} size="lg" />
+              <p className="text-sm text-fg-muted">Basado en {reviewCount(reviews.length)}</p>
+            </div>
+
+            <ul className="space-y-2 self-center" aria-label="Distribución de valoraciones">
+              {distribution.map(({ rating, count, percentage }) => (
+                <li key={rating} className="flex items-center gap-3">
+                  <span className="w-20 shrink-0 text-sm text-fg-secondary">{pluralize(rating, "estrella")}</span>
+                  <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-bg-muted">
+                    <motion.span
+                      className="block h-full origin-left rounded-full bg-rating"
+                      initial={{ scaleX: 0 }}
+                      whileInView={{ scaleX: percentage / 100 }}
+                      viewport={{ once: true }}
+                      transition={transitions.slow}
+                    />
+                  </span>
+                  <span className="w-8 text-right text-sm text-fg-muted tabular-nums">
+                    {count}
+                    <span className="sr-only"> {count === 1 ? "reseña" : "reseñas"}</span>
+                  </span>
+                </li>
+              ))}
             </ul>
-          </LayoutGroup>
+          </div>
+          <div className="space-y-4">
+            {reviews.length > 1 && (
+              <Field label="Ordenar reseñas" className="sm:w-64">
+                <Select items={REVIEW_SORTS} value={sort} onValueChange={(value) => value && setSort(value as ReviewSort)}>
+                  <SelectTrigger size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REVIEW_SORTS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+            <LayoutGroup>
+              <ul className="divide-y divide-border" aria-label="Reseñas">
+                <AnimatePresence initial={false}>
+                  {reviews.map((review) => (
+                    <ReviewItem key={review.id} review={review} onMarkHelpful={markHelpful} />
+                  ))}
+                </AnimatePresence>
+              </ul>
+            </LayoutGroup>
+          </div>
         </div>
       )}
     </section>

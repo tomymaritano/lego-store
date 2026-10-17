@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ProductReviews, sortReviews } from "@/components/product/ProductReviews";
 import { mockReviews, useReviewStore } from "@/stores/reviewStore";
 import type { Review } from "@/types";
@@ -77,7 +77,6 @@ describe("ProductReviews", () => {
 
   it("adds a review from the form and returns focus to the toggle", async () => {
     render(<ProductReviews productId="2" />);
-    expect(screen.getByText("Aún no hay reseñas para este producto.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Escribir reseña" }));
     fireEvent.click(screen.getByRole("radio", { name: "4 estrellas" }));
     fireEvent.change(screen.getByLabelText(/Tu nombre/), { target: { value: "  Ana  " } });
@@ -103,5 +102,28 @@ describe("ProductReviews", () => {
     } finally {
       delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
     }
+  });
+
+  it("with no reviews shows only an empty state, never a 0-star score or an empty histogram", () => {
+    render(<ProductReviews productId="2" />);
+    expect(screen.getByRole("heading", { level: 3, name: "Aún no hay reseñas" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Valoración/ })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Distribución de valoraciones" })).toBeNull();
+    expect(screen.queryByText(/de 5/)).toBeNull();
+  });
+
+  it("moves focus to the heading, or opens the form on its first field, when a link asks", async () => {
+    const { rerender } = render(<ProductReviews productId="1" focusRequest={null} />);
+    rerender(<ProductReviews productId="1" focusRequest={{ target: "heading" }} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Reseñas de clientes" })).toHaveFocus();
+
+    await act(async () => rerender(<ProductReviews productId="1" focusRequest={{ target: "form" }} />));
+    expect(screen.getByRole("button", { name: "Cancelar", expanded: true })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("radio", { name: "1 estrella" })).toHaveFocus());
+
+    // The form is already open: a new request focuses it again.
+    screen.getByRole("heading", { level: 2, name: "Reseñas de clientes" }).focus();
+    rerender(<ProductReviews productId="1" focusRequest={{ target: "form" }} />);
+    expect(screen.getByRole("radio", { name: "1 estrella" })).toHaveFocus();
   });
 });

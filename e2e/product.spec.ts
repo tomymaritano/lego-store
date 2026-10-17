@@ -52,14 +52,32 @@ test.describe("Product page", () => {
     expect(json).toMatchObject({ "@type": "Product", name: "Captain Rex Helmet", offers: { price: 899, priceCurrency: "ARS" } });
   });
 
+  test("the reviews link opens the tab and moves focus to the reviews heading", async ({ page }) => {
+    await page.goto("/item/1");
+    await page.waitForLoadState("networkidle");
+    await page.getByRole("link", { name: /^Ver \d+ reseñas?$/ }).click();
+    await expect(page.getByRole("tab", { name: /Reseñas/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { level: 2, name: "Reseñas de clientes" })).toBeFocused();
+  });
+
+  test("product cards show the catalogue rating without an invented review count", async ({ page }) => {
+    await page.goto("/item/10");
+    const cards = page.getByRole("img", { name: /^Valoración: / });
+    await expect(cards.first()).toBeVisible();
+    await expect(page.getByRole("img", { name: /reseñas/ })).toHaveCount(0);
+  });
+
   test("the review form validates in Spanish and publishes a review", async ({ page }) => {
     await page.goto("/item/2");
     await page.waitForLoadState("networkidle");
-    // Item 2 has no reviews yet: the link under the title says so instead of promising some.
-    await page.getByRole("link", { name: /Aún sin reseñas/ }).click();
+    // Item 2 has no reviews yet: the link under the title opens the form on its first field.
+    await page.getByRole("link", { name: "Escribir una reseña" }).click();
     await expect(page.getByRole("tab", { name: /Reseñas/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("radio", { name: "1 estrella" })).toBeFocused();
+    // No score or histogram for a product without reviews, only the empty state.
+    await expect(page.getByRole("heading", { level: 3, name: "Aún no hay reseñas" })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Distribución de valoraciones" })).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Escribir reseña" }).click();
     await page.getByRole("button", { name: "Publicar reseña" }).click();
     await expect(page.getByText("Elige una calificación de 1 a 5 estrellas")).toBeVisible();
     await expect(page.getByText("Ingresa tu nombre (al menos 2 caracteres)")).toBeVisible();

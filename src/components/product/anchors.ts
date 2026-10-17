@@ -4,5 +4,8 @@
  * reaches the server as a client reference, not as the string.
  */
 
-/** Fragment that opens the reviews tab (the rating under the product title links to it). */
+/** Fragment that opens the reviews tab and moves focus to the reviews heading. */
 export const REVIEWS_HASH = "resenas";
+
+/** Fragment that opens the reviews tab with the review form open and focused. */
+export const WRITE_REVIEW_HASH = "escribir-resena";
