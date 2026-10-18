@@ -17,6 +17,8 @@ import { getAdminUser, listAdminUsers } from "./users";
 import { getAdminCategory, listAdminCategories } from "./categories";
 import { getAdminTheme, listAdminThemes } from "./themes";
 import { getAdminSettings } from "./settings";
+import { getAdminContentPage, listAdminContent } from "./content";
+import type { ContentSlug } from "@/lib/content/pages";
 
 /*
  * What the /admin pages read. Each function checks the admin itself (data
@@ -132,3 +134,15 @@ export async function getAdminSettingsPage() {
   await requireAdmin({ callbackUrl: "/admin/configuracion" });
   return getAdminSettings(getDb());
 }
+
+/** /admin/contenido: every info page with its status. */
+export async function getAdminContentList() {
+  await requireAdmin({ callbackUrl: "/admin/contenido" });
+  return listAdminContent(getDb());
+}
+
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminContentDetail = cache(async (slug: ContentSlug) => {
+  await requireAdmin({ callbackUrl: `/admin/contenido/${slug}` });
+  return getAdminContentPage(getDb(), slug);
+});

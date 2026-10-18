@@ -2,7 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { refresh, revalidatePath } from "next/cache";
-import { updateCatalog, updateSettingsCache } from "@/lib/api/cache";
+import { updateCatalog, updateContentCache, updateSettingsCache } from "@/lib/api/cache";
+import { CONTENT_PAGES, isContentSlug } from "@/lib/content/pages";
+import { contentDocumentSchema, contentIssuePath } from "@/lib/validations/content";
+import { discardContentDraft, publishContent, saveContentDraft } from "./content";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { getDb } from "@/lib/db";
 import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
@@ -672,4 +675,70 @@ export async function saveFeaturedProductsAction(productIds: unknown): Promise<A
     ok: true,
     message: parsed.data.productIds.length > 0 ? "Guardamos los destacados. Ya se ven en la home." : "Quitamos los destacados: la home ya no muestra esa sección.",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Info pages' content (/admin/contenido)
+// ---------------------------------------------------------------------------
+
+export type ContentActionResult =
+  | { ok: true; message: string }
+  /** `issues`: each problem with where it is ("Bloque 2, ítem 1: Completa la pregunta"). */
+  | { ok: false; error: string; issues?: string[] };
+
+const NOT_A_PAGE = "Esa página no existe.";
+
+function parseContent(slug: unknown, doc: unknown) {
+  if (typeof slug !== "string" || !isContentSlug(slug)) return { ok: false as const, result: { ok: false as const, error: NOT_A_PAGE } };
+  const parsed = contentDocumentSchema.safeParse(doc);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.slice(0, 8).map((issue) => {
+      const where = contentIssuePath(issue.path);
+      return where ? `${where}: ${issue.message}` : issue.message;
+    });
+    return { ok: false as const, result: { ok: false as const, error: "Revisa el contenido: hay campos sin completar o demasiado largos.", issues } };
+  }
+  return { ok: true as const, slug, doc: parsed.data };
+}
+
+function contentChanged(slug: keyof typeof CONTENT_PAGES) {
+  revalidatePath("/admin/contenido");
+  revalidatePath(`/admin/contenido/${slug}`);
+}
+
+/** "Guardar borrador": the page keeps showing what was published. */
+export async function saveContentDraftAction(slug: unknown, doc: unknown): Promise<ContentActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/contenido" });
+  const parsed = parseContent(slug, doc);
+  if (!parsed.ok) return parsed.result;
+  const result = await saveContentDraft(getDb(), admin, parsed.slug, parsed.doc);
+  if (!result.changed) return { ok: true, message: "No había cambios para guardar." };
+  contentChanged(parsed.slug);
+  refresh();
+  return { ok: true, message: "Guardamos el borrador. La página sigue mostrando la versión publicada." };
+}
+
+/** "Publicar": the page shows this content from its next visit (its cache tag expires). */
+export async function publishContentAction(slug: unknown, doc: unknown): Promise<ContentActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/contenido" });
+  const parsed = parseContent(slug, doc);
+  if (!parsed.ok) return parsed.result;
+  const result = await publishContent(getDb(), admin, parsed.slug, parsed.doc);
+  if (!result.changed) return { ok: true, message: "La página ya mostraba esta versión." };
+  updateContentCache(parsed.slug);
+  revalidatePath(CONTENT_PAGES[parsed.slug].path);
+  contentChanged(parsed.slug);
+  refresh();
+  return { ok: true, message: "Publicamos la página. Ya se ve en la tienda." };
+}
+
+/** "Descartar borrador": back to what the page shows. */
+export async function discardContentDraftAction(slug: unknown): Promise<ContentActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/contenido" });
+  if (typeof slug !== "string" || !isContentSlug(slug)) return { ok: false, error: NOT_A_PAGE };
+  const result = await discardContentDraft(getDb(), admin, slug);
+  if (!result.changed) return { ok: true, message: "No había un borrador para descartar." };
+  contentChanged(slug);
+  refresh();
+  return { ok: true, message: "Descartamos el borrador: volviste a la versión publicada." };
 }

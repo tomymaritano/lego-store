@@ -65,6 +65,8 @@ model User {
   couponRedemptions  CouponRedemption[]
   /// What this user did as an admin (AuditLog).
   auditLogs          AuditLog[]
+  /// Info pages this user published last as an admin.
+  publishedContent   ContentPage[]
 
   @@index([createdAt])
   @@index([role])
@@ -657,6 +659,32 @@ model FeaturedProduct {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([position])
+}
+
+// ---------------------------------------------------------------------------
+// Info pages' content (src/lib/content): edited in /admin/contenido.
+// ---------------------------------------------------------------------------
+
+/// One info page (/faq, /envios...: src/lib/content/pages.ts CONTENT_SLUGS).
+/// `draft` is what the editor saves; `published` what the page shows, a copy
+/// of the draft made by "Publicar". Both are a ContentDocument
+/// (src/lib/content/types.ts), checked by src/lib/validations/content.ts on
+/// every write and read.
+model ContentPage {
+  slug             String    @id
+  draft            Json
+  /// Null until the first publication (the page is not found meanwhile).
+  published        Json?
+  publishedAt      DateTime?
+  /// Who published last (null once that account is deleted; the email stays).
+  publishedById    String?
+  publishedByEmail String?
+  /// Who saved the draft last.
+  draftByEmail     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  publishedBy User? @relation(fields: [publishedById], references: [id], onDelete: SetNull)
 }
 
 /// Stripe webhook idempotency: an event id is processed at most once.

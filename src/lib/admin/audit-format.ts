@@ -20,6 +20,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   theme: "Tema",
   upload: "Imagen",
   settings: "Configuración",
+  content: "Página de contenido",
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -53,6 +54,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "settings.announcement": "Cambió la barra de anuncio",
   "settings.contact": "Cambió los datos de contacto",
   "settings.featured": "Cambió los destacados de la home",
+  "content.draft": "Guardó un borrador",
+  "content.publish": "Publicó la página",
+  "content.discard": "Descartó el borrador",
 };
 
 export const auditActionLabel = (action: string) => AUDIT_ACTION_LABELS[action] ?? action;
@@ -130,11 +134,14 @@ const FIELD_LABELS: Record<string, string> = {
   socialYoutube: "YouTube",
   socialX: "X",
   featured: "destacados",
+  // Content pages
+  blocks: "bloques",
 };
 
 /** Where an entity calls a field something else. */
 const ENTITY_FIELD_LABELS: Partial<Record<string, Record<string, string>>> = {
   coupon: { description: "nota" },
+  content: { description: "introducción" },
 };
 
 export const auditFieldLabel = (field: string, entityType = "") => ENTITY_FIELD_LABELS[entityType]?.[field] ?? FIELD_LABELS[field] ?? field;
@@ -161,7 +168,7 @@ function show(field: string, value: unknown, entityType: string): string {
 }
 
 /** Fields whose edits only say they changed: the values are long, or lists. */
-const NAME_ONLY = new Set(["description", "shortDescription", "comment", "images", "imageAlts", "interests", "featured"]);
+const NAME_ONLY = new Set(["description", "shortDescription", "comment", "images", "imageAlts", "interests", "featured", "blocks"]);
 
 /** What a creation or a deletion shows of the record it saved (the rest is in the entry). */
 const SUMMARY_FIELDS = new Set(["name", "code", "slug", "email", "price", "stock", "categoryId", "theme", "url", "author", "rating", "title", "productId"]);
@@ -207,6 +214,8 @@ export function auditEntityHref(entityType: string, entityId: string): string | 
       return `/admin/themes/${id}`;
     case "settings":
       return "/admin/configuracion";
+    case "content":
+      return `/admin/contenido/${id}`;
     default:
       return null;
   }

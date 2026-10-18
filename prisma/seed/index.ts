@@ -4,7 +4,8 @@ import { categories as seedCategories } from "@/data/categories";
 import { themes as seedThemes } from "@/data/themes";
 import { coupons as sampleCoupons } from "@/data/coupons";
 import { seedFeaturedProductIds } from "@/data/settings";
-import { storeDayEnd } from "@/lib/admin/format";
+import { seedContent } from "@/data/content";
+import { storeDayEnd, storeDayStart } from "@/lib/admin/format";
 import { productSearchColumns } from "@/lib/api/search";
 import { refreshProductRatings } from "@/lib/api/ratings";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
@@ -26,8 +27,9 @@ import { DEV_ADMIN } from "./admin";
  * the sample orders, coupon code); rows created by people (registrations, real
  * reviews, orders, coupons and their uses) are left alone, and the cached
  * ratings are recomputed over every review at the end. The store's settings
- * and the home page's featured products are only written while missing: a
- * re-seed never undoes what an admin set in /admin/configuracion.
+ * and the home page's featured products are only written while missing, and
+ * so are the info pages' content: a re-seed never undoes what an admin set
+ * in /admin/configuracion or wrote in /admin/contenido.
  *
  * Catalogue rows are reset to the seed values on every run, stock included:
  * re-seeding a dev database puts the catalogue back where it started.
@@ -69,6 +71,8 @@ export async function seedDatabase(db: PrismaClient, options: SeedOptions): Prom
   await seedCoupons(db);
   log(`Cupones de ejemplo: ${sampleCoupons.map((coupon) => coupon.code).join(", ")}.`);
   if (await seedStoreSettings(db)) log("Configuración de la tienda: valores iniciales y destacados de la home.");
+  const pages = await seedContentPages(db);
+  if (pages > 0) log(`Páginas de contenido publicadas: ${pages}.`);
 
   let admin: string | null = null;
   if (options.admin) {
@@ -148,6 +152,25 @@ async function seedStoreSettings(db: PrismaClient): Promise<boolean> {
   // Only on a store that never had settings: an admin may have cleared the picks on purpose.
   const picks = existing ? 0 : (await db.featuredProduct.createMany({ data: seedFeaturedProductIds.map((productId, position) => ({ productId, position })), skipDuplicates: true })).count;
   return !existing || picks > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Info pages' content (src/data/content.ts)
+// ---------------------------------------------------------------------------
+
+/** When the seed's content counts as published (the legal pages show the date). */
+const CONTENT_PUBLISHED_AT = storeDayStart("2026-10-17");
+
+/** Publishes the seed's content of every page that has no row yet. How many it wrote. */
+async function seedContentPages(db: PrismaClient): Promise<number> {
+  const existing = new Set((await db.contentPage.findMany({ select: { slug: true } })).map((row) => row.slug));
+  const missing = Object.entries(seedContent).filter(([slug]) => !existing.has(slug));
+  if (missing.length === 0) return 0;
+  const { count } = await db.contentPage.createMany({
+    data: missing.map(([slug, doc]) => ({ slug, draft: doc as object, published: doc as object, publishedAt: CONTENT_PUBLISHED_AT })),
+    skipDuplicates: true,
+  });
+  return count;
 }
 
 // ---------------------------------------------------------------------------

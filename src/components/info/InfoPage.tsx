@@ -53,8 +53,18 @@ export function Prose({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-/** Highlighted fact tile ("Envío gratis desde $5.000"). */
-export function FactCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+/** Highlighted fact tile ("Envío gratis desde $5.000"). `headingLevel`: h3 when the cards sit under their own h2. */
+export function FactCard({
+  icon,
+  title,
+  children,
+  headingLevel: Heading = "h2",
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+  headingLevel?: "h2" | "h3";
+}) {
   return (
     <li className="flex gap-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
       <span
@@ -64,7 +74,7 @@ export function FactCard({ icon, title, children }: { icon: ReactNode; title: st
         {icon}
       </span>
       <div>
-        <h2 className="text-body font-semibold text-fg">{title}</h2>
+        <Heading className="text-body font-semibold text-fg">{title}</Heading>
         <p className="mt-1 text-label font-normal text-fg-secondary">{children}</p>
       </div>
     </li>
