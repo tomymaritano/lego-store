@@ -659,9 +659,56 @@ cae en "sin filtro").
 - **Reseñas**: todas, filtrables por producto, estrellas o texto; eliminar
   recalcula el rating en la misma transacción y expira el producto. Sin el
   límite de ediciones por usuario (ese es para los clientes).
+- **Cupones** (`/admin/coupons`; `/admin/cupones` redirige ahí): lista con
+  estado (activo, programado, vencido, agotado, desactivado), usos contra el
+  límite (con los reservados sin pagar), descuento otorgado y ventas de los
+  pedidos pagados que lo usaron; crear, editar, desactivar/activar (el código
+  no cambia nunca: los pedidos lo guardan; no se borran). El detalle muestra
+  los usos con su pedido y el historial. Cada escritura deja una entrada en
+  `AuditLog` (quién, qué, cuándo, `{campo: [antes, después]}`) en la misma
+  transacción, y revalida las páginas de cupones. Ver «Cupones».
 - **UI**: primitivos del sistema (Table nuevo en `ui/`, Dialog para cada
   confirmación, toasts, Field/Select), filtros como formularios GET (funcionan
   sin JavaScript), navegación lateral que en teléfonos pasa arriba.
+
+## Cupones
+
+Porcentaje o monto fijo, con compra mínima, fechas, límite total y por
+cliente, activo/inactivo (`Coupon`, `CouponRedemption`; reglas en
+`src/lib/coupons`, cuentas en `src/lib/pricing.ts`).
+
+- **Dónde**: campo «Código de descuento» en el resumen del carrito y del
+  checkout. «Aplicar» llama a `POST /api/checkout/coupon` (zod, límite de 20
+  intentos cada 15 min por usuario o IP: los códigos se pueden adivinar), que
+  valida el cupón y cotiza las líneas con precios de la base. El navegador
+  guarda solo los términos devueltos (`lego-coupon-storage`) para mostrar el
+  descuento mientras cambia el carrito; nunca se confía en eso.
+- **Cuentas** (`orderTotals`, la misma función en carrito, checkout, el pedido
+  y lo que cobran Mercado Pago y Stripe): un porcentaje se redondea al peso,
+  mitad hacia arriba (10% de $2.445 = $245); un monto fijo nunca pasa el
+  subtotal; el envío no se descuenta; el envío gratis se decide con el
+  subtotal antes del descuento (un cupón nunca hace volver el envío), salvo si
+  el cupón cubre todos los productos: ahí se cobra el envío (no hay pedidos de
+  $0). Bajo la compra mínima el cupón queda aplicado en el carrito, dice cuánto
+  falta y no descuenta; el pedido se prepara sin él hasta llegar.
+- **Reserva**: al entrar a «Revisar», el pedido PENDING se escribe en la misma
+  transacción que valida el cupón con su fila bloqueada (`FOR UPDATE`) y
+  reserva el uso (`RESERVED`). Los límites cuentan RESERVED + REDEEMED; el de
+  cliente cuenta la cuenta **o** el email del pedido (un invitado es su email).
+  Dos checkouts que compiten por el último uso se serializan en ese bloqueo: el
+  segundo ve la reserva del primero y se rechaza (hay tests de concurrencia).
+  El pedido guarda `couponCode` y `discount` (instantánea: editar el cupón no
+  cambia pedidos existentes). Si el cupón dejó de valer en el camino, el
+  checkout lo quita y vuelve a preparar el pedido diciendo por qué.
+- **Después**: un trigger de la base (`Order_coupon_redemption_status`, en la
+  migración de cupones) sigue el estado del pedido: PAID → `REDEEMED`,
+  CANCELLED → `RELEASED`, por cualquier camino (vencimiento, reemplazo, pago
+  rechazado, ticket vencido, reembolso, contracargo, cancelación del admin).
+  PAYMENT_PENDING conserva la reserva. Un pedido abandonado retiene el uso
+  hasta que la limpieza lo cancela (24 h) o el mismo navegador lo vuelve a
+  preparar sin cupón.
+- **Seed**: `BIENVENIDA10` (10% desde $2.000, una vez por cliente) y `LEGO500`
+  ($500 desde $4.000, 100 usos, hasta el 31/12/2027), en `src/data/coupons.ts`.
 
 ## Estado del cliente
 

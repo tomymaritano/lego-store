@@ -402,3 +402,29 @@ Decisiones tomadas al construir la etapa de pagos de la ampliación (el README,
   corren con `PAYMENT_PROVIDER=stripe`.
 - *Local*: Mercado Pago no notifica a `localhost`; `notification_url` solo se
   manda con un `NEXT_PUBLIC_SITE_URL` https.
+
+## Notas de implementación: cupones
+
+Decisiones tomadas al construir la etapa (el README, «Cupones», tiene el detalle):
+
+- *Cuentas*: porcentaje redondeado al peso, mitad hacia arriba; monto fijo
+  tope el subtotal; el envío nunca se descuenta y el envío gratis se decide
+  con el subtotal antes del descuento (un cupón no hace volver el envío); si
+  el cupón cubre todos los productos se cobra el envío (no hay pedidos de $0,
+  que los proveedores no pueden cobrar). `orderTotals(lines, coupon)` en
+  `src/lib/pricing.ts` es la única fuente: carrito, checkout, el pedido y el
+  monto de Mercado Pago/Stripe.
+- *Reserva atómica*: el pedido PENDING y la reserva del uso se escriben en la
+  misma transacción, con la fila del cupón bloqueada; los límites cuentan
+  RESERVED + REDEEMED. Por cliente = la cuenta o el email del pedido.
+- *Liberar*: un trigger sobre `Order.status` (PAID → REDEEMED, CANCELLED →
+  RELEASED) en vez de tocar cada camino de cancelación (limpieza, reemplazo,
+  admin, rechazos, reembolsos, contracargos): ninguno puede olvidarse. Un
+  pedido abandonado retiene el uso hasta la limpieza (24 h).
+- *Admin*: el código no se edita y los cupones no se borran (los pedidos los
+  guardan); «Desactivar» corta los usos nuevos. `AuditLog` es la tabla de
+  auditoría general (todas las mutaciones del admin salvo los cambios de
+  estado de pedidos, que siguen en `OrderStatusChange`); la etapa de admin
+  completo la usa para el resto.
+- *Rutas*: el admin vive en `/admin/coupons` como las otras secciones
+  (`/admin/products`, `/admin/orders`); `/admin/cupones` redirige ahí.
