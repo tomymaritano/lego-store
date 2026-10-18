@@ -277,16 +277,26 @@ export function setProductStock(db: Db, id: string, seen: number, stock: number)
 }
 
 /**
- * Takes the product off the store: archived (and out of every cart and
- * wishlist). Archiving it twice changes nothing. False for an unknown product.
+ * What archiving a product means, for "Archivar" and "Eliminar" alike: it
+ * leaves the store (archivedAt) and every cart and wishlist. False when it
+ * already was archived (the lists are cleared again all the same).
+ */
+async function archiveInTx(tx: Prisma.TransactionClient, id: string): Promise<boolean> {
+  const { count } = await tx.product.updateMany({ where: { id, archivedAt: null }, data: { archivedAt: new Date() } });
+  await tx.cartItem.deleteMany({ where: { productId: id } });
+  await tx.wishlistItem.deleteMany({ where: { productId: id } });
+  return count === 1;
+}
+
+/**
+ * Takes the product off the store (archiveInTx). Archiving it twice changes
+ * nothing. False for an unknown product.
  */
 export function archiveProduct(db: PrismaClient, id: string): Promise<boolean> {
   return db.$transaction(async (tx) => {
-    const product = await tx.product.findUnique({ where: { id }, select: { archivedAt: true } });
+    const product = await tx.product.findUnique({ where: { id }, select: { id: true } });
     if (!product) return false;
-    if (product.archivedAt === null) await tx.product.update({ where: { id }, data: { archivedAt: new Date() } });
-    await tx.cartItem.deleteMany({ where: { productId: id } });
-    await tx.wishlistItem.deleteMany({ where: { productId: id } });
+    await archiveInTx(tx, id);
     return true;
   });
 }
@@ -297,7 +307,12 @@ export async function restoreProduct(db: Db, id: string): Promise<boolean> {
   return count === 1;
 }
 
-export type RemoveProductResult = { result: "deleted" } | { result: "archived"; orderLines: number } | { result: "not_found" };
+export type RemoveProductResult =
+  | { result: "deleted" }
+  | { result: "archived"; orderLines: number }
+  /** In orders and archived before: nothing changed. */
+  | { result: "already_archived"; orderLines: number }
+  | { result: "not_found" };
 
 /**
  * "Eliminar": deletes the product (its cart and wishlist lines, reviews and
@@ -311,10 +326,7 @@ export function removeProduct(db: PrismaClient, id: string): Promise<RemoveProdu
     if (locked.length === 0) return { result: "not_found" } as const;
     const orderLines = await tx.orderItem.count({ where: { productId: id } });
     if (orderLines > 0) {
-      await tx.product.updateMany({ where: { id, archivedAt: null }, data: { archivedAt: new Date() } });
-      await tx.cartItem.deleteMany({ where: { productId: id } });
-      await tx.wishlistItem.deleteMany({ where: { productId: id } });
-      return { result: "archived", orderLines } as const;
+      return (await archiveInTx(tx, id)) ? ({ result: "archived", orderLines } as const) : ({ result: "already_archived", orderLines } as const);
     }
     await tx.product.delete({ where: { id } });
     return { result: "deleted" } as const;

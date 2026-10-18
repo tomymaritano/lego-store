@@ -9,27 +9,30 @@ import { formatOrderDate } from "@/lib/orders/format";
 import { idSchema } from "@/lib/validations/ids";
 import { pluralize } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { FormAlert } from "@/components/auth/FormAlert";
 import { ConfirmAction } from "@/components/admin/ConfirmAction";
+import { FlashNotice } from "@/components/admin/FlashNotice";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { Badge, Button, Card, CardContent } from "@/components/ui";
 
-export const metadata: Metadata = {
-  title: "Editar producto · Administración",
+type EditProductPageProps = {
+  params: Promise<{ productId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+/** The product's name in the title ("Taj Mahal · Administración"), so tabs and history tell them apart. */
+export async function generateMetadata({ params }: Pick<EditProductPageProps, "params">): Promise<Metadata> {
+  const { productId } = await params;
+  const id = idSchema.safeParse(productId);
+  const product = id.success ? await getAdminProductForEdit(id.data) : null;
+  return { title: `${product?.name ?? "Producto"} · Administración` };
+}
 
 /**
  * /admin/products/<id>: every field of the product, its state on the store,
  * and archive / restore / delete (deleting a product that orders reference
  * archives it instead).
  */
-export default async function EditProductPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ productId: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function EditProductPage({ params, searchParams }: EditProductPageProps) {
   const { productId } = await params;
   await requireAdmin({ callbackUrl: `/admin/products/${encodeURIComponent(productId)}` });
   const id = idSchema.safeParse(productId);
@@ -67,11 +70,17 @@ export default async function EditProductPage({
         }
       />
 
-      {query.created === "1" ? <FormAlert tone="success" className="mb-6">Creamos el producto: ya está en la tienda.</FormAlert> : null}
+      {query.created === "1" && !archived ? (
+        <FlashNotice param="created" className="mb-6">
+          Creamos el producto: ya está en la tienda.
+        </FlashNotice>
+      ) : null}
       {archived ? (
-        <FormAlert className="mb-6">
-          Archivado el {formatOrderDate(product.archivedAt!)}: no se ve en la tienda. Restáuralo para volver a venderlo.
-        </FormAlert>
+        // A state, not an error: no live region, the neutral surface of the order page's notes.
+        <p className="mb-6 rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary" data-testid="product-archived">
+          <span className="font-semibold text-fg">Archivado el {formatOrderDate(product.archivedAt!)}: </span>
+          no se ve en la tienda. Restáuralo para volver a venderlo.
+        </p>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
@@ -87,9 +96,11 @@ export default async function EditProductPage({
           <CardContent className="space-y-4">
             <h2 className="text-title">En la tienda</h2>
             <p className="text-label font-normal text-fg-secondary">
-              {product.orderLines > 0
-                ? `Está en ${pluralize(product.orderLines, "pedido")}: se puede archivar, pero no eliminar.`
-                : "Ningún pedido lo incluye todavía: eliminarlo lo borra con sus reseñas."}
+              {product.orderLines === 0
+                ? "Ningún pedido lo incluye todavía: eliminarlo lo borra con sus reseñas."
+                : archived
+                  ? `Está en ${pluralize(product.orderLines, "pedido")}, así que no se puede eliminar: queda archivado.`
+                  : `Está en ${pluralize(product.orderLines, "pedido")}: se puede archivar, pero no eliminar.`}
             </p>
             <div className="flex flex-col gap-2">
               {archived ? (
@@ -111,22 +122,25 @@ export default async function EditProductPage({
                   action={archiveProductAction.bind(null, product.id)}
                 />
               )}
-              <ConfirmAction
-                label="Eliminar"
-                icon={<Trash2 aria-hidden="true" />}
-                variant="ghost"
-                title={`¿Eliminar «${product.name}»?`}
-                description={
-                  product.orderLines > 0
-                    ? "Está en pedidos, así que no se borra: se archiva (deja de verse en la tienda) y los pedidos siguen mostrándolo."
-                    : "Se borra para siempre, con sus reseñas, y sale de los carritos y favoritos. No se puede deshacer."
-                }
-                confirmLabel={product.orderLines > 0 ? "Archivar" : "Eliminar"}
-                confirmVariant="destructive"
-                action={removeProductAction.bind(null, product.id)}
-                redirectTo="/admin/products"
-                redirectOnlyIfDeleted
-              />
+              {/* Archived and in orders: "Eliminar" could only archive it again. */}
+              {archived && product.orderLines > 0 ? null : (
+                <ConfirmAction
+                  label="Eliminar"
+                  icon={<Trash2 aria-hidden="true" />}
+                  variant="ghost"
+                  title={`¿Eliminar «${product.name}»?`}
+                  description={
+                    product.orderLines > 0
+                      ? "Está en pedidos, así que no se borra: se archiva (deja de verse en la tienda) y los pedidos siguen mostrándolo."
+                      : "Se borra para siempre, con sus reseñas, y sale de los carritos y favoritos. No se puede deshacer."
+                  }
+                  confirmLabel={product.orderLines > 0 ? "Archivar" : "Eliminar"}
+                  confirmVariant="destructive"
+                  action={removeProductAction.bind(null, product.id)}
+                  redirectTo="/admin/products"
+                  redirectOnlyIfDeleted
+                />
+              )}
             </div>
           </CardContent>
         </Card>

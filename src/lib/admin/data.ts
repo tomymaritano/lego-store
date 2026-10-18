@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import type { AdminOrderFilters, AdminProductFilters, AdminReviewFilters } from "@/lib/validations/admin";
@@ -25,10 +26,11 @@ export async function getAdminProducts(filters: AdminProductFilters) {
   return listAdminProducts(getDb(), filters);
 }
 
-export async function getAdminProductForEdit(id: string) {
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminProductForEdit = cache(async (id: string) => {
   await requireAdmin({ callbackUrl: `/admin/products/${encodeURIComponent(id)}` });
   return getAdminProduct(getDb(), id);
-}
+});
 
 /** The categories alone (the products list's filter). */
 export async function getAdminCategories() {
@@ -47,10 +49,11 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
   return listAdminOrders(getDb(), filters);
 }
 
-export async function getAdminOrderDetail(id: string) {
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminOrderDetail = cache(async (id: string) => {
   await requireAdmin({ callbackUrl: `/admin/orders/${encodeURIComponent(id)}` });
   return getAdminOrder(getDb(), id);
-}
+});
 
 export async function getAdminReviews(filters: AdminReviewFilters) {
   await requireAdmin({ callbackUrl: "/admin/reviews" });

@@ -20,9 +20,15 @@ import { OrderStatusActions } from "@/components/admin/OrderStatusActions";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Badge, Card, CardContent, CardHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 
-export const metadata: Metadata = {
-  title: "Pedido · Administración",
-};
+type AdminOrderPageProps = { params: Promise<{ orderId: string }> };
+
+/** The order's number in the title ("Pedido LEGO-001005 · Administración"), so tabs and history tell them apart. */
+export async function generateMetadata({ params }: AdminOrderPageProps): Promise<Metadata> {
+  const { orderId } = await params;
+  const id = orderIdSchema.safeParse(orderId);
+  const order = id.success ? await getAdminOrderDetail(id.data) : null;
+  return { title: order ? `Pedido ${formatOrderNumber(order.number)} · Administración` : "Pedido · Administración" };
+}
 
 function SectionTitle({ id, icon, children }: { id: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -49,7 +55,7 @@ function Detail({ term, children, mono = false }: { term: string; children: Reac
  * shipping address, payment (card and Stripe ids), the status timeline, who
  * changed what (OrderStatusChange), and the status changes it allows.
  */
-export default async function AdminOrderPage({ params }: { params: Promise<{ orderId: string }> }) {
+export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const { orderId } = await params;
   await requireAdmin({ callbackUrl: `/admin/orders/${encodeURIComponent(orderId)}` });
   const id = orderIdSchema.safeParse(orderId);

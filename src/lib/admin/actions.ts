@@ -162,14 +162,19 @@ export async function removeProductAction(productId: unknown): Promise<AdminActi
   if (outcome.result === "not_found") return { ok: false, error: NOT_FOUND_PRODUCT };
   updateCatalog({ productIds: [id.data!], categories: true });
   // A deleted product's page is gone: the browser leaves for the list instead of re-rendering it.
-  if (outcome.result === "archived") refresh();
-  return outcome.result === "deleted"
-    ? { ok: true, removed: "deleted", message: "Eliminamos el producto." }
-    : {
+  if (outcome.result !== "deleted") refresh();
+  switch (outcome.result) {
+    case "deleted":
+      return { ok: true, removed: "deleted", message: "Eliminamos el producto." };
+    case "archived":
+      return {
         ok: true,
         removed: "archived",
         message: "Está en pedidos, así que lo archivamos en vez de eliminarlo: ya no se ve en la tienda.",
       };
+    case "already_archived":
+      return { ok: true, removed: "archived", message: "Está en pedidos, así que no se puede eliminar. Ya estaba archivado: no cambiamos nada." };
+  }
 }
 
 // ---------------------------------------------------------------------------

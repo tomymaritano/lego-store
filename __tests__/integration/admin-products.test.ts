@@ -90,6 +90,9 @@ describe("productFormSchema", () => {
       img: expect.stringContaining("www.lego.com"),
       stock: "Tiene que ser un número entero, sin puntos ni signos",
     });
+    // next/image throws on a site file with a query string: the server refuses it as the preview does.
+    const query = productFormSchema.safeParse(form({ img: "/images/lego.png?v=2", images: "/images/lego.png#x" }));
+    expect(query.error?.issues.map((issue) => issue.path[0]).sort()).toEqual(["images", "img"]);
   });
 
   it("a product on sale needs an original price above its price", () => {
@@ -283,5 +286,7 @@ describe("removeProduct", () => {
     expect(await getProductById(created.productId)).toBeNull();
     expect(await testDb.orderItem.findFirstOrThrow({ where: { orderId: order.id } })).toMatchObject({ productId: created.productId });
     expect((await getAdminProduct(testDb, created.productId))!.orderLines).toBe(1);
+    // Removing it again cannot delete it and has nothing left to archive: it says so.
+    expect(await removeProduct(testDb, created.productId)).toEqual({ result: "already_archived", orderLines: 1 });
   });
 });

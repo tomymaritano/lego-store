@@ -47,6 +47,8 @@ test("an admin edits a product and the store shows it right away", async ({ page
   await expect(row).toHaveCount(1, COLD);
   await row.getByRole("link", { name: /^Editar/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Taj Mahal" })).toBeVisible(COLD);
+  // Each product's tab has its own title.
+  await expect(page).toHaveTitle(/^Taj Mahal · Administración/);
 
   const price = await field(page, "Precio").inputValue();
   const shortDescription = await field(page, "Descripción corta").inputValue();
@@ -82,6 +84,17 @@ test("an admin edits a product and the store shows it right away", async ({ page
     await expect(page.getByTestId("product-save")).toBeEnabled(COLD);
     await saveProduct(page, price, shortDescription);
   }
+});
+
+test("a picture URL next/image would refuse is only flagged: the new-product form keeps what was typed", async ({ page }) => {
+  await logInAsAdmin(page, "/admin/products/new");
+  await field(page, "Nombre").fill("Prueba de imagen");
+  // A site file with a query string: next/image throws on it (no images.localPatterns), so it is not previewed.
+  await field(page, "Imagen principal").fill("/images/lego.png?v=2");
+  await expect(page.getByText("URL no permitida")).toBeVisible();
+  await expect(field(page, "Nombre")).toHaveValue("Prueba de imagen");
+  await field(page, "Imagen principal").fill("/images/lego.png");
+  await expect(page.getByRole("img", { name: "Vista previa: Imagen principal" })).toBeVisible();
 });
 
 test("an admin ships and then delivers a paid order", async ({ page, browser }) => {
@@ -126,6 +139,7 @@ test("an admin ships and then delivers a paid order", async ({ page, browser }) 
   await expect(admin.getByTestId("admin-order-row")).toHaveCount(1, COLD);
   await admin.getByRole("link", { name: number }).click();
   await expect(admin.getByRole("heading", { level: 1, name: `Pedido ${number}` })).toBeVisible(COLD);
+  await expect(admin).toHaveTitle(new RegExp(`^Pedido ${number} · Administración`));
   await expect(admin.getByTestId("admin-order-status")).toHaveText("Pagado");
   await expect(admin.getByTestId("admin-order-items")).toContainText("Empire State Building");
   await expect(admin.getByText(order.paymentIntentId!)).toBeVisible();
