@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { orderCancelledEmail, orderConfirmationEmail, orderShippedEmail } from "@/lib/email/orders";
+import { orderCancelledEmail, orderConfirmationEmail, orderPaymentPendingEmail, orderShippedEmail } from "@/lib/email/orders";
 import { isEmailConfigured, sendEmail } from "@/lib/email/send";
 import { ADMIN_ORDER_STATUS_LABELS, CANCEL_REASON_LABELS, ORDER_STATUS_LABELS, formatOrderNumber, orderTimeline, paymentLabel } from "@/lib/orders/format";
 import { makeOrder } from "../helpers/orders";
@@ -23,6 +23,22 @@ describe("order emails", () => {
     expect(email.subject).toBe("Tu pedido LEGO-001001 está en camino");
     expect(email.html).toContain("/account/orders/order_1");
     expect(email.text).toContain("/account/orders/order_1");
+  });
+
+  it("pending payment: a guest gets the checkout's status page (it opens only in their browser); an account its own page", () => {
+    const ticket = { provider: "MERCADOPAGO" as const, methodType: "ticket", installments: null, ticketUrl: "https://mp.example/ticket/1", ticketExpiresAt: "2026-10-20T15:00:00.000Z" };
+    const guest = orderPaymentPendingEmail(makeOrder({ status: "PAYMENT_PENDING", payment: ticket }));
+    // The ticket stays the main button; the status page is a line under the products.
+    expect(guest.html).toContain("Ver el ticket de pago");
+    expect(guest.html).toContain("/checkout/pedido/order_1");
+    expect(guest.text).toContain("/checkout/pedido/order_1");
+
+    const review = orderPaymentPendingEmail(makeOrder({ status: "PAYMENT_PENDING", payment: { ...ticket, methodType: "credit_card", ticketUrl: null, ticketExpiresAt: null } }));
+    expect(review.html).toContain("Ver el estado del pedido");
+
+    const account = orderPaymentPendingEmail(makeOrder({ status: "PAYMENT_PENDING", payment: ticket, hasAccount: true }));
+    expect(account.html).not.toContain("/checkout/pedido/");
+    expect(account.text).toContain("/account/orders/order_1");
   });
 
   it("cancellation: says the order was cancelled and how much is refunded, to which card", () => {

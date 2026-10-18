@@ -283,6 +283,14 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
 
   const placed = step === "confirmation" && placedOrder && placedOrder.id !== staleOrderId ? placedOrder : null;
 
+  // A placed order (paid, waiting on a payment such as a cash ticket, or cancelled) gets its own address:
+  // a reload, or coming back later, shows its status page (/checkout/pedido/<id>) instead of an empty
+  // checkout. Still PENDING (Stripe's webhook on its way), it stays on /checkout until that settles.
+  const placedHref = placed && placed.status !== "PENDING" ? `/checkout/pedido/${encodeURIComponent(placed.id)}` : null;
+  useEffect(() => {
+    if (placedHref && window.location.pathname !== placedHref) window.history.replaceState(null, "", placedHref);
+  }, [placedHref]);
+
   // The confirmation follows the order until the provider settles it.
   const placedId = placed?.id;
   const placedPending = placed ? awaitingSettlement(placed) : false;

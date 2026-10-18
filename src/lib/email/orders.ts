@@ -38,6 +38,16 @@ function orderLink(order: OrderView) {
   return order.hasAccount ? siteUrl(`/account/orders/${order.id}`) : null;
 }
 
+/**
+ * A guest's way back to an order waiting on its payment: the checkout's status
+ * page. It opens only in the browser that placed the order (its checkout
+ * cookie), so the link itself grants nothing; once the order is settled that
+ * cookie stops opening it, so only the pending email has it.
+ */
+function guestStatusLink(order: OrderView) {
+  return order.hasAccount ? null : siteUrl(`/checkout/pedido/${order.id}`);
+}
+
 function linesTable(order: OrderView) {
   const rows = order.items
     .map(
@@ -259,7 +269,19 @@ export function orderPaymentPendingEmail(order: OrderView): EmailMessage {
     ? `Paga ${formatPrice(order.total)} en efectivo en ${orderPaymentLabel(order).replace(" (efectivo)", "")}${until}. Cuando se acredite te confirmamos el pedido por email.`
     : "Mercado Pago está procesando tu pago. Te avisamos por email apenas se acredite (suele tardar menos de 2 días hábiles).";
   const intro = `Hola ${escapeHtml(order.shippingAddress.firstName)}, recibimos tu pedido <strong>${number}</strong>. ${escapeHtml(message)}`;
-  const cta = ticket && ticketUrl ? { label: "Ver el ticket de pago", href: ticketUrl } : link ? { label: "Ver mi pedido", href: link } : null;
+  const status = guestStatusLink(order);
+  const cta =
+    ticket && ticketUrl
+      ? { label: "Ver el ticket de pago", href: ticketUrl }
+      : link
+        ? { label: "Ver mi pedido", href: link }
+        : status
+          ? { label: "Ver el estado del pedido", href: status }
+          : null;
+  const statusNote =
+    status && cta?.href !== status
+      ? `<p style="margin:16px 0 0;font-size:14px;line-height:1.5;color:${COLORS.muted}">Desde el navegador en el que compraste puedes ver el estado del pedido en <a href="${escapeHtml(status)}" style="color:${COLORS.text}">${escapeHtml(status)}</a>.</p>`
+      : "";
   return {
     to: order.email,
     subject: ticket ? `Tu pedido ${number} espera el pago` : `Estamos procesando el pago de tu pedido ${number}`,
@@ -267,7 +289,7 @@ export function orderPaymentPendingEmail(order: OrderView): EmailMessage {
       preheader: ticket ? `Paga el ticket${until} para confirmar tu pedido.` : "Te avisamos cuando se acredite.",
       title: ticket ? "Tu pedido espera el pago" : "Estamos procesando tu pago",
       intro,
-      body: linesTable(order),
+      body: linesTable(order) + statusNote,
       cta,
     }),
     text: [
@@ -277,6 +299,7 @@ export function orderPaymentPendingEmail(order: OrderView): EmailMessage {
       "",
       textLines(order),
       link ? `\nTu pedido: ${link}` : "",
+      status ? `\nEstado del pedido (desde el navegador en el que compraste): ${status}` : "",
     ].join("\n"),
     idempotencyKey: `order-payment-pending/${order.id}`,
   };

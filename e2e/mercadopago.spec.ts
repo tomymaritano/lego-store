@@ -101,6 +101,25 @@ test.describe("Mercado Pago checkout", () => {
     await expect(page.getByTestId("order-confirmation")).toHaveAttribute("data-status", "PAID", { timeout: 15_000 });
   });
 
+  test("a guest's cash ticket: the confirmation gets its own address, so a reload still shows the order", async ({ page }) => {
+    test.slow();
+    await seedCart(page, REAL_CART);
+    const email = uniqueEmail("mp-guest-cash");
+    await toPayment(page, email);
+    await review(page, /Rapipago/);
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
+
+    const confirmation = page.getByTestId("order-confirmation");
+    await expect(confirmation).toHaveAttribute("data-status", "PAYMENT_PENDING", { timeout: 15_000 });
+    const order = (await latestOrder(email))!;
+    await expect(page).toHaveURL(new RegExp(`/checkout/pedido/${order.id}$`));
+
+    await page.reload();
+    await expect(page.getByTestId("order-confirmation")).toHaveAttribute("data-status", "PAYMENT_PENDING", { timeout: 15_000 });
+    await expect(page.getByTestId("pending-payment")).toContainText("Rapipago");
+    await expect(page.getByTestId("cart-count")).toHaveCount(0);
+  });
+
   for (const colorScheme of ["light", "dark"] as const) {
     test(`a cash ticket (${colorScheme}): instructions now, "Mis pedidos" shows them, paid later through the webhook`, async ({ page }) => {
       test.slow();

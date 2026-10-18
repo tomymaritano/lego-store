@@ -116,7 +116,14 @@ Dos opciones:
 
 El paso Pago se carga bajo demanda (`next/dynamic`) y se precarga mientras se
 completa el envío. La pantalla de resultado es la confirmación propia de la
-tienda; no se usa el Status Screen Brick.
+tienda; no se usa el Status Screen Brick (decisión: la confirmación es la misma
+para Mercado Pago y Stripe, sigue el pedido y no solo el pago, y respeta el
+sistema de diseño). Cuando el pedido ya no está PENDING (pagado, esperando un
+ticket o cancelado), la confirmación reemplaza la URL por
+`/checkout/pedido/<id>` (`history.replaceState`): recargar o volver más tarde
+muestra el estado del pedido en vez de un checkout vacío. Esa página abre solo
+para el dueño o el navegador que hizo el pedido (cookie de checkout), así que el
+email "espera el pago" de un invitado también la enlaza.
 
 ### Crear el pago ("Realizar pedido")
 
