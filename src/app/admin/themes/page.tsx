@@ -55,7 +55,7 @@ export default async function AdminThemesPage() {
             {themes.map((theme, index) => (
               <TableRow key={theme.id} data-testid="admin-theme-row">
                 <TableCell className="w-24">
-                  <OrderButtons name={theme.name} first={index === 0} last={index === themes.length - 1} action={moveThemeAction.bind(null, theme.id)} />
+                  <OrderButtons name={theme.name} position={index + 1} total={themes.length} action={moveThemeAction.bind(null, theme.id)} />
                 </TableCell>
                 <TableCell className="min-w-48">
                   <Link href={`/admin/themes/${theme.id}`} prefetch={false} className="font-medium text-fg underline-offset-4 hover:underline">

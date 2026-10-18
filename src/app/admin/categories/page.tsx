@@ -59,8 +59,8 @@ export default async function AdminCategoriesPage() {
                 <TableCell className="w-24">
                   <OrderButtons
                     name={category.name}
-                    first={index === 0}
-                    last={index === categories.length - 1}
+                    position={index + 1}
+                    total={categories.length}
                     action={moveCategoryAction.bind(null, category.id)}
                   />
                 </TableCell>
