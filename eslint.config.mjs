@@ -131,6 +131,37 @@ export default defineConfig([
       ],
     },
   },
+  // Client modules in the root layout's bundle (every route's first load):
+  // zod (~30 kB gzip) must stay out. Type-only imports are fine.
+  {
+    files: [
+      "src/components/layout/**/*.{ts,tsx}",
+      "src/stores/**/*.{ts,tsx}",
+      "src/providers/**/*.{ts,tsx}",
+      "src/lib/lists/pending-merge.ts",
+      "src/lib/lists/sync-plan.ts",
+    ],
+    ignores: ["**/*.stories.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/data", "@/data/*", "**/data/products", "**/data/categories"],
+              message: "src/data es solo la fuente del seed: leé el catálogo vía @/lib/api (base de datos).",
+            },
+            {
+              group: ["zod", "zod/*", "@/lib/validations/*", "!@/lib/validations/newsletter"],
+              allowTypeImports: true,
+              message:
+                "Este módulo va en el bundle del layout (todas las rutas): sin zod. Usá `import type` o una validación a mano; el servidor valida con zod.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 
   globalIgnores([
     ".next/**",

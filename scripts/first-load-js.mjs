@@ -6,10 +6,14 @@
 //   npm run size -- http://localhost:3311
 //
 // Exits 1 when a route goes over its budget. Budgets sit ~5% above the sizes
-// measured when they were last lowered (Oct 2026: / 251 kB, product 282 kB,
-// catalogue 314 kB, checkout 306 kB, after Sonner and the product reviews
-// moved out of first load and the category pages were prerendered): a
-// regression guard, not a target. Lower them as you trim.
+// measured when they were last lowered (Oct 2026, UI overhaul: / 251 kB,
+// product 282 kB, catalogue 314 kB, checkout 306 kB, after Sonner and the
+// product reviews moved out of first load): a regression guard, not a target.
+// Lower them as you trim. With the backend (accounts, list sync, account menu)
+// the same routes measure / 255 kB, product 287 kB, catalogue 320 kB, checkout
+// 314 kB; every page now renders per request (the layout reads the session),
+// which does not change these numbers. Root-layout client code must not import
+// zod at runtime (ESLint guards it): that alone added ~30 kB to every route.
 //
 // Pre-overhaul (Next 15) printed 181-197 kB. That floor is out of reach
 // without dropping Motion: React 19 + the Next 16 runtime alone are ~131 kB,
