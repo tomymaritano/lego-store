@@ -478,7 +478,9 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» e
   visible) y `Product.themeId`. La migración crea un tema por valor distinto
   con el mismo nombre, así que las URLs y filtros por nombre siguen igual; el
   filtro también acepta el slug. Los enlaces del menú pasan de `/search?q=` a
-  `/search?theme=` (más preciso que una búsqueda de texto). Visible = en el menú
+  `/search?theme=<slug>` (más preciso que una búsqueda de texto, y estable si se
+  renombra el tema); los valores del filtro también son el slug y los chips
+  muestran el nombre. Visible = en el menú
   y en la lista del filtro; un tema oculto sigue en sus productos.
 - *Categorías*: el slug sigue siendo `Category.id` (no se cambió la clave:
   todo el catálogo y las URLs la usan). Cambiarlo es un `UPDATE` de la clave
@@ -486,11 +488,19 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» e
   desde `proxy.ts`); el historial se busca bajo todos los slugs de la
   categoría, y un slug viejo no se reutiliza. Oculta = fuera de navegación,
   home y filtros, página 404; sus productos se siguen vendiendo.
-- *Orden*: "Subir" / "Bajar" (accesible con teclado, sin arrastrar), con la
-  tabla bloqueada y posiciones renumeradas en cada movimiento.
+- *Orden*: "Subir" / "Bajar" (accesible con teclado, sin arrastrar), con
+  posiciones renumeradas en cada movimiento. El botón no se desactiva mientras
+  espera (`aria-disabled`, para no perder el foco); al terminar el foco queda
+  en él o en el otro si la fila llegó a un extremo, y se anuncia el lugar
+  nuevo. La galería del producto hace lo mismo con sus controles, y un texto
+  alternativo faltante marca ese campo (`aria-invalid`) y recibe el foco.
+- *Galería del editor*: parte de la misma lista que muestra la tienda (`img`
+  primero aunque no esté en `images`), para que guardar no pierda la imagen
+  principal.
 - *Imágenes*: subida por Route Handler (progreso con XHR; las Server Actions
   limitan el cuerpo a 1 MB). Validación por bytes mágicos, límite de tamaño y
-  de píxeles, re-codificación con sharp a WebP (1600 px + 480 px), nombres
+  de píxeles, re-codificación con sharp a WebP (un archivo de hasta 1600 px; sin miniatura guardada, next/image
+  ya sirve tamaños menores), nombres
   aleatorios. Vercel Blob con `BLOB_READ_WRITE_TOKEN`, si no `public/uploads`
   servido también por una ruta para `next start`. Las URL siguen como opción.
   Galería con texto alternativo obligatorio por imagen (`Product.imageAlts`) y

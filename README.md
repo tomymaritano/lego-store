@@ -672,12 +672,13 @@ cae en "sin filtro").
   `AuditLog` (quién, qué, cuándo, `{campo: [antes, después]}`) en la misma
   transacción, y revalida las páginas de cupones. Ver «Cupones».
 - **Categorías** (`/admin/categories`; `/admin/categorias` redirige): en el
-  orden de la navegación, con "Subir" / "Bajar" (cada movimiento bloquea la
-  tabla y renumera las posiciones). Se edita todo lo que muestra la tienda:
+  orden de la navegación, con "Subir" / "Bajar" (cada movimiento renumera las
+  posiciones; el foco se queda en el botón, o pasa al otro al llegar a un
+  extremo, y una región `aria-live` dice el lugar nuevo). Se edita todo lo que muestra la tienda:
   nombre, slug, descripción, imagen (subida o URL, con texto alternativo
   obligatorio) y si es visible. Oculta, sale de la navegación, la home y los
   filtros, y su página da 404; sus productos se siguen vendiendo y muestran su
-  nombre. El slug es `Category.id`: cambiarlo mueve los productos en la misma
+  nombre (la miga de pan de la ficha lleva a `/search?category=…`). El slug es `Category.id`: cambiarlo mueve los productos en la misma
   sentencia (`ON UPDATE CASCADE`) y deja el viejo en `CategoryRedirect`, que
   `proxy.ts` contesta con un 308 al nuevo (filtros incluidos); el historial se
   busca bajo todos sus slugs, y otra categoría no puede tomar un slug viejo
@@ -687,8 +688,10 @@ cae en "sin filtro").
   (nombre único sin importar mayúsculas ni acentos, slug, orden, visible) que
   reemplazó al texto libre `Product.theme`. El menú «Temas» del navbar, el
   menú móvil y el footer leen los visibles en su orden (tag `themes`), y el
-  filtro lista los temas en ese orden; `?theme=` acepta el nombre (como
-  siempre: `/search?theme=Star%20Wars`) o el slug. Renombrar recalcula las
+  filtro lista los temas en ese orden. Los enlaces del menú y los valores del
+  filtro usan el slug (`/search?theme=star-wars`), así que renombrar un tema
+  no rompe sus enlaces; `?theme=` sigue aceptando el nombre
+  (`/search?theme=Star%20Wars`, enlaces viejos). Renombrar recalcula las
   columnas de búsqueda de sus productos. Eliminar solo si ningún producto lo
   usa.
 - **Usuarios** (`/admin/users`; `/admin/usuarios` redirige): lista con
@@ -721,8 +724,8 @@ cae en "sin filtro").
 `POST /api/admin/uploads` (solo admins, mismo origen, 120 por hora por admin)
 recibe una imagen: se acepta por sus bytes (JPEG, PNG, WebP o AVIF; nunca SVG,
 GIF ni HEIC, se llame como se llame el archivo), hasta 8 MB y 40 megapíxeles.
-Con sharp se vuelve a codificar a WebP (máximo 1600 px de lado y una variante
-de 480 px; se descarta todo metadato, EXIF con ubicación incluido) y se guarda
+Con sharp se vuelve a codificar a WebP (máximo 1600 px de lado, un solo archivo:
+next/image ya sirve los tamaños menores; se descarta todo metadato, EXIF con ubicación incluido) y se guarda
 con un nombre aleatorio:
 
 - con `BLOB_READ_WRITE_TOKEN`, en **Vercel Blob** (público, `uploads/<nombre>`,
