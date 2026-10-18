@@ -7,7 +7,7 @@ import { adminCancelReasonLabel, formatAdminDateTime } from "@/lib/admin/format"
 import { getAdminOrderDetail } from "@/lib/admin/data";
 import {
   ORDER_STATUS_BADGE,
-  ORDER_STATUS_LABELS,
+  ADMIN_ORDER_STATUS_LABELS,
   formatOrderNumber,
   formatTicketExpiry,
   installmentsLabel,
@@ -90,7 +90,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         description={order.submittedAt ? `Realizado el ${formatAdminDateTime(placedAt)}` : `Creado el ${formatAdminDateTime(order.createdAt)} · sin intento de pago`}
         actions={
           <Badge variant={ORDER_STATUS_BADGE[order.status]} data-testid="admin-order-status">
-            {ORDER_STATUS_LABELS[order.status]}
+            {ADMIN_ORDER_STATUS_LABELS[order.status]}
           </Badge>
         }
       />
@@ -186,7 +186,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                 {order.history.map((change) => (
                   <li key={change.id} className="rounded-xl border border-border bg-surface px-4 py-3 text-label font-normal text-fg-secondary">
                     <span className="font-semibold text-fg">
-                      {ORDER_STATUS_LABELS[change.from]} → {ORDER_STATUS_LABELS[change.to]}
+                      {ADMIN_ORDER_STATUS_LABELS[change.from]} → {ADMIN_ORDER_STATUS_LABELS[change.to]}
                     </span>{" "}
                     por {change.actorEmail}, el {formatAdminDateTime(change.at)}
                     {change.refundId ? <span className="block font-mono text-caption text-fg-muted">Reembolso {change.refundId}</span> : null}

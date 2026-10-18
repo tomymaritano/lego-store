@@ -17,6 +17,17 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   CANCELLED: "Cancelado",
 };
 
+/**
+ * The same statuses for the admin, where both pending ones show side by side
+ * (the dashboard, the filters): a checkout nobody paid yet is not a cash
+ * ticket (or a card under review) that is out and may still be paid.
+ */
+export const ADMIN_ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  ...ORDER_STATUS_LABELS,
+  PENDING: "Checkout sin pagar",
+  PAYMENT_PENDING: "Pago en curso",
+};
+
 /** Badge variant (src/components/ui/Badge) per status. */
 export const ORDER_STATUS_BADGE = {
   PENDING: "warning",
@@ -29,14 +40,14 @@ export const ORDER_STATUS_BADGE = {
 
 export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
   out_of_stock:
-    "Mientras se procesaba el pago se agotó uno de los productos. Cancelamos el pedido y te devolvimos el dinero: puede tardar unos días en verse en tu tarjeta.",
+    "Mientras se procesaba el pago se agotó uno de los productos. Cancelamos el pedido y te devolvimos el dinero: puede tardar unos días en verse en tu medio de pago.",
   amount_mismatch:
-    "El monto cobrado no coincidía con el total del pedido, así que lo cancelamos y te devolvimos el dinero: puede tardar unos días en verse en tu tarjeta.",
+    "El monto cobrado no coincidía con el total del pedido, así que lo cancelamos y te devolvimos el dinero: puede tardar unos días en verse en tu medio de pago.",
   payment_canceled: "El pago se canceló y no se cobró nada.",
   expired: "El pago no se completó a tiempo, así que cancelamos el pedido. No se cobró nada.",
   superseded: "Lo reemplazó un pedido más nuevo hecho desde el mismo navegador. No se cobró nada.",
   payment_setup_failed: "No pudimos iniciar el pago. No se cobró nada.",
-  refunded: "Se reembolsó el pago, así que cancelamos el pedido: el dinero puede tardar unos días en verse en tu tarjeta.",
+  refunded: "Se reembolsó el pago, así que cancelamos el pedido: el dinero puede tardar unos días en verse en tu medio de pago.",
   payment_rejected: "El medio de pago rechazó el pago, así que cancelamos el pedido. No se cobró nada.",
   chargeback:
     "Desconociste el pago ante tu banco o tarjeta, así que cancelamos el pedido. Si fue un error, escríbenos.",

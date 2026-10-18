@@ -6,7 +6,7 @@ import { updateCatalog } from "@/lib/api/cache";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
+import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { getMercadoPago, getPaymentGateway } from "@/lib/payments/config";
 import { deleteReview } from "@/lib/reviews/mutations";
 import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateSchema, type ProductField } from "@/lib/validations/admin";
@@ -198,7 +198,7 @@ export async function changeOrderStatusAction(input: unknown): Promise<AdminActi
     // Cancelling a paid order put stock back: the storefront shows it again.
     if (result.restockedProductIds.length > 0) updateCatalog({ productIds: result.restockedProductIds });
     refresh();
-    if (!result.changed) return { ok: true, message: `El pedido ya estaba ${ORDER_STATUS_LABELS[result.status].toLowerCase()}.` };
+    if (!result.changed) return { ok: true, message: `El pedido ya estaba ${ADMIN_ORDER_STATUS_LABELS[result.status].toLowerCase()}.` };
     return {
       ok: true,
       message: result.refundId ? "Cancelamos el pedido, reembolsamos el pago y devolvimos el stock." : TRANSITION_DONE[parsed.data.to],
@@ -209,9 +209,9 @@ export async function changeOrderStatusAction(input: unknown): Promise<AdminActi
       return { ok: false, error: "Ese pedido no existe." };
     case "conflict":
       refresh();
-      return { ok: false, error: `El pedido cambió mientras tanto: ahora está ${ORDER_STATUS_LABELS[result.status].toLowerCase()}. Revisa antes de seguir.` };
+      return { ok: false, error: `El pedido cambió mientras tanto: ahora está ${ADMIN_ORDER_STATUS_LABELS[result.status].toLowerCase()}. Revisa antes de seguir.` };
     case "not_allowed":
-      return { ok: false, error: `Un pedido ${ORDER_STATUS_LABELS[result.status].toLowerCase()} no puede pasar a ese estado.` };
+      return { ok: false, error: `Un pedido ${ADMIN_ORDER_STATUS_LABELS[result.status].toLowerCase()} no puede pasar a ese estado.` };
     case "payment_in_flight":
       return { ok: false, error: "El pago de este pedido se está procesando. Espera a que se confirme y vuelve a intentarlo." };
     case "payments_unconfigured":

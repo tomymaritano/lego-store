@@ -6,7 +6,7 @@ import { getAdminDashboard } from "@/lib/admin/data";
 import { MISMATCH_WINDOW_DAYS } from "@/lib/admin/dashboard";
 import { LOW_STOCK } from "@/lib/admin/format";
 import { updateStockAction } from "@/lib/admin/actions";
-import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
+import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { formatPrice, pluralize } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PaymentsProviderBadge } from "@/components/admin/PaymentsProviderBadge";
@@ -114,7 +114,7 @@ export default async function AdminPage() {
                   <div key={status} className="flex items-baseline justify-between gap-3 border-b border-border pb-2 lg:block lg:border-0 lg:pb-0">
                     <dt className="text-label text-fg-secondary">
                       <Link href={`/admin/orders?status=${status}`} prefetch={false} className="underline-offset-4 hover:underline">
-                        {ORDER_STATUS_LABELS[status]}
+                        {ADMIN_ORDER_STATUS_LABELS[status]}
                       </Link>
                     </dt>
                     <dd className="text-title tabular-nums">{dashboard.ordersByStatus[status]}</dd>

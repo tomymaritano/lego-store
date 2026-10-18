@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { getAdminOrders } from "@/lib/admin/data";
-import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
+import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { ORDER_STATUSES, parseOrderFilters } from "@/lib/validations/admin";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterSelect } from "@/components/admin/FilterSelect";
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 
 const STATUS_OPTIONS = [
   { value: "", label: "Todos" },
-  ...ORDER_STATUSES.map((status) => ({ value: status, label: ORDER_STATUS_LABELS[status] })),
+  ...ORDER_STATUSES.map((status) => ({ value: status, label: ADMIN_ORDER_STATUS_LABELS[status] })),
   { value: "amount_mismatch", label: "Cancelados: monto distinto" },
   { value: "draft", label: "Sin intento de pago" },
 ];

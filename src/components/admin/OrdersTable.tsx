@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { formatAdminDateTime } from "@/lib/admin/format";
 import type { AdminOrderRow } from "@/lib/admin/orders";
-import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderNumber } from "@/lib/orders/format";
+import { ORDER_STATUS_BADGE, ADMIN_ORDER_STATUS_LABELS, formatOrderNumber } from "@/lib/orders/format";
 import { formatPrice } from "@/lib/utils";
 import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 
@@ -40,7 +40,7 @@ export function OrdersTable({ orders, label }: { orders: AdminOrderRow[]; label:
               </span>
             </TableCell>
             <TableCell className="whitespace-nowrap">
-              <Badge variant={ORDER_STATUS_BADGE[order.status]}>{ORDER_STATUS_LABELS[order.status]}</Badge>
+              <Badge variant={ORDER_STATUS_BADGE[order.status]}>{ADMIN_ORDER_STATUS_LABELS[order.status]}</Badge>
               {order.cancelReason === "amount_mismatch" ? (
                 <span className="mt-1 flex items-center gap-1 text-caption font-semibold text-danger">
                   <TriangleAlert aria-hidden="true" className="size-3.5" />

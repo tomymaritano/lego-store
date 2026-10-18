@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { orderCancelledEmail, orderConfirmationEmail, orderShippedEmail } from "@/lib/email/orders";
 import { isEmailConfigured, sendEmail } from "@/lib/email/send";
-import { ORDER_STATUS_LABELS, formatOrderNumber, orderTimeline, paymentLabel } from "@/lib/orders/format";
+import { ADMIN_ORDER_STATUS_LABELS, CANCEL_REASON_LABELS, ORDER_STATUS_LABELS, formatOrderNumber, orderTimeline, paymentLabel } from "@/lib/orders/format";
 import { makeOrder } from "../helpers/orders";
 
 describe("order emails", () => {
@@ -63,6 +63,13 @@ describe("order formatting", () => {
     expect(ORDER_STATUS_LABELS.PAID).toBe("Pagado");
     expect(paymentLabel("amex", "0005")).toBe("American Express •••• 0005");
     expect(paymentLabel(null, null)).toBe("Tarjeta");
+  });
+
+  it("the admin tells an unpaid checkout from a payment under way; refund copy fits any payment method", () => {
+    expect(ADMIN_ORDER_STATUS_LABELS.PENDING).not.toBe(ADMIN_ORDER_STATUS_LABELS.PAYMENT_PENDING);
+    expect(ADMIN_ORDER_STATUS_LABELS).toMatchObject({ PENDING: "Checkout sin pagar", PAYMENT_PENDING: "Pago en curso", PAID: ORDER_STATUS_LABELS.PAID });
+    for (const label of Object.values(CANCEL_REASON_LABELS)) expect(label).not.toContain("tarjeta.");
+    expect(CANCEL_REASON_LABELS.out_of_stock).toContain("en tu medio de pago");
   });
 
   it("timeline: reached steps, the current one, and a cancellation in place of the rest", () => {
