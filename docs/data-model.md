@@ -230,6 +230,7 @@ stateDiagram-v2
   PAYMENT_PENDING --> PAID: acreditado + stock tomado
   PAYMENT_PENDING --> CANCELLED: ticket vencido, rechazado tras revisión, admin
   PENDING --> CANCELLED: acreditado pero sin stock, otro monto o cupón agotado (con reembolso)
+  PAYMENT_PENDING --> CANCELLED: acreditado pero sin stock, otro monto o cupón agotado (con reembolso)
   PAID --> SHIPPED: admin (email "en camino")
   PAID --> CANCELLED: admin (reembolso + stock), reembolso externo, contracargo
   SHIPPED --> DELIVERED: admin
