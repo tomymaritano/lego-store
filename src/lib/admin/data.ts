@@ -6,12 +6,14 @@ import { getDb } from "@/lib/db";
 import type { AdminOrderFilters, AdminProductFilters, AdminReviewFilters } from "@/lib/validations/admin";
 import type { AuditEntityType, AuditFilters } from "@/lib/validations/audit";
 import type { AdminCouponFilters } from "@/lib/validations/coupons";
+import type { AdminUserFilters } from "@/lib/validations/users";
 import { listAuditEntries, searchAuditLog } from "./audit";
 import { getAdminCoupon, listAdminCoupons } from "./coupons";
 import { getDashboard } from "./dashboard";
 import { getAdminOrder, listAdminOrders } from "./orders";
 import { adminCategories, getAdminProduct, listAdminProducts, productFormOptions } from "./products";
 import { listAdminReviews, reviewedProducts } from "./reviews";
+import { getAdminUser, listAdminUsers } from "./users";
 
 /*
  * What the /admin pages read. Each function checks the admin itself (data
@@ -87,4 +89,15 @@ export async function getAdminAuditHistory(entityType: AuditEntityType, entityId
 export const getAdminCouponDetail = cache(async (id: string) => {
   await requireAdmin({ callbackUrl: `/admin/coupons/${encodeURIComponent(id)}` });
   return getAdminCoupon(getDb(), id);
+});
+
+export async function getAdminUsers(filters: AdminUserFilters) {
+  await requireAdmin({ callbackUrl: "/admin/users" });
+  return listAdminUsers(getDb(), filters);
+}
+
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminUserDetail = cache(async (id: string) => {
+  await requireAdmin({ callbackUrl: `/admin/users/${encodeURIComponent(id)}` });
+  return getAdminUser(getDb(), id);
 });

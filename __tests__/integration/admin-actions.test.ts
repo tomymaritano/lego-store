@@ -263,3 +263,52 @@ describe("review moderation", () => {
     expect(byProduct.items.every((review) => review.product.id === "15" || /millennium/i.test(review.title + review.comment))).toBe(true);
   });
 });
+
+describe("audit log", () => {
+  const entries = (entityType: string, entityId: string) =>
+    testDb.auditLog.findMany({ where: { entityType, entityId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { action: true, changes: true, actorEmail: true } });
+
+  it("every product, order and review change writes its entry with the admin", async () => {
+    signInAs(admin);
+    // Product: create, edit, stock, archive, restore.
+    try {
+      await actions.saveProductAction(null, {}, productForm({ name: "Auditada" }));
+    } catch {
+      // The redirect to its edit page.
+    }
+    const product = await testDb.product.findFirstOrThrow({ where: { name: "Auditada" } });
+    expect(
+      await actions.saveProductAction(product.id, {}, productForm({ name: "Auditada", price: "2500", stock: "4", stockSeen: "4" }))
+    ).toMatchObject({ status: "success" });
+    expect(await actions.updateStockAction(product.id, "9", 4)).toMatchObject({ ok: true });
+    await actions.archiveProductAction(product.id);
+    await actions.restoreProductAction(product.id);
+    // Saving with no change writes nothing.
+    await actions.saveProductAction(product.id, {}, productForm({ name: "Auditada", price: "2500", stock: "9", stockSeen: "9" }));
+    const productEntries = await entries("product", product.id);
+    expect(productEntries.map((entry) => entry.action)).toEqual(["product.create", "product.update", "product.stock", "product.archive", "product.restore"]);
+    expect(productEntries.every((entry) => entry.actorEmail === "jefa@acciones.test")).toBe(true);
+    expect(productEntries[1]!.changes).toEqual({ price: [2100, 2500] });
+    expect(productEntries[2]!.changes).toEqual({ stock: [4, 9] });
+    expect(await actions.removeProductAction(product.id)).toMatchObject({ removed: "deleted" });
+    expect((await entries("product", product.id)).at(-1)).toMatchObject({ action: "product.delete", changes: expect.objectContaining({ name: "Auditada" }) });
+
+    // Review moderation keeps what the review said.
+    const review = (await listAdminReviews(testDb, { q: "", product: "12", rating: null, page: 1 })).items[0]!;
+    await actions.deleteReviewAsAdminAction(review.id);
+    expect(await entries("review", review.id)).toEqual([
+      expect.objectContaining({ action: "review.delete", changes: expect.objectContaining({ productId: "12", title: review.title, author: review.author.email }) }),
+    ]);
+  });
+
+  it("an order status change is in the audit log too", async () => {
+    signInAs(admin);
+    const order = await testDb.order.findFirstOrThrow({ where: { status: "SHIPPED" } });
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    expect(await actions.changeOrderStatusAction({ orderId: order.id, to: "DELIVERED", expected: "SHIPPED" })).toMatchObject({ ok: true });
+    info.mockRestore();
+    expect((await entries("order", order.id)).at(-1)).toEqual({ action: "order.deliver", changes: { status: ["SHIPPED", "DELIVERED"] }, actorEmail: "jefa@acciones.test" });
+    const log = await data.getAdminAuditLog({ actor: "jefa@", entity: "order", entityId: "", action: "", from: "", to: "", page: 1 });
+    expect(log.items.map((entry) => entry.entityId)).toContain(order.id);
+  });
+});

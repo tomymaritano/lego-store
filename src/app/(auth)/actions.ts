@@ -20,6 +20,7 @@ import { fieldErrors, loginSchema, registerSchema, type LoginField, type Registe
 const LOGIN_FAILED = "El email o la contraseña no son correctos.";
 const TOO_MANY_LOGINS = "Demasiados intentos de ingreso. Espera unos minutos y vuelve a intentarlo.";
 const UNAVAILABLE = "No pudimos iniciar sesión. Vuelve a intentarlo en unos minutos.";
+const ACCOUNT_BLOCKED = "Tu cuenta está bloqueada. Si crees que es un error, escríbenos desde la página de contacto.";
 
 /** Runs signIn("credentials"), turning its errors into a form message. Success redirects (throws). */
 async function signInWithPassword(email: string, password: string, redirectTo: string): Promise<string> {
@@ -27,7 +28,11 @@ async function signInWithPassword(email: string, password: string, redirectTo: s
     await signIn("credentials", { email, password, redirectTo });
   } catch (error) {
     if (!(error instanceof AuthError)) throw error; // the success redirect, or a real failure
-    if (error instanceof CredentialsSignin) return error.code === "rate_limited" ? TOO_MANY_LOGINS : LOGIN_FAILED;
+    if (error instanceof CredentialsSignin) {
+      if (error.code === "rate_limited") return TOO_MANY_LOGINS;
+      if (error.code === "blocked") return ACCOUNT_BLOCKED;
+      return LOGIN_FAILED;
+    }
     console.error("[auth] login failed:", error);
     return UNAVAILABLE;
   }

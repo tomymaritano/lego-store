@@ -14,6 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  Field,
+  Textarea,
   showToast,
 } from "@/components/ui";
 
@@ -31,8 +33,13 @@ export interface ConfirmActionProps {
   confirmLabel: string;
   /** Button style of the confirm button; destructive for what cannot be undone. */
   confirmVariant?: ButtonProps["variant"];
-  /** A Server Action bound to its arguments (`archiveProductAction.bind(null, id)`). */
-  action: () => Promise<ConfirmActionResult>;
+  /**
+   * A Server Action bound to its arguments (`archiveProductAction.bind(null, id)`).
+   * With `field`, it is called with what the admin typed there.
+   */
+  action: (input?: string) => Promise<ConfirmActionResult>;
+  /** An optional text the dialog asks for (a block's reason), passed to `action`. */
+  field?: { label: string; hint?: string; maxLength: number };
   /** Where to go after it worked (e.g. the list, once the product was deleted). */
   redirectTo?: string;
   /** Only when the action deleted the product (not when it archived it instead). */
@@ -69,8 +76,10 @@ export function ConfirmAction({
   redirectTo,
   redirectOnlyIfDeleted = false,
   testId,
+  field,
 }: ConfirmActionProps) {
   const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
   const [navigateTo, setNavigateTo] = useState<string | null>(null);
   // Opening the dialog needs JavaScript: no dead clicks before hydration.
@@ -80,7 +89,7 @@ export function ConfirmAction({
     startTransition(async () => {
       let result: ConfirmActionResult;
       try {
-        result = await action();
+        result = await (field ? action(text) : action());
       } catch {
         result = {
           ok: false,
@@ -110,6 +119,11 @@ export function ConfirmAction({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription render={<div />}>{description}</DialogDescription>
           </DialogHeader>
+          {field ? (
+            <Field label={field.label} hint={field.hint}>
+              <Textarea value={text} onChange={(event) => setText(event.target.value)} maxLength={field.maxLength} rows={3} disabled={pending} />
+            </Field>
+          ) : null}
           <DialogFooter>
             <DialogClose render={<Button variant="secondary" disabled={pending} />}>Volver</DialogClose>
             <Button variant={confirmVariant} loading={pending} onClick={confirm}>

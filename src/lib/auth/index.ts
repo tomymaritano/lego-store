@@ -7,7 +7,7 @@ import type { Role } from "@/generated/prisma/enums";
 import { getDb } from "@/lib/db";
 import { clientIp } from "@/lib/rate-limit/client-ip";
 import { loginSchema } from "@/lib/validations/auth";
-import { verifyCredentials } from "./accounts";
+import { isBlockedEmail, verifyCredentials } from "./accounts";
 import { prismaAuthAdapter } from "./adapter";
 import { readKnownDevice, rememberKnownDevice } from "./known-device";
 import { refreshSessionToken, type SessionRenewal } from "./session-token";
@@ -55,6 +55,14 @@ export class RateLimitedSignin extends CredentialsSignin {
   code = "rate_limited";
 }
 
+/** The right password for an account an admin blocked (the login action says so). */
+export class BlockedSignin extends CredentialsSignin {
+  code = "blocked";
+}
+
+/** Where a blocked account's Google sign-in ends (src/lib/auth/error-messages.ts). */
+export const BLOCKED_SIGNIN_URL = "/login?error=AccountBlocked";
+
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 /**
@@ -82,6 +90,7 @@ const credentials = Credentials({
       return result.user;
     }
     if (result.reason === "rate_limited") throw new RateLimitedSignin();
+    if (result.reason === "blocked") throw new BlockedSignin();
     return null;
   },
 });
@@ -92,9 +101,13 @@ export const authConfig = {
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   pages: { signIn: "/login", error: "/login" },
   callbacks: {
-    signIn({ account, profile }) {
+    async signIn({ account, profile }) {
       // The role is granted by email (ADMIN_EMAIL): only addresses Google has verified count.
-      if (account?.provider === "google") return profile?.email_verified === true;
+      if (account?.provider === "google") {
+        if (profile?.email_verified !== true || !profile.email) return false;
+        // An account an admin blocked cannot come back through Google either.
+        if (await isBlockedEmail(profile.email)) return BLOCKED_SIGNIN_URL;
+      }
       return true;
     },
     async jwt({ token, user, trigger, session }) {

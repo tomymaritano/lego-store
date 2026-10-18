@@ -10,7 +10,7 @@ import { lowStockProducts, type AdminProductRow } from "./products";
  */
 
 /** Statuses whose money the store keeps (a cancelled paid order was refunded). */
-const COLLECTED: OrderStatus[] = ["PAID", "SHIPPED", "DELIVERED"];
+export const COLLECTED: OrderStatus[] = ["PAID", "SHIPPED", "DELIVERED"];
 
 /** How far back the amount-mismatch warning looks: an old incident does not keep the banner up forever. */
 export const MISMATCH_WINDOW_DAYS = 7;

@@ -59,7 +59,8 @@ function isValidRenewal(value: unknown, userId: string, from: number, to: number
 export async function refreshSessionToken(token: JWT, data: unknown, now = Date.now()): Promise<JWT | null> {
   if (!token.sub) return null;
   const fresh = await getAccountUser(token.sub);
-  if (!fresh) return null;
+  // Gone, or blocked by an admin: the session ends (Auth.js clears the cookie).
+  if (!fresh || fresh.blocked) return null;
   const current = token.sv ?? 0;
   if (fresh.sessionVersion !== current) {
     const renewal = typeof data === "object" && data !== null ? (data as { renewal?: unknown }).renewal : undefined;

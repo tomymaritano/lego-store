@@ -12,9 +12,11 @@ import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateS
 import { idSchema } from "@/lib/validations/ids";
 import { couponFormSchema, newCouponCodeSchema, type CouponField } from "@/lib/validations/coupons";
 import { requireAdminActor } from "./actor";
+import { userBlockSchema, userRoleSchema } from "@/lib/validations/users";
 import { createCoupon, setCouponActive, updateCoupon } from "./coupons";
 import { changeOrderStatus } from "./orders";
 import { archiveProduct, createProduct, removeProduct, restoreProduct, setProductStock, updateProduct } from "./products";
+import { setUserBlocked, setUserRole, type UserWriteResult } from "./users";
 
 /*
  * Server Actions of the admin panel. Each one checks the admin itself
@@ -338,5 +340,65 @@ export async function setCouponActiveAction(couponId: unknown, active: unknown):
     message: active
       ? "Activamos el cupón: ya se puede usar."
       : "Desactivamos el cupón: no se puede usar en pedidos nuevos. Los pedidos que ya lo tienen lo conservan.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+const NOT_FOUND_USER = "Esa cuenta ya no existe. Recarga la lista.";
+
+/** The pages that show an account (the list and its own page). */
+function revalidateUser(userId: string) {
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
+}
+
+function userRefusal(result: Exclude<UserWriteResult, { ok: true }>, what: "role" | "block"): AdminActionResult {
+  switch (result.reason) {
+    case "not_found":
+      return { ok: false, error: NOT_FOUND_USER };
+    case "self":
+      return { ok: false, error: what === "role" ? "No puedes cambiar tu propio rol." : "No puedes bloquear tu propia cuenta." };
+    case "last_admin":
+      return {
+        ok: false,
+        error: `Es el único admin activo: nombra otro admin antes de ${what === "role" ? "quitarle el rol" : "bloquearlo"}.`,
+      };
+  }
+}
+
+/** "Hacer admin" / "Quitar admin" on a user's page. */
+export async function setUserRoleAction(userId: unknown, role: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/users" });
+  const parsed = userRoleSchema.safeParse({ userId, role });
+  if (!parsed.success) return { ok: false, error: NOT_FOUND_USER };
+  const result = await setUserRole(getDb(), admin, parsed.data.userId, parsed.data.role);
+  if (!result.ok) return userRefusal(result, "role");
+  revalidateUser(parsed.data.userId);
+  refresh();
+  if (!result.changed) return { ok: true, message: parsed.data.role === "ADMIN" ? "Ya era admin." : "Ya era cliente." };
+  return {
+    ok: true,
+    message: parsed.data.role === "ADMIN" ? "Ahora es admin: ve el panel desde su próxima página." : "Ya no es admin: perdió el acceso al panel.",
+  };
+}
+
+/** "Bloquear" (with an optional note) / "Desbloquear" on a user's page. */
+export async function setUserBlockedAction(userId: unknown, blocked: unknown, reason?: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/users" });
+  const parsed = userBlockSchema.safeParse({ userId, blocked, reason: typeof reason === "string" ? reason : undefined });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? NOT_FOUND_USER };
+  const result = await setUserBlocked(getDb(), admin, parsed.data.userId, parsed.data.blocked, parsed.data.reason);
+  if (!result.ok) return userRefusal(result, "block");
+  revalidateUser(parsed.data.userId);
+  refresh();
+  if (!result.changed) return { ok: true, message: parsed.data.blocked ? "La cuenta ya estaba bloqueada." : "La cuenta ya estaba activa." };
+  return {
+    ok: true,
+    message: parsed.data.blocked
+      ? "Bloqueamos la cuenta: cerramos sus sesiones y ya no puede iniciar sesión."
+      : "Desbloqueamos la cuenta: ya puede volver a iniciar sesión.",
   };
 }

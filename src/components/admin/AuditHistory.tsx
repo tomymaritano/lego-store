@@ -11,6 +11,8 @@ interface AuditHistoryProps {
   /** The record the entries are about: the "Ver todo" link filters /admin/audit by it. */
   entity: { type: string; id: string };
   title?: string;
+  /** Where "Ver todo" goes, when not the log filtered by the record (an admin's own actions). */
+  allHref?: string;
   /** Shown when there are no entries. */
   empty?: string;
   className?: string;
@@ -21,8 +23,8 @@ interface AuditHistoryProps {
  * user, category, theme): who changed what and when, newest first, with a
  * link to the whole log filtered by the record.
  */
-export function AuditHistory({ entries, entity, title = "Historial", empty = "Sin cambios registrados.", className }: AuditHistoryProps) {
-  const headingId = `audit-history-${entity.type}`;
+export function AuditHistory({ entries, entity, title = "Historial", allHref, empty = "Sin cambios registrados.", className }: AuditHistoryProps) {
+  const headingId = `audit-history-${entity.type}-${allHref ? "actor" : "record"}`;
   return (
     <Card className={cn("self-start", className)}>
       <CardHeader className="flex-row items-baseline justify-between gap-3">
@@ -31,7 +33,7 @@ export function AuditHistory({ entries, entity, title = "Historial", empty = "Si
         </h2>
         {entries.length > 0 ? (
           <Link
-            href={pageHref("/admin/audit", { entity: entity.type, entityId: entity.id }, 1)}
+            href={allHref ?? pageHref("/admin/audit", { entity: entity.type, entityId: entity.id }, 1)}
             prefetch={false}
             className="text-label font-medium text-fg-secondary underline-offset-4 hover:text-fg hover:underline"
           >

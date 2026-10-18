@@ -26,6 +26,9 @@ export interface AccountUser {
 
 const accountSelect = { id: true, name: true, email: true, role: true, sessionVersion: true } as const;
 
+/** Whether an admin blocked the account (src/lib/admin/users.ts): it cannot sign in, its sessions do not count. */
+export type AccountStatus = { blocked: boolean };
+
 export type RegisterResult = { ok: true; user: AccountUser } | { ok: false; reason: "email_taken" };
 
 /**
@@ -64,6 +67,8 @@ export async function registerUser(input: { name: string; email: string; passwor
 export type CredentialsResult =
   | { ok: true; user: AccountUser }
   | { ok: false; reason: "invalid" }
+  /** The right password for an account an admin blocked: only said to whoever knows the password. */
+  | { ok: false; reason: "blocked" }
   | { ok: false; reason: "rate_limited"; retryAfterSeconds: number };
 
 /**
@@ -81,7 +86,9 @@ export type CredentialsResult =
  * Known devices only go through the first: they are not guessing (they
  * logged in to this account before), and whoever fills the shared counters
  * cannot lock the owner out of the browsers they already use.
- * A successful login clears its account-and-source counter.
+ * A successful login clears its account-and-source counter. A blocked
+ * account (src/lib/admin/users.ts) is refused after the password check, so
+ * only its owner learns why.
  */
 export async function verifyCredentials(
   rawEmail: string,
@@ -103,19 +110,26 @@ export async function verifyCredentials(
     if (!limit.ok) return { ok: false, reason: "rate_limited", retryAfterSeconds: limit.retryAfterSeconds };
   }
 
-  const user = await getDb().user.findUnique({ where: { email }, select: { ...accountSelect, passwordHash: true } });
+  const user = await getDb().user.findUnique({ where: { email }, select: { ...accountSelect, passwordHash: true, blockedAt: true } });
   const valid = await verifyPassword(password, user?.passwordHash ?? (await dummyHash()));
   if (!user?.passwordHash || !valid) return { ok: false, reason: "invalid" };
+  if (user.blockedAt) return { ok: false, reason: "blocked" };
 
   await rateLimits.loginAccountIp.reset(source);
   return { ok: true, user: { id: user.id, name: user.name, email: user.email, role: user.role, sessionVersion: user.sessionVersion } };
 }
 
-export async function getAccountUser(id: string): Promise<(AccountUser & { hasPassword: boolean }) | null> {
-  const user = await getDb().user.findUnique({ where: { id }, select: { ...accountSelect, passwordHash: true } });
+export async function getAccountUser(id: string): Promise<(AccountUser & AccountStatus & { hasPassword: boolean }) | null> {
+  const user = await getDb().user.findUnique({ where: { id }, select: { ...accountSelect, passwordHash: true, blockedAt: true } });
   if (!user) return null;
-  const { passwordHash, ...account } = user;
-  return { ...account, hasPassword: passwordHash !== null };
+  const { passwordHash, blockedAt, ...account } = user;
+  return { ...account, hasPassword: passwordHash !== null, blocked: blockedAt !== null };
+}
+
+/** True when the account with this email exists and an admin blocked it (Google sign-in checks it). */
+export async function isBlockedEmail(email: string): Promise<boolean> {
+  const user = await getDb().user.findUnique({ where: { email: normalizeEmail(email) }, select: { blockedAt: true } });
+  return Boolean(user?.blockedAt);
 }
 
 /**

@@ -14,9 +14,9 @@ import { auth } from "./index";
  * every protected page, Server Action and Route Handler calls one of these
  * (proxy matchers can miss a route; these cannot).
  *
- * A session counts only while its user still exists and its token carries the
- * account's current sessionVersion (a password change ends every other
- * session). The role always comes from the database, never from the token, so
+ * A session counts only while its user still exists, is not blocked by an
+ * admin, and its token carries the account's current sessionVersion (a
+ * password change or a block ends every other session). The role always comes from the database, never from the token, so
  * a demoted admin loses access on the next request.
  */
 
@@ -35,7 +35,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const id = session?.user?.id;
   if (!id) return null;
   const user = await getAccountUser(id);
-  if (!user || user.sessionVersion !== session.sessionVersion) return null;
+  if (!user || user.blocked || user.sessionVersion !== session.sessionVersion) return null;
   return { id: user.id, name: user.name, email: user.email, role: user.role, hasPassword: user.hasPassword };
 });
 
