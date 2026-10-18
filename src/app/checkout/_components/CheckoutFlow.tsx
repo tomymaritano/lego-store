@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
 import { fadeIn } from "@/lib/motion";
@@ -16,13 +17,22 @@ import { fetchCheckoutOrder, payOrder, prepareOrder, type ApiResult } from "./ch
 import { ConfirmationStep } from "./ConfirmationStep";
 import { MobileSummaryBar, orderLinesOf } from "./OrderLines";
 import { OrderSummary } from "./OrderSummary";
-import { PaymentStep } from "./PaymentStep";
 import { ReviewStep } from "./ReviewStep";
-import { ShippingStep } from "./ShippingStep";
+import { ShippingStep, type CheckoutAccount } from "./ShippingStep";
 import { StepDirectionContext } from "./StepPanel";
 import { Stepper } from "./Stepper";
 import { stepIndex } from "./steps";
-import { getStripe } from "./stripeClient";
+
+/*
+ * The payment step (Stripe Elements, the mock cards) is the second step: it
+ * loads on demand, kept out of /checkout's first load, and is preloaded as
+ * soon as the shipping step shows so the step change does not wait on it.
+ */
+const loadPaymentStep = () => import("./PaymentStep");
+const PaymentStep = dynamic(() => loadPaymentStep().then((mod) => mod.PaymentStep), {
+  ssr: false,
+  loading: () => <Skeleton className="h-112" />,
+});
 
 const checkout = useCheckoutStore.getState;
 const cartStore = useCartStore.getState;
@@ -103,7 +113,7 @@ type Prepared = { key: string; order: OrderView } | { key: string; error: string
  * and summary) for the confirmation as one unit, so nothing reflows while the
  * review fades out.
  */
-export function CheckoutFlow({ payments }: { payments: PaymentsClientConfig }) {
+export function CheckoutFlow({ payments, account = null }: { payments: PaymentsClientConfig; account?: CheckoutAccount | null }) {
   const router = useRouter();
   const viewer = useViewer();
   const hydrated = useStoreHydrated(useCartStore);
@@ -134,6 +144,11 @@ export function CheckoutFlow({ payments }: { payments: PaymentsClientConfig }) {
   useEffect(() => {
     if (hydrated && cart.length === 0 && currentStep !== "confirmation") router.replace("/cart");
   }, [hydrated, cart.length, currentStep, router]);
+
+  // The payment step's code, fetched while the visitor fills the shipping step.
+  useEffect(() => {
+    void loadPaymentStep();
+  }, []);
 
   // Leaving the confirmation ends this checkout: the next visit starts fresh.
   useEffect(() => {
@@ -300,7 +315,8 @@ export function CheckoutFlow({ payments }: { payments: PaymentsClientConfig }) {
         }
       }
       if (result.data.next === "action") {
-        const stripe = payments.publishableKey ? await getStripe(payments.publishableKey) : null;
+        const key = payments.publishableKey;
+        const stripe = key ? await import("./stripeClient").then((mod) => mod.getStripe(key)) : null;
         const outcome = stripe ? await stripe.handleNextAction({ clientSecret: result.data.clientSecret }) : null;
         if (!outcome || outcome.error) {
           setDirection(-1);
@@ -359,7 +375,7 @@ export function CheckoutFlow({ payments }: { payments: PaymentsClientConfig }) {
               <div className="min-w-0 lg:col-span-2">
                 <AnimatePresence mode="wait" custom={direction} initial={false}>
                   {step === "shipping" && (
-                    <ShippingStep key="shipping" initialData={shippingInfo} focusHeading={moved} onSubmit={handleShippingSubmit} />
+                    <ShippingStep key="shipping" initialData={shippingInfo} account={account} focusHeading={moved} onSubmit={handleShippingSubmit} />
                   )}
                   {step === "payment" && shippingInfo && (
                     <PaymentStep

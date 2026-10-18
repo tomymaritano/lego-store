@@ -19,8 +19,15 @@ import type { ShippingInfo } from "@/types";
 import { RequiredNote } from "./RequiredNote";
 import { StepCount, StepPanel } from "./StepPanel";
 
+/** The signed-in customer: prefills the contact fields. */
+export interface CheckoutAccount {
+  name: string | null;
+  email: string;
+}
+
 interface ShippingStepProps {
   initialData: ShippingInfo | null;
+  account?: CheckoutAccount | null;
   focusHeading: boolean;
   onSubmit: (data: ShippingInfo) => void;
 }
@@ -37,13 +44,20 @@ const emptyShipping: ShippingInfo = {
   country: SHIPPING_COUNTRY,
 };
 
+/** An empty form, with the account's name and email when signed in. */
+function defaultsFor(account: CheckoutAccount | null | undefined): ShippingInfo {
+  if (!account) return emptyShipping;
+  const [firstName = "", ...rest] = (account.name ?? "").trim().split(/\s+/);
+  return { ...emptyShipping, firstName, lastName: rest.join(" "), email: account.email };
+}
+
 const provinceItems = ARGENTINA_PROVINCES.map((province) => ({ value: province, label: province }));
 
 /**
  * Step 1: contact and delivery address. Validates on submit (focus goes to
  * the first invalid field) and then as each field is left.
  */
-export function ShippingStep({ initialData, focusHeading, onSubmit }: ShippingStepProps) {
+export function ShippingStep({ initialData, account, focusHeading, onSubmit }: ShippingStepProps) {
   const {
     register,
     control,
@@ -51,7 +65,7 @@ export function ShippingStep({ initialData, focusHeading, onSubmit }: ShippingSt
     formState: { errors, isSubmitting },
   } = useForm<ShippingInfo>({
     resolver: shippingResolver,
-    defaultValues: initialData ?? emptyShipping,
+    defaultValues: initialData ?? defaultsFor(account),
     mode: "onTouched",
   });
 
@@ -81,7 +95,16 @@ export function ShippingStep({ initialData, focusHeading, onSubmit }: ShippingSt
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Email" required error={errors.email?.message} hint="Te enviaremos la confirmación del pedido.">
+            <Field
+              label="Email"
+              required
+              error={errors.email?.message}
+              hint={
+                account
+                  ? `El pedido queda asociado a tu cuenta (${account.email}). Te enviaremos la confirmación a este email.`
+                  : "Te enviaremos la confirmación del pedido."
+              }
+            >
               <Input type="email" inputMode="email" autoComplete="email" spellCheck={false} {...register("email")} />
             </Field>
             <Field label="Teléfono" required error={errors.phone?.message} hint="Con código de área, p. ej. 11 5555 1234.">

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { pageMetadata } from "@/lib/metadata";
 import { paymentsClientConfig } from "@/lib/payments/config";
 import { CheckoutFlow } from "./_components/CheckoutFlow";
@@ -25,10 +26,13 @@ export const metadata: Metadata = {
 export default async function CheckoutPage() {
   await connection();
   const payments = paymentsClientConfig();
+  // The signed-in customer's name and email prefill the shipping step (same request-cached session read as the layout).
+  const user = await getCurrentUser();
+  const account = user ? { name: user.name, email: user.email } : null;
   return (
     <div className="min-h-screen bg-bg-subtle" data-payments-mode={payments.mode}>
       <div className="container-custom py-6 md:py-10">
-        <CheckoutFlow payments={payments} />
+        <CheckoutFlow payments={payments} account={account} />
       </div>
     </div>
   );

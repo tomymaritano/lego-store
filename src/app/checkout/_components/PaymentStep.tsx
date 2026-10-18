@@ -266,7 +266,7 @@ function PaymentsNotConfigured({ missing, onBack }: { missing: string[]; onBack:
         {missing.length > 0 ? (
           <p className="mt-2 text-label font-normal text-fg-secondary">
             Este servidor no tiene Stripe configurado. Define <span className="font-mono text-fg">{missing.join(", ")}</span> en{" "}
-            <span className="font-mono text-fg">.env.local</span> (ver README, «Pagos con Stripe») y reinicia el servidor.
+            <span className="font-mono text-fg">.env.local</span> (ver README, «Checkout, pagos y pedidos») y reinicia el servidor.
           </p>
         ) : (
           <p className="mt-2 text-label font-normal text-fg-secondary">

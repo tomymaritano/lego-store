@@ -3,6 +3,7 @@ import { expect, waitFor } from "storybook/test";
 import type { OrderView } from "@/lib/orders/types";
 import { ConfirmationStep } from "./ConfirmationStep";
 import { PaymentStep } from "./PaymentStep";
+import { ShippingStep } from "./ShippingStep";
 
 /**
  * Checkout steps that depend on the server: the payment step in its test
@@ -76,6 +77,19 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const noop = () => {};
+
+/** Signed in: the name and email come from the account, and the hint says the order is tied to it. */
+export const ShippingSignedIn: Story = {
+  render: () => (
+    <ShippingStep initialData={null} account={{ name: "Ana Pérez", email: "ana@example.com" }} focusHeading={false} onSubmit={noop} />
+  ),
+  play: async (context) => {
+    await meta.play(context);
+    const email = context.canvasElement.querySelector<HTMLInputElement>('input[type="email"]');
+    await expect(email?.value).toBe("ana@example.com");
+    await expect(context.canvasElement.textContent).toContain("asociado a tu cuenta");
+  },
+};
 
 export const PaymentTestMode: Story = {
   render: () => (
