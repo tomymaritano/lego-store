@@ -83,7 +83,7 @@ function orderNumberOf(query: string): number | null {
  * (orderPlacedAt: submittedAt, or createdAt for a draft), the date the table
  * shows and "Pedidos de hoy" counts.
  */
-function orderWhere(filters: AdminOrderFilters): Prisma.OrderWhereInput {
+export function orderWhere(filters: AdminOrderFilters): Prisma.OrderWhereInput {
   const and: Prisma.OrderWhereInput[] = [];
   if (filters.status === "draft") and.push({ submittedAt: null });
   else if (filters.status === "amount_mismatch") and.push({ status: "CANCELLED", cancelReason: "amount_mismatch" });

@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterSelect } from "@/components/admin/FilterSelect";
 import { OrdersTable } from "@/components/admin/OrdersTable";
 import { Pagination } from "@/components/admin/Pagination";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { Button, Card, EmptyState, Field, Input } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -40,7 +41,8 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
       <PageHeader
         title="Pedidos"
         breadcrumbs={[{ label: "Administración", href: "/admin" }, { label: "Pedidos" }]}
-        description="Envía, entrega o cancela pedidos. Cancelar uno pagado lo reembolsa en Stripe y devuelve el stock."
+        description="Envía, entrega o cancela pedidos. Cancelar uno pagado lo reembolsa con su proveedor de pagos y devuelve el stock."
+        actions={<ExportButton kind="orders" params={{ status: filters.status, q: filters.q, from: filters.from, to: filters.to }} label="Exportar CSV (con productos)" />}
       />
 
       <Card className="mb-6 p-4">

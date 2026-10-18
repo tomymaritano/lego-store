@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterSelect } from "@/components/admin/FilterSelect";
 import { Pagination } from "@/components/admin/Pagination";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { Badge, Button, Card, EmptyState, Field, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
         title="Usuarios"
         breadcrumbs={[{ label: "Administración", href: "/admin" }, { label: "Usuarios" }]}
         description="Las cuentas de la tienda: sus pedidos, su rol y su acceso."
+        actions={<ExportButton kind="customers" params={params} />}
       />
 
       <Card className="mb-6 p-4">

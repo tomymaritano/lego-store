@@ -44,7 +44,7 @@ export interface AdminUserRow {
 
 const rowSelect = { id: true, name: true, email: true, role: true, blockedAt: true, createdAt: true } as const satisfies Prisma.UserSelect;
 
-function userWhere(filters: AdminUserFilters): Prisma.UserWhereInput {
+export function userWhere(filters: AdminUserFilters): Prisma.UserWhereInput {
   const and: Prisma.UserWhereInput[] = [];
   const q = filters.q.trim();
   if (q) {
@@ -59,7 +59,7 @@ function userWhere(filters: AdminUserFilters): Prisma.UserWhereInput {
 }
 
 /** Orders placed and money kept per user, for these users. */
-async function orderStats(db: Db, userIds: string[]): Promise<Map<string, { orders: number; spent: number }>> {
+export async function orderStats(db: Db, userIds: string[]): Promise<Map<string, { orders: number; spent: number }>> {
   const stats = new Map<string, { orders: number; spent: number }>();
   if (userIds.length === 0) return stats;
   const [placed, collected] = await Promise.all([
