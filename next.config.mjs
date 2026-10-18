@@ -1,3 +1,5 @@
+import { blobPublicHostname } from "./src/lib/blob-host.mjs";
+
 /**
  * Sent on every response. No page of ours is ever framed (the Stripe Payment
  * Element frames js.stripe.com inside our pages, not the other way round), so
@@ -20,9 +22,14 @@ const securityHeaders = [
     : []),
 ];
 
+/** This store's own Vercel Blob host (src/lib/blob-host.mjs), or null without one. */
+const blobHost = blobPublicHostname(process.env);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  // src/lib/images.ts (client code included) reads the Blob host from here, never the token.
+  env: { BLOB_PUBLIC_HOSTNAME: blobHost ?? "" },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
@@ -49,19 +56,16 @@ const nextConfig = {
     // the fallback. Optimised variants are cached, so the slower AVIF encode
     // is paid once per size.
     formats: ["image/avif", "image/webp"],
-    // Keep equal to REMOTE_IMAGE_PATTERNS (src/lib/images.ts): the lego.com CDN
-    // of the seed's pictures, and Vercel Blob for the admin's uploads.
+    // Keep equal to remoteImagePatterns() (src/lib/images.ts): the lego.com CDN
+    // of the seed's pictures, and this store's own Vercel Blob store (only
+    // its uploads/ folder) for the admin's uploads, never every Blob store.
     remotePatterns: [
       {
         protocol: "https",
         hostname: "www.lego.com",
         pathname: "/cdn/**",
       },
-      {
-        protocol: "https",
-        hostname: "*.public.blob.vercel-storage.com",
-        pathname: "/**",
-      },
+      ...(blobHost ? [{ protocol: "https", hostname: blobHost, pathname: "/uploads/**" }] : []),
     ],
   },
 };

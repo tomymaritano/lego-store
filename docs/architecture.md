@@ -232,7 +232,8 @@ flowchart LR
   igual se renderizan por pedido por la sesión del layout.
 - Solo `/search` tiene `loading.tsx`.
 - Imágenes: `next/image` con AVIF y WebP; `remotePatterns` para
-  `www.lego.com/cdn/**` y `*.public.blob.vercel-storage.com` (subidas).
+  `www.lego.com/cdn/**` y `uploads/**` del store de Blob de la tienda (subidas;
+  solo ese host, `src/lib/blob-host.mjs`).
 - `next.config.mjs` acepta `NEXT_DIST_DIR` (el proyecto `prod` de Playwright
   compila en `.next-e2e`) y define los headers de seguridad (anti-framing, CSP
   `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`, `nosniff`,

@@ -102,8 +102,12 @@ en el log el asunto y el destinatario enmascarado.
 1. En el proyecto de Vercel, **Storage → Blob → Create** y conéctalo: Vercel
    agrega `BLOB_READ_WRITE_TOKEN`.
 2. Las subidas se guardan públicas bajo `uploads/` y se sirven desde
-   `*.public.blob.vercel-storage.com`, que `next.config.mjs` ya permite para
-   `next/image`.
+   `<id del store>.public.blob.vercel-storage.com`. `next.config.mjs` permite para
+   `next/image` **solo ese host y esa carpeta**: lo saca del id del store que
+   trae `BLOB_READ_WRITE_TOKEN` (o de `BLOB_PUBLIC_HOSTNAME`, si lo defines) al
+   compilar. Un comodín sobre todos los stores de Blob haría que `/_next/image`
+   descargue y sirva imágenes de stores ajenos con la cuota de la tienda. Si
+   cambias de store, vuelve a desplegar.
 
 Sin el token, en Vercel el admin no puede subir (el disco es de solo lectura) y
 pega URLs. Este camino no se probó con un token real: verifícalo con una subida
@@ -171,6 +175,7 @@ siempre recalcula precios, stock y cupón desde Postgres.
 | `RESEND_API_KEY` / `EMAIL_FROM` | no | `src/lib/email/send.ts` | `re_…` / `LEGO Store <pedidos@tienda.example>` |
 | `STORE_NOTIFY_EMAIL` | no | Avisos de mensajes de contacto | `tienda@tienda.example` |
 | `BLOB_READ_WRITE_TOKEN` | no | Subidas a Vercel Blob | `vercel_blob_rw_…` |
+| `BLOB_PUBLIC_HOSTNAME` | no | Host del store de Blob que aceptan `next/image` y las URLs del admin (por defecto, el del token; se lee al compilar) | `abc123.public.blob.vercel-storage.com` |
 | `UPLOADS_DIR` | no | Carpeta de subidas locales (tests) | `/var/lego/uploads` |
 | `NEXT_PUBLIC_SITE_URL` | sí en producción | URLs absolutas: canonical, Open Graph, sitemap, emails, `back_urls` y `notification_url` de Mercado Pago, retorno de Stripe | `https://tienda.example` |
 | `POSTGRES_PORT` | no (Docker local) | `docker-compose.yml` | `5434` |

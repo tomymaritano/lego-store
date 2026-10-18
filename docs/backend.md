@@ -222,8 +222,9 @@ con un nombre aleatorio. El almacenamiento es un adaptador
 (`UploadStorage`, `src/lib/uploads/storage.ts`):
 
 - `BLOB_READ_WRITE_TOKEN` definido → **Vercel Blob** (`put` público bajo
-  `uploads/`, servido desde `*.public.blob.vercel-storage.com`, que
-  `next.config.mjs` permite);
+  `uploads/`, servido desde el host del propio store,
+  `<id>.public.blob.vercel-storage.com`, el único que `next.config.mjs` y
+  `isAllowedImageUrl` permiten: `src/lib/blob-host.mjs`);
 - si no, y fuera de Vercel → **disco** (`public/uploads`, gitignored, o
   `UPLOADS_DIR`), servido en `/uploads/<nombre>` (`next dev` lo sirve solo; un
   `next start` sirve los archivos nuevos con `src/app/uploads/[file]/route.ts`);
