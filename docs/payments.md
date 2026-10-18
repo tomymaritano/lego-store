@@ -63,8 +63,7 @@ bajo el bloqueo del pedido (`applyLocked` para Mercado Pago, los handlers de
   carrito y el primer paso del checkout ya dicen "Los pagos no están disponibles"
   (en desarrollo con la lista de lo que falta) y apagan "Finalizar compra" y
   "Continuar al pago", así un deploy mal configurado no deja que el cliente
-  complete la dirección para nada (`paymentsUnavailable()`; el carrito es una
-  página estática y lo lee al compilar, el checkout en cada request). Las rutas
+  complete la dirección para nada (`paymentsUnavailable()`, leído en cada request). Las rutas
   de checkout responden 503.
 - El resumen del admin muestra quién cobra los pedidos nuevos y en qué modo:
   producción, credenciales de prueba (`TEST-…` o `sk_test_…`), simulado o sin
