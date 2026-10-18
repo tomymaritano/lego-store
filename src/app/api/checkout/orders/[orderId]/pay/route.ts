@@ -36,7 +36,7 @@ import { orderIdSchema, payMercadoPagoOrderSchema, payOrderSchema } from "@/lib/
  * Both: 402 declined (with the reason) · 422 the payment data has to be
  * entered again, or code "coupon": the coupon cannot be used any more (its
  * place was taken, or this email used it up; prepare the order again without
- * it) · 409 sold out / not payable · 404 not this browser's order ·
+ * it) · 409 sold out / not payable · 404 not this browser's order · 413 body too large ·
  * 429 · 503 not configured.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
@@ -44,7 +44,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (refused) return refused;
 
   const id = orderIdSchema.safeParse((await params).orderId);
-  const raw = await jsonBody(request);
+  const read = await jsonBody(request);
+  if (!read.ok) return read.response;
+  const raw = read.body;
   const mercadopago = payMercadoPagoOrderSchema.safeParse(raw);
   const stripe = mercadopago.success ? null : payOrderSchema.safeParse(raw);
   if (!id.success || (!mercadopago.success && !stripe?.success)) return checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);

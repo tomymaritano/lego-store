@@ -6,6 +6,7 @@ import { MOCK_PROVIDER_COOKIE, checkoutProvider, getMercadoPago, getPaymentGatew
 import type { PaymentGateway } from "@/lib/payments/gateway";
 import type { MercadoPagoClient } from "@/lib/payments/mercadopago/types";
 import { clientIp, waitMessage, type RateLimiter } from "@/lib/rate-limit";
+import { readTextCapped } from "@/lib/request-body";
 import { CHECKOUT_COOKIE, checkoutCookieOptions, parseCheckoutCookie, serializeCheckoutCookie, type CheckoutAccess, type Requester } from "./access";
 import type { OrderPayments } from "./payments";
 import type { CheckoutError, CheckoutErrorCode, PaymentProviderId, UnavailableLine } from "./types";
@@ -86,12 +87,32 @@ export function setCheckoutCookie(response: NextResponse, access: CheckoutAccess
   response.cookies.set(CHECKOUT_COOKIE, serializeCheckoutCookie(access), checkoutCookieOptions());
 }
 
-/** Reads a JSON body; null when it is not JSON. */
-export async function jsonBody(request: NextRequest): Promise<unknown> {
+/**
+ * The largest checkout request body: the biggest real one (an order of
+ * MAX_ORDER_LINES lines with its shipping data, or the Payment Brick's
+ * formData) is a few kB.
+ */
+export const MAX_CHECKOUT_BODY_BYTES = 64 * 1024;
+
+/**
+ * Reads a JSON body with a byte cap (src/lib/request-body.ts), before any
+ * validation, rate limit or session lookup: these routes are public, so an
+ * unbounded body would let one client fill the server's memory. `body` is
+ * null when it is not JSON (or the client aborted it); a body over the cap
+ * is answered 413 without parsing it.
+ */
+export async function jsonBody(request: NextRequest): Promise<{ ok: true; body: unknown } | { ok: false; response: NextResponse }> {
+  let text: string | null;
   try {
-    return await request.json();
+    text = await readTextCapped(request, MAX_CHECKOUT_BODY_BYTES);
   } catch {
-    return null;
+    return { ok: true, body: null };
+  }
+  if (text === null) return { ok: false, response: checkoutError("invalid", "El pedido es demasiado grande.", 413) };
+  try {
+    return { ok: true, body: JSON.parse(text) as unknown };
+  } catch {
+    return { ok: true, body: null };
   }
 }
 

@@ -18,15 +18,17 @@ import { COUPON_CODE_MESSAGE } from "@/lib/validations/coupon-code";
  * checkout prepares it, and checks again.
  *
  * 200 { coupon: { code, type, value, minSubtotal, label, recheckToken }, totals } ·
- * 400 invalid · 422 code "coupon" with `rejection` and the reason in
- * Spanish · 429 (it is a guessable code: tries are limited per user or IP;
+ * 400 invalid · 413 body over MAX_CHECKOUT_BODY_BYTES · 422 code "coupon" with `rejection` and the reason in
+ * Spanish (an off or upcoming coupon reads as not_found unless the browser
+ * sends the token of an earlier accepted quote for it) · 429 (it is a guessable code: tries are limited per user or IP;
  * re-checks of a code it accepted, with its token, have their own, larger budget).
  */
 export async function POST(request: NextRequest) {
   const refused = crossSite(request);
   if (refused) return refused;
-  const body = await jsonBody(request);
-  const parsed = couponQuoteSchema.safeParse(body);
+  const read = await jsonBody(request);
+  if (!read.ok) return read.response;
+  const parsed = couponQuoteSchema.safeParse(read.body);
   if (!parsed.success) {
     const badCode = parsed.error.issues.some((issue) => issue.path[0] === "code");
     return badCode ? checkoutError("coupon", COUPON_CODE_MESSAGE, 422, { rejection: "invalid" }) : checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);
@@ -35,7 +37,8 @@ export async function POST(request: NextRequest) {
   const requester = await requesterOf(request);
   // Only a code this server accepted before gets the re-checks' budget: anything else is a try.
   const { code, recheck, recheckToken } = parsed.data;
-  const trusted = recheck === true && isCouponRecheckToken(code, recheckToken);
+  const knownCode = isCouponRecheckToken(code, recheckToken);
+  const trusted = recheck === true && knownCode;
   const limited = await rateLimited(trusted ? rateLimits.couponRecheck : rateLimits.couponQuote, request, requester);
   if (limited) return limited;
 
@@ -44,6 +47,7 @@ export async function POST(request: NextRequest) {
       code,
       lines: parsed.data.lines,
       userId: requester.userId,
+      knownCode,
     });
     if (!outcome.ok) return checkoutError("coupon", outcome.message, 422, { rejection: outcome.rejection });
     const quote: CouponQuote = { ...outcome.quote, coupon: { ...outcome.quote.coupon, recheckToken: couponRecheckToken(outcome.quote.coupon.code) } };

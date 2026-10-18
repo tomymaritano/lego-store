@@ -86,7 +86,7 @@ const ADMIN_CANCEL_REASONS: Record<Exclude<CancelReason, "admin">, string> = {
   payment_rejected: "El pago quedó en revisión y después fue rechazado; no se cobró nada.",
   chargeback: "El cliente desconoció el pago (contracargo); se devolvió el stock.",
   coupon_unavailable:
-    "Se pagó en el sitio de Mercado Pago cuando el cupón ya no se podía usar (agotado, límite del cliente o vencido); se reembolsó o se canceló el pago automáticamente.",
+    "El pago se acreditó (en el sitio de Mercado Pago, un ticket pagado tarde o tras 3D Secure) cuando el cupón ya no se podía usar (agotado, límite del cliente o vencido); se reembolsó o se canceló el pago automáticamente.",
 };
 
 /**

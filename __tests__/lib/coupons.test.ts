@@ -7,6 +7,7 @@ import {
   couponRejectionMessage,
   limitRejection,
   normalizeCouponCode,
+  visibleRejection,
   windowRejection,
   type CouponRow,
 } from "@/lib/coupons/rules";
@@ -57,8 +58,17 @@ describe("coupon rules", () => {
     expect(couponRejection(row({ active: false, maxRedemptions: 1 }), { total: 1, customer: 0 }, NOW)).toBe("inactive");
   });
 
+  it("tells a visitor guessing codes nothing about off or upcoming coupons; a code they had accepted gets the reason", () => {
+    expect(visibleRejection("inactive", false)).toBe("not_found");
+    expect(visibleRejection("not_started", false)).toBe("not_found");
+    expect(visibleRejection("expired", false)).toBe("expired");
+    expect(visibleRejection("exhausted", false)).toBe("exhausted");
+    expect(visibleRejection("inactive", true)).toBe("inactive");
+    expect(visibleRejection("not_started", true)).toBe("not_started");
+  });
+
   it("says why in Spanish, with the dates and amounts that matter", () => {
-    expect(couponRejectionMessage("not_found")).toMatch(/no existe/);
+    expect(couponRejectionMessage("not_found")).toMatch(/no es válido/);
     // expiresAt is exclusive: the last valid day is the one before (store time zone).
     expect(couponRejectionMessage("expired", { expiresAt: new Date("2026-11-01T03:00:00Z") })).toBe(
       "Este cupón venció: era válido hasta el 31 de octubre de 2026."

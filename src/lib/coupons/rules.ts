@@ -71,6 +71,18 @@ export function couponRejection(coupon: CouponRow, uses: CouponUses, now: Date):
   return windowRejection(coupon, now) ?? limitRejection(coupon, uses);
 }
 
+/**
+ * What a visitor is told about a code they have not had accepted before (no
+ * valid re-check token: src/lib/coupons/recheck.ts): a coupon an admin turned
+ * off, or one that has not started, reads like a code that does not exist,
+ * so guessing names (BLACKFRIDAY, ...) does not tell which coupons exist or
+ * when upcoming promotions start. A code the browser already applied gets
+ * the real reason.
+ */
+export function visibleRejection(rejection: CouponRejection, knownCode: boolean): CouponRejection {
+  return !knownCode && (rejection === "inactive" || rejection === "not_started") ? "not_found" : rejection;
+}
+
 // ---------------------------------------------------------------------------
 // Copy
 // ---------------------------------------------------------------------------
@@ -93,7 +105,7 @@ export function couponRejectionMessage(
   const date = (value: Date | string | null | undefined) => (value ? dateFormat.format(new Date(value)) : null);
   switch (reason) {
     case "not_found":
-      return "Ese código no existe. Revisa que esté bien escrito.";
+      return "Ese código no es válido. Revisa que esté bien escrito.";
     case "inactive":
       return "Este cupón ya no está disponible.";
     case "not_started": {

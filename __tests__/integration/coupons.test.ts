@@ -2,16 +2,19 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { randomUUID } from "node:crypto";
 import { createCoupon, getAdminCoupon, listAdminCoupons, setCouponActive, updateCoupon } from "@/lib/admin/coupons";
 import { changeOrderStatus } from "@/lib/admin/orders";
+import { NextRequest } from "next/server";
+import { MAX_CHECKOUT_BODY_BYTES } from "@/lib/orders/http";
 import { storeDayEnd } from "@/lib/admin/format";
 import type { Requester } from "@/lib/orders/access";
 import { payOrder, prepareOrder } from "@/lib/orders/checkout";
-import { expireStaleOrders } from "@/lib/orders/expire";
+import { TICKET_GRACE_MS, expireStaleOrders } from "@/lib/orders/expire";
 import { payMercadoPagoOrder, prepareMercadoPagoOrder } from "@/lib/orders/mercadopago";
-import { getMercadoPago, getMercadoPagoMockControls } from "@/lib/payments/config";
+import { getMercadoPago, getMercadoPagoMockControls, getPaymentGateway } from "@/lib/payments/config";
 import { toCentavos } from "@/lib/payments/gateway";
 import { mpMockToken } from "@/lib/payments/mercadopago/mock-options";
 import { mockGateway } from "@/lib/payments/mock";
 import type { MercadoPagoClient } from "@/lib/payments/mercadopago/types";
+import { couponRecheckToken } from "@/lib/coupons/recheck";
 import { couponFormSchema } from "@/lib/validations/coupons";
 import { prepareMercadoPagoOrderSchema, prepareOrderSchema, type PayMercadoPagoOrderInput } from "@/lib/validations/orders";
 import { resetAndSeed, testDb } from "./setup/db";
@@ -147,18 +150,24 @@ describe("POST /api/checkout/coupon (the cart's quote)", () => {
     await payMercadoPagoOrder(testDb, mp, used.order.id, card(), used.requester);
 
     const cases = [
-      ["NOEXISTE", "not_found", /no existe/],
+      ["NOEXISTE", "not_found", /no es válido/],
       [off.code, "inactive", /ya no está disponible/],
       [later.code, "not_started", /todavía no está vigente: puedes usarlo desde el/],
       [over.code, "expired", /venció: era válido hasta el 31 de enero de 2025/],
       [full.code, "exhausted", /límite de usos/],
     ] as const;
     for (const [code, rejection, message] of cases) {
-      const { status, body } = await quote({ code, lines: [BATMOBILE] });
+      // The real reason goes to a browser that had the code accepted before (its re-check token).
+      const recheckToken = couponRecheckToken(code)!;
+      const { status, body } = await quote({ code, lines: [BATMOBILE], recheck: true, recheckToken });
       expect(status, code).toBe(422);
       expect(body).toMatchObject({ code: "coupon", rejection });
       expect(String(body.error)).toMatch(message);
     }
+    // Anybody else trying codes cannot tell an off or upcoming coupon from one that does not exist (nor when it starts).
+    const unknown = await quote({ code: "NOEXISTE", lines: [BATMOBILE] });
+    for (const code of [off.code, later.code]) expect(await quote({ code, lines: [BATMOBILE] }), code).toEqual(unknown);
+    expect(unknown).toMatchObject({ status: 422, body: { rejection: "not_found", error: "Ese código no es válido. Revisa que esté bien escrito." } });
     const bad = await quote({ code: "no vale!", lines: [BATMOBILE] });
     expect(bad).toMatchObject({ status: 422, body: { code: "coupon", rejection: "invalid" } });
     expect((await quote({ code: "BIENVENIDA10", lines: [] })).status).toBe(400);
@@ -199,6 +208,17 @@ describe("POST /api/checkout/coupon (the cart's quote)", () => {
     }
     expect(statuses.every((status) => status === 422)).toBe(true);
     expect((await quote({ code: "NOPE99", lines: [BATMOBILE], recheck: true, recheckToken })).status).toBe(429);
+  });
+
+  it("refuses a body over the checkout's size cap before reading it all, and without using up a try", async () => {
+    const huge = await quoteRoute(jsonRequest("/api/checkout/coupon", { code: "A".repeat(MAX_CHECKOUT_BODY_BYTES), lines: [BATMOBILE] }));
+    expect(huge.status).toBe(413);
+    expect(await huge.json()).toMatchObject({ code: "invalid", error: "El pedido es demasiado grande." });
+    expect((await prepareRoute(jsonRequest("/api/checkout/orders", { shipping, lines: [BATMOBILE], padding: "x".repeat(MAX_CHECKOUT_BODY_BYTES) }))).status).toBe(413);
+    expect(await testDb.rateLimit.count()).toBe(0);
+    // Not JSON at all is still a plain 400.
+    const garbage = await quoteRoute(new NextRequest("http://localhost/api/checkout/coupon", { method: "POST", body: "{nope", headers: { "content-type": "application/json" } }));
+    expect(garbage.status).toBe(400);
   });
 
   it("limits how many codes one visitor can try", async () => {
@@ -252,6 +272,17 @@ describe("preparing the order reserves the coupon and prices it", () => {
     expect(await response.json()).toMatchObject({ code: "coupon", rejection: "expired", error: expect.stringMatching(/venció/) });
     expect(cookieOf(response)).toBeNull();
     expect(await testDb.order.count()).toBe(before);
+  });
+
+  it("an order with an off or upcoming coupon says why only to a browser that had the code accepted", async () => {
+    const later = await coupon({ startsAt: new Date(Date.now() + 2 * DAY) });
+    const body = { shipping, lines: [BATMOBILE], provider: "MERCADOPAGO", couponCode: later.code };
+    const guessing = await prepareRoute(jsonRequest("/api/checkout/orders", body));
+    expect(await guessing.json()).toMatchObject({ code: "coupon", rejection: "not_found", error: "Ese código no es válido. Revisa que esté bien escrito." });
+    const forged = await prepareRoute(jsonRequest("/api/checkout/orders", { ...body, couponToken: couponRecheckToken("OTHER") }));
+    expect(await forged.json()).toMatchObject({ rejection: "not_found" });
+    const applied = await prepareRoute(jsonRequest("/api/checkout/orders", { ...body, couponToken: couponRecheckToken(later.code) }));
+    expect(await applied.json()).toMatchObject({ rejection: "not_started", error: expect.stringMatching(/todavía no está vigente/) });
   });
 
   it("the order itself needs the coupon's minimum subtotal", async () => {
@@ -374,9 +405,104 @@ describe("limits", () => {
     expect(await payMercadoPagoOrder(testDb, mp, order.id, rejected, requester)).toMatchObject({ ok: false, code: "declined" });
     expect((await redemption(order.id))?.holdExpiresAt).not.toBeNull();
 
-    // A cash ticket: Mercado Pago has the payment, the order waits on it and holds its coupon.
-    await payMercadoPagoOrder(testDb, mp, order.id, cash(), requester);
+    // A card under review: Mercado Pago has an authorised payment, the order waits on it and holds its coupon.
+    const review: PayMercadoPagoOrderInput = { ...card(), formData: { ...card().formData!, token: mpMockToken("review") } };
+    expect(await payMercadoPagoOrder(testDb, mp, order.id, review, requester)).toMatchObject({ ok: true, order: { status: "PAYMENT_PENDING" } });
     expect(await redemption(order.id)).toMatchObject({ status: "RESERVED", holdExpiresAt: null });
+  });
+
+  it("an unpaid cash ticket holds its use for itself only: it counts toward nobody's limits until it is paid", async () => {
+    const { order, requester } = await preparedMp("BIENVENIDA10", { email: "ticket@coupons.test" });
+    await payMercadoPagoOrder(testDb, mp, order.id, cash(), requester);
+    const row = await testDb.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect(row.status).toBe("PAYMENT_PENDING");
+    // Held while the ticket can be paid (its expiry plus the sweep's grace), not "until it settles".
+    const held = await redemption(order.id);
+    expect(held).toMatchObject({ status: "RESERVED" });
+    expect(held!.holdExpiresAt!.getTime()).toBe(row.ticketExpiresAt!.getTime() + TICKET_GRACE_MS);
+  });
+
+  it("unpaid cash tickets cannot use up a limited coupon: others still get it, and a ticket paid after it ran out is refunded", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const squatter = await preparedMp(one.code, { email: "squatter@coupons.test" });
+    expect(await payMercadoPagoOrder(testDb, mp, squatter.order.id, cash(), squatter.requester)).toMatchObject({ ok: true, order: { status: "PAYMENT_PENDING" } });
+
+    // Another customer, no cookies: the quote, the order and the payment all go through.
+    expect((await quote({ code: one.code, lines: [BATMOBILE] })).status).toBe(200);
+    const buyer = await preparedMp(one.code, { email: "buyer@coupons.test" });
+    expect(await payMercadoPagoOrder(testDb, mp, buyer.order.id, card(), buyer.requester)).toMatchObject({ ok: true, order: { status: "PAID" } });
+
+    // The ticket is paid after all: the coupon has no use left, so the money goes back.
+    const paymentId = (await testDb.order.findUniqueOrThrow({ where: { id: squatter.order.id } })).providerPaymentId!;
+    controls().setStatus(paymentId, "approved", "accredited");
+    expect(await notify(paymentId)).toMatchObject({ result: "coupon_unavailable" });
+    expect(await testDb.order.findUniqueOrThrow({ where: { id: squatter.order.id } })).toMatchObject({
+      status: "CANCELLED",
+      cancelReason: "coupon_unavailable",
+      providerRefundId: expect.any(String),
+    });
+    expect(await testDb.couponRedemption.count({ where: { couponId: one.id, status: { in: ["REDEEMED", "RESERVED"] } } })).toBe(1);
+  });
+
+  it("a cash ticket paid while its coupon still fits is redeemed", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const { order, requester } = await preparedMp(one.code, { email: "pays-ticket@coupons.test" });
+    await payMercadoPagoOrder(testDb, mp, order.id, cash(), requester);
+    const paymentId = (await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).providerPaymentId!;
+    controls().setStatus(paymentId, "approved", "accredited");
+    expect(await notify(paymentId)).toMatchObject({ result: "paid" });
+    expect(await redemption(order.id)).toMatchObject({ status: "REDEEMED", holdExpiresAt: null });
+  });
+
+  it("an unpaid cash ticket in someone else's name does not take their per-customer use", async () => {
+    const once = await coupon({ maxPerUser: 1 });
+    const victim = "victima-ticket@coupons.test";
+    const attacker = await preparedMp(once.code, { email: victim });
+    await payMercadoPagoOrder(testDb, mp, attacker.order.id, cash(), attacker.requester);
+    const own = await preparedMp(once.code, { email: victim });
+    expect(await payMercadoPagoOrder(testDb, mp, own.order.id, card(), own.requester)).toMatchObject({ ok: true, order: { status: "PAID", discount: 249 } });
+  });
+
+  it("Stripe: a payment waiting on 3D Secure does not keep the coupon's use; if it succeeds after the use is gone, it is refunded", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const gateway = getPaymentGateway()!;
+    const prepare = async (email: string) => {
+      const outcome = await prepareOrder(
+        testDb,
+        gateway,
+        prepareOrderSchema.parse({ shipping: { ...shipping, email }, lines: [BATMOBILE], confirmationTokenId: "ctoken_mock_visa", couponCode: one.code }),
+        guest
+      );
+      if (!outcome.ok) throw new Error(outcome.code);
+      return { order: outcome.order, requester: { userId: null, access: outcome.access } satisfies Requester };
+    };
+    const challenged = await prepare("stripe-3ds@coupons.test");
+    // The bank asks for 3D Secure (the mock charges at once: what the customer answers later is the webhook below).
+    const charge = gateway.confirmIntent.bind(gateway);
+    const confirm = vi
+      .spyOn(gateway, "confirmIntent")
+      .mockImplementationOnce(async (...args) => ({ ...(await charge(...args)), status: "requires_action", clientSecret: "pi_mock_secret" }));
+    expect(await payOrder(testDb, gateway, challenged.order.id, "ctoken_mock_visa", challenged.requester)).toMatchObject({ ok: true, next: "action" });
+    confirm.mockRestore();
+    expect((await redemption(challenged.order.id))?.holdExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+
+    const other = await prepare("stripe-other@coupons.test");
+    expect(await payOrder(testDb, gateway, other.order.id, "ctoken_mock_visa", other.requester)).toMatchObject({ ok: true, next: "done" });
+    const otherRow = await testDb.order.findUniqueOrThrow({ where: { id: other.order.id } });
+    await stripeWebhook(webhookRequest("payment_intent.succeeded", { id: otherRow.stripePaymentIntentId!, orderId: otherRow.id, amountReceived: toCentavos(otherRow.total) }));
+    expect(await redemption(other.order.id)).toMatchObject({ status: "REDEEMED" });
+
+    // The bank challenge is answered late: the coupon has no use left.
+    const row = await testDb.order.findUniqueOrThrow({ where: { id: challenged.order.id } });
+    const response = await stripeWebhook(
+      webhookRequest("payment_intent.succeeded", { id: row.stripePaymentIntentId!, orderId: row.id, amountReceived: toCentavos(row.total) })
+    );
+    expect(await response.json()).toMatchObject({ result: "coupon_unavailable" });
+    expect(await testDb.order.findUniqueOrThrow({ where: { id: row.id } })).toMatchObject({
+      status: "CANCELLED",
+      cancelReason: "coupon_unavailable",
+      stripeRefundId: expect.any(String),
+    });
   });
 
   it("Checkout Pro only renews the short hold; the order holds it once it waits on Mercado Pago's payment", async () => {
@@ -681,11 +807,18 @@ describe("admin", () => {
     expect(after).toMatchObject({ status: "active", uses: 1, reserved: 0, lapsed: 1 });
     expect((await getAdminCoupon(testDb, tracked.id))?.redemptions.map((use) => use.status).sort()).toEqual(["LAPSED", "REDEEMED"]);
 
-    // A submitted payment (a cash ticket waiting to be paid) counts as a use: now it is used up.
+    // A cash ticket nobody paid yet is listed as reserved, and takes no use.
     const ticket = await preparedMp(tracked.code, { email: "l3@coupons.test" });
     await payMercadoPagoOrder(testDb, mp, ticket.order.id, cash(), ticket.requester);
+    const waiting = (await listAdminCoupons(testDb, { q: tracked.code, status: "", page: 1 })).items[0]!;
+    expect(waiting).toMatchObject({ status: "active", uses: 1, reserved: 1, held: 0 });
+
+    // A submitted payment that is under way (a card under review) counts as a use: now it is used up.
+    const review = await preparedMp(tracked.code, { email: "l4@coupons.test" });
+    const reviewCard: PayMercadoPagoOrderInput = { ...card(), formData: { ...card().formData!, token: mpMockToken("review") } };
+    await payMercadoPagoOrder(testDb, mp, review.order.id, reviewCard, review.requester);
     const full = (await listAdminCoupons(testDb, { q: tracked.code, status: "", page: 1 })).items[0]!;
-    expect(full).toMatchObject({ status: "exhausted", uses: 2, reserved: 1, held: 1 });
+    expect(full).toMatchObject({ status: "exhausted", uses: 2, reserved: 2, held: 1 });
   });
 });
 

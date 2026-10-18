@@ -193,7 +193,7 @@ test.describe("coupons", () => {
     await page.goto("/cart");
     await applyCoupon(page, "cart", "E2ENOEXISTE");
     const box = summary(page, "cart");
-    await expect(box.getByRole("alert")).toHaveText("Ese código no existe. Revisa que esté bien escrito.");
+    await expect(box.getByRole("alert")).toHaveText("Ese código no es válido. Revisa que esté bien escrito.");
     await expect(box.getByLabel("Código de descuento")).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByTestId("cart-discount")).toHaveCount(0);
 

@@ -16,7 +16,7 @@ import { orderIdSchema, syncOrderSchema } from "@/lib/validations/orders";
  * is only used when Mercado Pago confirms that payment is this order's.
  * Only for the order's owner or the browser holding its checkout cookie.
  *
- * 200 { order } · 400 · 404 · 429 · 502 Mercado Pago did not answer · 503.
+ * 200 { order } · 400 · 413 · 404 · 429 · 502 Mercado Pago did not answer · 503.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
   const refused = crossSite(request);
@@ -25,7 +25,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if ("response" in payments) return payments.response;
 
   const id = orderIdSchema.safeParse((await params).orderId);
-  const body = syncOrderSchema.safeParse((await jsonBody(request)) ?? {});
+  const read = await jsonBody(request);
+  if (!read.ok) return read.response;
+  const body = syncOrderSchema.safeParse(read.body ?? {});
   if (!id.success || !body.success) return checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);
 
   const requester = await requesterOf(request);

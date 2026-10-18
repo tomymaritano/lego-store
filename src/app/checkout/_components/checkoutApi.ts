@@ -43,6 +43,8 @@ export type PrepareRequest = {
   lines: { productId: string; quantity: number }[];
   /** The applied coupon's code: the server validates it, reserves a use and prices the order with it. */
   couponCode?: string;
+  /** The token the cart's quote returned for that code: a refusal then says the real reason. */
+  couponToken?: string;
 } & ({ confirmationTokenId: string } | { provider: "MERCADOPAGO" });
 
 /** Entering "Revisar": the server prices the order and creates (or updates) it. */

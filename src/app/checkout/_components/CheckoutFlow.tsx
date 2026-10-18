@@ -236,7 +236,8 @@ export function CheckoutFlow({
     const controller = new AbortController();
     const lines = cartStore().cart.map((line) => ({ productId: line.id, quantity: line.quantity }));
     const requestedCoupon = couponCodeFor(cartStore().cart);
-    const withCoupon = requestedCoupon ? { couponCode: requestedCoupon } : {};
+    const couponToken = requestedCoupon ? couponStore().coupon?.recheckToken : null;
+    const withCoupon = requestedCoupon ? { couponCode: requestedCoupon, ...(couponToken ? { couponToken } : {}) } : {};
     const request: PrepareRequest = isMercadoPagoPayment(card)
       ? { shipping, lines, ...withCoupon, provider: "MERCADOPAGO" }
       : { shipping, lines, ...withCoupon, confirmationTokenId: card.confirmationTokenId };

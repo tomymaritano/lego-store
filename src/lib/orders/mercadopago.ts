@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { relaxOrderCoupon, secureOrderCoupon, type CouponCustomer } from "@/lib/coupons/server";
+import { holdCouponUntilPaid, relaxOrderCoupon, secureOrderCoupon, type CouponCustomer } from "@/lib/coupons/server";
 import type { CouponRejection } from "@/lib/coupons/rules";
 import type { OrderTotals } from "@/lib/pricing";
 import { cancelMercadoPagoPayment, mercadoPagoEvent, mercadoPagoProvider } from "@/lib/payments/mercadopago/provider";
@@ -52,7 +52,9 @@ import { restock, takeStock } from "./webhook";
  *
  *   approved      PENDING | PAYMENT_PENDING -> PAID, taking the stock
  *                 atomically and clearing the account's cart; a Checkout Pro
- *                 payment whose coupon no longer fits (secureOrderCoupon):
+ *                 payment, or a cash ticket, whose coupon no longer fits
+ *                 (secureOrderCoupon: an unpaid ticket's use does not count
+ *                 toward the coupon's limits, holdCouponUntilPaid):
  *                 refund -> CANCELLED (coupon_unavailable); when a line is
  *                 short, or the order's own pending payment was approved for
  *                 another amount: refund -> CANCELLED. A payment for an amount
@@ -98,6 +100,19 @@ type Tx = Prisma.TransactionClient;
 /** A Mercado Pago payment as the provider reports it (src/lib/payments/mercadopago/provider.ts). */
 type MpEvent = NormalizedPaymentEvent<MpPayment>;
 type Source = "checkout" | "webhook" | "return" | "expire" | "admin";
+
+/** Mercado Pago marks an unpaid ticket cancelled when it expires; after this much more, the sweep (./expire.ts) asks itself. */
+export const TICKET_GRACE_MS = 24 * 60 * 60 * 1000;
+/** A payment pending this long (a card under review, a ticket without expiry) is given up by the sweep. */
+export const PAYMENT_PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Until when an order waiting on a payment nobody has made yet (a cash
+ * ticket) holds its coupon's use without counting it toward the coupon's
+ * limits (holdCouponUntilPaid): as long as the sweep lets the order wait.
+ */
+const unpaidHoldUntil = (payment: MpPayment, now: Date) =>
+  payment.expiresAt ? new Date(new Date(payment.expiresAt).getTime() + TICKET_GRACE_MS) : new Date(now.getTime() + PAYMENT_PENDING_TTL_MS);
 
 /** The refund of a payment that is not the order's (a second payment, one after the order was cancelled). */
 const strayRefundKey = (orderId: string, paymentId: string) => `order/${orderId}/refund/${paymentId}`;
@@ -451,7 +466,8 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, event
           await update({ ...paymentFields(payment), ...cancelled("amount_mismatch"), providerRefundId: refundId });
           return { result: "amount_mismatch", orderId: order.id };
         }
-        // Paid on Mercado Pago's site (Checkout Pro): its coupon is checked now, before the stock is taken.
+        // Paid on Mercado Pago's site (Checkout Pro), or a cash ticket paid at last (its use did not count while
+        // unpaid): its coupon is checked now, before the stock is taken.
         if (!(await secureOrderCoupon(tx, order.id)).ok) {
           console.warn(`[mercadopago] El pago ${payment.id} del pedido ${order.id} usó un cupón que ya no se puede usar: se reembolsa y se cancela.`);
           const refundId = await refund(orderRefundKey(order.id));
@@ -501,6 +517,9 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, event
           return { result: "coupon_unavailable", orderId: order.id, refunded: false };
         }
         await update({ ...paymentFields(payment), status: "PAYMENT_PENDING", submittedAt: order.submittedAt ?? new Date() });
+        // A cash ticket costs nothing to print: until it is paid, its use does not count toward the coupon's
+        // total or the email's limit (the approval checks them again). A card under review was authorised: it keeps it.
+        if (!isCardPaymentType(payment.paymentTypeId)) await holdCouponUntilPaid(tx, order.id, unpaidHoldUntil(payment, new Date()));
         return { result: "pending", orderId: order.id };
       }
       if (isCurrent && order.status === "PAYMENT_PENDING") await update(paymentFields(payment));

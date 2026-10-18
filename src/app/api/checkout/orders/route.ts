@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isCouponRecheckToken } from "@/lib/coupons/recheck";
+import { couponRejectionMessage, visibleRejection } from "@/lib/coupons/rules";
 import { getDb } from "@/lib/db";
 import { prepareOrder, type PrepareOutcome } from "@/lib/orders/checkout";
 import {
@@ -22,7 +24,7 @@ import { prepareMercadoPagoOrderSchema, prepareOrderSchema } from "@/lib/validat
 
 /**
  * POST /api/checkout/orders: the checkout reached "Revisar".
- * Body: { shipping, lines: [{ productId, quantity }], couponCode? } plus, for Stripe,
+ * Body: { shipping, lines: [{ productId, quantity }], couponCode?, couponToken? } plus, for Stripe,
  * { confirmationTokenId } or, for Mercado Pago, { provider: "MERCADOPAGO" }
  * (the provider is the store's: PAYMENT_PROVIDER). Creates this browser's
  * PENDING order (with a PaymentIntent, for Stripe) or updates the pending one,
@@ -30,7 +32,7 @@ import { prepareMercadoPagoOrderSchema, prepareOrderSchema } from "@/lib/validat
  * coupon's use is reserved for the order). A new order comes with the
  * checkout cookie that lets this browser pay and follow it.
  *
- * 200 { order } · 400 invalid · 409 unavailable (with the lines) · 422 the
+ * 200 { order } · 400 invalid · 413 body too large · 409 unavailable (with the lines) · 422 the
  * payment step has to be done again (a spent card token, or it was for the
  * other provider), or code "coupon": the coupon cannot be used (with why) ·
  * 429 · 503 payments not configured.
@@ -42,7 +44,9 @@ export async function POST(request: NextRequest) {
   const payments = provider === "STRIPE" ? gatewayOr503() : mercadoPagoOr503();
   if ("response" in payments) return payments.response;
 
-  const body = await jsonBody(request);
+  const read = await jsonBody(request);
+  if (!read.ok) return read.response;
+  const { body } = read;
   const stripe = provider === "STRIPE" ? prepareOrderSchema.safeParse(body) : null;
   const mercadopago = provider === "MERCADOPAGO" ? prepareMercadoPagoOrderSchema.safeParse(body) : null;
   if (!stripe?.success && !mercadopago?.success) {
@@ -57,7 +61,7 @@ export async function POST(request: NextRequest) {
   const limited = await rateLimited(rateLimits.checkoutPrepare, request, requester);
   if (limited) return limited;
   // An order with a coupon holds one of its uses for a while: those have a tighter budget.
-  const couponCode = stripe?.success ? stripe.data.couponCode : mercadopago?.data?.couponCode;
+  const { couponCode, couponToken } = stripe?.success ? stripe.data : mercadopago!.data!;
   if (couponCode) {
     const hoarding = await rateLimited(rateLimits.couponPrepare, request, requester);
     if (hoarding) return hoarding;
@@ -71,8 +75,12 @@ export async function POST(request: NextRequest) {
       switch (outcome.code) {
         case "unavailable":
           return checkoutError("unavailable", CHECKOUT_MESSAGES.unavailable, 409, { unavailable: outcome.unavailable });
-        case "coupon":
-          return checkoutError("coupon", outcome.message, 422, { rejection: outcome.rejection });
+        case "coupon": {
+          // A code this browser never had accepted: an off or upcoming coupon reads as one that does not exist.
+          const rejection = visibleRejection(outcome.rejection, Boolean(couponCode) && isCouponRecheckToken(couponCode!, couponToken));
+          const message = rejection === outcome.rejection ? outcome.message : couponRejectionMessage(rejection);
+          return checkoutError("coupon", message, 422, { rejection });
+        }
         default:
           return checkoutError("payment_method", CHECKOUT_MESSAGES.payment_method, 422);
       }

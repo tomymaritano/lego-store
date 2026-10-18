@@ -34,6 +34,8 @@ export const prepareOrderSchema = z.object({
   confirmationTokenId: confirmationTokenIdSchema,
   /** The coupon applied in the cart or the checkout, if any: validated and reserved on the server. */
   couponCode: couponCodeSchema.optional(),
+  /** The re-check token the cart's quote returned for that code (src/lib/coupons/recheck.ts): only how a refusal is worded depends on it. */
+  couponToken: z.string().max(128).optional(),
 });
 
 export type PrepareOrderInput = z.infer<typeof prepareOrderSchema>;
@@ -56,6 +58,7 @@ export const prepareMercadoPagoOrderSchema = z.object({
   shipping: shippingSchema,
   lines: prepareOrderSchema.shape.lines,
   couponCode: prepareOrderSchema.shape.couponCode,
+  couponToken: prepareOrderSchema.shape.couponToken,
   provider: z.literal("MERCADOPAGO"),
 });
 

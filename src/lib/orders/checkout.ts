@@ -1,5 +1,14 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { claimCoupon, holdOrderCoupon, relaxOrderCoupon, secureOrderCoupon, type CouponClaim, type CouponCustomer } from "@/lib/coupons/server";
+import {
+  COUPON_HOLD_MS,
+  claimCoupon,
+  holdCouponUntilPaid,
+  holdOrderCoupon,
+  relaxOrderCoupon,
+  secureOrderCoupon,
+  type CouponClaim,
+  type CouponCustomer,
+} from "@/lib/coupons/server";
 import type { CouponRejection } from "@/lib/coupons/rules";
 import type { Db } from "@/lib/lists/product";
 import { linesSubtotal, orderTotals, type OrderTotals } from "@/lib/pricing";
@@ -361,6 +370,9 @@ export async function payOrder(
     await tx.order.updateMany({ where: { id: order.id, submittedAt: null }, data: { submittedAt: new Date() } });
     if (intent.status === "requires_action") {
       if (!intent.clientSecret) throw new Error(`PaymentIntent ${intent.id} needs an action but has no client secret`);
+      // Nothing is paid until the customer answers their bank (and leaving it unanswered costs nothing): the use
+      // goes back to a short hold, and the webhook checks the coupon again when the payment succeeds.
+      await holdCouponUntilPaid(tx, order.id, new Date(Date.now() + COUPON_HOLD_MS));
       return { ok: true, next: "action", clientSecret: intent.clientSecret, order: await view() };
     }
     return { ok: true, next: "done", order: await view() };

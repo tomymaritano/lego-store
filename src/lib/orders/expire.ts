@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { PaymentGateway } from "@/lib/payments/gateway";
-import { retireAnyOrder, type OnApplied } from "./mercadopago";
+import { PAYMENT_PENDING_TTL_MS, TICKET_GRACE_MS, retireAnyOrder, type OnApplied } from "./mercadopago";
+
+export { PAYMENT_PENDING_TTL_MS, TICKET_GRACE_MS };
 import { asOrderPayments, type OrderPayments } from "./payments";
 
 /*
@@ -25,10 +27,6 @@ import { asOrderPayments, type OrderPayments } from "./payments";
 
 /** Pending orders untouched for this long are cancelled. */
 export const PENDING_ORDER_TTL_MS = 24 * 60 * 60 * 1000;
-/** Mercado Pago marks an unpaid ticket cancelled when it expires; after this much more, the sweep asks itself. */
-export const TICKET_GRACE_MS = 24 * 60 * 60 * 1000;
-/** A payment pending this long (a card under review, a ticket without expiry) is given up. */
-export const PAYMENT_PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function expireStaleOrders(
   db: PrismaClient,

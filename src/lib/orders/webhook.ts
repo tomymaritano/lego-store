@@ -1,14 +1,18 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { toCentavos, type PaymentGateway } from "@/lib/payments/gateway";
 import { orderRefundKey } from "@/lib/payments/provider";
+import { secureOrderCoupon } from "@/lib/coupons/server";
 
 /*
  * What Stripe's webhook does to orders (the route verifies the signature
  * first: src/app/api/stripe/webhook/route.ts).
  *
  *   payment_intent.succeeded       PENDING -> PAID, taking the stock; or, when
- *                                  any line is short, or Stripe charged anything
- *                                  but the order's total, refund -> CANCELLED
+ *                                  any line is short, Stripe charged anything
+ *                                  but the order's total, or the coupon no
+ *                                  longer fits (a 3D Secure payment's use did
+ *                                  not count while it waited: src/lib/coupons/server.ts),
+ *                                  refund -> CANCELLED
  *   payment_intent.payment_failed  stays PENDING (the customer can try another
  *                                  card), out of "Mis pedidos" again
  *   payment_intent.canceled        PENDING -> CANCELLED
@@ -50,6 +54,8 @@ export type WebhookOutcome =
   | { result: "paid"; orderId: string; productIds: string[] }
   | { result: "out_of_stock"; orderId: string }
   | { result: "amount_mismatch"; orderId: string }
+  /** Its coupon no longer fit when the payment succeeded (the use was taken while 3D Secure waited): refunded, CANCELLED. */
+  | { result: "coupon_unavailable"; orderId: string }
   | { result: "refunded"; orderId: string }
   | { result: "cancelled"; orderId: string }
   /** charge.refunded cancelled the order; `productIds` got their stock back (empty when it was not paid yet). */
@@ -186,6 +192,15 @@ async function onSucceeded(tx: Tx, gateway: PaymentGateway, intent: IntentObject
   }
 
   if (order.status === "PENDING") {
+    if (!(await secureOrderCoupon(tx, order.id)).ok) {
+      console.warn(`[stripe] ${intent.id} pagó el pedido ${order.id} con un cupón que ya no se puede usar: se reembolsa y se cancela.`);
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "coupon_unavailable" },
+      });
+      await refundInto(tx, gateway, order.id, intent.id);
+      return { result: "coupon_unavailable", orderId: order.id };
+    }
     if (await takeStock(tx, order)) {
       const now = new Date();
       await tx.order.update({ where: { id: order.id }, data: { status: "PAID", paidAt: now } });

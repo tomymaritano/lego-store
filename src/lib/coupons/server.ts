@@ -8,6 +8,7 @@ import {
   couponRejectionMessage,
   limitRejection,
   termsOf,
+  visibleRejection,
   type CouponRejection,
   type CouponRow,
   type CouponUses,
@@ -34,6 +35,16 @@ import {
  *   moves; a refused payment puts the short hold back (relaxOrderCoupon). So
  *   when the last uses are contested, the first to pay gets them and the
  *   others learn it when they submit their payment.
+ * - A submitted payment that nobody has paid yet, and that costs nothing to
+ *   submit, does not keep a committed use: a cash ticket (Rapipago, Pago
+ *   Fácil) waits days to be paid, and a card's 3D Secure challenge can be
+ *   left unanswered. Its order holds the use with a hold that runs as long as
+ *   the payment may still come in (holdCouponUntilPaid): it counts toward the
+ *   account's own limit only, not toward the coupon's total or an email's,
+ *   and the approval checks the limits again (secureOrderCoupon) and gives
+ *   the money back if the coupon no longer fits. So printing tickets (or
+ *   abandoning 3D Secure) with a coupon, or with someone else's email, takes
+ *   nobody's use.
  * - Checkout Pro ("Cuenta de Mercado Pago") is paid on Mercado Pago's site:
  *   opening it renews the short hold, its preference expires with it, and
  *   the payment's report runs the same check before the order becomes PAID
@@ -48,7 +59,8 @@ import {
  *   "Revisar", payment);
  * - by email (a guest is their email; an account's guest orders with the
  *   same email count too): only uses that are paid or whose payment was
- *   submitted, and only when the payment is submitted. Anybody can type an
+ *   submitted and is under way (not an unpaid ticket), and only when the
+ *   payment is submitted or approved. Anybody can type an
  *   email, so an unpaid checkout with someone's email never takes that
  *   person's uses, and neither the quote nor "Revisar" tells whether an
  *   email has used a coupon.
@@ -215,12 +227,15 @@ export type CouponSecured =
  * Checks the order's coupon again with the coupon locked (the order's row is
  * locked by the caller) and holds its use until the order settles. Runs:
  * - on "Realizar pedido", before any money moves;
- * - when Mercado Pago reports a payment for an order whose use is not held
- *   that way yet (Checkout Pro: the payment is made on Mercado Pago's site,
- *   so nothing was submitted here): before the order becomes PAID or
- *   PAYMENT_PENDING (src/lib/orders/mercadopago.ts applyLocked). So a
- *   preference paid after its hold lapsed, or one of several preferences
- *   with the same email, cannot take a use the coupon no longer has.
+ * - when a provider reports a payment for an order whose use is not held
+ *   that way (Checkout Pro: the payment is made on Mercado Pago's site, so
+ *   nothing was submitted here; a cash ticket or a 3D Secure payment, held
+ *   by holdCouponUntilPaid until it is paid): before the order becomes PAID
+ *   or PAYMENT_PENDING (src/lib/orders/mercadopago.ts applyLocked,
+ *   src/lib/orders/webhook.ts onSucceeded). So a preference paid after its
+ *   hold lapsed, one of several preferences with the same email, or a ticket
+ *   paid after others used the coupon up, cannot take a use the coupon no
+ *   longer has.
  *
  * What is checked:
  * - a live hold: the limits (its total, the account's and now the email's).
@@ -258,6 +273,18 @@ export async function secureOrderCoupon(
   return { ok: true, heldUntil };
 }
 
+/**
+ * The order's payment was submitted but nothing is paid yet, and it costs
+ * nothing to leave it that way (a cash ticket, a card waiting on 3D Secure):
+ * its use is held until `until` (when the order stops waiting for it), which
+ * counts toward the account's own limit only. The approval checks the limits
+ * again (secureOrderCoupon). Called after the order's status changed (the
+ * coupons trigger makes a PAYMENT_PENDING order's hold last until it settles).
+ */
+export async function holdCouponUntilPaid(tx: Tx, orderId: string, until: Date): Promise<void> {
+  await tx.couponRedemption.updateMany({ where: { orderId, status: "RESERVED" }, data: { holdExpiresAt: until } });
+}
+
 /** A submitted payment was refused (the order stays at the checkout): its coupon goes back to a short hold. */
 export async function relaxOrderCoupon(tx: Tx, orderId: string, now: Date = new Date()): Promise<void> {
   await tx.couponRedemption.updateMany({ where: { orderId, status: "RESERVED", holdExpiresAt: null }, data: { holdExpiresAt: holdUntil(now) } });
@@ -283,13 +310,25 @@ export type CouponQuoteOutcome = { ok: true; quote: CouponQuote } | { ok: false;
  * minimum is not a refusal here: the coupon stays applied and the totals say
  * how much is missing (the order itself is refused until it is reached).
  * The per-customer limit is only the signed-in account's (`userId`).
+ * `knownCode`: the browser proved it had this code accepted before (its
+ * re-check token); otherwise an off or upcoming coupon reads as not found
+ * (visibleRejection).
  */
 export async function quoteCoupon(
   db: Db,
-  { code, lines, userId, now = new Date() }: { code: string; lines: { productId: string; quantity: number }[]; userId: string | null; now?: Date }
+  {
+    code,
+    lines,
+    userId,
+    knownCode = false,
+    now = new Date(),
+  }: { code: string; lines: { productId: string; quantity: number }[]; userId: string | null; knownCode?: boolean; now?: Date }
 ): Promise<CouponQuoteOutcome> {
   const checked = await checkCoupon(db, code, { userId, email: null }, { now });
-  if (!checked.ok) return { ok: false, rejection: checked.rejection, message: couponRejectionMessage(checked.rejection, checked.coupon) };
+  if (!checked.ok) {
+    const rejection = visibleRejection(checked.rejection, knownCode);
+    return { ok: false, rejection, message: couponRejectionMessage(rejection, checked.coupon) };
+  }
 
   const products = await db.product.findMany({
     where: { id: { in: lines.map((line) => line.productId) }, archivedAt: null },

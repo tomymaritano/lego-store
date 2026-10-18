@@ -62,7 +62,12 @@ export async function POST(request: NextRequest) {
   // A refund cancelled a paid order: its stock is back on sale.
   if (outcome.result === "refund_cancelled" && outcome.productIds.length > 0) invalidateCatalog({ productIds: outcome.productIds });
   // The customer was charged and is getting the money back: tell them (a guest has no other way to know).
-  if (outcome.result === "refund_cancelled" || outcome.result === "amount_mismatch" || outcome.result === "out_of_stock") {
+  if (
+    outcome.result === "refund_cancelled" ||
+    outcome.result === "amount_mismatch" ||
+    outcome.result === "out_of_stock" ||
+    outcome.result === "coupon_unavailable"
+  ) {
     await sendOrderCancelled(db, outcome.orderId);
   }
   return Response.json({ received: true, result: outcome.result });
