@@ -5,15 +5,19 @@ import { AnimatePresence, m } from "motion/react";
 import { Lock, RotateCcw, ShieldCheck } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { fadeIn } from "@/lib/motion";
-import { linesSubtotal } from "@/lib/pricing";
 import { formatPrice } from "@/lib/utils";
 import { ProductImage } from "@/components/product/ProductImage";
-import { OrderTotals } from "@/components/cart/OrderTotals";
+import { CouponField, type CouponFieldProps } from "@/components/cart/CouponField";
+import { OrderTotals, type TotalsView } from "@/components/cart/OrderTotals";
 import { Card, CardContent, CardHeader, Spinner } from "@/components/ui";
 import type { CartItem } from "@/types";
 
 interface OrderSummaryProps {
   lines: CartItem[];
+  /** The server's order once prepared ("Revisar"), the cart's own pricing before. */
+  totals: TotalsView;
+  /** The coupon field (what a code would apply to, the checkout's email). */
+  coupon: Omit<CouponFieldProps, "testIdPrefix" | "disabled">;
   /** While the payment runs the totals dim behind a spinner. */
   isProcessing?: boolean;
 }
@@ -44,11 +48,11 @@ function useOverflowsY<T extends HTMLElement>(contentKey: unknown) {
 
 /**
  * Checkout sidebar (desktop only: phones and tablets get MobileSummaryBar
- * above the form instead): the lines being bought and the same totals block the cart
- * page shows (OrderTotals, lib/pricing), so the amounts always agree.
+ * above the form instead): the lines being bought, the coupon field and the
+ * same totals block the cart page shows (OrderTotals, lib/pricing), so the
+ * amounts always agree.
  */
-export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps) {
-  const count = lines.reduce((sum, line) => sum + line.quantity, 0);
+export function OrderSummary({ lines, totals, coupon, isProcessing = false }: OrderSummaryProps) {
   const [listRef, listScrolls] = useOverflowsY<HTMLUListElement>(lines.length);
 
   return (
@@ -89,10 +93,11 @@ export function OrderSummary({ lines, isProcessing = false }: OrderSummaryProps)
           ))}
         </ul>
 
+        <CouponField {...coupon} disabled={isProcessing} testIdPrefix="checkout" className="border-t border-border pt-4" />
+
         <div className="relative border-t border-border pt-4">
           <OrderTotals
-            subtotal={linesSubtotal(lines)}
-            count={count}
+            totals={totals}
             testIdPrefix="checkout"
             className={isProcessing ? "opacity-50 transition-opacity duration-base" : "transition-opacity duration-base"}
           />

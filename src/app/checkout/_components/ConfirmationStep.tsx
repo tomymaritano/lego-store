@@ -133,6 +133,12 @@ export function ConfirmationStep({ order, canViewInAccount, stale = false, waiti
             <dd className="text-title text-fg tabular-nums" data-testid="order-total">
               {formatPrice(order.total)}
             </dd>
+            {order.discount > 0 ? (
+              <dd className="text-caption font-semibold text-success" data-testid="order-discount">
+                Ahorraste {formatPrice(order.discount)}
+                {order.couponCode ? ` con ${order.couponCode}` : ""}
+              </dd>
+            ) : null}
           </div>
           <div className="sm:text-right">
             <dt className="text-caption text-fg-muted">Pago</dt>

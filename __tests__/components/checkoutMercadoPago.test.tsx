@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { CheckoutFlow } from "@/app/checkout/_components/CheckoutFlow";
 import type { OrderView } from "@/lib/orders/types";
 import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
-import { useCartStore, useCheckoutStore } from "@/stores";
+import { useCartStore, useCheckoutStore, useCouponStore } from "@/stores";
 import { makeOrder } from "../helpers/orders";
 
 /*
@@ -80,11 +80,13 @@ describe("Checkout with Mercado Pago", { timeout: 20_000 }, () => {
   beforeAll(async () => {
     await import("@/lib/validations/resolvers");
     await useCartStore.persist.rehydrate();
+    await useCouponStore.persist.rehydrate();
     window.scrollTo = vi.fn() as typeof window.scrollTo;
   });
 
   beforeEach(() => {
     useCheckoutStore.getState().resetCheckout();
+    useCouponStore.getState().remove();
     useCartStore.setState({ cart: [line("1", 899, 2), line("2", 649)], owner: null });
   });
 

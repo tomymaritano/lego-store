@@ -2,24 +2,30 @@
 
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
+import { orderTotals } from "@/lib/pricing";
+import { useAppliedCoupon } from "@/stores";
+import type { CartItem } from "@/types";
 import { Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { CouponField } from "./CouponField";
 import { FreeShippingProgress } from "./FreeShippingProgress";
-import { OrderTotals } from "./OrderTotals";
+import { OrderTotals, totalsView } from "./OrderTotals";
 
 interface OrderSummaryProps {
-  subtotal: number;
-  /** Units in the cart. */
-  count: number;
+  lines: CartItem[];
   className?: string;
 }
 
 /**
- * Cart page totals: subtotal, shipping ($299, free from $5000) with the
- * progress toward free shipping, total and the checkout CTA. Shipping comes
- * from lib/pricing (OrderTotals), the same rule the drawer and checkout use.
- * A secondary "Seguir comprando" link returns to the store.
+ * Cart page totals: subtotal, the coupon's discount, shipping ($299, free
+ * from $5000) with the progress toward free shipping, total and the checkout
+ * CTA. The amounts come from lib/pricing (orderTotals), the same rules the
+ * drawer, checkout and the server use; the coupon field asks the server
+ * whether a code applies. A secondary "Seguir comprando" link returns to the store.
  */
-export function OrderSummary({ subtotal, count, className }: OrderSummaryProps) {
+export function OrderSummary({ lines, className }: OrderSummaryProps) {
+  const coupon = useAppliedCoupon();
+  const totals = orderTotals(lines, coupon);
+  const subtotal = totals.subtotal;
   return (
     <Card className={className} aria-labelledby="order-summary-title" role="region">
       <CardHeader>
@@ -30,7 +36,9 @@ export function OrderSummary({ subtotal, count, className }: OrderSummaryProps) 
       <CardContent className="space-y-5">
         <FreeShippingProgress subtotal={subtotal} className="rounded-xl bg-bg-subtle p-3" />
 
-        <OrderTotals subtotal={subtotal} count={count} testIdPrefix="cart" />
+        <CouponField lines={lines.map((line) => ({ productId: line.id, quantity: line.quantity }))} subtotal={subtotal} testIdPrefix="cart" />
+
+        <OrderTotals totals={totalsView(totals)} testIdPrefix="cart" />
 
         <div className="space-y-3">
           <Button className="w-full" size="lg" render={<Link href="/checkout" />} data-testid="cart-checkout-btn">

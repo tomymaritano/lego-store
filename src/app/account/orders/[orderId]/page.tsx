@@ -132,6 +132,16 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
                   <dt className="text-fg-secondary">Subtotal ({count === 1 ? "1 producto" : `${count} productos`})</dt>
                   <dd className="text-fg tabular-nums">{formatPrice(order.subtotal)}</dd>
                 </div>
+                {order.discount > 0 ? (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-fg-secondary">
+                      Descuento{order.couponCode ? <span className="ml-1 font-mono text-caption text-fg-muted">({order.couponCode})</span> : null}
+                    </dt>
+                    <dd className="font-semibold text-success tabular-nums" data-testid="order-discount">
+                      −{formatPrice(order.discount)}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between gap-4">
                   <dt className="text-fg-secondary">Envío</dt>
                   <dd className={order.shipping === 0 ? "font-semibold text-success" : "text-fg tabular-nums"}>

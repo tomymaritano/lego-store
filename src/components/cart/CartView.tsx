@@ -5,7 +5,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ArrowRight, ShoppingBag, Trash2 } from "lucide-react";
 import { fadeIn, fadeInUp } from "@/lib/motion";
 import { pluralize } from "@/lib/utils";
-import { positionIn, useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
+import { positionIn, useCartCount, useCartItems, useCartStore, useStoreHydrated } from "@/stores";
 import { productActionCopy } from "@/hooks/useProductActions";
 import { Button, EmptyState, Skeleton, showToast } from "@/components/ui";
 import { RecommendedProducts } from "@/components/product/RecommendedProducts";
@@ -70,7 +70,6 @@ export function CartView({ recommended }: { recommended: Product[] }) {
   const hydrated = useStoreHydrated(useCartStore);
   const cart = useCartItems();
   const count = useCartCount();
-  const subtotal = useCartSubtotal();
   const setQuantity = useCartStore((state) => state.setQuantity);
   const empty = hydrated && cart.length === 0;
 
@@ -139,7 +138,7 @@ export function CartView({ recommended }: { recommended: Product[] }) {
                 </AnimatePresence>
               </ul>
 
-              <OrderSummary subtotal={subtotal} count={count} className="lg:sticky lg:top-24" />
+              <OrderSummary lines={cart} className="lg:sticky lg:top-24" />
             </m.div>
           )}
         </AnimatePresence>

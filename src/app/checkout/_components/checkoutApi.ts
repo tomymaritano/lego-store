@@ -28,13 +28,21 @@ async function call<T>(url: string, init: RequestInit = {}): Promise<ApiResult<T
   }
   const body = (await response.json().catch(() => null)) as (T & Partial<CheckoutError>) | null;
   if (response.ok && body) return { ok: true, data: body };
-  return { ok: false, code: body?.code ?? "server", error: body?.error ?? NETWORK_ERROR.error, unavailable: body?.unavailable };
+  return {
+    ok: false,
+    code: body?.code ?? "server",
+    error: body?.error ?? NETWORK_ERROR.error,
+    unavailable: body?.unavailable,
+    rejection: body?.rejection,
+  };
 }
 
 /** Stripe sends the card's ConfirmationToken; Mercado Pago nothing about the payment yet. */
 export type PrepareRequest = {
   shipping: ShippingInfo;
   lines: { productId: string; quantity: number }[];
+  /** The applied coupon's code: the server validates it, reserves a use and prices the order with it. */
+  couponCode?: string;
 } & ({ confirmationTokenId: string } | { provider: "MERCADOPAGO" });
 
 /** Entering "Revisar": the server prices the order and creates (or updates) it. */

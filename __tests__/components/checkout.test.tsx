@@ -6,7 +6,7 @@ import { CheckoutFlow } from "@/app/checkout/_components/CheckoutFlow";
 import { Stepper } from "@/app/checkout/_components/Stepper";
 import type { OrderView } from "@/lib/orders/types";
 import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
-import { useCartStore, useCheckoutStore } from "@/stores";
+import { useCartStore, useCheckoutStore, useCouponStore } from "@/stores";
 import { formatPrice as format } from "@/lib/utils";
 import { makeOrder } from "../helpers/orders";
 
@@ -106,12 +106,14 @@ describe("Checkout", { timeout: 20_000 }, () => {
     // busy parallel run does not spend the first test's timeout importing zod.
     await import("@/lib/validations/resolvers");
     await useCartStore.persist.rehydrate();
+    await useCouponStore.persist.rehydrate();
     // jsdom has no scrolling; the confirmation scrolls to the top before it enters.
     window.scrollTo = vi.fn() as typeof window.scrollTo;
   });
 
   beforeEach(() => {
     useCheckoutStore.getState().resetCheckout();
+    useCouponStore.getState().remove();
     useCartStore.setState({ cart: [line("1", 899, 2), line("2", 649)], owner: null });
   });
 

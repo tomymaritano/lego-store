@@ -9,9 +9,10 @@ import type { OrderView, UnavailableLine } from "@/lib/orders/types";
 import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
 import { orderTotals } from "@/lib/pricing";
 import { useViewer } from "@/providers/ViewerProvider";
-import { useCartItems, useCartStore, useCheckoutStore, useStoreHydrated } from "@/stores";
+import { useAppliedCoupon, useCartItems, useCartStore, useCheckoutStore, useCouponStore, useStoreHydrated } from "@/stores";
 import { isMercadoPagoPayment, type MercadoPagoPaymentSummary, type PaymentSummary } from "@/stores/checkoutStore";
 import { Breadcrumbs, Skeleton, showToast } from "@/components/ui";
+import { orderTotalsView, totalsView } from "@/components/cart/OrderTotals";
 import type { CartItem, CheckoutStep, ShippingInfo } from "@/types";
 import { fetchCheckoutOrder, payMercadoPagoOrder, payOrder, prepareOrder, type ApiResult, type PrepareRequest } from "./checkoutApi";
 import { ConfirmationStep } from "./ConfirmationStep";
@@ -37,6 +38,17 @@ const PaymentStep = dynamic(() => loadPaymentStep().then((mod) => mod.PaymentSte
 
 const checkout = useCheckoutStore.getState;
 const cartStore = useCartStore.getState;
+const couponStore = useCouponStore.getState;
+
+/**
+ * The coupon code the order is prepared with: the applied coupon, once the
+ * cart reaches its minimum (below it the summary says what is missing and
+ * the order goes without it). The server validates it again.
+ */
+function couponCodeFor(cart: CartItem[]): string | undefined {
+  const coupon = couponStore().coupon;
+  return coupon && orderTotals(cart, coupon).coupon?.applies ? coupon.code : undefined;
+}
 
 /** The confirmation enters from the top of the page, not from wherever the review was scrolled. */
 const scrollToTop = () => window.scrollTo({ top: 0, behavior: "instant" });
@@ -58,11 +70,16 @@ function CheckoutHeader() {
 }
 
 /**
- * What changes the server's order: the lines, the address and (Stripe) the
- * card. A Mercado Pago order knows nothing of the payment until it is paid.
+ * What changes the server's order: the lines, the address, the coupon and
+ * (Stripe) the card. A Mercado Pago order knows nothing of the payment until it is paid.
  */
-function prepareKeyOf(cart: CartItem[], shipping: ShippingInfo, payment: PaymentSummary) {
-  return JSON.stringify([cart.map((line) => [line.id, line.quantity]), shipping, isMercadoPagoPayment(payment) ? "MERCADOPAGO" : payment.confirmationTokenId]);
+function prepareKeyOf(cart: CartItem[], shipping: ShippingInfo, payment: PaymentSummary, couponCode: string | undefined) {
+  return JSON.stringify([
+    cart.map((line) => [line.id, line.quantity]),
+    shipping,
+    isMercadoPagoPayment(payment) ? "MERCADOPAGO" : payment.confirmationTokenId,
+    couponCode ?? null,
+  ]);
 }
 
 /** Whether the confirmation keeps asking for the order's status: until it is settled (a cash ticket can take days: not that). */
@@ -127,7 +144,9 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
   const router = useRouter();
   const viewer = useViewer();
   const hydrated = useStoreHydrated(useCartStore);
+  const couponHydrated = useStoreHydrated(useCouponStore);
   const cart = useCartItems();
+  const coupon = useAppliedCoupon();
 
   const currentStep = useCheckoutStore((state) => state.currentStep);
   const shippingInfo = useCheckoutStore((state) => state.shippingInfo);
@@ -184,7 +203,10 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
         ? "payment"
         : currentStep;
 
-  const prepareKey = step === "review" && shippingInfo && payment ? prepareKeyOf(cart, shippingInfo, payment) : null;
+  const cartTotals = orderTotals(cart, coupon);
+  const couponCode = coupon && cartTotals.coupon?.applies ? coupon.code : undefined;
+  // Waits for the persisted coupon: preparing without it would reserve nothing and price the order without the discount.
+  const prepareKey = step === "review" && shippingInfo && payment && couponHydrated ? prepareKeyOf(cart, shippingInfo, payment, couponCode) : null;
   const ready = prepared && prepared.key === prepareKey ? prepared : null;
   const preparedOrder = ready && "order" in ready ? ready.order : null;
 
@@ -195,9 +217,11 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
     if (!shipping || !card) return;
     const controller = new AbortController();
     const lines = cartStore().cart.map((line) => ({ productId: line.id, quantity: line.quantity }));
+    const requestedCoupon = couponCodeFor(cartStore().cart);
+    const withCoupon = requestedCoupon ? { couponCode: requestedCoupon } : {};
     const request: PrepareRequest = isMercadoPagoPayment(card)
-      ? { shipping, lines, provider: "MERCADOPAGO" }
-      : { shipping, lines, confirmationTokenId: card.confirmationTokenId };
+      ? { shipping, lines, ...withCoupon, provider: "MERCADOPAGO" }
+      : { shipping, lines, ...withCoupon, confirmationTokenId: card.confirmationTokenId };
     void (async () => {
       let result: ApiResult<OrderView>;
       try {
@@ -229,6 +253,16 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
           setDirection(-1);
           setMoved(true);
           checkout().paymentFailed(result.error);
+          return;
+        case "coupon":
+          // The coupon cannot be used any more (expired, used up meanwhile...): the order is
+          // prepared again without it, and the review says why.
+          if (requestedCoupon) {
+            pendingNotice.current = `Quitamos el cupón ${requestedCoupon}: ${result.error}`;
+            couponStore().remove();
+            return;
+          }
+          setPrepared({ key: prepareKey, error: result.error, retry: true });
           return;
         default:
           setPrepared({ key: prepareKey, error: result.error, retry: result.code !== "payments_unconfigured" && result.code !== "invalid" });
@@ -286,6 +320,8 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
     const { cart: lines, owner, replaceCart } = cartStore();
     setDirection(1);
     checkout().orderPlaced(order);
+    // The coupon went with this order: the next purchase starts without it.
+    if (order.couponCode && couponStore().coupon?.code === order.couponCode) couponStore().remove();
     replaceCart(
       lines.filter((line) => !bought.has(line.id)),
       owner
@@ -382,7 +418,7 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
     }
   };
 
-  if (!hydrated || (cart.length === 0 && !placed)) {
+  if (!hydrated || !couponHydrated || (cart.length === 0 && !placed)) {
     return (
       <>
         <CheckoutHeader />
@@ -399,7 +435,13 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
 
   // The review shows (and charges) the server's lines; the other steps show the cart.
   const summaryLines = preparedOrder ? orderLinesOf(preparedOrder) : cart;
-  const cartTotal = orderTotals(cart).total;
+  const summaryTotals = preparedOrder ? orderTotalsView(preparedOrder) : totalsView(cartTotals);
+  const cartTotal = cartTotals.total;
+  const couponField = {
+    lines: cart.map((line) => ({ productId: line.id, quantity: line.quantity })),
+    subtotal: cartTotals.subtotal,
+    email: shippingInfo?.email ?? null,
+  };
   const reviewError = payError ?? (ready && "error" in ready ? ready.error : null);
 
   return (
@@ -420,7 +462,7 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
               <Stepper current={step} />
             </div>
 
-            <MobileSummaryBar lines={summaryLines} total={preparedOrder?.total ?? cartTotal} />
+            <MobileSummaryBar lines={summaryLines} totals={summaryTotals} coupon={couponField} disabled={isProcessing} />
 
             <div className="grid items-start gap-6 lg:grid-cols-3 lg:gap-8">
               <div className="min-w-0 lg:col-span-2">
@@ -470,7 +512,7 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
                 </AnimatePresence>
               </div>
 
-              <OrderSummary lines={summaryLines} isProcessing={isProcessing} />
+              <OrderSummary lines={summaryLines} totals={summaryTotals} coupon={couponField} isProcessing={isProcessing} />
             </div>
           </m.div>
         )}

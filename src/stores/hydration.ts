@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useCartStore } from "./cartStore";
 import { useCompareStore } from "./compareStore";
+import { useCouponStore } from "./couponStore";
 import { useRecentlyViewedStore } from "./recentlyViewedStore";
 import { useThemeStore } from "./themeStore";
 import { useWishlistStore } from "./wishlistStore";
@@ -22,6 +23,7 @@ const persistedStores = [
   useCompareStore,
   useRecentlyViewedStore,
   useThemeStore,
+  useCouponStore,
 ];
 
 /** Keys of stores that no longer exist; their leftovers are removed from localStorage. */
