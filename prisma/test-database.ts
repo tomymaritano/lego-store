@@ -7,7 +7,7 @@ export function testDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const url = env.DATABASE_URL_TEST;
   if (!url) {
     throw new Error(
-      "DATABASE_URL_TEST no está definida. Levantá Postgres con `npm run db:up` y definila en .env.local (ver .env.example)."
+      "DATABASE_URL_TEST no está definida. Levanta Postgres con `npm run db:up` y defínela en .env.local (ver .env.example)."
     );
   }
   const name = new URL(url).pathname.replace(/^\//, "");
