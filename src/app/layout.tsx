@@ -11,6 +11,8 @@ import { getCategories, getCategoryNames, getThemes } from "@/lib/api";
 import { themeNavItems } from "@/config/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getStoreSettings } from "@/lib/settings";
+import { configuredProvider } from "@/lib/payments/config";
+import { PAYMENT_METHOD_BADGES } from "@/lib/payments/methods";
 import { ThemeScript } from "@/components/layout/ThemeScript";
 import { siteConfig } from "@/config/site";
 
@@ -106,7 +108,7 @@ export default async function RootLayout({
                   <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
                     {children}
                   </main>
-                  <Footer categories={categories} themes={themes} settings={settings} />
+                  <Footer categories={categories} themes={themes} settings={settings} paymentMethods={PAYMENT_METHOD_BADGES[configuredProvider()]} />
                   <Toaster />
                 </ClientProviders>
               </ShippingRulesProvider>

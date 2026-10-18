@@ -22,8 +22,6 @@ const featuresFor = (settings: StoreSettings) => [
   { icon: Shield, title: "Compra segura", text: "Productos originales con garantía", href: "/faq" },
 ];
 
-const paymentMethods = ["Visa", "Mastercard", "American Express"];
-
 const linkClasses =
   "rounded-sm text-fg-secondary transition-colors duration-fast ease-standard hover:text-fg hover:underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none";
 
@@ -57,10 +55,13 @@ export function Footer({
   categories,
   themes,
   settings,
+  paymentMethods,
 }: {
   categories: Pick<Category, "id" | "name">[];
   themes: NavItem[];
   settings: StoreSettings;
+  /** The store's payment provider's methods (PAYMENT_METHOD_BADGES). */
+  paymentMethods: readonly string[];
 }) {
   const { contact } = settings;
   const features = featuresFor(settings);

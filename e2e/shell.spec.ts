@@ -212,6 +212,12 @@ test.describe("Shell details", () => {
     await expect(page.getByText(/^Envío gratis$/)).toHaveCount(1);
   });
 
+  test("the footer's payment methods are the store's provider's (Mercado Pago here)", async ({ page }) => {
+    await page.goto("/");
+    const methods = page.getByRole("contentinfo").getByRole("list", { name: "Medios de pago" });
+    await expect(methods.getByRole("listitem")).toHaveText(["Mercado Pago", "Tarjetas de crédito", "Tarjetas de débito", "Efectivo"]);
+  });
+
   for (const [path, title] of [
     ["/search?q=star", "Resultados para “star”"],
     ["/cart", "Carrito de Compras"],
