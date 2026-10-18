@@ -9,8 +9,9 @@ El catálogo vive en PostgreSQL (Prisma) y todas las lecturas pasan por una sola
 capa (`src/lib/api`). Hay cuentas de usuario (registro, login, perfil, roles
 cliente/admin) con Auth.js, carrito y favoritos por cuenta, reseñas, y pedidos
 pagados con Stripe (modo test) con email de confirmación (Resend) y "Mis
-pedidos". El panel de admin (productos y pedidos) se construye en la etapa
-siguiente, según `docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
+pedidos", y un panel de admin (productos, stock, pedidos con envío, entrega y
+cancelación con reembolso, moderación de reseñas). El diseño está en
+`docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
 necesita Postgres para correr: ver [Backend local setup](#backend-local-setup).
 
 <table>
@@ -88,7 +89,8 @@ src/
     (auth)/            /login y /register + sus Server Actions (login, registro)
     account/           /account: pedidos recientes, perfil, contraseña, sesión (+ Server Actions)
       orders/          /account/orders (Mis pedidos) y /account/orders/[id] (detalle)
-    admin/             /admin: resumen de la tienda (solo ADMIN)
+    admin/             Panel de admin (solo ADMIN): resumen, products/ (lista, nuevo, [id]),
+                       orders/ (lista, [id]) y reviews/ (moderación)
     forbidden.tsx      Página 403 (forbidden())
     api/               Route Handlers para las islas cliente
       products/        GET /api/products (filtros, orden, paginación)
@@ -105,6 +107,8 @@ src/
     ui/                Primitivos del sistema de diseño (barrel index.ts)
     layout/            Navbar, Footer, PageHeader, menú de cuenta, menús y paneles (carga diferida)
     auth/ account/     Formularios de login/registro y de /account
+    admin/             Panel de admin: navegación, tablas, formulario de producto,
+                       stock en línea, confirmaciones (ConfirmAction)
     product/           Tarjeta, grilla, catálogo y filtros, ficha, galería, reseñas (reviews/)
     cart/ wishlist/ compare/ search/ home/ info/ forms/ icons/
     motion/            Reveal / Stagger para Server Components
@@ -122,7 +126,10 @@ src/
     orders/            Pedidos: checkout en el servidor, webhook, limpieza, acceso, consultas, formato
     payments/          Pasarela de pago: Stripe, el mock de tests (STRIPE_MOCK) y su configuración
     email/             Envío (Resend o consola) y plantillas de los emails de pedidos
-    admin/             Datos del panel de admin (verifican el rol ellos mismos)
+    admin/             Panel de admin: productos, pedidos (transiciones, reembolso),
+                       reseñas, resumen; data.ts (lecturas que verifican el rol) y
+                       actions.ts (Server Actions)
+    images.ts          URLs de imágenes permitidas (las mismas que next.config.mjs)
     api-client.ts      Llamadas del navegador a /api/*
     productQuery.ts    ProductQuery <-> URL search params
     pricing.ts         Subtotal, envío y totales (carrito y checkout)
@@ -401,6 +408,58 @@ muestran en la consola del servidor.
 - Rate limits del checkout: 30 preparaciones y 15 pagos cada 15 minutos por usuario
   (o IP).
 
+## Panel de admin
+
+`/admin` (solo ADMIN: `proxy.ts` manda a login, y cada página, lectura de
+`src/lib/admin/data.ts` y Server Action de `src/lib/admin/actions.ts` llama a
+`requireAdmin()`, con el rol leído de la base). Las lecturas van directo a la
+base, nunca por la caché del catálogo; toda entrada pasa por zod
+(`src/lib/validations/admin.ts`, filtros incluidos: un valor inválido en la URL
+cae en "sin filtro").
+
+- **Resumen**: pedidos de hoy (día calendario de Argentina), ingresos
+  (PAID + SHIPPED + DELIVERED, total y de hoy), pedidos por enviar, pagos
+  pendientes, stock bajo (≤ 5, con edición en línea), últimos pedidos y un aviso
+  si hay pedidos cancelados por `amount_mismatch`.
+- **Productos**: lista con búsqueda (la misma de la tienda, o el id exacto),
+  categoría, estado (en la tienda / archivados) y stock bajo o agotado, 20 por
+  página; stock editable en la fila. Crear y editar con todos los campos de la
+  ficha; las imágenes son URLs (un archivo del sitio, `/images/…`, o
+  `https://www.lego.com/cdn/…`: lo mismo que `images.remotePatterns` de
+  `next.config.mjs` deja cargar a next/image, `src/lib/images.ts`) con vista
+  previa. Cada escritura recalcula las columnas de búsqueda y expira los tags del
+  catálogo con `updateCatalog()` (`products`, `product:<id>` y `categories`),
+  así que la tienda muestra el cambio en el pedido siguiente.
+- **Archivar / eliminar**: archivar (`Product.archivedAt`) saca el producto de
+  toda lectura de la tienda (`LISTED` en `src/lib/api/catalog.ts`: catálogo,
+  búsqueda, ficha → 404, facetas, conteos de categorías), de los carritos y
+  favoritos (borra sus líneas) y lo vuelve "no disponible" para agregar, fusionar,
+  reseñar o comprar. Restaurar lo devuelve a la venta. "Eliminar" borra solo un
+  producto que ningún pedido incluye (con sus reseñas); si hay pedidos, lo
+  archiva. Un pedido PENDING que ya tenía el producto se puede pagar igual (el
+  precio ya quedó fijado).
+- **Pedidos**: lista con filtros por estado (más "Cancelados: monto distinto"),
+  email o número (`LEGO-001001` / `1001`) y fechas, y el detalle con líneas,
+  cliente, envío, tarjeta, PaymentIntent y reembolso de Stripe, línea de tiempo
+  y el historial de cambios. Transiciones, exactamente las del diseño
+  (`ADMIN_TRANSITIONS`, `src/lib/admin/orders.ts`):
+  PENDING → CANCELLED (cancela el PaymentIntent; si el pago ya está en curso se
+  rechaza y el webhook decide), PAID → SHIPPED (email "en camino") o CANCELLED
+  (reembolso + stock devuelto), SHIPPED → DELIVERED. Cada cambio corre en una
+  transacción que bloquea la fila del pedido y verifica el estado que vio el
+  admin: un doble clic o un segundo admin no hacen nada dos veces. Cancelar un
+  pagado devuelve el stock y pide el reembolso **dentro** de esa transacción: si
+  Stripe falla no se guarda nada; si el reembolso salió pero el commit no, el
+  reintento usa la misma idempotency key (`order/<id>/refund`, la del webhook) y
+  Stripe devuelve el mismo reembolso. Cada cambio queda en `OrderStatusChange`
+  (quién, cuándo, de qué a qué, id del reembolso).
+- **Reseñas**: todas, filtrables por producto, estrellas o texto; eliminar
+  recalcula el rating en la misma transacción y expira el producto. Sin el
+  límite de ediciones por usuario (ese es para los clientes).
+- **UI**: primitivos del sistema (Table nuevo en `ui/`, Dialog para cada
+  confirmación, toasts, Field/Select), filtros como formularios GET (funcionan
+  sin JavaScript), navegación lateral que en teléfonos pasa arriba.
+
 ## Estado del cliente
 
 - Stores de Zustand con **selectores** (`useCartCount`, `useCartSubtotal`,
@@ -485,7 +544,7 @@ npm run dev
 - **Primitivos** en `src/components/ui`: Button (con `render` para links),
   IconButton, Field, Input, Textarea, Select, Checkbox, RadioGroup, Slider,
   Dialog, Sheet, Tabs, Card, Badge, Rating, RatingInput, Price, EmptyState,
-  Skeleton, QuantitySelector, Spinner, Toast, Breadcrumbs, ThemeToggle. Cada
+  Skeleton, QuantitySelector, Spinner, Toast, Breadcrumbs, ThemeToggle, Table. Cada
   uno con stories en claro y oscuro.
 - **Guardas de ESLint** (errores en todo `src/`): colores crudos de la paleta,
   alias heredados, `dark:`, duraciones numéricas de movimiento y tamaños de
@@ -544,7 +603,12 @@ npm run dev
   reutilizar o cancelar el pedido pendiente, pagos rechazados, acceso por cookie o
   cuenta, limpieza de pendientes) y el webhook de Stripe con eventos firmados
   (firma, PAID con stock atómico, dos pagos por la última unidad → un reembolso,
-  reenvíos idempotentes, reembolso que falla → 500 y reintento, email).
+  reenvíos idempotentes, reembolso que falla → 500 y reintento, email), y el
+  panel de admin (`admin-*.test.ts`: crear / editar / archivar / eliminar
+  productos y lo que la tienda ve después, transiciones de pedidos, reembolso +
+  stock atómico e idempotente, dos cancelaciones a la vez, email al enviar,
+  auditoría, filtros, resumen, moderación de reseñas y permisos de cada acción y
+  lectura).
 - `__tests__/lib`: parser de queries, búsqueda normalizada, caché del catálogo
   (tags e invalidación), validación de cuentas, callbackUrl, roles, rate limiter,
   la pasarela de Stripe con el SDK simulado (parámetros, errores, tokens), la
@@ -570,7 +634,9 @@ npm run dev
   (axe WCAG 2.1 AA en cada página, en modo claro y oscuro), `auth` (registro →
   logout → login → cuenta, redirección de rutas protegidas, callbackUrl, 403 de
   admin, cambio de contraseña, menú móvil, axe), `account-lists` (carrito y
-  favoritos de visitante → cuenta, otro navegador, logout), `reviews` (login para
+  favoritos de visitante → cuenta, otro navegador, logout), `admin` (editar un
+  producto y verlo en la tienda; enviar y entregar un pedido pagado, con axe),
+  `reviews` (login para
   opinar, publicar / editar / borrar, "útil", orden y páginas, axe) y el proyecto `prod` (navegación,
   transiciones y códigos de estado sobre el build de producción). Los E2E de
   cuentas usan emails `@e2e.lego-store.test`: el setup global los borra de la base

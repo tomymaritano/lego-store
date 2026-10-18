@@ -213,3 +213,20 @@ tiene el detalle):
   pasarela por una en memoria y el Payment Element por tarjetas de prueba; el
   webhook se ejercita con eventos firmados con el secreto de test. El E2E contra
   Stripe test real con secrets en CI no está hecho.
+
+## Notas de implementación: panel de admin
+
+- *Archivar*: `Product.archivedAt`. "Eliminar" un producto que algún pedido
+  incluye lo archiva (sale de la tienda, carritos y favoritos; los pedidos
+  conservan el vínculo); uno sin pedidos se borra.
+- *Auditoría*: tabla `OrderStatusChange` (pedido, de, a, admin, email del admin,
+  reembolso, fecha). Solo los cambios del admin; los del webhook y la limpieza
+  siguen en las fechas del pedido (`paidAt`, `cancelledAt`…).
+- *Cancelar un PAID*: stock de vuelta + reembolso en la misma transacción con la
+  fila del pedido bloqueada; misma idempotency key que el webhook.
+- *Imágenes*: solo URLs que `next/image` puede cargar (rutas del sitio o el CDN
+  de lego.com de `remotePatterns`).
+- *Moderación*: el admin borra reseñas sin pasar por el límite de ediciones de
+  los clientes.
+- Las tablas `ListMerge` (etapa de listas) y el token de fusión no estaban
+  mencionados acá: ver README, «Carrito, favoritos y reseñas».
