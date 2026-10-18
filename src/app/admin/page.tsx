@@ -82,7 +82,7 @@ export default async function AdminPage() {
         </div>
       </section>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="mt-8 grid gap-6 2xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section aria-labelledby="recent-title" className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="recent-title" className="text-title">
