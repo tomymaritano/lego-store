@@ -52,6 +52,13 @@ export const rateLimits = {
   reviewEdit: limiter("review-edit", 20, HOUR),
   /** "Útil" votes per user: each one refreshes the product page's cache. */
   reviewHelpful: limiter("review-helpful", 60, 15 * MINUTE),
+  /**
+   * Reaching "Revisar" in checkout, per user or IP: each one writes an order
+   * and calls Stripe (PaymentIntent, ConfirmationToken).
+   */
+  checkoutPrepare: limiter("checkout-prepare", 30, 15 * MINUTE),
+  /** "Realizar pedido" (payment confirmations), per user or IP: slows down card testing. */
+  checkoutPay: limiter("checkout-pay", 15, 15 * MINUTE),
 } as const;
 
 export { clientIp } from "./client-ip";
