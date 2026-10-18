@@ -43,15 +43,18 @@ dashboard, exports, audit log), sitemap and robots, and the documentation.
   build) and an optional e2e against real Stripe test mode
   (`npm run test:e2e:stripe`).
 - **Coupons**: percent or fixed, minimum, dates, total and per-customer limits;
-  validated on the server, reserved with the order for 30 minutes, held while a
-  payment is pending, released by a database trigger when the order is cancelled.
+  validated on the server; a use counts toward the total limit once its payment
+  is submitted (an unpaid checkout's 30-minute hold does not take one), held
+  while a payment is pending, released by a database trigger when the order is
+  cancelled.
 - **Admin panel**: dashboard with KPIs and charts for a date range; products
   (archive, stock compare-and-set, gallery with alt texts); categories and themes
   in the database with ordering and slug redirects; orders with ship / deliver /
   cancel-and-refund; review moderation; coupons; users with roles and blocking;
   contact inbox; newsletter subscribers; editable info pages (draft / publish);
   store settings (shipping, announcement bar, contact, featured products); CSV
-  exports; an audit log of every admin mutation.
+  exports (orders, customers, newsletter, contact messages); an audit log of
+  every admin mutation, with a short "Historial" on each record's page.
 - **Image uploads** for the admin, re-encoded with sharp, stored in Vercel Blob
   (`BLOB_READ_WRITE_TOKEN`) or on the local disk.
 - **Contact messages and newsletter** stored, with signed unsubscribe links and
@@ -71,6 +74,11 @@ dashboard, exports, audit log), sitemap and robots, and the documentation.
   `TRUSTED_PROXY_HOPS`) or runs the payments mock warns at startup.
 - "Realizar pedido" charges only the card shown at "Revisar".
 - A production server without Resend logs no email bodies.
+- Unpaid checkouts cannot use up a limited coupon; deleting someone else's
+  review is only possible as audited moderation from the admin.
+- The Mercado Pago webhook checks the signature before reading the body, and
+  both webhooks cap their bodies; `next/image` and admin picture URLs accept only
+  the store's own Vercel Blob store.
 
 ### Changed
 
@@ -80,7 +88,11 @@ dashboard, exports, audit log), sitemap and robots, and the documentation.
   names keep working.
 - Server messages, setup docs and ESLint guardrail messages in tuteo.
 - Playwright: a `store-ops` project, configurable ports, the production build
-  starts before `next dev`.
+  starts before `next dev`; a reused dev server must be this checkout's on its
+  database; 4 local workers.
+- Checkout: a placed order moves to `/checkout/pedido/<id>` (a reload keeps it);
+  the cart and the first step say when payments are unavailable.
+- CI also runs on `feat/**` branches and PRs into them.
 
 ## [2.0.0] - 2026-10-17
 

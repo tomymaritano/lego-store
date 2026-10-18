@@ -567,3 +567,59 @@ Decisiones tomadas al construir la etapa (docs/admin.md y docs/backend.md,
   excluye `/admin`, `/account`, `/checkout`, `/newsletter/` y `/api/`; las demás
   páginas `noindex` (carrito, búsqueda, login…) siguen rastreables para que los
   buscadores lean su `noindex`, y un test garantiza que ninguna entra al sitemap.
+
+## Notas de implementación: verificación final
+
+Lo que cambió después de la verificación propia (todos con tests):
+
+- *Cupones*: el límite total cuenta solo usos comprometidos (`REDEEMED`, o
+  `RESERVED` con el pago enviado: `holdExpiresAt` null). La reserva corta de
+  «Revisar» ya no ocupa un uso del total: cualquiera puede preparar pedidos sin
+  cuenta (cada «Revisar» sin cookie crea uno), y con el rate limit por IP un
+  script podía tener agotado un cupón chico para siempre. Cuando quedan pocos
+  usos los gana quien paga primero (se controla con el cupón bloqueado al enviar
+  el pago). La reserva corta sigue contando para el límite de la propia cuenta.
+  El admin muestra aparte los usos con el pago enviado.
+- *Reseñas*: la Server Action de la ficha borra solo las reseñas propias (también
+  para un admin); borrar la de otra persona es solo moderación desde el admin y
+  siempre deja su `review.delete` en la auditoría (`deleteReview` recibe un autor
+  o un moderador).
+- *Webhooks*: Mercado Pago verifica `x-signature` antes de leer el cuerpo (la
+  firma no lo cubre) y lo lee con tope (64 KB); Stripe, con tope de 512 KB. Las
+  subidas usan el mismo lector con contador.
+- *Imágenes*: `next/image` y las URLs del admin aceptan solo `uploads/` del store
+  de Blob de la tienda (host derivado del token o `BLOB_PUBLIC_HOSTNAME`), no
+  `*.public.blob.vercel-storage.com`: el comodín convertía el optimizador en un
+  proxy de cualquier store ajeno.
+- *Admin*: export CSV de la bandeja de mensajes (`export.messages`); los paneles
+  de historial muestran los 8 cambios más recientes con «Ver todo», con un solo
+  título y texto vacío; el pedido tiene una sola línea de tiempo (sus entradas de
+  auditoría eran los mismos cambios de estado).
+- *Checkout*: un pedido que ya no está PENDING pasa a `/checkout/pedido/<id>`
+  (recargar no lleva a un carrito vacío) y el email «espera el pago» de un
+  invitado enlaza esa página (abre solo en su navegador). Sin credenciales de
+  pago, el carrito y el paso Envío lo dicen y no dejan seguir.
+- *Pruebas y CI*: el setup de Playwright reutiliza solo el `next dev` de esta
+  copia y su base (hash de carpeta + `DATABASE_URL`); 4 workers locales; esperas
+  de rutas frías en los specs que fallaban bajo carga. CI corre también en
+  `feat/**` y en PRs hacia esas ramas, así un PR apilado tiene CI.
+- *Migraciones*: las carpetas llegan hasta `20261019070000_…`, adelantadas al
+  reloj; CONTRIBUTING explica cómo nombrar la próxima a mano.
+
+Decisiones explícitas (no son pendientes):
+
+- *Status Screen Brick*: no se usa. La confirmación propia sirve a los dos
+  proveedores, sigue el pedido (no solo el pago) y respeta el sistema de diseño.
+- *Proveedor de pagos*: se elige por entorno (`PAYMENT_PROVIDER`) con el
+  indicador del resumen del admin; no hay setting en `/admin/configuracion`.
+  Cambiar de proveedor implica credenciales y webhooks nuevos, así que es una
+  decisión de deploy, no un interruptor del panel.
+- *Mercado Pago real*: el camino del Payment Brick (`hidePaymentButton` +
+  `getFormData`) y Checkout Pro solo corrieron contra el mock; falta una corrida
+  con credenciales de prueba (docs/payments.md, «Probar con credenciales de
+  prueba de Mercado Pago») antes de producción.
+- *Ruido conocido*: `next dev` puede registrar `uncaughtException: Error:
+  aborted` cuando un spec cierra el navegador con un pedido en curso; sale del
+  manejo de cuerpos de Next, no de un handler de la tienda (los que leen cuerpos
+  lo capturan). `npm audit` informa `braces` (alta) solo en dependencias de
+  desarrollo, vía `eslint-config-next`; producción queda limpia.
