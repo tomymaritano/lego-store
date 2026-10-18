@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, KeyRound, LayoutDashboard, LogOut, Package, UserRound } from "lucide-react";
+import { ArrowRight, KeyRound, LayoutDashboard, LogOut, MonitorSmartphone, Package, UserRound } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { listUserOrders } from "@/lib/orders/queries";
@@ -9,7 +9,7 @@ import { OrderCard } from "@/components/account/OrderCard";
 import { ProfileForm } from "@/components/account/ProfileForm";
 import { PasswordForm } from "@/components/account/PasswordForm";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
-import { logoutAction } from "@/lib/auth/actions";
+import { logoutAction, logoutEverywhereAction } from "@/lib/auth/actions";
 import { changePasswordAction, dismissPasswordNoticeAction, updateProfileAction } from "./actions";
 import { hasPasswordChangedFlash } from "./flash";
 
@@ -143,6 +143,17 @@ export default async function AccountPage() {
                 Cerrar sesión
               </Button>
             </form>
+            {user.role === "ADMIN" ? (
+              <p className="text-caption text-fg-muted">Como administrador, al cerrar sesión se cierra en todos tus dispositivos.</p>
+            ) : (
+              <form action={logoutEverywhereAction} className="space-y-2">
+                <Button type="submit" variant="ghost" className="w-full" data-testid="logout-everywhere">
+                  <MonitorSmartphone aria-hidden="true" />
+                  Cerrar sesión en todos los dispositivos
+                </Button>
+                <p className="text-caption text-fg-muted">Útil si ingresaste en una computadora compartida o perdiste un dispositivo.</p>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -1,6 +1,7 @@
 import { test, expect as baseExpect } from "@playwright/test";
 import { seriousAxeViolations } from "./helpers/axe";
 import { E2E_ADMIN_EMAIL, PASSWORD, field, logIn, register, signUpFresh, uniqueEmail } from "./helpers/accounts";
+import { createE2eAccount } from "./helpers/db";
 
 /*
  * Accounts end to end, against the dev database: registration, logout,
@@ -257,6 +258,31 @@ test.describe("Accounts", () => {
     await expect(menu.getByRole("link", { name: "Crear cuenta" })).toBeVisible();
   });
 
+  test("logout on every device revokes a session cookie copied before", async ({ page, browser }) => {
+    // Created in the database: the register form's per-IP limit belongs to the specs about registering.
+    await page.goto("/login");
+    await logIn(page, await createE2eAccount("copied", "Copia Robada"));
+    await expect(page.getByTestId("account-menu")).toBeVisible({ timeout: 15_000 });
+    // Another browser holding a copy of this session's cookies (shared computer, stolen cookie).
+    const other = await browser.newContext({ storageState: await page.context().storageState() });
+    const stolen = await other.newPage();
+    try {
+      await stolen.goto("/account");
+      await expect(stolen.getByRole("heading", { level: 1, name: "Mi cuenta" })).toBeVisible();
+
+      await page.goto("/account");
+      await page.getByTestId("logout-everywhere").click();
+      await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/$/);
+      await expect(page.getByTestId("login-link")).toBeVisible();
+
+      await stolen.goto("/account");
+      await expect(stolen).toHaveURL(/\/login\?callbackUrl=%2Faccount$/);
+      expect((await stolen.request.get("/api/lists")).status()).toBe(401);
+    } finally {
+      await other.close();
+    }
+  });
+
   test("phones: a customer's menu shows the account and logs out", async ({ page }) => {
     await signUpFresh(page, "Marta Móvil");
     await page.setViewportSize({ width: 390, height: 844 });
@@ -265,6 +291,7 @@ test.describe("Accounts", () => {
     const menu = page.getByRole("dialog", { name: "Menú" });
     await expect(menu.getByText("Marta Móvil", { exact: true })).toBeVisible();
     await expect(menu.getByRole("link", { name: "Mi cuenta" })).toHaveAttribute("href", "/account");
+    await expect(menu.getByRole("link", { name: "Mis pedidos" })).toHaveAttribute("href", "/account/orders");
     await expect(menu.getByRole("link", { name: "Administración" })).toHaveCount(0);
     await expect(menu.getByRole("link", { name: "Iniciar sesión" })).toHaveCount(0);
 

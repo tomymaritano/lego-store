@@ -68,7 +68,8 @@ test("a signed-in customer buys, and follows the order in Mis pedidos (only thei
 
   // The confirmation links to the order in the account.
   await confirmation.getByRole("link", { name: /Ver mi pedido/ }).click();
-  await expect(page).toHaveURL(new RegExp(`/account/orders/${order.id}$`));
+  // Generous wait: on a cold dev server the order page may still be compiling.
+  await expect(page).toHaveURL(new RegExp(`/account/orders/${order.id}$`), { timeout: 15_000 });
   await expect(page.getByRole("heading", { level: 1, name: `Pedido ${number}` })).toBeVisible();
   await expect(page.getByTestId("order-status")).toHaveText("Pagado");
   const timeline = page.getByTestId("order-timeline");
@@ -113,7 +114,7 @@ test("a signed-in customer buys, and follows the order in Mis pedidos (only thei
   // Signing out locks the order in this browser too: the checkout cookie goes with the session.
   expect((await page.request.get(`/api/checkout/orders/${order.id}`)).status()).toBe(200);
   // /account has its own "Cerrar sesión".
-  await page.locator("#main-content").getByRole("button", { name: "Cerrar sesión" }).click();
+  await page.locator("#main-content").getByRole("button", { name: "Cerrar sesión", exact: true }).click();
   await expect(page.getByTestId("login-link")).toBeVisible({ timeout: 15_000 });
   expect((await page.context().cookies()).map((cookie) => cookie.name)).not.toContain("lego-checkout");
   expect((await page.request.get(`/api/checkout/orders/${order.id}`)).status()).toBe(404);

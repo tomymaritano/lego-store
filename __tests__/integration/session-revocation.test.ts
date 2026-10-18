@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { decode, encode } from "next-auth/jwt";
-import { changeUserPassword, registerUser, updateUserName } from "@/lib/auth/accounts";
+import { changeUserPassword, registerUser, revokeAllSessions, updateUserName } from "@/lib/auth/accounts";
 import { refreshSessionToken, sessionRenewal } from "@/lib/auth/session-token";
 import { resetDatabase, testDb } from "./setup/db";
 
@@ -122,6 +122,16 @@ describe("refreshSessionToken", () => {
     expect(await refreshSessionToken(token, { renewal })).toMatchObject({ sub: user.id, sv: 1 });
     // Expired renewals do not count.
     expect(await refreshSessionToken(token, { renewal }, renewal.expiresAt + 1)).toBeNull();
+  });
+
+  it("ends every session of the account after revokeAllSessions (logout everywhere, an admin's logout)", async () => {
+    const user = await newUser();
+    const copied = await tokenFor(user, 0);
+    await revokeAllSessions(user.id);
+
+    expect((await testDb.user.findUniqueOrThrow({ where: { id: user.id } })).sessionVersion).toBe(1);
+    expect(await refreshSessionToken({ sub: user.id, sv: 0 }, {})).toBeNull();
+    expect((await askForRefresh(copied, {})).token).toBeNull();
   });
 
   it("ends the session of a deleted user", async () => {

@@ -164,6 +164,14 @@ export async function changeUserPassword(id: string, currentPassword: string, ne
   return { ok: true, sessionVersion: { from: user.sessionVersion, to: user.sessionVersion + 1 } };
 }
 
+/**
+ * Ends every session of the account, on every device (bumps the session
+ * version: tokens issued before stop working on their next request).
+ */
+export async function revokeAllSessions(id: string): Promise<void> {
+  await getDb().user.updateMany({ where: { id }, data: { sessionVersion: { increment: 1 } } });
+}
+
 /*
  * A hash of a random throwaway password, compared against when there is no
  * real hash, so a login for an unknown email costs one bcrypt comparison like

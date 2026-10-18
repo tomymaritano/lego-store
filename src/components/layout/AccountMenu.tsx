@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
-import { LayoutDashboard, LogOut, User, UserRound } from "lucide-react";
+import { LayoutDashboard, LogOut, Package, User, UserRound } from "lucide-react";
 import { dropDown } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { loginHref } from "@/lib/auth/callback-url";
@@ -96,6 +96,12 @@ export function AccountMenu({ account, logoutAction, className }: AccountMenuPro
                 <Link href="/account" prefetch={false} onClick={() => setOpen(false)} className={itemClasses}>
                   <UserRound aria-hidden="true" />
                   Mi cuenta
+                </Link>
+              </li>
+              <li>
+                <Link href="/account/orders" prefetch={false} onClick={() => setOpen(false)} className={itemClasses}>
+                  <Package aria-hidden="true" />
+                  Mis pedidos
                 </Link>
               </li>
               {account.role === "ADMIN" ? (

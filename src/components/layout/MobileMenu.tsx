@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { m } from "motion/react";
 import { usePathname } from "next/navigation";
-import { Heart, LayoutDashboard, LogIn, LogOut, Scale, ShoppingCart, UserPlus, UserRound } from "lucide-react";
+import { Heart, LayoutDashboard, LogIn, LogOut, Package, Scale, ShoppingCart, UserPlus, UserRound } from "lucide-react";
 import { STAGGER, STAGGER_DELAY, staggerContainer, staggerItem } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { helpLinks, type NavItem } from "@/config/navigation";
@@ -88,6 +88,12 @@ export function MobileMenu({ open, onOpenChange, links, themes, counts, onOpenCa
                     <NavLink href="/account" prefetch={false} onClick={close} className={itemClasses}>
                       <UserRound aria-hidden="true" className="size-5" />
                       Mi cuenta
+                    </NavLink>
+                  </li>
+                  <li>
+                    <NavLink href="/account/orders" prefetch={false} onClick={close} className={itemClasses}>
+                      <Package aria-hidden="true" className="size-5" />
+                      Mis pedidos
                     </NavLink>
                   </li>
                   {account.role === "ADMIN" ? (
