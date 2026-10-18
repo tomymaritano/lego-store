@@ -619,7 +619,8 @@ Decisiones explícitas (no son pendientes):
   con credenciales de prueba (docs/payments.md, «Probar con credenciales de
   prueba de Mercado Pago») antes de producción.
 - *Ruido conocido*: `next dev` puede registrar `uncaughtException: Error:
-  aborted` cuando un spec cierra el navegador con un pedido en curso; sale del
-  manejo de cuerpos de Next, no de un handler de la tienda (los que leen cuerpos
-  lo capturan). `npm audit` informa `braces` (alta) solo en dependencias de
+  aborted` cuando un spec cierra el navegador con un pedido en curso. Se vio una
+  vez y no se reprodujo; los handlers de la tienda que leen cuerpos a mano
+  (subidas, webhooks) capturan el corte, así que lo más probable es que venga del
+  manejo de cuerpos de Next en desarrollo (sin confirmar). `npm audit` informa `braces` (alta) solo en dependencias de
   desarrollo, vía `eslint-config-next`; producción queda limpia.
