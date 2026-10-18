@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import type { Db } from "@/lib/lists/product";
+import { maskEmail } from "@/lib/email/mask";
 import { pageCount, type Page } from "@/lib/admin/format";
 import { ADMIN_PAGE_SIZE } from "@/lib/validations/admin";
 import type { AdminSubscriberFilters } from "@/lib/validations/inbox";
@@ -49,11 +50,7 @@ export async function subscribe(db: Db, { email, source, ip = null }: { email: s
   return { status: "subscribed", token };
 }
 
-/** "an***@example.com": what the unsubscribe page shows of the address. */
-export function maskEmail(email: string): string {
-  const [user = "", domain = ""] = email.split("@");
-  return `${user.slice(0, 2)}${"*".repeat(Math.max(1, Math.min(6, user.length - 2)))}@${domain}`;
-}
+export { maskEmail };
 
 export type TokenLookup = { found: false } | { found: true; email: string; active: boolean };
 

@@ -55,6 +55,23 @@ describe("sendEmail", () => {
     expect(result).toEqual({ delivered: "console" });
     expect(log.mock.calls[0]![0]).toContain("Asunto: Hola");
   });
+
+  it("in production, logs neither the body nor the full address", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const token = "JUlstoSecretUnsubscribeToken0123456789abcde";
+    const result = await sendEmail(
+      { to: "ana@example.com", subject: "Te sumaste", html: `<a href="/newsletter/baja?token=${token}">baja</a>`, text: `Para darte de baja: /newsletter/baja?token=${token}` },
+      { NODE_ENV: "production" }
+    );
+    expect(result).toEqual({ delivered: "skipped" });
+    expect(info).not.toHaveBeenCalled();
+    const output = warn.mock.calls.flat().map(String).join(" ");
+    expect(output).toContain("Te sumaste");
+    expect(output).toContain("an*@example.com");
+    expect(output).not.toContain(token);
+    expect(output).not.toContain("ana@example.com");
+  });
 });
 
 describe("order formatting", () => {
