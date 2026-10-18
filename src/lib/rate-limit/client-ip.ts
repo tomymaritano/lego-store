@@ -47,3 +47,19 @@ export function trustedProxyHops(env: IpEnv = process.env): number {
   if (!raw || !/^\d+$/.test(raw)) return 0;
   return Math.min(Number(raw), 10);
 }
+
+/**
+ * The startup warning for a production server that trusts no client IP
+ * (neither VERCEL=1 nor TRUSTED_PROXY_HOPS), or null when there is nothing to
+ * say. Then every client shares the "unknown" bucket and one abuser can fill
+ * the per-IP limits (login, sign-up, guest checkout) for everybody.
+ */
+export function untrustedIpWarning(env: IpEnv = process.env): string | null {
+  if (env.NODE_ENV !== "production" || env.VERCEL === "1" || trustedProxyHops(env) > 0) return null;
+  return (
+    "[rate-limit] Ni VERCEL=1 ni TRUSTED_PROXY_HOPS están configurados: no se confía en ninguna IP de cliente " +
+    'y todos los visitantes comparten el límite por IP "unknown". Una sola persona puede bloquear el login, el ' +
+    "registro y el checkout como invitado para todos. Configurá TRUSTED_PROXY_HOPS con la cantidad de proxies " +
+    "delante del servidor (ver README, «Producción»)."
+  );
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRateLimiter, memoryStore, waitMessage } from "@/lib/rate-limit/limiter";
-import { clientIp } from "@/lib/rate-limit/client-ip";
+import { clientIp, untrustedIpWarning } from "@/lib/rate-limit/client-ip";
 
 function setup(limit = 3, windowMs = 60_000) {
   let now = 1_000_000;
@@ -100,5 +100,18 @@ describe("clientIp", () => {
 
   it("caps the length", () => {
     expect(clientIp(headers({ "x-forwarded-for": "9".repeat(500) }), { TRUSTED_PROXY_HOPS: "1" })).toHaveLength(64);
+  });
+});
+
+describe("untrustedIpWarning", () => {
+  it("warns a production server that trusts no client IP", () => {
+    expect(untrustedIpWarning({ NODE_ENV: "production" })).toMatch(/TRUSTED_PROXY_HOPS/);
+    expect(untrustedIpWarning({ NODE_ENV: "production", TRUSTED_PROXY_HOPS: "abc" })).not.toBeNull();
+  });
+
+  it("stays quiet on Vercel, behind trusted proxies, and outside production", () => {
+    expect(untrustedIpWarning({ NODE_ENV: "production", VERCEL: "1" })).toBeNull();
+    expect(untrustedIpWarning({ NODE_ENV: "production", TRUSTED_PROXY_HOPS: "1" })).toBeNull();
+    expect(untrustedIpWarning({ NODE_ENV: "development" })).toBeNull();
   });
 });
