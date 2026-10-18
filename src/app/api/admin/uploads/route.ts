@@ -3,6 +3,7 @@ import { authorizeRequest } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { auditActorFor } from "@/lib/admin/actor";
 import { rateLimits, waitMessage } from "@/lib/rate-limit";
+import { readBodyCapped } from "@/lib/request-body";
 import { saveUpload } from "@/lib/uploads";
 import { MAX_UPLOAD_BYTES, UPLOAD_ERRORS } from "@/lib/uploads/validate";
 
@@ -22,35 +23,6 @@ const fail = (error: string, status: number) => NextResponse.json({ error }, { s
 /** Multipart framing on top of the file itself. */
 const MULTIPART_SLACK = 64 * 1024;
 const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + MULTIPART_SLACK;
-
-/**
- * The request body, read with a byte counter: null as soon as it passes
- * `max`, before any multipart parsing. Content-Length alone is not enough:
- * a chunked request has none, and formData() would hold all of it in memory.
- */
-async function readBody(request: NextRequest, max: number): Promise<Uint8Array<ArrayBuffer> | null> {
-  if (!request.body) return new Uint8Array();
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > max) {
-      await reader.cancel().catch(() => {});
-      return null;
-    }
-    chunks.push(value);
-  }
-  const body = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body;
-}
 
 function sameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
@@ -83,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   let file: FormDataEntryValue | null;
   try {
-    const body = await readBody(request, MAX_BODY_BYTES);
+    const body = await readBodyCapped(request, MAX_BODY_BYTES);
     if (!body) return fail(UPLOAD_ERRORS.too_large, 413);
     const contentType = request.headers.get("content-type") ?? "";
     file = (await new Response(body, { headers: { "content-type": contentType } }).formData()).get("file");

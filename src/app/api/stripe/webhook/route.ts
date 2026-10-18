@@ -5,6 +5,10 @@ import { sendOrderCancelled, sendOrderConfirmation } from "@/lib/orders/notify";
 import { handleStripeEvent } from "@/lib/orders/webhook";
 import { getPaymentGateway, webhookSecret } from "@/lib/payments/config";
 import { stripeProvider } from "@/lib/payments/stripe-provider";
+import { readTextCapped } from "@/lib/request-body";
+
+/** Stripe's events are a few kB; this leaves room for the largest (a charge with its refunds). */
+const MAX_EVENT_BYTES = 512 * 1024;
 
 /**
  * POST /api/stripe/webhook: Stripe's events about payments.
@@ -17,6 +21,7 @@ import { stripeProvider } from "@/lib/payments/stripe-provider";
  * stock that came back is shown again.
  *
  * 200 handled (or ignored / already handled) · 400 bad signature ·
+ * 413 body over MAX_EVENT_BYTES ·
  * 500 the work failed: Stripe retries it · 503 not configured.
  *
  * Local development: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
@@ -26,7 +31,14 @@ export async function POST(request: NextRequest) {
   const gateway = getPaymentGateway();
   if (!secret || !gateway) return Response.json({ error: "Webhooks de Stripe no configurados." }, { status: 503 });
 
-  const payload = await request.text();
+  // The signature covers the exact bytes, so the body is read first, with a cap: Stripe's events are a few kB.
+  let payload: string | null;
+  try {
+    payload = await readTextCapped(request, MAX_EVENT_BYTES);
+  } catch {
+    return Response.json({ error: "No recibimos el evento completo." }, { status: 400 });
+  }
+  if (payload === null) return Response.json({ error: "El evento es demasiado grande." }, { status: 413 });
   // Verified and read through the provider interface; the order code works on Stripe's own event.
   const events = await stripeProvider(gateway, secret).parseWebhook({ body: payload, url: request.nextUrl, headers: request.headers });
   if (!events) return Response.json({ error: "Firma inválida." }, { status: 400 });

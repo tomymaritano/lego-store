@@ -185,7 +185,9 @@ Además:
    tiempo constante (`src/lib/payments/mercadopago/signature.ts`); los tests
    comprueban que coincide con `WebhookSignatureValidator` del SDK oficial. No hay
    ventana de tiempo: Mercado Pago reintenta por horas y repetir una notificación
-   no tiene efecto.
+   no tiene efecto. La firma no cubre el cuerpo, así que se verifica **antes de
+   leerlo**: un pedido sin firma no hace que el servidor guarde un cuerpo grande.
+   Con la firma válida, el cuerpo se lee hasta 64 KB (más, **413**).
 2. **Solo pagos**: notificaciones con `type`/`topic` distinto de `payment` se
    responden 200 sin hacer nada.
 3. **Lee el pago de la API** (`GET /v1/payments/<id>`), nunca el cuerpo, y lo
@@ -199,7 +201,7 @@ Además:
    (`src/lib/orders/payment-effects.ts`).
 
 Respuestas: **200** procesada (o no era de un pago o ya estaba aplicada), **401**
-firma inválida, **500** algo falló (por ejemplo, un reembolso que había que hacer):
+firma inválida, **413** cuerpo de más de 64 KB, **500** algo falló (por ejemplo, un reembolso que había que hacer):
 Mercado Pago reintenta cada 15 minutos; **503** sin configurar.
 
 ### Vuelta de Checkout Pro y limpieza
@@ -244,7 +246,8 @@ Con `PAYMENT_PROVIDER=stripe`:
    el webhook lo marca pagado o cancelado.
 
 **Webhook** (`POST /api/stripe/webhook`, `src/lib/orders/webhook.ts`): cuerpo
-crudo y firma verificada con `STRIPE_WEBHOOK_SECRET`; cada evento se procesa una
+crudo (hasta 512 KB, más es **413**: la firma cubre los bytes, así que se lee
+antes de verificarla) y firma verificada con `STRIPE_WEBHOOK_SECRET`; cada evento se procesa una
 vez (`ProcessedStripeEvent`, en la misma transacción que sus cambios).
 
 | Evento | Pedido |

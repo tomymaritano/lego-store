@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
+import { NextRequest } from "next/server";
 import { changeOrderStatus, getAdminOrder } from "@/lib/admin/orders";
 import { serializeCheckoutCookie, type Requester } from "@/lib/orders/access";
 import { expireStaleOrders } from "@/lib/orders/expire";
@@ -285,6 +286,33 @@ describe("the webhook", () => {
     expect(await notify("123456789999")).toEqual({ status: 200, body: { received: true, result: "ignored" } });
     const other = await webhook(mercadoPagoNotification("42", { type: "merchant_order" }));
     expect(await other.json()).toEqual({ received: true, result: "ignored" });
+  });
+
+  it("checks the signature before reading the body, and caps the body of a signed notification", async () => {
+    // A body that streams 1 MB chunks for as long as it is read (64 MB in all), counting what was read.
+    const huge = () => {
+      let pulled = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (++pulled > 64) controller.close();
+          else controller.enqueue(new Uint8Array(1024 * 1024));
+        },
+      });
+      return { stream, pulled: () => pulled };
+    };
+    const withBody = (request: Request, body: ReadableStream<Uint8Array>) =>
+      new NextRequest(request.url, { method: "POST", headers: request.headers, body, duplex: "half" } as ConstructorParameters<typeof NextRequest>[1]);
+
+    const unsigned = mercadoPagoNotification("123");
+    unsigned.headers.delete("x-signature");
+    const flood = huge();
+    expect((await webhook(withBody(unsigned, flood.stream))).status).toBe(401);
+    // Never read past what the stream had queued on its own.
+    expect(flood.pulled()).toBeLessThanOrEqual(1);
+
+    const signed = huge();
+    expect((await webhook(withBody(mercadoPagoNotification("123"), signed.stream))).status).toBe(413);
+    expect(signed.pulled()).toBeLessThan(64);
   });
 
   it("two buyers race for the last unit: one order is paid, the other is refunded and cancelled", async () => {

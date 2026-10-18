@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { revalidateTag } from "next/cache";
+import { NextRequest } from "next/server";
 import { payOrder, prepareOrder } from "@/lib/orders/checkout";
 import { getPaymentGateway } from "@/lib/payments/config";
 import type { PaymentGateway } from "@/lib/payments/gateway";
@@ -79,6 +80,12 @@ describe("POST /api/stripe/webhook", () => {
     expect((await webhook(request)).status).toBe(400);
     expect((await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("PENDING");
     expect(await stockOf("7")).toBe(40);
+  });
+
+  it("refuses a body over its cap without reading all of it", async () => {
+    const request = webhookRequest("payment_intent.succeeded", { id: "pi_huge" });
+    const big = new NextRequest(request.url, { method: "POST", headers: request.headers, body: "x".repeat(600 * 1024) });
+    expect((await webhook(big)).status).toBe(413);
   });
 
   it("payment_intent.succeeded marks the order PAID, takes the stock, empties those cart lines, refreshes the cache and emails the customer", async () => {
