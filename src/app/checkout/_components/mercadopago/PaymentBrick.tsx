@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Payment, initMercadoPago } from "@mercadopago/sdk-react";
 import type { ShippingInfo } from "@/types";
+import { useThemed, type ThemeTokens } from "../providerTheme";
 
 /*
  * Mercado Pago's Payment Brick (@mercadopago/sdk-react), loaded only for real
@@ -27,43 +28,25 @@ declare global {
   }
 }
 
-const token = (styles: CSSStyleDeclaration, name: string) => styles.getPropertyValue(name).trim();
-
-/** The Brick's look from the store's tokens at this moment. */
-function readBrickStyle() {
-  const root = document.documentElement;
-  const styles = getComputedStyle(root);
-  const dark = root.classList.contains("dark");
+/** The Brick's look from the store's tokens (../providerTheme.ts). */
+function brickStyle({ dark, token }: ThemeTokens) {
   return {
     theme: (dark ? "dark" : "default") as "dark" | "default",
     customVariables: {
-      textPrimaryColor: token(styles, "--fg"),
-      textSecondaryColor: token(styles, "--fg-secondary"),
-      inputBackgroundColor: token(styles, "--surface"),
-      formBackgroundColor: token(styles, "--surface"),
-      baseColor: token(styles, "--focus-ring"),
-      outlinePrimaryColor: token(styles, "--border-strong"),
-      outlineSecondaryColor: token(styles, "--border"),
-      errorColor: token(styles, "--danger"),
-      successColor: token(styles, "--success"),
-      borderRadiusMedium: token(styles, "--radius-lg") || "0.5rem",
-      borderRadiusLarge: token(styles, "--radius-xl") || "0.75rem",
+      textPrimaryColor: token("--fg"),
+      textSecondaryColor: token("--fg-secondary"),
+      inputBackgroundColor: token("--surface"),
+      formBackgroundColor: token("--surface"),
+      baseColor: token("--focus-ring"),
+      outlinePrimaryColor: token("--border-strong"),
+      outlineSecondaryColor: token("--border"),
+      errorColor: token("--danger"),
+      successColor: token("--success"),
+      borderRadiusMedium: token("--radius-lg") || "0.5rem",
+      borderRadiusLarge: token("--radius-xl") || "0.75rem",
       formPadding: "0px",
     },
   };
-}
-
-/** The Brick's style, refreshed when the theme changes (the `dark` class on <html>): the Brick re-renders with it. */
-function useBrickStyle() {
-  const [style, setStyle] = useState<ReturnType<typeof readBrickStyle> | null>(null);
-  useEffect(() => {
-    const update = () => setStyle(readBrickStyle());
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-  return style;
 }
 
 const noSubmit = async () => {
@@ -88,7 +71,8 @@ export function PaymentBrick({
     initMercadoPago(publicKey, { locale: "es-AR" });
     return publicKey;
   });
-  const style = useBrickStyle();
+  // Refreshed when the theme changes: the Brick re-renders with it.
+  const style = useThemed(brickStyle);
 
   // The Brick re-mounts whenever these objects change: memoised on what they hold.
   const initialization = useMemo(
