@@ -35,3 +35,10 @@ export async function notifyPayment(request: APIRequestContext, paymentId: strin
   expect(response.status()).toBe(200);
   return ((await response.json()) as { result: string }).result;
 }
+
+/** The customer pays a Checkout Pro preference on Mercado Pago (the mock); returns the new payment's id. */
+export async function payPreference(request: APIRequestContext, preferenceId: string): Promise<string> {
+  const response = await request.post("/api/test/mercadopago", { data: { action: "pay_preference", preferenceId } });
+  expect(response.status()).toBe(200);
+  return ((await response.json()) as { payment: { id: string } }).payment.id;
+}

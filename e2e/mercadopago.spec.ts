@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
-import { logIn, uniqueEmail } from "./helpers/accounts";
+import { E2E_ADMIN_EMAIL, logIn, uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
 import { createE2eAccount, latestOrder } from "./helpers/db";
-import { notifyPayment, setLatestPaymentStatus } from "./helpers/mercadopago";
+import { notifyPayment, payPreference, setLatestPaymentStatus } from "./helpers/mercadopago";
 
 /*
  * The Mercado Pago checkout (the store's default provider) against the dev
@@ -145,6 +145,75 @@ test.describe("Mercado Pago checkout", () => {
       await expect(page.getByTestId("pending-payment")).toHaveCount(0);
     });
   }
+
+  test("'Cuenta de Mercado Pago': to Mercado Pago and back, waiting on the return page until the payment arrives", async ({ page }) => {
+    test.slow();
+    await seedCart(page, REAL_CART);
+    const email = uniqueEmail("mp-wallet");
+    await toPayment(page, email);
+    await review(page, /Cuenta de Mercado Pago/);
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
+
+    // The mock "Mercado Pago" sends the customer straight back, not paid yet.
+    await page.waitForURL(/\/checkout\/pedido\/[^/?]+\?preference_id=/, { timeout: 15_000 });
+    const url = new URL(page.url());
+    const preferenceId = url.searchParams.get("preference_id")!;
+    const order = (await latestOrder(email))!;
+    expect(url.pathname).toBe(`/checkout/pedido/${order.id}`);
+    const confirmation = page.getByTestId("order-confirmation");
+    await expect(confirmation).toHaveAttribute("data-status", "PENDING");
+    await expect(page.getByRole("heading", { level: 1, name: "Estamos confirmando tu pago" })).toBeVisible();
+    const back = page.getByRole("link", { name: "Volver al checkout para pagar" });
+    await expect(back).toHaveAttribute("href", "/checkout");
+    // Nothing was placed yet: the cart keeps its lines.
+    await expect(page.getByTestId("cart-count")).toHaveText("2");
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
+
+    // Paid on Mercado Pago, and its notification: the page follows the order to paid and empties the cart.
+    const paymentId = await payPreference(page.request, preferenceId);
+    expect(await notifyPayment(page.request, paymentId)).toBe("paid");
+    await expect(confirmation).toHaveAttribute("data-status", "PAID", { timeout: 15_000 });
+    await expect(confirmation.getByTestId("order-total")).toHaveText(/3\.588/);
+    await expect(confirmation).toContainText("Dinero en cuenta de Mercado Pago");
+    await expect(back).toHaveCount(0);
+    await expect(page.getByTestId("cart-count")).toHaveCount(0);
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
+    expect((await latestOrder(email))?.status).toBe("PAID");
+  });
+
+  test("the admin sees a cash payment as cash, and after 'Cancelar y reembolsar' Mercado Pago's status as refunded", async ({ page, browser }) => {
+    test.slow();
+    await seedCart(page, REAL_CART);
+    const email = uniqueEmail("mp-admin");
+    await toPayment(page, email);
+    await review(page, /Pago Fácil/);
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
+    await expect(page.getByTestId("order-confirmation")).toHaveAttribute("data-status", "PAYMENT_PENDING", { timeout: 15_000 });
+    const paid = await setLatestPaymentStatus(page.request, email, "approved", "accredited");
+    expect(await notifyPayment(page.request, paid.providerPaymentId!)).toBe("paid");
+    const number = `LEGO-${String(paid.number).padStart(6, "0")}`;
+
+    const context = await browser.newContext();
+    const admin = await context.newPage();
+    const path = `/admin/orders/${paid.id}`;
+    await admin.goto(`/login?callbackUrl=${encodeURIComponent(path)}`);
+    await logIn(admin, E2E_ADMIN_EMAIL, process.env.E2E_ADMIN_PASSWORD);
+    await expect(admin.getByRole("heading", { level: 1, name: `Pedido ${number}` })).toBeVisible({ timeout: 30_000 });
+    const payment = admin.getByTestId("admin-order-payment");
+    await expect(payment).toContainText("Efectivo");
+    // Mercado Pago says "1" installment for cash too: not shown.
+    await expect(payment).not.toContainText("Cuotas");
+    await expect(payment).toContainText("Aprobado");
+
+    await admin.getByRole("button", { name: "Cancelar y reembolsar" }).click();
+    await admin.getByRole("dialog", { name: `¿Cancelar ${number}?` }).getByRole("button", { name: "Cancelar y reembolsar" }).click();
+    await expect(admin.getByText("Cancelamos el pedido, reembolsamos el pago y devolvimos el stock.")).toBeVisible({ timeout: 15_000 });
+    await expect(admin.getByTestId("admin-order-status")).toHaveText("Cancelado");
+    // The refund's notification never reaches a local server: the page says so anyway.
+    await expect(payment).toContainText("Reembolsado");
+    await expect(payment).not.toContainText("Aprobado");
+    await context.close();
+  });
 
   test("the webhook refuses a notification that is not signed with the secret", async ({ request }) => {
     const response = await request.post("/api/webhooks/mercadopago?data.id=123&type=payment", {
