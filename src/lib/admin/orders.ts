@@ -4,6 +4,7 @@ import type { Db } from "@/lib/lists/product";
 import { sendOrderCancelled, sendOrderShipped } from "@/lib/orders/notify";
 import { orderViewSelect, toOrderView } from "@/lib/orders/queries";
 import type { CancelReason, OrderStatus, OrderView } from "@/lib/orders/types";
+import { recordMercadoPagoPaymentEvent } from "@/lib/orders/mercadopago";
 import { asOrderPayments, providerOf, type OrderPayments } from "@/lib/orders/payments";
 import { restock } from "@/lib/orders/webhook";
 import type { PaymentGateway } from "@/lib/payments/gateway";
@@ -465,6 +466,10 @@ async function cancelPaid(db: PrismaClient, payments: OrderPayments, input: Orde
         ...(order.paymentProvider === "MERCADOPAGO" ? { paymentStatus: "refunded", paymentStatusDetail: "refunded" } : {}),
       },
     });
+    if (order.paymentProvider === "MERCADOPAGO" && order.providerPaymentId) {
+      // The payment's history shows the refund now; Mercado Pago's notification of it, when it comes, is the same entry.
+      await recordMercadoPagoPaymentEvent(tx, input.orderId, { id: order.providerPaymentId, status: "refunded", statusDetail: "refunded" }, "admin");
+    }
     await recordChange(tx, input, "PAID", actor, refundId);
     return { ok: true, changed: true, status: "CANCELLED", restockedProductIds, refundId };
   }, LOCKED_TX);

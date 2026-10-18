@@ -499,10 +499,14 @@ describe("admin", () => {
     expect(controls().get(view!.paymentId!)?.status).toBe("refunded");
     // The admin sees Mercado Pago's status now, without waiting for the refund's notification.
     expect(await orderRow(order.id)).toMatchObject({ paymentStatus: "refunded", paymentStatusDetail: "refunded" });
+    // ... and in the payment's history, from the panel.
+    const history = async () => (await getAdminOrder(testDb, order.id))!.paymentEvents.map((event) => `${event.status}/${event.source}`);
+    expect(await history()).toEqual(["approved/checkout", "refunded/admin"]);
 
-    expect((await notify(view!.paymentId!)).body.result).toBe("unchanged");
+    // The refund's notification is the same entry.
+    expect((await notify(view!.paymentId!)).body.result).toBe("duplicate");
     expect(await stockOf("7")).toBe(40);
-    expect((await getAdminOrder(testDb, order.id))!.paymentEvents.map((event) => event.status)).toEqual(["approved", "refunded"]);
+    expect(await history()).toEqual(["approved/checkout", "refunded/admin"]);
   });
 
   it("a failed refund call is not saved by an earlier partial refund: the order stays paid", async () => {

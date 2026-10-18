@@ -372,10 +372,19 @@ async function lockForPayment(tx: Tx, orderId: string) {
   });
 }
 
-/** Records the news about a payment; false when it was already applied. */
-async function claimPaymentEvent(tx: Tx, orderId: string, event: MpEvent, source: Source): Promise<boolean> {
-  const payment = event.raw;
-  const key = `MERCADOPAGO:${event.eventId}`;
+/**
+ * Records a Mercado Pago payment's (status, detail) in the order's history
+ * (PaymentEvent); false when it was already recorded. Its key is the same as
+ * mercadoPagoEvent's id, whoever records it first: the admin's refund
+ * ("admin") and the webhook that reports it later are one entry.
+ */
+export async function recordMercadoPagoPaymentEvent(
+  tx: Tx,
+  orderId: string,
+  payment: Pick<MpPayment, "id" | "status" | "statusDetail">,
+  source: Source
+): Promise<boolean> {
+  const key = `MERCADOPAGO:${payment.id}:${payment.status}:${payment.statusDetail ?? ""}`;
   const rows = await tx.$queryRaw<{ id: string }[]>`
     INSERT INTO "PaymentEvent" ("id", "key", "orderId", "provider", "paymentId", "status", "statusDetail", "source")
     VALUES (${`pe_${randomUUID()}`}, ${key}, ${orderId}, 'MERCADOPAGO', ${payment.id}, ${payment.status}, ${payment.statusDetail}, ${source})
@@ -384,6 +393,9 @@ async function claimPaymentEvent(tx: Tx, orderId: string, event: MpEvent, source
   `;
   return rows.length > 0;
 }
+
+/** Records the news about a payment; false when it was already applied. */
+const claimPaymentEvent = (tx: Tx, orderId: string, event: MpEvent, source: Source) => recordMercadoPagoPaymentEvent(tx, orderId, event.raw, source);
 
 /** The payment's details on the order (it is the order's payment from now on). */
 const paymentFields = (payment: MpPayment) => ({
