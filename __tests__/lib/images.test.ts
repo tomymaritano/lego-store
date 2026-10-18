@@ -13,6 +13,9 @@ describe("product picture URLs", () => {
     "/images/lego.png",
     "https://www.lego.com/cdn/cs/set/assets/bltde62e4576a817dd4/75349.png",
     "  https://www.lego.com/cdn/x.png  ",
+    // Uploads: Vercel Blob in production, site files in dev.
+    "https://abc123xyz.public.blob.vercel-storage.com/uploads/f3a9.webp",
+    "/uploads/f3a9c1d2e4b5a6f7.webp",
   ])("accepts %s", (url) => {
     expect(isAllowedImageUrl(url)).toBe(true);
   });
@@ -30,6 +33,10 @@ describe("product picture URLs", () => {
     "https://user:pass@www.lego.com/cdn/x.png",
     "https://lego.com/cdn/x.png",
     "https://www.lego.com.evil.example/cdn/x.png",
+    "https://public.blob.vercel-storage.com/x.webp",
+    "https://a.b.public.blob.vercel-storage.com/x.webp",
+    "https://evil.public.blob.vercel-storage.com.example/x.webp",
+    "http://abc.public.blob.vercel-storage.com/x.webp",
     "javascript:alert(1)",
     "data:image/png;base64,AAAA",
     "/images/with space.png",

@@ -8,7 +8,9 @@
  *   string or fragment: next.config.mjs sets no images.localPatterns, and
  *   Next's default ({ pathname: "**", search: "" }) makes next/image throw
  *   during render on "/images/lego.png?v=2";
- * - an https URL matching one of REMOTE_IMAGE_PATTERNS.
+ * - an https URL matching one of REMOTE_IMAGE_PATTERNS: the lego.com CDN of
+ *   the seed's pictures, and Vercel Blob, where the admin's uploads live in
+ *   production (src/lib/uploads; in dev they are site files under /uploads/).
  *
  * Keep REMOTE_IMAGE_PATTERNS equal to next.config.mjs's remotePatterns, and
  * the site-file rule in step with its (absent) localPatterns
@@ -17,20 +19,32 @@
 
 export interface RemoteImagePattern {
   protocol: "https";
+  /** An exact host, or "*.<domain>": exactly one label before the domain (as next/image reads it). */
   hostname: string;
   /** "/cdn/**": a path prefix followed by anything. */
   pathname: string;
 }
 
+/** Vercel Blob's public stores: "<store id>.public.blob.vercel-storage.com". */
+export const BLOB_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+
 export const REMOTE_IMAGE_PATTERNS: readonly RemoteImagePattern[] = [
   { protocol: "https", hostname: "www.lego.com", pathname: "/cdn/**" },
+  { protocol: "https", hostname: `*${BLOB_HOST_SUFFIX}`, pathname: "/**" },
 ];
 
-/** Hosts a product picture may come from, for messages ("www.lego.com"). */
-export const REMOTE_IMAGE_HOSTS = REMOTE_IMAGE_PATTERNS.map((pattern) => pattern.hostname);
+/** Hosts an admin may paste a picture from, for messages ("www.lego.com"); uploads are said apart. */
+export const REMOTE_IMAGE_HOSTS = REMOTE_IMAGE_PATTERNS.filter((pattern) => !pattern.hostname.startsWith("*")).map((pattern) => pattern.hostname);
+
+function hostMatches(hostname: string, pattern: string): boolean {
+  if (!pattern.startsWith("*.")) return hostname === pattern;
+  const suffix = pattern.slice(1);
+  const label = hostname.slice(0, -suffix.length);
+  return hostname.endsWith(suffix) && /^[a-z0-9-]+$/.test(label);
+}
 
 function matchesPattern(url: URL, pattern: RemoteImagePattern): boolean {
-  if (url.protocol !== `${pattern.protocol}:` || url.hostname !== pattern.hostname || url.port !== "") return false;
+  if (url.protocol !== `${pattern.protocol}:` || !hostMatches(url.hostname, pattern.hostname) || url.port !== "") return false;
   const prefix = pattern.pathname.replace(/\*\*$/, "");
   return url.pathname.startsWith(prefix) && url.pathname.length > prefix.length;
 }

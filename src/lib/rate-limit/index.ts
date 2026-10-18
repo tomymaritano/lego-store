@@ -80,6 +80,8 @@ export const rateLimits = {
   listsWrite: limiter("lists-write", 300, 15 * MINUTE),
   /** Login merges of guest lists per user: up to 200 + 200 rows in one transaction each. */
   listsMerge: limiter("lists-merge", 30, HOUR),
+  /** Picture uploads per admin (src/lib/uploads): each one is decoded, re-encoded and stored. */
+  adminUpload: limiter("admin-upload", 120, HOUR),
 } as const;
 
 export { clientIp } from "./client-ip";

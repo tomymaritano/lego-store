@@ -49,11 +49,18 @@ const nextConfig = {
     // the fallback. Optimised variants are cached, so the slower AVIF encode
     // is paid once per size.
     formats: ["image/avif", "image/webp"],
+    // Keep equal to REMOTE_IMAGE_PATTERNS (src/lib/images.ts): the lego.com CDN
+    // of the seed's pictures, and Vercel Blob for the admin's uploads.
     remotePatterns: [
       {
         protocol: "https",
         hostname: "www.lego.com",
         pathname: "/cdn/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.public.blob.vercel-storage.com",
+        pathname: "/**",
       },
     ],
   },
