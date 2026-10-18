@@ -188,3 +188,28 @@ README pasa a describir el proyecto en vez de un producto a la venta.
   componentes y tokens existentes (`src/components/ui`, Tailwind).
 - Estrategia de búsqueda (ILIKE alcanza para 22 productos; full-text es opcional).
 - Cómo partir el trabajo en etapas.
+
+## Notas de implementación: checkout y pedidos
+
+Decisiones tomadas al construir la etapa (el README, «Checkout, pagos y pedidos»,
+tiene el detalle):
+
+- *Acceso de invitados*: crear el pedido deja en el navegador una cookie HttpOnly con
+  un token aleatorio (la base guarda su sha256). Con ella un invitado ve el estado y
+  paga solo su pedido; con sesión cuenta también el dueño. El id del pedido solo no
+  da acceso a nada.
+- *Número de pedido*: `Order.number` autoincremental desde 1001, mostrado como
+  `LEGO-001001`.
+- *"Mis pedidos"* lista los pedidos con `submittedAt` (llegaron a "Realizar
+  pedido"): un checkout abandonado no aparece aunque la limpieza lo cancele.
+- *Carrito tras el pago*: el webhook quita del carrito de la cuenta solo las
+  líneas compradas (lo agregado en otra pestaña durante el pago queda), y el
+  navegador hace lo mismo con su copia.
+- *Pendientes viejos*: un nuevo intento desde el mismo navegador actualiza su
+  pedido pendiente (y el monto del PaymentIntent) o lo cancela si ya no se puede
+  pagar; `GET /api/cron/expire-orders` (con `CRON_SECRET`) cancela el resto a las
+  24 h.
+- *Tests sin Stripe*: `STRIPE_MOCK=1` (ignorado con `NODE_ENV=production`) cambia la
+  pasarela por una en memoria y el Payment Element por tarjetas de prueba; el
+  webhook se ejercita con eventos firmados con el secreto de test. El E2E contra
+  Stripe test real con secrets en CI no está hecho.

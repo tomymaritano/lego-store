@@ -2,14 +2,15 @@
 
 Tienda online de sets LEGO (proyecto de portfolio): catálogo con búsqueda e
 infinite scroll, ficha de producto, carrito, lista de deseos, comparador de
-hasta 4 productos y un checkout en pasos (pago simulado). Toda la UI está en
+hasta 4 productos y un checkout en pasos con Stripe. Toda la UI está en
 español, tiene modo oscuro y apunta a WCAG 2.1 AA.
 
 El catálogo vive en PostgreSQL (Prisma) y todas las lecturas pasan por una sola
 capa (`src/lib/api`). Hay cuentas de usuario (registro, login, perfil, roles
-cliente/admin) con Auth.js. El resto del backend (carrito y favoritos en el
-servidor, reseñas, pedidos con Stripe, emails, admin) se construye por etapas
-según `docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
+cliente/admin) con Auth.js, carrito y favoritos por cuenta, reseñas, y pedidos
+pagados con Stripe (modo test) con email de confirmación (Resend) y "Mis
+pedidos". El panel de admin (productos y pedidos) se construye en la etapa
+siguiente, según `docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
 necesita Postgres para correr: ver [Backend local setup](#backend-local-setup).
 
 <table>
@@ -39,6 +40,7 @@ producción en marcha (`npm run build && npm start`).
 - **Auth.js** (`next-auth@5.0.0-beta.32`, compatible con Next 16 y React 19): email + contraseña (bcrypt) y Google opcional, sesiones JWT
 - **PostgreSQL 17** + **Prisma 7** (cliente `prisma-client` generado en `src/generated/prisma`, driver adapter `@prisma/adapter-pg`)
 - **Zustand** (estado del cliente persistido), **TanStack Query** (datos en islas cliente)
+- **Stripe** (`stripe` 23 en el servidor, Payment Element con `@stripe/react-stripe-js` 7 y ConfirmationTokens) y **Resend** (emails; sin claves se loguean a consola)
 - **React Hook Form** + **Zod** (checkout, contacto y reseñas; se cargan solo donde se usan), **sonner** (toasts)
 - Barlow servida por `next/font` (self-hosted y precargada)
 - **Vitest** (unit + Storybook), **Playwright** (E2E), **Storybook 10** con a11y
@@ -84,7 +86,8 @@ src/
     (info)/            Ayuda y la tienda: faq, envios, devoluciones, contacto,
                        nosotros, terminos, privacidad (layout con menú lateral)
     (auth)/            /login y /register + sus Server Actions (login, registro)
-    account/           /account: perfil, contraseña, sesión (+ Server Actions)
+    account/           /account: pedidos recientes, perfil, contraseña, sesión (+ Server Actions)
+      orders/          /account/orders (Mis pedidos) y /account/orders/[id] (detalle)
     admin/             /admin: resumen de la tienda (solo ADMIN)
     forbidden.tsx      Página 403 (forbidden())
     api/               Route Handlers para las islas cliente
@@ -93,6 +96,9 @@ src/
       products/facets/ GET /api/products/facets (conteos en vivo de los filtros)
       search/          GET /api/search?q= (autocompletado)
       auth/[...nextauth]/  Endpoints de Auth.js (OAuth, sesión, CSRF)
+      checkout/orders/ POST: preparar el pedido · GET [id]: estado · POST [id]/pay: pagar
+      stripe/webhook/  POST: eventos de Stripe (firma verificada)
+      cron/expire-orders/  GET con CRON_SECRET: cancela pedidos pendientes viejos
     cart/ wishlist/ compare/ search/ category/ item/
     checkout/_components/  Pasos, resumen y confirmación del checkout
   components/
@@ -112,12 +118,15 @@ src/
                        requireUser, requireAdmin, authorizeRequest), cuentas (accounts.ts),
                        adapter de Prisma, callbackUrl seguro, hash de contraseñas (bcrypt),
                        actions.ts (logout y Google, que usan el navbar y /account)
-    rate-limit/        Rate limiting en Postgres (login, registro; reutilizable)
+    rate-limit/        Rate limiting en Postgres (login, registro, reseñas, checkout)
+    orders/            Pedidos: checkout en el servidor, webhook, limpieza, acceso, consultas, formato
+    payments/          Pasarela de pago: Stripe, el mock de tests (STRIPE_MOCK) y su configuración
+    email/             Envío (Resend o consola) y plantillas de los emails de pedidos
     admin/             Datos del panel de admin (verifican el rol ellos mismos)
     api-client.ts      Llamadas del navegador a /api/*
     productQuery.ts    ProductQuery <-> URL search params
     pricing.ts         Subtotal, envío y totales (carrito y checkout)
-    card.ts argentina.ts  Tarjetas, provincias y códigos postales
+    argentina.ts       Provincias y zona horaria de la tienda
     flyToCart.ts       Animación "vuela al carrito" (Web Animations API)
     motion.ts motion-features.ts theme.ts metadata.ts utils.ts validations/
   stores/              Zustand: cart, wishlist, compare, recentlyViewed, theme, reviews, checkout, ui
@@ -302,6 +311,86 @@ scripts/               Presupuesto de JS y capturas del README
   Lo del usuario (su reseña y sus votos) sale de
   `GET /api/products/<id>/reviews/mine`, sin caché.
 
+## Checkout, pagos y pedidos
+
+El flujo visible no cambió: **Envío → Pago → Revisar** y la confirmación. Lo que
+cuesta plata lo decide el servidor (`src/lib/orders/checkout.ts`):
+
+1. **Pago** solo *recolecta* la tarjeta: el Payment Element de Stripe (tematizado
+   con los tokens del sitio en claro y oscuro, `stripeClient.ts`) hace
+   `elements.submit()` + `stripe.createConfirmationToken()`. La tarjeta nunca pasa
+   por nuestro servidor; el navegador guarda en memoria el id del token, la marca y
+   los últimos 4 dígitos.
+2. Al entrar a **Revisar**, `POST /api/checkout/orders` (zod: solo ids, cantidades,
+   el formulario de envío, validado de nuevo, y el id del token) toma precios y
+   stock de la base, calcula envío y totales con `lib/pricing`, lee marca y últimos
+   4 del ConfirmationToken y crea el pedido **PENDING** con su PaymentIntent (ARS,
+   `total × 100`, solo tarjeta, `metadata.orderId`, idempotency key por pedido). Si
+   algo no tiene stock responde 409 con las líneas: el carrito se ajusta y la
+   revisión se prepara de nuevo avisando qué cambió. Si los precios cambiaron, el
+   carrito adopta los del servidor. Ese navegador recibe una cookie HttpOnly con un
+   token de acceso al pedido (la base guarda su sha256): un invitado solo puede ver
+   y pagar el pedido que creó; con sesión, el pedido queda en la cuenta.
+3. **Realizar pedido** (`POST /api/checkout/orders/<id>/pay`) confirma el
+   PaymentIntent en el servidor con el ConfirmationToken. Si el banco pide 3D
+   Secure, el navegador lo resuelve con `stripe.handleNextAction`. Un rechazo
+   vuelve al paso Pago con el motivo en español.
+4. La **confirmación** muestra el número real (`LEGO-001001`) y el estado, y
+   consulta `GET /api/checkout/orders/<id>` cada 1,5 s hasta que el webhook lo marca
+   pagado (o cancelado). Las líneas compradas salen del carrito del navegador.
+
+**Webhook** (`/api/stripe/webhook`, `src/lib/orders/webhook.ts`): cuerpo crudo y
+firma verificada con `STRIPE_WEBHOOK_SECRET`; cada evento se procesa una sola vez
+(tabla `ProcessedStripeEvent`, en la misma transacción que sus cambios).
+`payment_intent.succeeded` bloquea las filas de los productos (en orden de id) y
+descuenta el stock de todas las líneas o de ninguna: si a alguna le falta, el pedido
+pasa a **CANCELLED** y se reembolsa (idempotency key por pedido); si no, pasa a
+**PAID**, se quitan esas líneas del carrito de la cuenta, se invalida la caché del
+catálogo de esos productos y sale el email de confirmación. Si el reembolso falla,
+no se guarda nada y la respuesta es 500 para que Stripe reintente.
+`payment_intent.payment_failed` deja el pedido PENDING (se puede pagar con otra
+tarjeta); `payment_intent.canceled` lo cancela. Un pago que llega para un pedido ya
+cancelado se reembolsa.
+
+**Pedidos pendientes viejos**: un nuevo intento desde el mismo navegador actualiza
+su pedido pendiente (y el monto del PaymentIntent) o, si ya no se puede pagar, lo
+cancela. El resto los cancela `GET /api/cron/expire-orders` (con
+`Authorization: Bearer $CRON_SECRET`) a las 24 h, junto con su PaymentIntent. En
+Vercel se agenda con un Cron Job en `vercel.json`
+(`{"crons":[{"path":"/api/cron/expire-orders","schedule":"0 4 * * *"}]}`; Vercel
+manda el `CRON_SECRET` del proyecto solo); en otro hosting, cualquier scheduler que
+haga ese GET. Sin `CRON_SECRET` la ruta responde 503.
+
+**Mis pedidos** (`/account/orders`, `/account/orders/[id]`): solo los pedidos de la
+cuenta que llegaron a "Realizar pedido" (un checkout abandonado no es una compra),
+con línea de tiempo de estado, las líneas como se compraron (nombre, precio e imagen
+de ese momento), totales, dirección y tarjeta. El pedido de otra persona es un 404.
+Los pedidos de invitado no se vinculan a una cuenta creada después.
+
+**Emails** (`src/lib/email`): confirmación al pasar a PAID y "en camino" al pasar a
+SHIPPED (`sendOrderShipped`, lo usa el admin). HTML simple con estilos en línea y
+versión en texto. Con `RESEND_API_KEY` y `EMAIL_FROM` se envían por Resend (sin
+dominio verificado, Resend solo entrega al dueño de la cuenta); sin ellas se
+muestran en la consola del servidor.
+
+**Configuración** (`src/lib/payments/config.ts`):
+
+- **Stripe** necesita `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` y
+  `STRIPE_WEBHOOK_SECRET` (claves de test: <https://dashboard.stripe.com/test/apikeys>).
+  En local, los webhooks llegan con la [Stripe CLI](https://docs.stripe.com/stripe-cli):
+  `stripe listen --forward-to localhost:3000/api/stripe/webhook` imprime el
+  `whsec_…` para `.env.local`. Tarjetas de prueba: `4242 4242 4242 4242` (aprobada),
+  `4000 0027 6000 3184` (3D Secure), `4000 0000 0000 0002` (rechazada).
+- **Sin esas variables** el paso Pago muestra "Pagos no configurados" (en dev, con
+  la lista de lo que falta) y las rutas de checkout responden 503.
+- **`STRIPE_MOCK=1`** (solo fuera de producción: con `NODE_ENV=production` se
+  ignora) reemplaza Stripe por una pasarela en memoria (`src/lib/payments/mock.ts`)
+  y el Payment Element por una lista de tarjetas de prueba. Es lo que usan los E2E
+  y los tests de integración; el webhook sigue verificando firmas, así que los tests
+  firman sus eventos con `stripe.webhooks.generateTestHeaderString`.
+- Rate limits del checkout: 30 preparaciones y 15 pagos cada 15 minutos por usuario
+  (o IP).
+
 ## Estado del cliente
 
 - Stores de Zustand con **selectores** (`useCartCount`, `useCartSubtotal`,
@@ -316,7 +405,8 @@ scripts/               Presupuesto de JS y capturas del README
   "cargando" de "vacío" donde importa.
 - Tema: el store es la única fuente de verdad; un script inline en `<head>` aplica
   la clase `dark` antes del primer pintado y `ThemeSync` lo mantiene al día.
-- El checkout vive en memoria y nunca guarda el número de tarjeta ni el CVV.
+- El checkout vive en memoria y nunca ve datos de tarjeta: solo el id del
+  ConfirmationToken de Stripe, la marca y los últimos 4 dígitos.
 
 ## Backend local setup
 
@@ -366,7 +456,13 @@ npm run dev
   nueva recrea una tabla, copiá las suyas.
 - **Producción** (Vercel + Neon u otro Postgres): `DATABASE_URL` y `AUTH_SECRET` en
   las variables del proyecto y `npm run db:deploy` + `npm run db:seed` contra esa
-  base antes del primer deploy.
+  base antes del primer deploy. Para cobrar: las tres variables de Stripe, un
+  endpoint de webhook en el dashboard de Stripe apuntando a
+  `https://<dominio>/api/stripe/webhook` con los eventos `payment_intent.succeeded`,
+  `payment_intent.payment_failed` y `payment_intent.canceled` (su signing secret es
+  `STRIPE_WEBHOOK_SECRET`), `CRON_SECRET` + el Cron Job de la limpieza (ver
+  [Checkout, pagos y pedidos](#checkout-pagos-y-pedidos)), y opcionalmente
+  `RESEND_API_KEY` / `EMAIL_FROM`.
 
 ## Sistema de diseño
 
@@ -433,10 +529,16 @@ npm run dev
   en Postgres (concurrencia y ventanas), carrito y favoritos por usuario (fusión al
   ingresar, topes de stock, datos frescos, cada usuario solo toca lo suyo) y
   reseñas (una por usuario, compra verificada, rating recalculado en la misma
-  transacción, "útil" una vez, dueño, rate limit, invalidación, orden y páginas).
+  transacción, "útil" una vez, dueño, rate limit, invalidación, orden y páginas),
+  checkout (totales y stock desde la base, PaymentIntent en ARS con idempotency key,
+  reutilizar o cancelar el pedido pendiente, pagos rechazados, acceso por cookie o
+  cuenta, limpieza de pendientes) y el webhook de Stripe con eventos firmados
+  (firma, PAID con stock atómico, dos pagos por la última unidad → un reembolso,
+  reenvíos idempotentes, reembolso que falla → 500 y reintento, email).
 - `__tests__/lib`: parser de queries, búsqueda normalizada, caché del catálogo
-  (tags e invalidación), validación de cuentas, callbackUrl, roles, rate limiter y
-  utilidades.
+  (tags e invalidación), validación de cuentas, callbackUrl, roles, rate limiter,
+  la pasarela de Stripe con el SDK simulado (parámetros, errores, tokens), la
+  configuración de pagos, el acceso a pedidos, los emails y utilidades.
 - `__tests__/stores`: stores, selectores, migraciones e hidratación; la capa
   optimista contra el servidor (rollback, respuestas viejas, recargas que se
   cruzan con un cambio) y las reglas de sincronización al ingresar y salir.
@@ -451,7 +553,9 @@ npm run dev
 - `e2e/`: un archivo por área: `homepage` (inicio), `catalog` (filtros en la URL,
   orden, precio), `search` (búsqueda y combobox), `product` (ficha), `cart`
   (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
-  (favoritos, comparador y su barra), `checkout` (con axe), `shell` (navbar,
+  (favoritos, comparador y su barra), `checkout` (compra de invitado hasta PAID,
+  tarjeta rechazada, validaciones, con axe), `orders` (compra con cuenta → Mis
+  pedidos → detalle; otra cuenta recibe 404), `shell` (navbar,
   footer, páginas de información, 404), `state` (estado persistido), `a11y`
   (axe WCAG 2.1 AA en cada página, en modo claro y oscuro), `auth` (registro →
   logout → login → cuenta, redirección de rutas protegidas, callbackUrl, 403 de
@@ -464,7 +568,12 @@ npm run dev
   aleatoria; el teardown vuelve a borrarlos (y recalcula los ratings, porque sus
   reseñas se van en cascada). Los specs de reseñas comparan la página con la base y
   no con lo que mostraba antes: una corrida que falló a mitad puede dejar el data
-  cache del servidor de dev un paso atrás hasta 1 h.
+  cache del servidor de dev un paso atrás hasta 1 h. Playwright levanta el servidor
+  de dev con `STRIPE_MOCK=1` y un `STRIPE_WEBHOOK_SECRET` de test
+  (`e2e/helpers/stripe.ts`); si reutiliza un `npm run dev` que ya estaba corriendo
+  sin eso, el setup global falla explicando qué hacer. Los pedidos de los specs
+  (emails `@e2e.lego-store.test`) se borran en el setup y el teardown, devolviendo
+  el stock que tomaron.
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
