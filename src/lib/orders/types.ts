@@ -31,6 +31,12 @@ export type CancelReason =
   | "payment_rejected"
   /** The customer disputed the charge with their bank (Mercado Pago charged_back). */
   | "chargeback"
+  /**
+   * Paid on Mercado Pago's site (Checkout Pro) with a coupon that no longer
+   * fit by then (its hold lapsed and the use was taken, the email had used
+   * it up, it expired): refunded, or the pending payment cancelled.
+   */
+  | "coupon_unavailable"
   | "admin";
 
 export interface OrderLineView {

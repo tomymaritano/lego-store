@@ -29,6 +29,10 @@ export async function afterMercadoPagoPayment(db: Db, outcome: ApplyOutcome): Pr
       // Charged and refunded: a guest has no other way to know.
       await sendOrderCancelled(db, outcome.orderId);
       return;
+    case "coupon_unavailable":
+      // Refunded: the cancellation email says the money goes back; a cancelled pending payment charged nothing.
+      await (outcome.refunded ? sendOrderCancelled(db, outcome.orderId) : sendOrderPaymentLapsed(db, outcome.orderId));
+      return;
     case "refunded":
       if (outcome.notify) await sendOrderCancelled(db, outcome.orderId);
       return;

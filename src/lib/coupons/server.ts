@@ -24,11 +24,14 @@ import {
  *   lapses on its own: abandoned or scripted checkouts cannot keep a coupon's
  *   uses taken for long (and preparing a new order with a coupon has its own
  *   rate limit, rateLimits.couponPrepare).
- * - "Realizar pedido" (secureOrderCoupon) checks the limits again and makes
- *   the hold last until the order settles (holdExpiresAt NULL), before any
- *   money moves; a refused payment puts the short hold back
- *   (relaxOrderCoupon). An order waiting on a payment Mercado Pago already
- *   has (PAYMENT_PENDING) holds it too (the hold-expiry migration's trigger).
+ * - "Realizar pedido" (secureOrderCoupon) checks the limits again (every
+ *   rule, dates included, when the hold lapsed) and makes the hold last
+ *   until the order settles (holdExpiresAt NULL), before any money moves; a
+ *   refused payment puts the short hold back (relaxOrderCoupon).
+ * - Checkout Pro ("Cuenta de Mercado Pago") is paid on Mercado Pago's site:
+ *   opening it renews the short hold, its preference expires with it, and
+ *   the payment's report runs the same check before the order becomes PAID
+ *   or PAYMENT_PENDING (a payment that no longer fits is given back).
  * Both run with the coupon's row locked (FOR UPDATE): two checkouts racing
  * for its last use serialise there, and the second one counts the first's
  * hold and is refused. So the limits hold however many checkouts run at once.
@@ -193,20 +196,39 @@ export async function holdOrderCoupon(
   await tx.couponRedemption.upsert({ where: { orderId }, create: { orderId, ...data }, update: data });
 }
 
-export type CouponSecured = { ok: true } | { ok: false; rejection: CouponRejection; message: string };
+export type CouponSecured =
+  | {
+      ok: true;
+      /** Until when the use is held: the short hold `extend: false` renewed; null when it is held until the order settles (or there is no coupon). */
+      heldUntil: Date | null;
+    }
+  | { ok: false; rejection: CouponRejection; message: string };
 
 /**
- * "Realizar pedido", with the order's row locked and before any money moves:
- * checks the coupon's limits again (its total, the account's and now the
- * email's) with the coupon locked, and makes the order's hold last until the
- * order settles. Refused when the hold lapsed and its place was taken
- * meanwhile, or when this email already used it up: the order has to be
- * prepared again without it. An order without a coupon, or one already
- * secured (a retried payment), passes.
+ * Checks the order's coupon again with the coupon locked (the order's row is
+ * locked by the caller) and holds its use until the order settles. Runs:
+ * - on "Realizar pedido", before any money moves;
+ * - when Mercado Pago reports a payment for an order whose use is not held
+ *   that way yet (Checkout Pro: the payment is made on Mercado Pago's site,
+ *   so nothing was submitted here): before the order becomes PAID or
+ *   PAYMENT_PENDING (src/lib/orders/mercadopago.ts applyLocked). So a
+ *   preference paid after its hold lapsed, or one of several preferences
+ *   with the same email, cannot take a use the coupon no longer has.
  *
- * `extend: false` (Checkout Pro: the payment is made on Mercado Pago's site,
- * nothing is submitted here) checks the same and only renews the short hold;
- * the order holds it for good once Mercado Pago reports the payment.
+ * What is checked:
+ * - a live hold: the limits (its total, the account's and now the email's).
+ *   The hold already passed the coupon's dates and active flag, and it keeps
+ *   the use it holds even if the coupon is deactivated or expires meanwhile;
+ * - a lapsed hold (holdExpiresAt <= now): it stopped counting, so this is a
+ *   new use of the coupon, and it must pass every rule (active, dates, limits).
+ *
+ * Refused: the order has to be prepared again without it (or, for a payment
+ * already made, it is given back). An order without a coupon, or one already
+ * held until it settles (a retried payment), passes.
+ *
+ * `extend: false` (Checkout Pro, when the preference is opened) checks the
+ * same and only renews the short hold (`heldUntil`: the preference expires
+ * then too); the payment's report holds it for good (or refuses it).
  */
 export async function secureOrderCoupon(
   tx: Tx,
@@ -217,14 +239,16 @@ export async function secureOrderCoupon(
     where: { orderId },
     select: { couponId: true, userId: true, email: true, status: true, holdExpiresAt: true },
   });
-  if (!held || held.status !== "RESERVED" || held.holdExpiresAt === null) return { ok: true };
+  if (!held || held.status !== "RESERVED" || held.holdExpiresAt === null) return { ok: true, heldUntil: null };
   await tx.$queryRaw`SELECT "id" FROM "Coupon" WHERE "id" = ${held.couponId} FOR UPDATE`;
   const coupon = await tx.coupon.findUniqueOrThrow({ where: { id: held.couponId }, select: couponSelect });
   const uses = await countCouponUses(tx, coupon.id, { userId: held.userId, email: held.email || null }, orderId, now);
-  const rejection = limitRejection(coupon, uses);
+  const lapsed = held.holdExpiresAt.getTime() <= now.getTime();
+  const rejection = lapsed ? couponRejection(coupon, uses, now) : limitRejection(coupon, uses);
   if (rejection) return { ok: false, rejection, message: couponRejectionMessage(rejection, coupon) };
-  await tx.couponRedemption.update({ where: { orderId }, data: { holdExpiresAt: extend ? null : holdUntil(now) } });
-  return { ok: true };
+  const heldUntil = extend ? null : holdUntil(now);
+  await tx.couponRedemption.update({ where: { orderId }, data: { holdExpiresAt: heldUntil } });
+  return { ok: true, heldUntil };
 }
 
 /** A submitted payment was refused (the order stays at the checkout): its coupon goes back to a short hold. */

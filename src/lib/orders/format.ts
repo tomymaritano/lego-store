@@ -53,6 +53,8 @@ export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
   payment_rejected: "El medio de pago rechazó el pago, así que cancelamos el pedido. No se cobró nada.",
   chargeback:
     "Desconociste el pago ante tu banco o tarjeta, así que cancelamos el pedido. Si fue un error, escríbenos.",
+  coupon_unavailable:
+    "Cuando se acreditó el pago, el cupón del pedido ya no se podía usar (se agotó o venció), así que cancelamos el pedido y te devolvimos lo que hayas pagado. Puedes hacerlo de nuevo sin el cupón.",
   admin: "La tienda canceló el pedido. Si ya estaba pago, te devolvimos el dinero.",
 };
 

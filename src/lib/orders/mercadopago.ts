@@ -37,8 +37,9 @@ import { restock, takeStock } from "./webhook";
  * 2. payMercadoPagoOrder, on "Realizar pedido": the only call that charges.
  *    First the coupon's limits are checked again and its use is held until
  *    the order settles (secureOrderCoupon; a refused payment lets it go back
- *    to a short hold, and Checkout Pro only renews the short hold: the
- *    order holds it once Mercado Pago reports the payment).
+ *    to a short hold, and Checkout Pro only renews the short hold, its
+ *    preference expiring with it: the payment's report checks the coupon
+ *    again before the order is paid or waits on it).
  *    Card and cash: creates the payment from the Payment Brick's formData,
  *    for the order's total (never the browser's amount), with
  *    external_reference = the order id, our notification_url and an
@@ -50,7 +51,9 @@ import { restock, takeStock } from "./webhook";
  * goes through applyMercadoPagoPayment, under the order's row lock:
  *
  *   approved      PENDING | PAYMENT_PENDING -> PAID, taking the stock
- *                 atomically and clearing the account's cart; when a line is
+ *                 atomically and clearing the account's cart; a Checkout Pro
+ *                 payment whose coupon no longer fits (secureOrderCoupon):
+ *                 refund -> CANCELLED (coupon_unavailable); when a line is
  *                 short, or the order's own pending payment was approved for
  *                 another amount: refund -> CANCELLED. A payment for an amount
  *                 that is not the order's total while the order is still at
@@ -59,7 +62,9 @@ import { restock, takeStock } from "./webhook";
  *                 order was cancelled, or a second payment of a paid order:
  *                 refunded, and the order stays as it is.
  *   pending /     PENDING -> PAYMENT_PENDING (a cash ticket to pay, with its
- *   in_process    link and expiry; a card under review); in_mediation (a
+ *   in_process    link and expiry; a card under review; a Checkout Pro one
+ *                 whose coupon no longer fits: the payment is cancelled
+ *                 -> CANCELLED); in_mediation (a
  *                 dispute opened) of a paid order: only recorded
  *   rejected      PENDING stays PENDING (the customer is shown why and tries
  *                 again); a PAYMENT_PENDING one -> CANCELLED (rejected after review)
@@ -204,6 +209,9 @@ export type MercadoPagoPayOutcome =
 /** The Brick's data is not usable any more (a spent or expired card token, a method Mercado Pago refused). */
 export const PAYMENT_DATA_MESSAGE = "Vuelve a ingresar los datos del medio de pago.";
 
+/** How long a Checkout Pro preference without a coupon can be paid (one with a coupon: while its use is held). */
+const PREFERENCE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export async function payMercadoPagoOrder(
   db: PrismaClient,
   mp: MercadoPagoClient,
@@ -246,8 +254,15 @@ export async function payMercadoPagoOrder(
     if (!secured.ok) return { ok: false, code: "coupon", rejection: secured.rejection, message: secured.message };
 
     if (input.method === "wallet") {
-      // The same preference while the total stands (re-preparing clears it): a second click opens the same payment.
-      if (order.providerCheckoutId && order.providerCheckoutUrl) return { ok: true, next: "redirect", url: order.providerCheckoutUrl, order: await view() };
+      // With a coupon, the preference can be paid only while its use is held (the hold just renewed, `heldUntil`):
+      // each click opens a new one until then, and the old one is closed. A payment of it that still comes in
+      // later is checked again when Mercado Pago reports it (applyLocked).
+      const { heldUntil } = secured;
+      if (!heldUntil && order.providerCheckoutId && order.providerCheckoutUrl) {
+        // The same preference while the total stands (re-preparing clears it): a second click opens the same payment.
+        return { ok: true, next: "redirect", url: order.providerCheckoutUrl, order: await view() };
+      }
+      if (heldUntil && order.providerCheckoutId) await expirePreference(mp, order.providerCheckoutId);
       const back = publicUrl(`/checkout/pedido/${order.id}`, siteUrl);
       const preference = await mp.createPreference({
         external_reference: order.id,
@@ -258,7 +273,7 @@ export async function payMercadoPagoOrder(
         notification_url: notificationUrl,
         statement_descriptor: "LEGO STORE",
         expires: true,
-        expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expiration_date_to: (heldUntil ?? new Date(Date.now() + PREFERENCE_TTL_MS)).toISOString(),
       });
       await tx.order.update({ where: { id: order.id }, data: { providerCheckoutId: preference.id, providerCheckoutUrl: preference.initPoint } });
       return { ok: true, next: "redirect", url: preference.initPoint, order: await view() };
@@ -302,7 +317,7 @@ export async function payMercadoPagoOrder(
       await relaxOrderCoupon(tx, order.id);
       return { ok: false, code: "declined", message: rejectionMessage(payment.statusDetail) };
     }
-    if (applied.result === "cancelled" || applied.result === "ignored") return { ok: false, code: "not_pending", order: await view() };
+    if (applied.result === "cancelled" || applied.result === "ignored" || applied.result === "coupon_unavailable") return { ok: false, code: "not_pending", order: await view() };
     return { ok: true, next: "done", order: await view(), applied };
   }, LOCKED_TX);
 }
@@ -324,6 +339,13 @@ export type ApplyOutcome =
   /** Approved, but a line was short / the amount was not the order's: refunded, CANCELLED. */
   | { result: "out_of_stock"; orderId: string }
   | { result: "amount_mismatch"; orderId: string }
+  /**
+   * A Checkout Pro payment for an order whose coupon no longer fits (its hold
+   * lapsed and the use was taken, the email used it up, it expired):
+   * CANCELLED; `refunded` when it was approved (the money went back),
+   * otherwise the pending payment was cancelled and nothing was charged.
+   */
+  | { result: "coupon_unavailable"; orderId: string; refunded: boolean }
   /** A payment that was not needed went back: paid after the order was cancelled (`notify`: tell the customer), or a second payment of a paid order. */
   | { result: "refunded"; orderId: string; notify: boolean }
   /** Refunded in Mercado Pago, or charged back: CANCELLED, and `productIds` got their stock back. */
@@ -417,6 +439,13 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, event
           await update({ ...paymentFields(payment), ...cancelled("amount_mismatch"), providerRefundId: refundId });
           return { result: "amount_mismatch", orderId: order.id };
         }
+        // Paid on Mercado Pago's site (Checkout Pro): its coupon is checked now, before the stock is taken.
+        if (!(await secureOrderCoupon(tx, order.id)).ok) {
+          console.warn(`[mercadopago] El pago ${payment.id} del pedido ${order.id} usó un cupón que ya no se puede usar: se reembolsa y se cancela.`);
+          const refundId = await refund(orderRefundKey(order.id));
+          await update({ ...paymentFields(payment), ...cancelled("coupon_unavailable"), providerRefundId: refundId, submittedAt: order.submittedAt ?? new Date() });
+          return { result: "coupon_unavailable", orderId: order.id, refunded: true };
+        }
         if (await takeStock(tx, order)) {
           const now = new Date();
           await update({ ...paymentFields(payment), status: "PAID", paidAt: now, submittedAt: order.submittedAt ?? now });
@@ -450,6 +479,15 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, event
 
     case "pending": {
       if (order.status === "PENDING") {
+        // A Checkout Pro payment to be settled later (a ticket, a card under review): its coupon is checked now.
+        if (!(await secureOrderCoupon(tx, order.id)).ok) {
+          const { outcome, payment: cancelledPayment } = await cancelMercadoPagoPayment(mp, payment.id);
+          // Approved meanwhile, or Mercado Pago could not be reached: nothing changes, and the next report decides.
+          if (outcome !== "cancelled") throw new Error(`Mercado Pago payment ${payment.id} of order ${order.id} could not be cancelled (its coupon no longer applies)`);
+          console.warn(`[mercadopago] El pago ${payment.id} del pedido ${order.id} usó un cupón que ya no se puede usar: se canceló el pago.`);
+          await update({ ...paymentFields(cancelledPayment ?? payment), ...cancelled("coupon_unavailable"), submittedAt: order.submittedAt ?? new Date() });
+          return { result: "coupon_unavailable", orderId: order.id, refunded: false };
+        }
         await update({ ...paymentFields(payment), status: "PAYMENT_PENDING", submittedAt: order.submittedAt ?? new Date() });
         return { result: "pending", orderId: order.id };
       }

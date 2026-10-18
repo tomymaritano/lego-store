@@ -358,6 +358,112 @@ describe("limits", () => {
     expect(await redemption(order.id)).toMatchObject({ status: "RESERVED", holdExpiresAt: null });
   });
 
+  it("a lapsed hold is a new use: an expired or deactivated coupon is refused when paying; a live hold keeps its use", async () => {
+    const half = await coupon({ value: 50 });
+    const late = await preparedMp(half.code, { email: "late-off@coupons.test" });
+    const onTime = await preparedMp(half.code, { email: "on-time@coupons.test" });
+    await testDb.coupon.update({ where: { id: half.id }, data: { active: false } });
+    await lapse(late.order.id);
+    const create = vi.spyOn(mp, "createPayment");
+    expect(await payMercadoPagoOrder(testDb, mp, late.order.id, card(), late.requester)).toMatchObject({ ok: false, code: "coupon", rejection: "inactive" });
+    expect(create).not.toHaveBeenCalled();
+    create.mockRestore();
+    // Held when the store turned it off: that order keeps the use it was promised.
+    expect(await payMercadoPagoOrder(testDb, mp, onTime.order.id, card(), onTime.requester)).toMatchObject({ ok: true, order: { status: "PAID", discount: 1245 } });
+
+    const ended = await coupon({ value: 50, expiresAt: new Date(Date.now() + DAY) });
+    const expired = await preparedMp(ended.code, { email: "late-expired@coupons.test" });
+    await testDb.coupon.update({ where: { id: ended.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    await lapse(expired.order.id);
+    expect(await payMercadoPagoOrder(testDb, mp, expired.order.id, card(), expired.requester)).toMatchObject({ ok: false, code: "coupon", rejection: "expired" });
+    expect(await payMercadoPagoOrder(testDb, mp, expired.order.id, { attemptId: randomUUID(), method: "wallet" }, expired.requester)).toMatchObject({
+      ok: false,
+      code: "coupon",
+      rejection: "expired",
+    });
+  });
+
+  it("Checkout Pro with a coupon: the preference expires with the hold, and each click opens a new one", async () => {
+    const { order, requester } = await preparedMp("BIENVENIDA10", { email: "wallet-expiry@coupons.test" });
+    const wallet = (): PayMercadoPagoOrderInput => ({ attemptId: randomUUID(), method: "wallet" });
+    const first = await payMercadoPagoOrder(testDb, mp, order.id, wallet(), requester);
+    if (!first.ok || first.next !== "redirect") throw new Error("expected a redirect");
+    const firstId = (await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).providerCheckoutId!;
+    const hold = (await redemption(order.id))!.holdExpiresAt!;
+    expect(controls().preference(firstId)?.request.expiration_date_to).toBe(hold.toISOString());
+
+    const second = await payMercadoPagoOrder(testDb, mp, order.id, wallet(), requester);
+    const secondId = (await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).providerCheckoutId!;
+    expect(second).toMatchObject({ ok: true, next: "redirect" });
+    expect(secondId).not.toBe(firstId);
+    expect(controls().preference(firstId)?.expired).toBe(true);
+    expect(controls().preference(secondId)?.request.expiration_date_to).toBe((await redemption(order.id))!.holdExpiresAt!.toISOString());
+  });
+
+  it("Checkout Pro paid after its hold lapsed and the last use was taken: refunded and cancelled, never over the limit", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const slow = await preparedMp(one.code, { email: "wallet-slow@coupons.test" });
+    expect(await payMercadoPagoOrder(testDb, mp, slow.order.id, { attemptId: randomUUID(), method: "wallet" }, slow.requester)).toMatchObject({ ok: true, next: "redirect" });
+    const preference = (await testDb.order.findUniqueOrThrow({ where: { id: slow.order.id } })).providerCheckoutId!;
+    await lapse(slow.order.id);
+
+    const fast = await preparedMp(one.code, { email: "wallet-fast@coupons.test" });
+    expect(await payMercadoPagoOrder(testDb, mp, fast.order.id, card(), fast.requester)).toMatchObject({ ok: true, order: { status: "PAID" } });
+
+    // A payment already under way when the preference closed still comes in.
+    const late = controls().payPreference(preference, { force: true });
+    expect(await notify(late.id)).toMatchObject({ result: "coupon_unavailable" });
+    expect(await testDb.order.findUniqueOrThrow({ where: { id: slow.order.id } })).toMatchObject({
+      status: "CANCELLED",
+      cancelReason: "coupon_unavailable",
+      providerRefundId: expect.any(String),
+    });
+    expect(controls().get(late.id)?.status).toBe("refunded");
+    expect(await redemption(slow.order.id)).toMatchObject({ status: "RELEASED" });
+    expect(await testDb.couponRedemption.count({ where: { couponId: one.id, status: "REDEEMED" } })).toBe(1);
+    // No stock was taken for it.
+    expect((await testDb.product.findUniqueOrThrow({ where: { id: "7" } })).stock).toBe(49);
+  });
+
+  it("Checkout Pro cannot get round the per-customer limit by email with several preferences", async () => {
+    const once = await coupon({ maxPerUser: 1 });
+    const email = "wallet-many@coupons.test";
+    const preferences: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const { order, requester } = await preparedMp(once.code, { email });
+      expect(await payMercadoPagoOrder(testDb, mp, order.id, { attemptId: randomUUID(), method: "wallet" }, requester)).toMatchObject({ ok: true, next: "redirect" });
+      preferences.push((await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).providerCheckoutId!);
+    }
+    const results = [];
+    for (const preference of preferences) results.push((await notify(controls().payPreference(preference).id)).result);
+    expect(results).toEqual(["paid", "coupon_unavailable", "coupon_unavailable"]);
+    expect(await testDb.couponRedemption.count({ where: { couponId: once.id, email, status: "REDEEMED" } })).toBe(1);
+  });
+
+  it("Checkout Pro: a pending payment (a ticket) whose coupon no longer fits is cancelled before the order waits on it", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const slow = await preparedMp(one.code, { email: "wallet-ticket@coupons.test" });
+    await payMercadoPagoOrder(testDb, mp, slow.order.id, { attemptId: randomUUID(), method: "wallet" }, slow.requester);
+    await lapse(slow.order.id);
+    const fast = await preparedMp(one.code, { email: "wallet-ticket-fast@coupons.test" });
+    await payMercadoPagoOrder(testDb, mp, fast.order.id, card(), fast.requester);
+
+    const preference = (await testDb.order.findUniqueOrThrow({ where: { id: slow.order.id } })).providerCheckoutId!;
+    const approved = controls().payPreference(preference, { force: true });
+    const ticket = controls().addPayment({
+      ...approved,
+      id: `${approved.id}9`,
+      status: "pending",
+      statusDetail: "pending_waiting_payment",
+      paymentMethodId: "rapipago",
+      paymentTypeId: "ticket",
+    });
+    expect(await notify(ticket.id)).toMatchObject({ result: "coupon_unavailable" });
+    expect(controls().get(ticket.id)?.status).toBe("cancelled");
+    expect(await testDb.order.findUniqueOrThrow({ where: { id: slow.order.id } })).toMatchObject({ status: "CANCELLED", cancelReason: "coupon_unavailable" });
+    expect(await testDb.couponRedemption.count({ where: { couponId: one.id, status: { in: ["REDEEMED", "RESERVED"] } } })).toBe(1);
+  });
+
   it("Stripe: the payment checks the coupon again before confirming anything", async () => {
     const one = await coupon({ maxRedemptions: 1 });
     const gateway = mockGateway();
