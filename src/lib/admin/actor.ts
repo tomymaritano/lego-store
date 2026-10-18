@@ -15,10 +15,20 @@ import type { AuditActor } from "./audit";
 
 export type AdminActor = CurrentUser & AuditActor;
 
+/** The IP an audit entry records for a request with these headers (null when none is trusted). */
+function auditIp(source: Headers): string | null {
+  const ip = clientIp(source);
+  return ip === "unknown" ? null : ip;
+}
+
+/** The audit actor for an admin a Route Handler already authorised (authorizeRequest), from its request's headers. */
+export function auditActorFor(user: { id: string; email: string }, source: Headers): AuditActor {
+  return { id: user.id, email: user.email, ip: auditIp(source) };
+}
+
 async function requestIp(): Promise<string | null> {
   try {
-    const ip = clientIp(await headers());
-    return ip === "unknown" ? null : ip;
+    return auditIp(await headers());
   } catch {
     // Outside a request (scripts, tests): no IP to record.
     return null;

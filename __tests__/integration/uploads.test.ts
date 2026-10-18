@@ -144,4 +144,32 @@ describe("POST /api/admin/uploads", () => {
     expect(svg.status).toBe(422);
     expect(await svg.json()).toEqual({ error: expect.stringContaining("SVG") });
   });
+
+  it("stops reading a chunked body without Content-Length once it passes the cap", async () => {
+    session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
+    const chunk = new Uint8Array(1024 * 1024);
+    const total = 60;
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= total) return controller.close();
+        sent += 1;
+        controller.enqueue(chunk);
+      },
+    });
+    const { POST } = await route();
+    const response = await POST(
+      new NextRequest(new URL("/api/admin/uploads", "http://localhost"), {
+        method: "POST",
+        body,
+        // Node's fetch needs this for a streamed body (not in TypeScript's RequestInit yet).
+        ...{ duplex: "half" },
+        headers: { origin: "http://localhost", "content-type": "multipart/form-data; boundary=x" },
+      })
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: expect.stringContaining("8 MB") });
+    // Refused right after the cap (8 MB and the multipart slack), not after all 60 MB.
+    expect(sent).toBeLessThan(Math.ceil(MAX_UPLOAD_BYTES / chunk.byteLength) + 4);
+  });
 });
