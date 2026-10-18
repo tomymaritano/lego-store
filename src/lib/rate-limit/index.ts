@@ -8,7 +8,7 @@ import { postgresStore } from "./postgres";
  * The app's rate limiters, all backed by Postgres (shared by every server
  * instance; see ./limiter.ts for the model and ./postgres.ts for the store).
  *
- * To limit something new (contact form, newsletter), add an entry
+ * To limit something new, add an entry
  * here and call `consume(subject)` before doing the work, with the user id
  * when there is one and the client IP otherwise.
  */
@@ -82,6 +82,14 @@ export const rateLimits = {
   listsMerge: limiter("lists-merge", 30, HOUR),
   /** Picture uploads per admin (src/lib/uploads): each one is decoded, re-encoded and stored. */
   adminUpload: limiter("admin-upload", 120, HOUR),
+  /** Contact form messages per client IP (each one is stored and may email the store). */
+  contactIp: limiter("contact-ip", 5, HOUR),
+  /** Contact form messages per sender email, from anywhere. */
+  contactEmail: limiter("contact-email", 3, HOUR),
+  /** Newsletter sign-ups per client IP (a new one sends a welcome email). */
+  newsletterIp: limiter("newsletter-ip", 10, HOUR),
+  /** Unsubscribe attempts per client IP: slows down guessing tokens (they are 256-bit anyway). */
+  newsletterUnsubscribe: limiter("newsletter-unsubscribe", 30, HOUR),
 } as const;
 
 export { clientIp } from "./client-ip";

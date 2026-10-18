@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { uniqueEmail } from "./helpers/accounts";
 
 const INFO_PAGES = [
   ["/faq", "Preguntas frecuentes"],
@@ -177,14 +178,14 @@ test.describe("Footer and info pages", () => {
     await expect(page.getByText(/es gratis en compras desde/)).toBeVisible();
   });
 
-  test("contact form validates and confirms a mock submission", async ({ page }) => {
+  test("contact form validates and confirms the submission", async ({ page }) => {
     await page.goto("/contacto");
     await page.getByRole("button", { name: "Enviar mensaje" }).click();
     await expect(page.getByText("Ingresa tu nombre (al menos 2 caracteres)")).toBeVisible();
     await expect(page.getByLabel(/^Nombre/)).toBeFocused();
 
     await page.getByLabel(/^Nombre/).fill("Ana Pérez");
-    await page.getByLabel(/^Email/).fill("ana@example.com");
+    await page.getByLabel(/^Email/).fill(uniqueEmail("contacto"));
     await page.getByRole("combobox", { name: /Motivo/ }).click();
     await page.getByRole("option", { name: "Estado de un pedido" }).click();
     await page.getByLabel(/^Mensaje/).fill("¿Cuándo llega mi pedido LS-12345? Gracias.");
@@ -197,9 +198,10 @@ test.describe("Footer and info pages", () => {
     const form = page.getByRole("form", { name: "Suscríbete al newsletter" });
     await form.getByRole("button", { name: "Suscribirse" }).click();
     await expect(form.getByText("Ingresa tu email")).toBeVisible();
-    await form.getByLabel("Tu email").fill("fan@lego.com");
+    const email = uniqueEmail("fan");
+    await form.getByLabel("Tu email").fill(email);
     await form.getByRole("button", { name: "Suscribirse" }).click();
-    await expect(page.getByText("Suscribimos fan@lego.com. Revisa tu correo.")).toBeVisible();
+    await expect(page.getByText(`Suscribimos ${email}. Revisa tu correo.`)).toBeVisible();
   });
 });
 

@@ -19,6 +19,9 @@ import { getAdminTheme, listAdminThemes } from "./themes";
 import { getAdminSettings } from "./settings";
 import { getAdminContentPage, listAdminContent } from "./content";
 import type { ContentSlug } from "@/lib/content/pages";
+import { getAdminMessage, listAdminMessages } from "@/lib/contact/messages";
+import { listSubscribers } from "@/lib/newsletter";
+import type { AdminMessageFilters, AdminSubscriberFilters } from "@/lib/validations/inbox";
 
 /*
  * What the /admin pages read. Each function checks the admin itself (data
@@ -146,3 +149,24 @@ export const getAdminContentDetail = cache(async (slug: ContentSlug) => {
   await requireAdmin({ callbackUrl: `/admin/contenido/${slug}` });
   return getAdminContentPage(getDb(), slug);
 });
+
+/** /admin/mensajes: the contact form's messages, filtered. */
+export async function getAdminMessages(filters: AdminMessageFilters) {
+  await requireAdmin({ callbackUrl: "/admin/mensajes" });
+  return listAdminMessages(getDb(), filters);
+}
+
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminMessageDetail = cache(async (id: string) => {
+  await requireAdmin({ callbackUrl: `/admin/mensajes/${encodeURIComponent(id)}` });
+  const db = getDb();
+  const message = await getAdminMessage(db, id);
+  if (!message) return null;
+  return { ...message, history: await listAuditEntries(db, "message", id, 10) };
+});
+
+/** /admin/newsletter: the subscribers, filtered. */
+export async function getAdminSubscribers(filters: AdminSubscriberFilters) {
+  await requireAdmin({ callbackUrl: "/admin/newsletter" });
+  return listSubscribers(getDb(), filters);
+}

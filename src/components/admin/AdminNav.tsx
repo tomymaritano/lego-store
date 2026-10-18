@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, FolderTree, LayoutDashboard, MessageSquareText, Package, ReceiptText, ScrollText, Settings, Tags, TicketPercent, Users } from "lucide-react";
+import { FileText, FolderTree, Inbox, LayoutDashboard, Mail, MessageSquareText, Package, ReceiptText, ScrollText, Settings, Tags, TicketPercent, Users } from "lucide-react";
 
 export const ADMIN_NAV = [
   { href: "/admin", label: "Resumen", icon: LayoutDashboard, exact: true },
@@ -13,6 +13,8 @@ export const ADMIN_NAV = [
   { href: "/admin/reviews", label: "Reseñas", icon: MessageSquareText, exact: false },
   { href: "/admin/coupons", label: "Cupones", icon: TicketPercent, exact: false },
   { href: "/admin/users", label: "Usuarios", icon: Users, exact: false },
+  { href: "/admin/mensajes", label: "Mensajes", icon: Inbox, exact: false },
+  { href: "/admin/newsletter", label: "Newsletter", icon: Mail, exact: false },
   { href: "/admin/contenido", label: "Contenido", icon: FileText, exact: false },
   { href: "/admin/configuracion", label: "Configuración", icon: Settings, exact: false },
   { href: "/admin/audit", label: "Auditoría", icon: ScrollText, exact: false },

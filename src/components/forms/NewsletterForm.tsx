@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { AnimatePresence, m } from "motion/react";
 import { CheckCircle2, Send } from "lucide-react";
 import { fadeInUp } from "@/lib/motion";
-import { simulateRequest } from "@/lib/forms";
+import { subscribeNewsletterAction } from "@/lib/contact/actions";
 import { cn } from "@/lib/utils";
 import { validateNewsletterEmail } from "@/lib/validations/newsletter";
 import { Button, Field, Input, showToast } from "@/components/ui";
@@ -17,15 +17,19 @@ interface NewsletterFormProps {
    * landmark name; without it the form stays an unnamed (non-landmark) form.
    */
   labelledBy?: string;
+  /** Where the form is (NewsletterSubscriber.source). */
+  source?: "footer" | "home" | "checkout";
 }
 
 /**
- * Newsletter sign-up (mock: validates, simulates the request and confirms
- * with a toast plus an inline message). Used by the Footer and the home page.
+ * Newsletter sign-up: validates by hand, subscribes through
+ * subscribeNewsletterAction (the server validates again, rate limits and
+ * sends the welcome email with the unsubscribe link) and confirms with a
+ * toast plus an inline message. Used by the Footer.
  * Deliberately dependency-free (no zod / react-hook-form): it renders in the
  * root layout, so whatever it imports ships on every route.
  */
-export function NewsletterForm({ className, labelledBy }: NewsletterFormProps) {
+export function NewsletterForm({ className, labelledBy, source = "footer" }: NewsletterFormProps) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -43,10 +47,16 @@ export function NewsletterForm({ className, labelledBy }: NewsletterFormProps) {
     setError(null);
     setSubmitting(true);
     try {
-      await simulateRequest();
+      const outcome = await subscribeNewsletterAction(result.email, source);
+      if (!outcome.ok) {
+        setError(outcome.error);
+        return;
+      }
       setEmail("");
-      setSubscribed(result.email);
-      showToast.success("¡Listo! Te enviamos tu cupón de 10% de descuento");
+      setSubscribed(outcome.email);
+      showToast.success(outcome.message);
+    } catch {
+      setError("No pudimos suscribirte. Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setSubmitting(false);
     }

@@ -12,8 +12,12 @@ const toast = vi.hoisted(() => ({
   wishlist: vi.fn(),
 }));
 vi.mock("@/components/ui/Toast", () => ({ showToast: toast, toast: {}, Toaster: () => null }));
-// Skip the simulated network delay.
-vi.mock("@/lib/forms", () => ({ simulateRequest: () => Promise.resolve() }));
+// The Server Actions are the server's (integration tests): here they answer like it would.
+const actions = vi.hoisted(() => ({
+  sendContactMessageAction: vi.fn(async (input: { email: string }) => ({ ok: true as const, email: input.email.toLowerCase() })),
+  subscribeNewsletterAction: vi.fn(async (email: string) => ({ ok: true as const, email, message: "¡Listo! Te sumamos al newsletter." })),
+}));
+vi.mock("@/lib/contact/actions", () => actions);
 
 describe("NewsletterForm", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -58,9 +62,20 @@ describe("NewsletterForm", () => {
     await user.type(input, "  fan@lego.com ");
     await user.click(screen.getByRole("button", { name: "Suscribirse" }));
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("¡Listo! Te enviamos tu cupón de 10% de descuento"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("¡Listo! Te sumamos al newsletter."));
+    expect(actions.subscribeNewsletterAction).toHaveBeenCalledWith("fan@lego.com", "footer");
     expect(screen.getByRole("status")).toHaveTextContent("Suscribimos fan@lego.com");
     expect(input).toHaveValue("");
+  });
+
+  it("shows the server's refusal on the field (a rate limit)", async () => {
+    actions.subscribeNewsletterAction.mockResolvedValueOnce({ ok: false, error: "Demasiados intentos seguidos." } as never);
+    const user = userEvent.setup();
+    render(<NewsletterForm />);
+    await user.type(screen.getByLabelText("Tu email"), "fan@lego.com");
+    await user.click(screen.getByRole("button", { name: "Suscribirse" }));
+    expect(await screen.findByText("Demasiados intentos seguidos.")).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
 
@@ -113,10 +128,28 @@ describe("ContactForm", { timeout: 20_000 }, () => {
 
     const heading = await screen.findByRole("heading", { name: "¡Mensaje enviado!" });
     expect(heading).toHaveFocus();
+    expect(actions.sendContactMessageAction).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Ana Pérez", email: "ana@example.com", topic: "envio", website: "" })
+    );
     expect(screen.getByText("ana@example.com")).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "Enviar otro mensaje" }));
     expect(await screen.findByRole("button", { name: "Enviar mensaje" })).toBeInTheDocument();
+  });
+
+  it("puts the server's field errors on their fields and shows a refusal", async () => {
+    actions.sendContactMessageAction.mockResolvedValueOnce({ ok: false, error: "Enviaste demasiados mensajes seguidos." } as never);
+    const user = userEvent.setup();
+    render(<ContactForm />);
+    await user.type(screen.getByLabelText(/Nombre/), "Ana Pérez");
+    await user.type(screen.getByLabelText(/^Email/), "ana@example.com");
+    await user.click(screen.getByRole("combobox", { name: /Motivo/ }));
+    await user.click(await screen.findByRole("option", { name: "Otro motivo" }));
+    await user.click(screen.getByLabelText(/Mensaje/));
+    await user.paste("Un mensaje lo bastante largo para pasar.");
+    await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enviaste demasiados mensajes seguidos.");
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

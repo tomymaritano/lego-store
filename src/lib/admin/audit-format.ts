@@ -21,6 +21,8 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   upload: "Imagen",
   settings: "Configuración",
   content: "Página de contenido",
+  message: "Mensaje",
+  export: "Exportación",
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -57,6 +59,12 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "content.draft": "Guardó un borrador",
   "content.publish": "Publicó la página",
   "content.discard": "Descartó el borrador",
+  "message.read": "Marcó el mensaje como leído",
+  "message.unread": "Marcó el mensaje como no leído",
+  "message.archive": "Archivó el mensaje",
+  "export.orders": "Exportó los pedidos",
+  "export.customers": "Exportó los clientes",
+  "export.newsletter": "Exportó los suscriptores",
 };
 
 export const auditActionLabel = (action: string) => AUDIT_ACTION_LABELS[action] ?? action;
@@ -134,6 +142,9 @@ const FIELD_LABELS: Record<string, string> = {
   socialYoutube: "YouTube",
   socialX: "X",
   featured: "destacados",
+  // Exports
+  rows: "filas",
+  filters: "filtros",
   // Content pages
   blocks: "bloques",
 };
@@ -147,6 +158,7 @@ const ENTITY_FIELD_LABELS: Partial<Record<string, Record<string, string>>> = {
 export const auditFieldLabel = (field: string, entityType = "") => ENTITY_FIELD_LABELS[entityType]?.[field] ?? FIELD_LABELS[field] ?? field;
 
 const ROLE_LABELS: Record<string, string> = { USER: "Cliente", ADMIN: "Admin" };
+const MESSAGE_STATUS: Record<string, string> = { NEW: "Nuevo", READ: "Leído", ARCHIVED: "Archivado" };
 const MONEY_FIELDS = new Set(["price", "originalPrice", "minSubtotal", "shippingCost", "freeShippingFrom"]);
 /** Long texts: an entry says they changed, not what they say. */
 const LONG_TEXT = 80;
@@ -161,6 +173,7 @@ function show(field: string, value: unknown, entityType: string): string {
     return ADMIN_ORDER_STATUS_LABELS[text as OrderStatus];
   }
   if (field === "role" && ROLE_LABELS[text]) return ROLE_LABELS[text];
+  if (field === "status" && entityType === "message" && MESSAGE_STATUS[text]) return MESSAGE_STATUS[text];
   if (field === "announcementTone" && Object.hasOwn(ANNOUNCEMENT_TONE_LABELS, text)) return ANNOUNCEMENT_TONE_LABELS[text as AnnouncementTone];
   if (entityType === "coupon" && (field === "startsAt" || field === "expiresAt")) return couponDateInput(text, field === "expiresAt" ? "end" : "start");
   if (/At$/.test(field) && !Number.isNaN(Date.parse(text))) return formatAdminDateTime(text);
@@ -216,6 +229,8 @@ export function auditEntityHref(entityType: string, entityId: string): string | 
       return "/admin/configuracion";
     case "content":
       return `/admin/contenido/${id}`;
+    case "message":
+      return `/admin/mensajes/${id}`;
     default:
       return null;
   }

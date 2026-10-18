@@ -64,8 +64,17 @@ const DELETE_E2E_ORDERS = [
 async function deleteE2eOrders(client: Client) {
   // Their coupon uses go with them (CouponRedemption cascades).
   for (const sql of DELETE_E2E_ORDERS) await client.query(sql, [`%@${E2E_EMAIL_DOMAIN}`]);
+  await deleteE2eInbox(client);
   await client.query(`DELETE FROM "ProcessedStripeEvent" WHERE "id" LIKE 'evt_e2e_%'`);
   await deleteE2eCoupons(client);
+}
+
+/** Contact messages (with their audit entries) and newsletter sign-ups the specs made (E2E_EMAIL_DOMAIN addresses). */
+async function deleteE2eInbox(client: Client) {
+  const pattern = `%@${E2E_EMAIL_DOMAIN}`;
+  await client.query(`DELETE FROM "AuditLog" WHERE "entityType" = 'message' AND "entityId" IN (SELECT "id" FROM "ContactMessage" WHERE "email" LIKE $1)`, [pattern]);
+  await client.query(`DELETE FROM "ContactMessage" WHERE "email" LIKE $1`, [pattern]);
+  await client.query(`DELETE FROM "NewsletterSubscriber" WHERE "email" LIKE $1`, [pattern]);
 }
 
 /** Coupons the specs created (codes start with E2E_COUPON_PREFIX), with their uses and audit entries. */

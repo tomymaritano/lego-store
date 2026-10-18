@@ -67,6 +67,7 @@ model User {
   auditLogs          AuditLog[]
   /// Info pages this user published last as an admin.
   publishedContent   ContentPage[]
+  contactMessages    ContactMessage[]
 
   @@index([createdAt])
   @@index([role])
@@ -685,6 +686,63 @@ model ContentPage {
   updatedAt        DateTime  @updatedAt
 
   publishedBy User? @relation(fields: [publishedById], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// Contact form and newsletter (src/lib/contact, src/lib/newsletter)
+// ---------------------------------------------------------------------------
+
+/// NEW until an admin opens it in /admin/mensajes; ARCHIVED leaves the inbox.
+enum ContactMessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+/// A message sent from /contacto.
+model ContactMessage {
+  id          String               @id @default(cuid())
+  /// src/lib/validations/contact-options.ts CONTACT_TOPICS value ("pedido", "envio"...).
+  topic       String
+  name        String
+  /// Lowercased.
+  email       String
+  orderNumber String?
+  message     String
+  status      ContactMessageStatus @default(NEW)
+  /// The sender's account, when signed in.
+  userId      String?
+  /// As src/lib/rate-limit/client-ip.ts trusts it; null when no proxy is trusted.
+  ip          String?
+  createdAt   DateTime             @default(now())
+  readAt      DateTime?
+  archivedAt  DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([email])
+}
+
+/// A newsletter subscription. Unsubscribing keeps the row (unsubscribedAt),
+/// so the admin's list and its export say who left and when.
+model NewsletterSubscriber {
+  id                    String    @id @default(cuid())
+  /// Lowercased.
+  email                 String    @unique
+  /// Where the form was: "footer", "home"...
+  source                String
+  subscribedAt          DateTime  @default(now())
+  unsubscribedAt        DateTime?
+  /// sha256 of the token in the unsubscribe link (/newsletter/baja?token=...); a new
+  /// one is issued on every (re)subscription. Never the token itself.
+  unsubscribeTokenHash  String    @unique
+  ip                    String?
+  updatedAt             DateTime  @updatedAt
+
+  @@index([subscribedAt])
+  @@index([unsubscribedAt])
 }
 
 /// Stripe webhook idempotency: an event id is processed at most once.

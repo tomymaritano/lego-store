@@ -5,7 +5,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { AnimatePresence, m } from "motion/react";
 import { CheckCircle2, Send } from "lucide-react";
 import { fadeInUp, scaleIn } from "@/lib/motion";
-import { simulateRequest } from "@/lib/forms";
+import { sendContactMessageAction } from "@/lib/contact/actions";
 import { CONTACT_MESSAGE_MAX, CONTACT_TOPICS } from "@/lib/validations/contact-options";
 import type { ContactInput } from "@/lib/validations/contact";
 import { contactResolver } from "@/lib/validations/lazy";
@@ -28,7 +28,8 @@ const focusOnMount = (element: HTMLElement | null) => element?.focus();
 const defaultValues: ContactInput = { name: "", email: "", topic: "", orderNumber: "", message: "" };
 
 /**
- * /contacto form (mock submit). Validates on submit and then on change,
+ * /contacto form, sent to the store's inbox (sendContactMessageAction: the
+ * server validates again and rate limits). Validates on submit and then on change,
  * moves focus to the first invalid field, and swaps to a confirmation panel
  * (focus moves to its heading) once "sent".
  */
@@ -39,14 +40,33 @@ export function ContactForm() {
     control,
     handleSubmit,
     reset,
+    setError,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<ContactInput>({ resolver: contactResolver, defaultValues, mode: "onTouched" });
 
   const messageLength = useWatch({ control, name: "message" })?.length ?? 0;
 
-  const onSubmit = async (data: ContactInput) => {
-    await simulateRequest();
-    setSentTo(data.email);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const onSubmit = async (data: ContactInput, event?: React.BaseSyntheticEvent) => {
+    setFailure(null);
+    const website = (event?.target as HTMLFormElement | undefined)?.elements.namedItem("website");
+    let result: Awaited<ReturnType<typeof sendContactMessageAction>>;
+    try {
+      result = await sendContactMessageAction({ ...data, website: website instanceof HTMLInputElement ? website.value : "" });
+    } catch {
+      setFailure("No pudimos enviar tu mensaje. Revisa tu conexión e inténtalo de nuevo.");
+      return;
+    }
+    if (!result.ok) {
+      const fields = Object.entries(result.fieldErrors ?? {}) as [keyof ContactInput, string][];
+      for (const [field, message] of fields) setError(field, { message });
+      if (fields[0]) setFocus(fields[0][0]);
+      else setFailure(result.error);
+      return;
+    }
+    setSentTo(result.email);
     reset(defaultValues);
     showToast.success("Recibimos tu mensaje. Te responderemos en 24 horas hábiles.");
   };
@@ -94,6 +114,18 @@ export function ContactForm() {
           <h2 id="contact-form-title" className="text-title">
             Escríbenos
           </h2>
+          {failure ? (
+            <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-label text-fg">
+              {failure}
+            </p>
+          ) : null}
+          {/* Honeypot: hidden from people and assistive tech; a bot that fills it is ignored by the server. */}
+          <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
+            <label>
+              Sitio web
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
+            </label>
+          </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Nombre" required error={errors.name?.message}>
               <Input autoComplete="name" {...register("name")} />

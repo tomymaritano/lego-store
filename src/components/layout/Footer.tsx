@@ -183,7 +183,7 @@ export function Footer({
               Suscríbete al newsletter
             </h2>
             <p className="mt-1 text-label font-normal text-fg-secondary">
-              Ofertas exclusivas y novedades en tu correo. Te regalamos 10% en tu primera compra.
+              Lanzamientos, ofertas y novedades en tu correo. Te das de baja cuando quieras.
             </p>
           </div>
           <NewsletterForm labelledBy="footer-newsletter-title" />

@@ -6,6 +6,8 @@ import { updateCatalog, updateContentCache, updateSettingsCache } from "@/lib/ap
 import { CONTENT_PAGES, isContentSlug } from "@/lib/content/pages";
 import { contentDocumentSchema, contentIssuePath } from "@/lib/validations/content";
 import { discardContentDraft, publishContent, saveContentDraft } from "./content";
+import { setMessageStatus } from "@/lib/contact/messages";
+import { messageStatusSchema } from "@/lib/validations/inbox";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { getDb } from "@/lib/db";
 import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
@@ -741,4 +743,28 @@ export async function discardContentDraftAction(slug: unknown): Promise<ContentA
   contentChanged(slug);
   refresh();
   return { ok: true, message: "Descartamos el borrador: volviste a la versión publicada." };
+}
+
+// ---------------------------------------------------------------------------
+// Contact messages (/admin/mensajes)
+// ---------------------------------------------------------------------------
+
+const MESSAGE_DONE = {
+  NEW: "Lo marcamos como no leído.",
+  READ: "Lo marcamos como leído.",
+  ARCHIVED: "Archivamos el mensaje.",
+} as const;
+
+/** "Marcar como leído" / "no leído" / "Archivar" / "Volver a la bandeja" (READ). */
+export async function setMessageStatusAction(id: unknown, status: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/mensajes" });
+  const parsed = messageStatusSchema.safeParse({ id, status });
+  if (!parsed.success) return { ok: false, error: "Ese mensaje ya no existe." };
+  const result = await setMessageStatus(getDb(), admin, parsed.data.id, parsed.data.status);
+  if (!result.ok) return { ok: false, error: "Ese mensaje ya no existe." };
+  revalidatePath("/admin/mensajes");
+  revalidatePath(`/admin/mensajes/${parsed.data.id}`);
+  revalidatePath("/admin");
+  refresh();
+  return { ok: true, message: result.changed ? MESSAGE_DONE[parsed.data.status] : "No había nada que cambiar." };
 }
