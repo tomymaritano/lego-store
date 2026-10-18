@@ -7,7 +7,7 @@ import { checkUpload, UPLOAD_ERRORS, type UploadRejection } from "./validate";
 
 /*
  * An admin's picture upload (POST /api/admin/uploads): checked by its bytes
- * (./validate.ts), re-encoded to WebP variants when sharp is there
+ * (./validate.ts), re-encoded to WebP when sharp is there
  * (./process.ts), stored under a random name (./storage.ts: Vercel Blob or
  * the local disk) and recorded in the audit log. What is returned is the
  * URL the forms put in the product's gallery or the category's image; the
@@ -18,7 +18,7 @@ import { checkUpload, UPLOAD_ERRORS, type UploadRejection } from "./validate";
  */
 
 export type SaveUploadResult =
-  | { ok: true; url: string; thumbnailUrl: string | null; width: number | null; height: number | null; bytes: number }
+  | { ok: true; url: string; width: number | null; height: number | null; bytes: number }
   | { ok: false; reason: UploadRejection | "unconfigured"; message: string };
 
 export const UPLOADS_UNCONFIGURED = "Las subidas no están configuradas en este servidor (falta BLOB_READ_WRITE_TOKEN). Usa una URL.";
@@ -41,18 +41,14 @@ export async function saveUpload(db: PrismaClient, bytes: Uint8Array, { actor, s
   if (!processed.ok) return { ok: false, reason: processed.reason, message: UPLOAD_ERRORS[processed.reason] };
 
   const id = randomBytes(16).toString("hex");
-  const urls = new Map<string, string>();
-  for (const file of processed.files) {
-    urls.set(file.suffix, await storage.put(`${id}${file.suffix}.${file.extension}`, file.bytes, file.contentType));
-  }
-  const url = urls.get("")!;
-  const thumbnailUrl = [...urls.entries()].find(([suffix]) => suffix !== "")?.[1] ?? null;
-  const size = processed.files[0]!.bytes.length;
+  const { file } = processed;
+  const url = await storage.put(`${id}.${file.extension}`, file.bytes, file.contentType);
+  const size = file.bytes.length;
   await recordAudit(db, actor, {
     action: "upload.create",
     entityType: "upload",
     entityId: id,
     changes: { url, bytes: size, width: processed.width, height: processed.height, original: checked.kind, storage: storage.kind },
   });
-  return { ok: true, url, thumbnailUrl, width: processed.width, height: processed.height, bytes: size };
+  return { ok: true, url, width: processed.width, height: processed.height, bytes: size };
 }

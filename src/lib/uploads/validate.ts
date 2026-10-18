@@ -68,4 +68,4 @@ export function checkUpload(bytes: Uint8Array): { ok: true; kind: ImageKind } | 
 }
 
 /** A stored upload's file name: random hex, an optional "-<width>" variant, the extension. */
-export const UPLOAD_NAME_PATTERN = /^[a-f0-9]{32}(?:-\d{2,4})?\.(?:webp|jpg|png|avif)$/;
+export const UPLOAD_NAME_PATTERN = /^[a-f0-9]{32}\.(?:webp|jpg|png|avif)$/;

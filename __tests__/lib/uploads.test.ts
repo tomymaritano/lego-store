@@ -35,8 +35,7 @@ describe("upload validation by magic bytes", () => {
 
   it("only names the uploader generates are served", () => {
     expect(UPLOAD_NAME_PATTERN.test("0123456789abcdef0123456789abcdef.webp")).toBe(true);
-    expect(UPLOAD_NAME_PATTERN.test("0123456789abcdef0123456789abcdef-480.webp")).toBe(true);
-    for (const name of ["../.env", "x.webp", "0123456789abcdef0123456789abcdef.svg", "0123456789ABCDEF0123456789ABCDEF.webp", "0123456789abcdef0123456789abcdef.webp/.."]) {
+    for (const name of ["0123456789abcdef0123456789abcdef-480.webp", "../.env", "x.webp", "0123456789abcdef0123456789abcdef.svg", "0123456789ABCDEF0123456789ABCDEF.webp", "0123456789abcdef0123456789abcdef.webp/.."]) {
       expect(UPLOAD_NAME_PATTERN.test(name)).toBe(false);
     }
   });

@@ -9,7 +9,7 @@ import { MAX_UPLOAD_BYTES, UPLOAD_ERRORS } from "@/lib/uploads/validate";
  * POST /api/admin/uploads (multipart/form-data, one `file`): an admin's
  * picture for a product gallery or a category. Admins only (401/403 as
  * JSON), same-origin only, rate limited per admin. Answers { url,
- * thumbnailUrl, width, height } or { error } with the reason in words.
+ * width, height } or { error } with the reason in words.
  * A Route Handler rather than a Server Action: the browser can report the
  * upload's progress (XMLHttpRequest), and actions cap bodies at 1 MB.
  */
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   });
   if (!result.ok) return fail(result.message, result.reason === "unconfigured" ? 503 : result.reason === "too_large" ? 413 : 422);
   return NextResponse.json(
-    { url: result.url, thumbnailUrl: result.thumbnailUrl, width: result.width, height: result.height },
+    { url: result.url, width: result.width, height: result.height },
     { status: 201, headers: NO_STORE }
   );
 }

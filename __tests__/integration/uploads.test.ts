@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -57,15 +57,15 @@ beforeEach(async () => {
 });
 
 describe("saveUpload", () => {
-  it.each(["png", "jpeg", "webp", "avif"] as const)("accepts %s, re-encoded as WebP (at most 1600 px) plus a 480 px thumbnail", async (format) => {
+  it.each(["png", "jpeg", "webp", "avif"] as const)("accepts %s, re-encoded as one WebP of at most 1600 px", async (format) => {
     const result = await saveUpload(testDb, await solid(format), { actor: admin, storage: diskStorage(dir) });
     expect(result).toMatchObject({ ok: true, width: 1600, height: 800 });
     if (!result.ok) return;
     expect(result.url).toMatch(/^\/uploads\/[a-f0-9]{32}\.webp$/);
-    expect(result.thumbnailUrl).toBe(result.url.replace(".webp", "-480.webp"));
-    const stored = await sharp(path.join(dir, path.basename(result.url))).metadata();
+    // From a buffer: sharp keeps files it opened by path locked on Windows (the cleanup could not delete them).
+    const stored = await sharp(await readFile(path.join(dir, path.basename(result.url)))).metadata();
     expect(stored).toMatchObject({ format: "webp", width: 1600, height: 800 });
-    expect((await sharp(path.join(dir, path.basename(result.thumbnailUrl!))).metadata()).width).toBe(480);
+    expect(result).not.toHaveProperty("thumbnailUrl");
   });
 
   it("never enlarges a small picture, and names every upload at random", async () => {
@@ -93,7 +93,7 @@ describe("saveUpload", () => {
   it("without sharp the checked bytes are kept as they are", async () => {
     const bytes = await solid("jpeg", 40, 40);
     const result = await saveUpload(testDb, bytes, { actor: admin, storage: diskStorage(dir), useSharp: false });
-    expect(result).toMatchObject({ ok: true, thumbnailUrl: null, width: null });
+    expect(result).toMatchObject({ ok: true, width: null });
     expect(result.ok && result.url).toMatch(/\.jpg$/);
   });
 
