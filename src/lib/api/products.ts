@@ -6,6 +6,7 @@ import { MAX_REVIEW_PAGE, REVIEW_PAGE_SIZE, type ReviewSort } from "@/lib/review
 import type { Category, Product, ProductTheme, ReviewPage } from "@/types";
 import * as catalog from "./catalog";
 import * as reviews from "./reviews";
+import { CONTENT_SLUGS } from "@/lib/content/pages";
 import { CATALOG_TAGS, cached } from "./cache";
 
 /*
@@ -176,6 +177,16 @@ export function getCategoryRedirect(slug: string): Promise<string | null> {
 
 /** The visible themes, in the admin's order: the "Temas" menu. */
 export const getThemes: () => Promise<ProductTheme[]> = cached("getThemes", () => catalog.getThemes(getDb()), () => [themes]);
+
+/**
+ * What /sitemap.xml lists. Under the tags of everything it reads, so a
+ * product, category or published page changed by an admin regenerates it.
+ */
+export const getSitemapSource: () => Promise<catalog.SitemapSource> = cached(
+  "getSitemapSource",
+  () => catalog.getSitemapSource(getDb()),
+  () => [products, categories, ...CONTENT_SLUGS.map((slug) => CATALOG_TAGS.content(slug))]
+);
 
 const getCachedReviewPage = cached(
   "getReviewPage",

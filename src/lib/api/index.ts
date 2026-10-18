@@ -26,5 +26,7 @@ export {
   getCategoryRedirect,
   getThemes,
   getReviewPage,
+  getSitemapSource,
 } from "./products";
+export type { SitemapSource } from "./catalog";
 export { CATALOG_TAGS, invalidateCatalog, updateCatalog } from "./cache";

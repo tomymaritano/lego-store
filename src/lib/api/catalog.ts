@@ -12,6 +12,8 @@ import type {
   SearchSuggestion,
   ProductTheme,
 } from "@/types";
+import { CONTENT_SLUGS, type ContentSlug } from "@/lib/content/pages";
+import { parseContentDocument } from "@/lib/validations/content";
 import { escapeLike, nameHits, normalizeText, tokenize } from "./search";
 
 /*
@@ -536,4 +538,33 @@ export async function getCategoryRedirect(db: Db, slug: string): Promise<string 
 /** The visible themes in the admin's order: the "Temas" menu. */
 export function getThemes(db: Db): Promise<ProductTheme[]> {
   return db.theme.findMany({ where: { visible: true }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, slug: true, name: true } });
+}
+
+// ---------------------------------------------------------------------------
+// Sitemap
+// ---------------------------------------------------------------------------
+
+/** What the sitemap lists (src/app/sitemap.ts): the indexable pages backed by the database, with their last change. */
+export interface SitemapSource {
+  /** Products on sale (archived ones are not), hidden categories' included: their pages still exist. */
+  products: { id: string; updatedAt: string }[];
+  /** Visible categories, in navigation order: a hidden one's page is not found. */
+  categories: { id: string; updatedAt: string }[];
+  /** Info pages with valid published content (a page never published is not found). */
+  pages: { slug: ContentSlug; publishedAt: string | null }[];
+}
+
+export async function getSitemapSource(db: Db): Promise<SitemapSource> {
+  const [products, categories, pages] = await Promise.all([
+    db.product.findMany({ where: LISTED, select: { id: true, updatedAt: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+    db.category.findMany({ where: { visible: true }, select: { id: true, updatedAt: true }, orderBy: [{ position: "asc" }, { id: "asc" }] }),
+    db.contentPage.findMany({ where: { slug: { in: [...CONTENT_SLUGS] } }, select: { slug: true, published: true, publishedAt: true } }),
+  ]);
+  const published = new Map(pages.filter((page) => page.published !== null && parseContentDocument(page.published)).map((page) => [page.slug, page.publishedAt]));
+  return {
+    products: products.map((row) => ({ id: row.id, updatedAt: row.updatedAt.toISOString() })),
+    categories: categories.map((row) => ({ id: row.id, updatedAt: row.updatedAt.toISOString() })),
+    // In CONTENT_SLUGS order, so the sitemap reads the same on every build.
+    pages: CONTENT_SLUGS.filter((slug) => published.has(slug)).map((slug) => ({ slug, publishedAt: published.get(slug)?.toISOString() ?? null })),
+  };
 }
