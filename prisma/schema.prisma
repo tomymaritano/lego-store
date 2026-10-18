@@ -56,6 +56,9 @@ model User {
   orders             Order[]
   /// Order status changes this user made as an admin (audit trail).
   orderStatusChanges OrderStatusChange[]
+  couponRedemptions  CouponRedemption[]
+  /// What this user did as an admin (AuditLog).
+  auditLogs          AuditLog[]
 }
 
 model Account {
@@ -295,11 +298,16 @@ model Order {
   zipCode   String
   country   String
 
-  // Amounts in pesos, computed on the server: total = subtotal + shipping (check constraint).
-  subtotal Int
-  shipping Int
-  total    Int
-  currency String @default("ars")
+  // Amounts in pesos, computed on the server by lib/pricing (orderTotals):
+  // total = subtotal - discount + shipping (check constraint).
+  subtotal   Int
+  /// Coupon discount on the products (0 without a coupon); never more than the subtotal.
+  discount   Int     @default(0)
+  /// The coupon's code as applied (snapshot; the redemption links the coupon itself).
+  couponCode String?
+  shipping   Int
+  total      Int
+  currency   String  @default("ars")
 
   /// Stripe orders use stripePaymentIntentId / stripeRefundId; Mercado Pago
   /// orders providerPaymentId / providerRefundId (src/lib/payments/provider.ts,
@@ -347,10 +355,12 @@ model Order {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
-  items         OrderItem[]
-  statusChanges OrderStatusChange[]
-  paymentEvents PaymentEvent[]
+  user             User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items            OrderItem[]
+  statusChanges    OrderStatusChange[]
+  paymentEvents    PaymentEvent[]
+  /// The use of the order's coupon (src/lib/coupons): reserved while it waits to be paid.
+  couponRedemption CouponRedemption?
 
   @@unique([paymentProvider, providerPaymentId])
   @@index([userId, createdAt])
@@ -420,6 +430,115 @@ model PaymentEvent {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Coupons (src/lib/coupons; discount math in src/lib/pricing.ts)
+// ---------------------------------------------------------------------------
+
+enum CouponType {
+  /// `value` percent off the subtotal (1..100), rounded to whole pesos (half up).
+  PERCENT
+  /// `value` pesos off the subtotal, capped at the subtotal.
+  FIXED
+}
+
+/// What a coupon discounts. Only the whole order's products for now (shipping is never discounted).
+enum CouponScope {
+  ALL
+}
+
+/// RESERVED: its order waits to be paid (PENDING, PAYMENT_PENDING); counts toward the limits.
+/// REDEEMED: its order was paid. RELEASED: its order was cancelled (expired, refunded,
+/// cancelled by an admin...): the use is free again. A database trigger moves it with
+/// the order's status (see the coupons migration).
+enum CouponRedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
+}
+
+model Coupon {
+  id             String      @id @default(cuid())
+  /// Uppercase (check constraint): the app normalises codes before every write and
+  /// lookup, so they are unique case-insensitively ("bienvenida10" is BIENVENIDA10).
+  code           String      @unique
+  /// The admin's note on what it is for (not shown to customers).
+  description    String      @default("")
+  type           CouponType
+  /// PERCENT: 1..100. FIXED: pesos, > 0 (check constraints).
+  value          Int
+  /// Smallest subtotal (pesos, before the discount) it applies to; 0 = any.
+  minSubtotal    Int         @default(0)
+  /// Valid from / until (inclusive / exclusive); null = no bound.
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  /// Most uses in total (RESERVED + REDEEMED); null = no limit.
+  maxRedemptions Int?
+  /// Most uses per customer (an account, or an email for guests); null = no limit.
+  maxPerUser     Int?
+  /// Turned off by an admin: no new uses (orders that hold one keep it).
+  active         Boolean     @default(true)
+  appliesTo      CouponScope @default(ALL)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  redemptions CouponRedemption[]
+
+  @@index([createdAt])
+}
+
+/// One use of a coupon by one order (at most one coupon per order).
+model CouponRedemption {
+  id         String                 @id @default(cuid())
+  couponId   String
+  orderId    String                 @unique
+  /// The order's account (null for guests); the per-customer limit counts by it or by email.
+  userId     String?
+  /// The order's email (lowercased).
+  email      String
+  status     CouponRedemptionStatus @default(RESERVED)
+  /// Discount the order got (pesos, snapshot).
+  discount   Int
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  redeemedAt DateTime?
+  releasedAt DateTime?
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([couponId, status])
+  @@index([couponId, userId])
+  @@index([couponId, email])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Admin audit log: who did what to which record, and when. Order status
+// changes keep their own table (OrderStatusChange); everything else an admin
+// changes is written here (src/lib/admin/audit.ts).
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Null once that account is deleted; actorEmail keeps who it was.
+  actorId    String?
+  actorEmail String
+  /// "<entity>.<verb>", e.g. "coupon.create", "coupon.update", "coupon.deactivate".
+  action     String
+  entityType String
+  entityId   String
+  /// What changed: { field: [before, after] } for an edit, the new values for a create.
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([createdAt])
+  @@index([actorId])
 }
 
 /// Stripe webhook idempotency: an event id is processed at most once.

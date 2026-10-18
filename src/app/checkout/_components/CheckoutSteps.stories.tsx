@@ -36,6 +36,8 @@ const order = (overrides: Partial<OrderView> = {}): OrderView => ({
     { productId: "5", name: "Tusken Raider", unitPrice: 189, image: "/images/lego.png", quantity: 2 },
   ],
   subtotal: 2868,
+  discount: 0,
+  couponCode: null,
   shipping: 299,
   total: 3167,
   paymentBrand: "visa",

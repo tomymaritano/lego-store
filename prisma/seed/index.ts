@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { products as seedProducts, type SeedProduct } from "@/data/products";
 import { categories as seedCategories } from "@/data/categories";
+import { coupons as sampleCoupons } from "@/data/coupons";
+import { storeDayEnd } from "@/lib/admin/format";
 import { productSearchColumns } from "@/lib/api/search";
 import { refreshProductRatings } from "@/lib/api/ratings";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
@@ -18,9 +20,9 @@ import { DEV_ADMIN } from "./admin";
  * Idempotent seed: running it again converges on the same rows instead of
  * duplicating them. Seed rows are upserted by their natural keys (category
  * slug, product id, user email, one review per user and product, fixed ids for
- * the sample orders); rows created by people (registrations, real reviews,
- * orders) are left alone, and the cached ratings are recomputed over every
- * review at the end.
+ * the sample orders, coupon code); rows created by people (registrations, real
+ * reviews, orders, coupons and their uses) are left alone, and the cached
+ * ratings are recomputed over every review at the end.
  *
  * Catalogue rows are reset to the seed values on every run, stock included:
  * re-seeding a dev database puts the catalogue back where it started.
@@ -39,6 +41,7 @@ export interface SeedSummary {
   reviews: number;
   helpfulVotes: number;
   orders: number;
+  coupons: number;
   admin: string | null;
 }
 
@@ -58,6 +61,8 @@ export async function seedDatabase(db: PrismaClient, options: SeedOptions): Prom
   const orders = await seedOrders(db, users, reviews);
   await refreshProductRatings(db);
   log(`Reseñas: ${reviewIds.length} de ${users.size} usuarios de ejemplo, ${helpfulVotes} votos "útil", ${orders} pedidos entregados.`);
+  await seedCoupons(db);
+  log(`Cupones de ejemplo: ${sampleCoupons.map((coupon) => coupon.code).join(", ")}.`);
 
   let admin: string | null = null;
   if (options.admin) {
@@ -76,8 +81,32 @@ export async function seedDatabase(db: PrismaClient, options: SeedOptions): Prom
     reviews: reviewIds.length,
     helpfulVotes,
     orders,
+    coupons: sampleCoupons.length,
     admin,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Sample coupons (src/data/coupons.ts)
+// ---------------------------------------------------------------------------
+
+async function seedCoupons(db: PrismaClient) {
+  await db.$transaction(
+    sampleCoupons.map((coupon) => {
+      const data = {
+        description: coupon.description,
+        type: coupon.type,
+        value: coupon.value,
+        minSubtotal: coupon.minSubtotal,
+        startsAt: null,
+        expiresAt: coupon.validUntil ? storeDayEnd(coupon.validUntil) : null,
+        maxRedemptions: coupon.maxRedemptions,
+        maxPerUser: coupon.maxPerUser,
+        active: true,
+      };
+      return db.coupon.upsert({ where: { code: coupon.code }, create: { code: coupon.code, ...data }, update: data });
+    })
+  );
 }
 
 // ---------------------------------------------------------------------------

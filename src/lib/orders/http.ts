@@ -18,7 +18,12 @@ import type { CheckoutError, CheckoutErrorCode, PaymentProviderId, UnavailableLi
 
 export const NO_STORE = { "Cache-Control": "private, no-store" } as const;
 
-export function checkoutError(code: CheckoutErrorCode, error: string, status: number, extra: { unavailable?: UnavailableLine[] } = {}) {
+export function checkoutError(
+  code: CheckoutErrorCode,
+  error: string,
+  status: number,
+  extra: { unavailable?: UnavailableLine[]; rejection?: string } = {}
+) {
   return NextResponse.json({ code, error, ...extra } satisfies CheckoutError, { status, headers: NO_STORE });
 }
 

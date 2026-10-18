@@ -22,16 +22,18 @@ import { prepareMercadoPagoOrderSchema, prepareOrderSchema } from "@/lib/validat
 
 /**
  * POST /api/checkout/orders: the checkout reached "Revisar".
- * Body: { shipping, lines: [{ productId, quantity }] } plus, for Stripe,
+ * Body: { shipping, lines: [{ productId, quantity }], couponCode? } plus, for Stripe,
  * { confirmationTokenId } or, for Mercado Pago, { provider: "MERCADOPAGO" }
  * (the provider is the store's: PAYMENT_PROVIDER). Creates this browser's
  * PENDING order (with a PaymentIntent, for Stripe) or updates the pending one,
- * with prices, stock and totals from the database. A new order comes with the
+ * with prices, stock, the coupon's discount and totals from the database (the
+ * coupon's use is reserved for the order). A new order comes with the
  * checkout cookie that lets this browser pay and follow it.
  *
  * 200 { order } · 400 invalid · 409 unavailable (with the lines) · 422 the
  * payment step has to be done again (a spent card token, or it was for the
- * other provider) · 429 · 503 payments not configured.
+ * other provider), or code "coupon": the coupon cannot be used (with why) ·
+ * 429 · 503 payments not configured.
  */
 export async function POST(request: NextRequest) {
   const refused = crossSite(request);
@@ -60,9 +62,14 @@ export async function POST(request: NextRequest) {
     if (stripe?.success && "gateway" in payments) outcome = await prepareOrder(getDb(), payments.gateway, stripe.data, requester);
     else outcome = await prepareMercadoPagoOrder(getDb(), appPayments(), mercadopago!.data!, requester);
     if (!outcome.ok) {
-      return outcome.code === "unavailable"
-        ? checkoutError("unavailable", CHECKOUT_MESSAGES.unavailable, 409, { unavailable: outcome.unavailable })
-        : checkoutError("payment_method", CHECKOUT_MESSAGES.payment_method, 422);
+      switch (outcome.code) {
+        case "unavailable":
+          return checkoutError("unavailable", CHECKOUT_MESSAGES.unavailable, 409, { unavailable: outcome.unavailable });
+        case "coupon":
+          return checkoutError("coupon", outcome.message, 422, { rejection: outcome.rejection });
+        default:
+          return checkoutError("payment_method", CHECKOUT_MESSAGES.payment_method, 422);
+      }
     }
     const response = NextResponse.json({ order: outcome.order } satisfies CheckoutOrderResponse, { headers: NO_STORE });
     if (outcome.access) setCheckoutCookie(response, outcome.access);

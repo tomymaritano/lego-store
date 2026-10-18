@@ -57,6 +57,11 @@ export const rateLimits = {
    * and calls Stripe (PaymentIntent, ConfirmationToken).
    */
   checkoutPrepare: limiter("checkout-prepare", 30, 15 * MINUTE),
+  /**
+   * Coupon codes tried in the cart and the checkout, per user or IP: codes
+   * can be guessed, so tries are few (an applied coupon is not re-checked).
+   */
+  couponQuote: limiter("coupon-quote", 20, 15 * MINUTE),
   /** "Realizar pedido" (payment confirmations), per user or IP: slows down card testing. */
   checkoutPay: limiter("checkout-pay", 15, 15 * MINUTE),
   /**

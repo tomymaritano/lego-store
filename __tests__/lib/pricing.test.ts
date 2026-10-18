@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { FREE_SHIPPING_FROM, SHIPPING_COST, linesSubtotal, orderTotals, quoteShipping } from "@/lib/pricing";
+import {
+  FREE_SHIPPING_FROM,
+  SHIPPING_COST,
+  couponDiscount,
+  linesSubtotal,
+  orderTotals,
+  percentOf,
+  quoteShipping,
+  totalsFor,
+} from "@/lib/pricing";
 import { siteConfig } from "@/config/site";
 
 describe("quoteShipping", () => {
@@ -45,6 +54,59 @@ describe("orderTotals", () => {
   });
 
   it("is zero for no lines", () => {
-    expect(orderTotals([])).toMatchObject({ subtotal: 0, total: 0, count: 0 });
+    expect(orderTotals([])).toMatchObject({ subtotal: 0, discount: 0, total: 0, count: 0, coupon: null });
+  });
+});
+
+describe("coupon discounts", () => {
+  const percent = (value: number, minSubtotal = 0) => ({ code: "P", type: "PERCENT" as const, value, minSubtotal });
+  const fixed = (value: number, minSubtotal = 0) => ({ code: "F", type: "FIXED" as const, value, minSubtotal });
+
+  it("rounds a percentage to whole pesos, half up, with integer math", () => {
+    expect(percentOf(2445, 10)).toBe(245); // 244.5 → 245
+    expect(percentOf(2444, 10)).toBe(244); // 244.4 → 244
+    expect(percentOf(2679, 10)).toBe(268); // 267.9 → 268
+    expect(percentOf(333, 15)).toBe(50); // 49.95 → 50
+    expect(percentOf(1, 1)).toBe(0); // 0.01 → 0
+    expect(couponDiscount(2445, percent(10))).toBe(245);
+    expect(couponDiscount(1000, percent(100))).toBe(1000);
+  });
+
+  it("caps a fixed amount at the subtotal", () => {
+    expect(couponDiscount(2490, fixed(500))).toBe(500);
+    expect(couponDiscount(300, fixed(500))).toBe(300);
+  });
+
+  it("takes nothing below the minimum subtotal, without a coupon, or from an empty cart", () => {
+    expect(couponDiscount(3999, fixed(500, 4000))).toBe(0);
+    expect(couponDiscount(4000, fixed(500, 4000))).toBe(500);
+    expect(couponDiscount(2000, null)).toBe(0);
+    expect(couponDiscount(0, percent(10))).toBe(0);
+  });
+
+  it("takes the discount off the products, never off shipping", () => {
+    const totals = orderTotals([{ price: 2490, quantity: 1 }], percent(10));
+    expect(totals).toMatchObject({ subtotal: 2490, discount: 249, total: 2490 - 249 + SHIPPING_COST, coupon: { code: "P", applies: true, shortBy: 0 } });
+    expect(totals.shipping.cost).toBe(SHIPPING_COST);
+  });
+
+  it("decides free shipping before the discount: a coupon never brings shipping back", () => {
+    const totals = orderTotals([{ price: FREE_SHIPPING_FROM, quantity: 1 }], percent(20));
+    expect(totals).toMatchObject({ discount: 1000, shipping: { cost: 0, free: true }, total: FREE_SHIPPING_FROM - 1000 });
+  });
+
+  it("charges shipping when the coupon covers every product: an order is never free", () => {
+    expect(orderTotals([{ price: 6000, quantity: 1 }], fixed(100_000))).toMatchObject({
+      discount: 6000,
+      shipping: { cost: SHIPPING_COST, free: false },
+      total: SHIPPING_COST,
+    });
+    expect(orderTotals([{ price: 1000, quantity: 1 }], percent(100)).total).toBe(SHIPPING_COST);
+  });
+
+  it("keeps a coupon below its minimum, says what is missing, and prices without it", () => {
+    const totals = orderTotals([{ price: 2490, quantity: 1 }], fixed(500, 4000));
+    expect(totals).toMatchObject({ discount: 0, total: 2490 + SHIPPING_COST, coupon: { applies: false, shortBy: 1510 } });
+    expect(totalsFor(2490, 1, null).coupon).toBeNull();
   });
 });

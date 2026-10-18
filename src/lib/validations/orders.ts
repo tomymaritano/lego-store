@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { shippingSchema } from "./checkout";
+import { couponCodeSchema } from "./coupon-code";
 import { idSchema, productIdSchema } from "./ids";
 
 /*
  * Inputs of the checkout Route Handlers (src/app/api/checkout). Only ids,
- * quantities, the shipping form and the ConfirmationToken id cross the wire:
+ * quantities, the shipping form, the coupon code and the ConfirmationToken id cross the wire:
  * prices, totals and stock always come from the database, and card data
  * never reaches us (Stripe.js turns it into the token in the browser).
  */
@@ -31,6 +32,8 @@ export const prepareOrderSchema = z.object({
     .max(MAX_ORDER_LINES)
     .refine((lines) => new Set(lines.map((line) => line.productId)).size === lines.length, "Repeated product"),
   confirmationTokenId: confirmationTokenIdSchema,
+  /** The coupon applied in the cart or the checkout, if any: validated and reserved on the server. */
+  couponCode: couponCodeSchema.optional(),
 });
 
 export type PrepareOrderInput = z.infer<typeof prepareOrderSchema>;
@@ -52,6 +55,7 @@ export const orderIdSchema = idSchema;
 export const prepareMercadoPagoOrderSchema = z.object({
   shipping: shippingSchema,
   lines: prepareOrderSchema.shape.lines,
+  couponCode: prepareOrderSchema.shape.couponCode,
   provider: z.literal("MERCADOPAGO"),
 });
 

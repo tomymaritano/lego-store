@@ -184,6 +184,8 @@ export interface AdminOrderView extends OrderView {
   refundPending: boolean;
   /** The account that placed it (null for guests). */
   account: { id: string; email: string; name: string | null } | null;
+  /** The coupon it used (its admin page) and where that use stands. */
+  coupon: { id: string; redemption: "RESERVED" | "REDEEMED" | "RELEASED" } | null;
   updatedAt: string;
   history: StatusChangeView[];
 }
@@ -203,6 +205,7 @@ export async function getAdminOrder(db: Db, id: string): Promise<AdminOrderView 
       refundRequestedAt: true,
       updatedAt: true,
       user: { select: { id: true, email: true, name: true } },
+      couponRedemption: { select: { couponId: true, status: true } },
       paymentEvents: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, paymentId: true, status: true, statusDetail: true, source: true, createdAt: true },
@@ -224,6 +227,7 @@ export async function getAdminOrder(db: Db, id: string): Promise<AdminOrderView 
     refundRequestedAt,
     updatedAt,
     user,
+    couponRedemption,
     statusChanges,
     paymentEvents,
     ...view
@@ -247,6 +251,7 @@ export async function getAdminOrder(db: Db, id: string): Promise<AdminOrderView 
     })),
     refundPending: view.status === "PAID" && refundRequestedAt !== null,
     account: user,
+    coupon: couponRedemption ? { id: couponRedemption.couponId, redemption: couponRedemption.status } : null,
     updatedAt: updatedAt.toISOString(),
     history: statusChanges.map((change) => ({
       id: change.id,

@@ -38,6 +38,8 @@ const order = (overrides: Partial<OrderView> = {}): OrderView => ({
   },
   items: [],
   subtotal: 2868,
+  discount: 0,
+  couponCode: null,
   shipping: 299,
   total: 3167,
   paymentBrand: "visa",

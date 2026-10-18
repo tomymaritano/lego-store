@@ -23,6 +23,8 @@ export function makeOrder(overrides: Partial<OrderView> = {}): OrderView {
       { productId: "2", name: "Set 2", unitPrice: 649, image: "/images/lego.png", quantity: 1 },
     ],
     subtotal: 2447,
+    discount: 0,
+    couponCode: null,
     shipping: 299,
     total: 2746,
     paymentBrand: "visa",

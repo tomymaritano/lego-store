@@ -50,6 +50,10 @@ export interface OrderView {
   shippingAddress: ShippingInfo;
   items: OrderLineView[];
   subtotal: number;
+  /** Taken off the products by the coupon (0 without one). total = subtotal - discount + shipping. */
+  discount: number;
+  /** The coupon's code, as applied (null without one). */
+  couponCode: string | null;
   shipping: number;
   total: number;
   paymentBrand: string | null;
@@ -96,6 +100,8 @@ export type CheckoutErrorCode =
   | "empty"
   | "unavailable"
   | "payment_method"
+  /** The coupon cannot be used: `error` says why (expired, used up, under its minimum...). */
+  | "coupon"
   | "payments_unconfigured"
   | "rate_limited"
   | "not_found"
@@ -114,6 +120,8 @@ export interface CheckoutError {
   error: string;
   code: CheckoutErrorCode;
   unavailable?: UnavailableLine[];
+  /** With code "coupon": why (src/lib/coupons/rules.ts CouponRejection). */
+  rejection?: string;
 }
 
 /** POST /api/checkout/orders/<id>/pay */

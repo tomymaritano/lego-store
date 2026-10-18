@@ -1,13 +1,24 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { orderTotals } from "@/lib/pricing";
+import type { CouponCustomer } from "@/lib/coupons/server";
+import type { OrderTotals } from "@/lib/pricing";
 import { cancelMercadoPagoPayment, mercadoPagoEvent, mercadoPagoProvider } from "@/lib/payments/mercadopago/provider";
 import { fullRefundOf, mapMercadoPagoStatus, mercadoPagoPaymentStage, rejectionMessage } from "@/lib/payments/mercadopago/status";
 import { orderRefundKey, type NormalizedPaymentEvent } from "@/lib/payments/provider";
 import { MercadoPagoRequestError, type MercadoPagoClient, type MpPayment, type MpPaymentRequest } from "@/lib/payments/mercadopago/types";
 import type { PrepareMercadoPagoOrderInput, PayMercadoPagoOrderInput } from "@/lib/validations/orders";
 import { accessSelect, canAccessOrder, hashAccessToken, newAccessToken, type Requester } from "./access";
-import { LOCKED_TX, lockOrderRow, orderDataOf, priceLines, retireOrder, type PrepareOutcome } from "./checkout";
+import {
+  CouponRefusedError,
+  LOCKED_TX,
+  couponRefused,
+  lockOrderRow,
+  orderDataOf,
+  priceLines,
+  retireOrder,
+  writeOrderWithCoupon,
+  type PrepareOutcome,
+} from "./checkout";
 import { formatOrderNumber, isCardPaymentType } from "./format";
 import { mercadoPagoNotificationUrl, publicUrl, type OrderPayments } from "./payments";
 import { getOrderView } from "./queries";
@@ -19,8 +30,9 @@ import { restock, takeStock } from "./webhook";
  * "Pagos: Mercado Pago principal"). Same shape as Stripe's (./checkout.ts):
  *
  * 1. prepareMercadoPagoOrder, on "Revisar": prices the lines from the
- *    database, checks the stock, and creates (or updates) this browser's
- *    PENDING order. Mercado Pago has nothing to set up before the payment.
+ *    database, checks the stock, validates and reserves the coupon, and
+ *    creates (or updates) this browser's PENDING order with the discounted
+ *    total. Mercado Pago has nothing to set up before the payment.
  * 2. payMercadoPagoOrder, on "Realizar pedido": the only call that charges.
  *    Card and cash: creates the payment from the Payment Brick's formData,
  *    for the order's total (never the browser's amount), with
@@ -65,8 +77,11 @@ import { restock, takeStock } from "./webhook";
  * that is no longer the order's (a rejected card before the approved one) only
  * go into the history.
  *
- * No stock or coupon is held while a payment is pending (stock is taken when
- * the money is in), so cancelling has nothing to release yet.
+ * No stock is held while a payment is pending (stock is taken when the money
+ * is in). The coupon's use is: reserved since "Revisar", redeemed when the
+ * order becomes PAID and released whenever it becomes CANCELLED (rejected
+ * after review, an expired ticket, a refund, a chargeback), by the coupons
+ * migration's trigger on the order's status.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -90,50 +105,65 @@ export async function prepareMercadoPagoOrder(
   const priced = await priceLines(db, input.lines);
   if (!priced.ok) return { ok: false, code: "unavailable", unavailable: priced.unavailable };
   const { lines } = priced;
-  const totals = orderTotals(lines.map((line) => ({ price: line.unitPrice, quantity: line.quantity })));
   // No payment yet: what it will be paid with is recorded when Mercado Pago answers.
-  const data = { ...orderDataOf(input.shipping, totals), paymentBrand: null, paymentLast4: null };
+  const dataOf = (totals: OrderTotals) => ({ ...orderDataOf(input.shipping, totals), paymentBrand: null, paymentLast4: null });
+  const customer: CouponCustomer = { userId: requester.userId, email: input.shipping.email.trim().toLowerCase() };
 
-  const current = requester.access
-    ? await db.order.findUnique({
-        where: { id: requester.access.orderId },
-        select: { ...accessSelect, paymentProvider: true, stripePaymentIntentId: true, providerPaymentId: true },
-      })
-    : null;
-  if (current && current.status === "PENDING" && canAccessOrder(current, requester)) {
-    const reused =
-      current.paymentProvider === "MERCADOPAGO" && current.userId === requester.userId
-        ? await db.$transaction(async (tx): Promise<{ supersededPreference: string | null } | null> => {
-            if (!(await lockOrderRow(tx, current.id))) return null;
-            const locked = await tx.order.findUnique({ where: { id: current.id }, select: { status: true, providerCheckoutId: true } });
-            if (locked?.status !== "PENDING") return null;
-            // A Checkout Pro preference was for the old lines and total: the next payment makes a new one.
-            await tx.order.update({ where: { id: current.id }, data: { ...data, providerCheckoutId: null, providerCheckoutUrl: null } });
-            await tx.orderItem.deleteMany({ where: { orderId: current.id } });
-            await tx.orderItem.createMany({ data: lines.map((line) => ({ ...line, orderId: current.id })) });
-            return { supersededPreference: locked.providerCheckoutId };
-          }, LOCKED_TX)
-        : null;
-    if (reused) {
-      if (reused.supersededPreference) await expirePreference(payments.mercadopago, reused.supersededPreference);
-      return { ok: true, order: (await getOrderView(db, current.id))!, access: null };
+  try {
+    const current = requester.access
+      ? await db.order.findUnique({
+          where: { id: requester.access.orderId },
+          select: { ...accessSelect, paymentProvider: true, stripePaymentIntentId: true, providerPaymentId: true },
+        })
+      : null;
+    if (current && current.status === "PENDING" && canAccessOrder(current, requester)) {
+      const reused =
+        current.paymentProvider === "MERCADOPAGO" && current.userId === requester.userId
+          ? await db.$transaction(async (tx): Promise<{ supersededPreference: string | null } | null> => {
+              if (!(await lockOrderRow(tx, current.id))) return null;
+              const locked = await tx.order.findUnique({ where: { id: current.id }, select: { status: true, providerCheckoutId: true } });
+              if (locked?.status !== "PENDING") return null;
+              await writeOrderWithCoupon(tx, { lines, couponCode: input.couponCode, customer, orderId: current.id }, async (totals) => {
+                // A Checkout Pro preference was for the old lines and total: the next payment makes a new one.
+                await tx.order.update({ where: { id: current.id }, data: { ...dataOf(totals), providerCheckoutId: null, providerCheckoutUrl: null } });
+                await tx.orderItem.deleteMany({ where: { orderId: current.id } });
+                await tx.orderItem.createMany({ data: lines.map((line) => ({ ...line, orderId: current.id })) });
+                return { id: current.id };
+              });
+              return { supersededPreference: locked.providerCheckoutId };
+            }, LOCKED_TX)
+          : null;
+      if (reused) {
+        if (reused.supersededPreference) await expirePreference(payments.mercadopago, reused.supersededPreference);
+        return { ok: true, order: (await getOrderView(db, current.id))!, access: null };
+      }
+      // Another account's, or a Stripe order from before the switch: a new order replaces it.
+      await retireAnyOrder(db, payments, current, "superseded");
     }
-    // Another account's, or a Stripe order from before the switch: a new order replaces it.
-    await retireAnyOrder(db, payments, current, "superseded");
-  }
 
-  const token = newAccessToken();
-  const order = await db.order.create({
-    data: {
-      ...data,
-      paymentProvider: "MERCADOPAGO",
-      userId: requester.userId,
-      checkoutTokenHash: hashAccessToken(token),
-      items: { create: lines },
-    },
-    select: { id: true },
-  });
-  return { ok: true, order: (await getOrderView(db, order.id))!, access: { orderId: order.id, token } };
+    const token = newAccessToken();
+    // The order and its coupon's reservation commit together (or not at all, when the coupon is refused).
+    const { order } = await db.$transaction(
+      (tx) =>
+        writeOrderWithCoupon(tx, { lines, couponCode: input.couponCode, customer }, (totals) =>
+          tx.order.create({
+            data: {
+              ...dataOf(totals),
+              paymentProvider: "MERCADOPAGO",
+              userId: requester.userId,
+              checkoutTokenHash: hashAccessToken(token),
+              items: { create: lines },
+            },
+            select: { id: true },
+          })
+        ),
+      LOCKED_TX
+    );
+    return { ok: true, order: (await getOrderView(db, order.id))!, access: { orderId: order.id, token } };
+  } catch (error) {
+    if (error instanceof CouponRefusedError) return couponRefused(error);
+    throw error;
+  }
 }
 
 /**

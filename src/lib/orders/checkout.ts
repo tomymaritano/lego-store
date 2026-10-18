@@ -1,6 +1,8 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { claimCoupon, holdOrderCoupon, type CouponClaim, type CouponCustomer } from "@/lib/coupons/server";
+import type { CouponRejection } from "@/lib/coupons/rules";
 import type { Db } from "@/lib/lists/product";
-import { orderTotals } from "@/lib/pricing";
+import { linesSubtotal, orderTotals, type OrderTotals } from "@/lib/pricing";
 import { PaymentDeclinedError, REUSABLE_INTENT_STATUSES, toCentavos, type IntentStatus, type PaymentGateway } from "@/lib/payments/gateway";
 import type { PrepareOrderInput } from "@/lib/validations/orders";
 import { accessSelect, canAccessOrder, hashAccessToken, newAccessToken, type CheckoutAccess, type Requester } from "./access";
@@ -11,8 +13,9 @@ import type { CancelReason, OrderView, UnavailableLine } from "./types";
  * The checkout on the server, in two calls (see the design doc, "Qué paso cobra"):
  *
  * 1. prepareOrder, when the customer reaches "Revisar": prices the lines
- *    from the database (never from the client), checks the stock, computes
- *    shipping and totals with lib/pricing, reads the card's brand and last 4
+ *    from the database (never from the client), checks the stock, validates
+ *    and reserves the coupon (src/lib/coupons/server.ts), computes the
+ *    discount, shipping and totals with lib/pricing, reads the card's brand and last 4
  *    digits from the ConfirmationToken, and creates the PENDING order with
  *    a PaymentIntent for its total (or updates this browser's pending order
  *    and its intent, when there is one that can still be paid).
@@ -78,8 +81,9 @@ export async function priceLines(db: Db, wanted: { productId: string; quantity: 
 
 /**
  * Cancels a pending order that will not be paid (replaced by a newer one,
- * expired) and its PaymentIntent. An order whose payment is already under
- * way is left for the webhook to settle.
+ * expired) and its PaymentIntent; cancelling releases its coupon's use (the
+ * coupons migration's trigger). An order whose payment is already under way
+ * is left for the webhook to settle.
  */
 export async function retireOrder(
   db: PrismaClient,
@@ -111,7 +115,7 @@ export async function retireOrder(
 }
 
 /** The order's columns from the shipping form and the server's totals (the same for every provider). */
-export function orderDataOf(shipping: PrepareOrderInput["shipping"], totals: ReturnType<typeof orderTotals>) {
+export function orderDataOf(shipping: PrepareOrderInput["shipping"], totals: OrderTotals) {
   return {
     email: shipping.email.trim().toLowerCase(),
     firstName: shipping.firstName,
@@ -123,15 +127,60 @@ export function orderDataOf(shipping: PrepareOrderInput["shipping"], totals: Ret
     zipCode: shipping.zipCode.toUpperCase(),
     country: shipping.country,
     subtotal: totals.subtotal,
+    discount: totals.discount,
+    couponCode: totals.coupon?.code ?? null,
     shipping: totals.shipping.cost,
     total: totals.total,
   };
 }
 
+/** Thrown inside an order's transaction to roll it back when its coupon is refused. */
+export class CouponRefusedError extends Error {
+  constructor(readonly claim: Extract<CouponClaim, { ok: false }>) {
+    super(claim.message);
+  }
+}
+
+/**
+ * Claims the coupon (locked), prices the lines with it, then writes the order
+ * through `write` and records the coupon's use, all in the caller's
+ * transaction. A refused coupon throws CouponRefusedError before anything is
+ * written. Every provider's prepare goes through here, so the order's totals
+ * (and the amount the provider charges) always include the discount.
+ */
+export async function writeOrderWithCoupon<T extends { id: string }>(
+  tx: Prisma.TransactionClient,
+  {
+    lines,
+    couponCode,
+    customer,
+    orderId = null,
+  }: { lines: PricedLine[]; couponCode: string | undefined; customer: CouponCustomer; orderId?: string | null },
+  write: (totals: OrderTotals) => Promise<T>
+): Promise<{ order: T; totals: OrderTotals }> {
+  const priced = lines.map((line) => ({ price: line.unitPrice, quantity: line.quantity }));
+  const claim = await claimCoupon(tx, couponCode, { customer, subtotal: linesSubtotal(priced), orderId });
+  if (!claim.ok) throw new CouponRefusedError(claim);
+  const totals = orderTotals(priced, claim.terms);
+  const order = await write(totals);
+  await holdOrderCoupon(tx, order.id, claim, { customer, discount: totals.discount });
+  return { order, totals };
+}
+
 export type PrepareOutcome =
   | { ok: true; order: OrderView; /** Set when a new order was created: the browser's new cookie. */ access: CheckoutAccess | null }
   | { ok: false; code: "unavailable"; unavailable: UnavailableLine[] }
-  | { ok: false; code: "payment_method" };
+  | { ok: false; code: "payment_method" }
+  /** The coupon cannot be used (expired, used up, under its minimum...): `message` says why. */
+  | { ok: false; code: "coupon"; rejection: CouponRejection; message: string };
+
+/** A refused coupon as prepareOrder's answer. */
+export const couponRefused = (error: CouponRefusedError): PrepareOutcome => ({
+  ok: false,
+  code: "coupon",
+  rejection: error.claim.rejection,
+  message: error.claim.message,
+});
 
 export async function prepareOrder(
   db: PrismaClient,
@@ -142,66 +191,82 @@ export async function prepareOrder(
   const priced = await priceLines(db, input.lines);
   if (!priced.ok) return { ok: false, code: "unavailable", unavailable: priced.unavailable };
   const { lines } = priced;
-  const totals = orderTotals(lines.map((line) => ({ price: line.unitPrice, quantity: line.quantity })));
 
   const card = await gateway.readConfirmationToken(input.confirmationTokenId);
   if (!card) return { ok: false, code: "payment_method" };
 
-  const data = { ...orderDataOf(input.shipping, totals), paymentBrand: card.brand, paymentLast4: card.last4 };
-  const { email } = data;
-  const amount = toCentavos(totals.total);
+  const email = input.shipping.email.trim().toLowerCase();
+  const customer: CouponCustomer = { userId: requester.userId, email };
+  const dataOf = (totals: OrderTotals) => ({ ...orderDataOf(input.shipping, totals), paymentBrand: card.brand, paymentLast4: card.last4 });
 
-  // This browser's pending order: update it when it can still be paid, retire it otherwise.
-  const current = requester.access
-    ? await db.order.findUnique({ where: { id: requester.access.orderId }, select: { ...accessSelect, stripePaymentIntentId: true } })
-    : null;
-  if (current && current.status === "PENDING" && canAccessOrder(current, requester)) {
-    const intentId = current.stripePaymentIntentId;
-    const reused =
-      intentId !== null &&
-      current.userId === requester.userId &&
-      (await db.$transaction(async (tx) => {
-        // Locked: a payment of this order already finished, or waits until this one does.
-        if (!(await lockOrderRow(tx, current.id))) return false;
-        const locked = await tx.order.findUnique({ where: { id: current.id }, select: { status: true } });
-        if (locked?.status !== "PENDING") return false;
-        const intent = await gateway.retrieveIntent(intentId);
-        if (!REUSABLE_INTENT_STATUSES.includes(intent.status)) return false;
-        // Stripe first: when it refuses the new amount this throws, and the order keeps its lines and total.
-        if (intent.amount !== amount) await gateway.updateIntentAmount(intent.id, amount);
-        await tx.order.update({ where: { id: current.id }, data });
-        await tx.orderItem.deleteMany({ where: { orderId: current.id } });
-        await tx.orderItem.createMany({ data: lines.map((line) => ({ ...line, orderId: current.id })) });
-        return true;
-      }, LOCKED_TX));
-    if (reused) return { ok: true, order: (await getOrderView(db, current.id))!, access: null };
-    // A new order replaces it (another account, or its intent moved on); retireOrder
-    // leaves an order whose payment is under way to the webhook.
-    await retireOrder(db, gateway, current, "superseded");
-  }
-
-  const token = newAccessToken();
-  const order = await db.order.create({
-    data: { ...data, userId: requester.userId, checkoutTokenHash: hashAccessToken(token), items: { create: lines } },
-    select: { id: true, number: true },
-  });
   try {
-    const intent = await gateway.createIntent({
-      orderId: order.id,
-      orderNumber: order.number,
-      amount,
-      email,
-      idempotencyKey: `order/${order.id}/intent`,
-    });
-    await db.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: intent.id } });
+    // This browser's pending order: update it when it can still be paid, retire it otherwise.
+    const current = requester.access
+      ? await db.order.findUnique({ where: { id: requester.access.orderId }, select: { ...accessSelect, stripePaymentIntentId: true } })
+      : null;
+    if (current && current.status === "PENDING" && canAccessOrder(current, requester)) {
+      const intentId = current.stripePaymentIntentId;
+      const reused =
+        intentId !== null &&
+        current.userId === requester.userId &&
+        (await db.$transaction(async (tx) => {
+          // Locked: a payment of this order already finished, or waits until this one does.
+          if (!(await lockOrderRow(tx, current.id))) return false;
+          const locked = await tx.order.findUnique({ where: { id: current.id }, select: { status: true } });
+          if (locked?.status !== "PENDING") return false;
+          const intent = await gateway.retrieveIntent(intentId);
+          if (!REUSABLE_INTENT_STATUSES.includes(intent.status)) return false;
+          await writeOrderWithCoupon(tx, { lines, couponCode: input.couponCode, customer, orderId: current.id }, async (totals) => {
+            const amount = toCentavos(totals.total);
+            // Stripe first: when it refuses the new amount this throws, and the order keeps its lines and total.
+            if (intent.amount !== amount) await gateway.updateIntentAmount(intent.id, amount);
+            await tx.order.update({ where: { id: current.id }, data: dataOf(totals) });
+            await tx.orderItem.deleteMany({ where: { orderId: current.id } });
+            await tx.orderItem.createMany({ data: lines.map((line) => ({ ...line, orderId: current.id })) });
+            return { id: current.id };
+          });
+          return true;
+        }, LOCKED_TX));
+      if (reused) return { ok: true, order: (await getOrderView(db, current.id))!, access: null };
+      // A new order replaces it (another account, or its intent moved on); retireOrder
+      // leaves an order whose payment is under way to the webhook.
+      await retireOrder(db, gateway, current, "superseded");
+    }
+
+    const token = newAccessToken();
+    // The order and its coupon's reservation commit together (or not at all, when the coupon is refused).
+    const { order, totals } = await db.$transaction(
+      (tx) =>
+        writeOrderWithCoupon(tx, { lines, couponCode: input.couponCode, customer }, (totals) =>
+          tx.order.create({
+            data: { ...dataOf(totals), userId: requester.userId, checkoutTokenHash: hashAccessToken(token), items: { create: lines } },
+            select: { id: true, number: true },
+          })
+        ),
+      LOCKED_TX
+    );
+    try {
+      const intent = await gateway.createIntent({
+        orderId: order.id,
+        orderNumber: order.number,
+        amount: toCentavos(totals.total),
+        email,
+        idempotencyKey: `order/${order.id}/intent`,
+      });
+      await db.order.update({ where: { id: order.id }, data: { stripePaymentIntentId: intent.id } });
+    } catch (error) {
+      // Cancelling also releases the coupon's reservation (the coupons migration's trigger).
+      await db.order.update({
+        where: { id: order.id },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "payment_setup_failed" },
+      });
+      throw error;
+    }
+    return { ok: true, order: (await getOrderView(db, order.id))!, access: { orderId: order.id, token } };
   } catch (error) {
-    await db.order.update({
-      where: { id: order.id },
-      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "payment_setup_failed" },
-    });
+    if (error instanceof CouponRefusedError) return couponRefused(error);
     throw error;
   }
-  return { ok: true, order: (await getOrderView(db, order.id))!, access: { orderId: order.id, token } };
 }
 
 /** Paying with a card other than the one reviewed. */

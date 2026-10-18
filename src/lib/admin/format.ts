@@ -96,3 +96,77 @@ export function adminCancelReasonLabel(reason: string | null, refundId: string |
   if (reason === "admin") return refundId ? "Cancelado por un admin; se reembolsó el pago." : "Cancelado por un admin antes del pago; no se cobró nada.";
   return reason && Object.hasOwn(ADMIN_CANCEL_REASONS, reason) ? ADMIN_CANCEL_REASONS[reason as keyof typeof ADMIN_CANCEL_REASONS] : "Se canceló el pedido.";
 }
+
+// ---------------------------------------------------------------------------
+// Coupons
+// ---------------------------------------------------------------------------
+
+export const COUPON_STATUS_LABELS = {
+  active: "Activo",
+  scheduled: "Programado",
+  expired: "Vencido",
+  exhausted: "Agotado",
+  inactive: "Desactivado",
+} as const;
+
+export const COUPON_STATUS_BADGE = {
+  active: "success",
+  scheduled: "neutral",
+  expired: "neutral",
+  exhausted: "warning",
+  inactive: "neutral",
+} as const;
+
+export const REDEMPTION_STATUS_LABELS = {
+  RESERVED: "Reservado",
+  REDEEMED: "Usado",
+  RELEASED: "Liberado",
+} as const;
+
+export const REDEMPTION_STATUS_BADGE = {
+  RESERVED: "warning",
+  REDEEMED: "success",
+  RELEASED: "neutral",
+} as const;
+
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  "coupon.create": "Creó el cupón",
+  "coupon.update": "Editó el cupón",
+  "coupon.activate": "Activó el cupón",
+  "coupon.deactivate": "Desactivó el cupón",
+};
+
+/** The coupon fields an audit entry can name, as the admin reads them. */
+export const COUPON_FIELD_LABELS: Record<string, string> = {
+  code: "código",
+  description: "nota",
+  type: "tipo",
+  value: "valor",
+  minSubtotal: "compra mínima",
+  startsAt: "válido desde",
+  expiresAt: "vence",
+  maxRedemptions: "límite total",
+  maxPerUser: "límite por cliente",
+  active: "activo",
+};
+
+const adminDateFormat = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: STORE_TIME_ZONE });
+
+/** "18/01/2024" (store time zone). */
+export const formatAdminDate = (iso: string) => adminDateFormat.format(new Date(iso));
+
+/** A coupon's validity window: "Desde 01/11/2026 · hasta 31/12/2026" (expiresAt is exclusive: its last day is the one before). */
+export function couponWindowLabel(startsAt: string | null, expiresAt: string | null): string {
+  const lastDay = expiresAt ? formatAdminDate(new Date(new Date(expiresAt).getTime() - 1).toISOString()) : null;
+  if (startsAt && lastDay) return `Del ${formatAdminDate(startsAt)} al ${lastDay}`;
+  if (startsAt) return `Desde el ${formatAdminDate(startsAt)}`;
+  if (lastDay) return `Hasta el ${lastDay}`;
+  return "Sin vencimiento";
+}
+
+/** The store day a coupon's date falls on, for a date input ("2026-12-31"); expiresAt gives its last valid day. */
+export function couponDateInput(iso: string | null, kind: "start" | "end"): string {
+  if (!iso) return "";
+  const at = new Date(iso);
+  return storeDate(kind === "end" ? new Date(at.getTime() - 1) : at);
+}

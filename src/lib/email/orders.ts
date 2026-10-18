@@ -66,6 +66,7 @@ function linesTable(order: OrderView) {
       ${rows}
       <tr><td colspan="3" style="height:12px"></td></tr>
       ${total("Subtotal", formatPrice(order.subtotal))}
+      ${order.discount > 0 ? total(`Descuento${order.couponCode ? ` (${escapeHtml(order.couponCode)})` : ""}`, `−${formatPrice(order.discount)}`) : ""}
       ${total("Envío", order.shipping === 0 ? "Gratis" : formatPrice(order.shipping))}
       ${total("Total", formatPrice(order.total), true)}
     </table>`;
@@ -123,6 +124,7 @@ function textLines(order: OrderView) {
     ...order.items.map((item) => `- ${item.name} × ${item.quantity}: ${formatPrice(item.unitPrice * item.quantity)}`),
     "",
     `Subtotal: ${formatPrice(order.subtotal)}`,
+    ...(order.discount > 0 ? [`Descuento${order.couponCode ? ` (${order.couponCode})` : ""}: −${formatPrice(order.discount)}`] : []),
     `Envío: ${order.shipping === 0 ? "Gratis" : formatPrice(order.shipping)}`,
     `Total: ${formatPrice(order.total)}`,
   ].join("\n");
