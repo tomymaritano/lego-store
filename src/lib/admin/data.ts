@@ -10,6 +10,7 @@ import type { AdminUserFilters } from "@/lib/validations/users";
 import { listAuditEntries, searchAuditLog } from "./audit";
 import { getAdminCoupon, listAdminCoupons } from "./coupons";
 import { getDashboard } from "./dashboard";
+import { getDashboardReport } from "./report";
 import { getAdminOrder, listAdminOrders } from "./orders";
 import { adminCategories, getAdminProduct, listAdminProducts, productFormOptions } from "./products";
 import { listAdminReviews, reviewedProducts } from "./reviews";
@@ -33,6 +34,12 @@ import type { AdminMessageFilters, AdminSubscriberFilters } from "@/lib/validati
 export async function getAdminDashboard() {
   await requireAdmin();
   return getDashboard(getDb());
+}
+
+/** The dashboard's KPIs and charts for a date range. */
+export async function getAdminReport(range: { from: string; to: string }) {
+  await requireAdmin();
+  return getDashboardReport(getDb(), range);
 }
 
 export async function getAdminProducts(filters: AdminProductFilters) {

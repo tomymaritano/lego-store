@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 const VIEW_OPTIONS = [
-  { value: "inbox", label: "Bandeja (sin archivar)" },
+  { value: "inbox", label: "Bandeja" },
   { value: "NEW", label: "Nuevos" },
   { value: "READ", label: "Leídos" },
   { value: "ARCHIVED", label: "Archivados" },
