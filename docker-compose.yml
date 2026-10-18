@@ -1,11 +1,13 @@
-# Local Postgres for development and tests (see README, "Backend local setup").
+# Local Postgres for development and tests (see README, "Puesta en marcha local del backend").
 # One server, two databases: lego_store (dev, `npm run dev`) and
 # lego_store_test (Vitest integration tests, wiped on every run).
 # The host port defaults to 5433 so it never clashes with a native Postgres on 5432.
+# No fixed container_name: compose names it <project>-db-1 (the project is the
+# checkout's folder), so a second checkout or worktree can run its own database
+# beside this one on another POSTGRES_PORT. Use `docker compose exec db ...`.
 services:
   db:
     image: postgres:17-alpine
-    container_name: lego-store-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: lego
