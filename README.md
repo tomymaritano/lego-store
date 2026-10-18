@@ -684,7 +684,9 @@ cliente, activo/inactivo (`Coupon`, `CouponRedemption`; reglas en
   guarda solo los términos devueltos (`lego-coupon-storage`) para mostrar el
   descuento mientras cambia el carrito; nunca se confía en eso: el carrito y el
   checkout vuelven a preguntar por el cupón guardado al cargar y al volver a
-  la pestaña (`recheck: true`, con su propio límite de 60 cada 15 min), y
+  la pestaña (`recheck: true`, con su propio límite de 60 cada 15 min solo
+  si trae el `recheckToken` firmado que devolvió «Aplicar» para ese código;
+  sin él cuenta como un intento más, así que no sirve para adivinar), y
   hasta esa respuesta no muestran el descuento («Comprobando que siga
   vigente…»). Términos nuevos (el admin lo editó) reemplazan a los guardados;
   un cupón que ya no vale se quita con el motivo en el campo. El cupón es de
@@ -715,10 +717,17 @@ cliente, activo/inactivo (`Coupon`, `CouponRedemption`; reglas en
   que el pedido se resuelva (`holdExpiresAt` NULL). Si la reserva venció y su
   lugar se ocupó, o el email ya lo usó, el pago se rechaza con `code:
   "coupon"` y el checkout prepara el pedido sin el cupón y lo dice; un pago
-  rechazado devuelve la reserva corta. Checkout Pro («Cuenta de Mercado
-  Pago») solo renueva la reserva corta (el pago se hace en su sitio); el
-  pedido la retiene en cuanto Mercado Pago informa el pago (PAYMENT_PENDING,
-  por el trigger).
+  rechazado devuelve la reserva corta. Una reserva vencida es un uso nuevo:
+  además de los límites se revisan activo y fechas (un cupón desactivado o
+  vencido ya no se puede pagar con ella; una reserva vigente sí conserva su
+  uso). Checkout Pro («Cuenta de Mercado Pago») se paga en su sitio: abrirlo
+  renueva la reserva corta, la preferencia vence junto con ella (cada clic
+  abre una nueva y cierra la anterior) y, cuando Mercado Pago informa el
+  pago, se repite el mismo control antes de pasar a PAID o PAYMENT_PENDING.
+  Si el cupón ya no entra (otro tomó el último uso, el email ya lo usó con
+  otra preferencia, venció), el pago aprobado se reembolsa, uno pendiente se
+  cancela, y el pedido queda CANCELLED (`coupon_unavailable`): los usos
+  canjeados nunca superan los límites.
 - **Por cliente**: por cuenta, los usos vigentes de la cuenta, en todos los
   pasos. Por email (un invitado es su email; los pedidos como invitado de una
   cuenta con ese email también cuentan), solo los usos pagados o con el pago

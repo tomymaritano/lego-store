@@ -422,7 +422,18 @@ Decisiones tomadas al construir la etapa (el README, «Cupones», tiene el detal
   cupón bloqueado y la reserva dura hasta que el pedido se resuelva. Sin esto,
   checkouts sin pagar (gratis y anónimos) retenían usos 24 h: alcanzaba con
   repetirlos para agotar un cupón limitado. Más un límite propio para preparar
-  pedidos con cupón.
+  pedidos con cupón. Una reserva vencida es un uso nuevo: al pagar se revisan
+  también activo y fechas.
+- *Checkout Pro* (segunda revisión): el pago se hace en el sitio de Mercado
+  Pago, así que la preferencia de un pedido con cupón vence con la reserva
+  corta y el aviso del pago vuelve a controlar el cupón (fila bloqueada)
+  antes de PAID/PAYMENT_PENDING; si ya no entra, se reembolsa (o se cancela
+  el pago pendiente) y el pedido se cancela (`coupon_unavailable`). Se
+  descartó retener el uso 24 h por preferencia: abrir Checkout Pro no cuesta
+  nada y volvería a permitir agotar cupones con checkouts sin pagar.
+- *Límite de consultas*: el presupuesto mayor de las re-consultas solo vale
+  con un token HMAC (AUTH_SECRET) del código, que devuelve «Aplicar»; si no,
+  cuenta como intento.
 - *Por cliente*: la cuenta, en todos los pasos; el email (no verificado: lo
   escribe cualquiera) solo con usos pagados o con el pago enviado, y solo al
   pagar. Así nadie gasta el cupón de otra persona con checkouts a su nombre,
