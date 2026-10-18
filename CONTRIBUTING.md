@@ -66,6 +66,15 @@ Detalle de cada suite en [docs/testing.md](./docs/testing.md).
   Para revisarla o completarla antes de aplicarla:
   `npx prisma migrate dev --create-only --name <cambio>`, edita el SQL y después
   `npm run db:migrate`.
+- **El nombre de la carpeta ordena las migraciones**: Prisma las aplica en orden
+  alfabético y nombra las nuevas con la hora UTC. Las del backend llegan hasta
+  `20261019070000_newsletter_signed_unsubscribe_link`, con fechas adelantadas
+  respecto del momento en que se escribieron: hasta que el reloj pase las
+  2026-10-19 07:00 UTC, una migración creada con `--create-only` quedaría antes
+  que las ya aplicadas. Renombra su carpeta a mano con una hora posterior a la
+  última (por ejemplo `20261019080000_<cambio>`) antes de aplicarla, y comprueba
+  con `ls prisma/migrations` que la nueva es la última. Nunca renombres una
+  migración ya aplicada.
 - **Lo que Prisma no escribe va a mano al final del SQL**, bajo un comentario
   `-- Hand-written`: restricciones `CHECK` (stock ≥ 0, totales que cierran, emails
   en minúsculas…), triggers (el de los usos de cupones) y backfills de datos. Si

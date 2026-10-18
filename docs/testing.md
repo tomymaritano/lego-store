@@ -134,9 +134,16 @@ Configuración en `playwright.config.ts`:
 
 Playwright arranca primero el build y después `next dev`. Fuera de CI reutiliza
 lo que ya escuche en esos puertos; el setup global comprueba que el dev server
-corre con el mock y que el de producción sirve el build de esta copia. Para correr
-al lado de otros servidores: `E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx playwright
-test`. En CI: `retries: 2`, `workers: 1`, `forbidOnly`.
+corre con el mock y es **el de esta copia con su base de datos** (compara un hash
+de la carpeta y `DATABASE_URL` con el de `GET /api/test/identity`, que solo
+existe con `PAYMENTS_MOCK=1`), y que el de producción sirve el build de esta
+copia. Si no coincide, el setup se detiene en vez de escribir en otra base. Para
+correr al lado de otros servidores: `E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx
+playwright test`; no corras dos suites a la vez en la misma máquina (comparten
+CPU y los límites por IP de la base). Localmente usa 4 workers (`E2E_WORKERS`
+lo cambia): con más, el único `next dev` compilando rutas y bcrypt en cada login
+hacían vencer esperas de rutas frías. En CI: `retries: 2`, `workers: 1`,
+`forbidOnly`.
 
 **Datos de los E2E**: usan la base de dev. Las cuentas, pedidos, mensajes y
 suscripciones de los specs usan emails `@e2e.lego-store.test`; el setup global los
@@ -195,7 +202,9 @@ Ver la checklist de [deploy.md](./deploy.md#después-del-deploy).
 
 ## CI (`.github/workflows/ci.yml`)
 
-Corre en push y pull request a `main` y `develop`, con Node 22. Los jobs que
+Corre en push a `main`, `develop` y las ramas `feat/**` (por ejemplo
+`feat/backend`), y en pull requests hacia `main`, `develop` o una rama `feat/**`
+(un PR apilado sobre otra rama de feature también tiene CI), con Node 22. Los jobs que
 necesitan datos levantan un servicio Postgres 17, corren `prisma migrate deploy`
 y el seed antes de empezar, y generan un `AUTH_SECRET` descartable.
 
