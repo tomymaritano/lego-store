@@ -63,10 +63,21 @@ export function parseSubscriberFilters(params: SearchParams): AdminSubscriberFil
 /** Where a sign-up came from (NewsletterSubscriber.source). */
 export const NEWSLETTER_SOURCES = ["footer", "home", "checkout"] as const;
 
+/**
+ * What the sign-up answers every time, true for a new address (welcome
+ * email), one that unsubscribed before (it stays out until its owner
+ * confirms from the email) and one already on the list, without telling
+ * which.
+ */
+export const NEWSLETTER_SIGNUP_DONE = "¡Listo! Revisa tu correo: si hace falta, te pedimos ahí que confirmes la suscripción.";
+
 export const newsletterSignupSchema = z.object({
   email: z.string().trim().toLowerCase().min(1, "Ingresa tu email").max(254, "Ingresa un email válido").pipe(z.email("Ingresa un email válido")),
   source: z.enum(NEWSLETTER_SOURCES).catch("footer"),
 });
 
-/** The unsubscribe link's token: 32 random bytes, base64url. */
-export const unsubscribeTokenSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{43}$/);
+/** The unsubscribe link's token: the subscriber's id, a dot and its HMAC-SHA256 signature (base64url). */
+export const unsubscribeTokenSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{1,64}\.[A-Za-z0-9_-]{43}$/);
+
+/** The confirmation link's token: 32 random bytes, base64url. */
+export const confirmTokenSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{43}$/);

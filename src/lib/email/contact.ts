@@ -74,22 +74,27 @@ export function contactNotificationEmail(to: string, message: ContactNotice): Em
   return { to, subject, html, text, idempotencyKey: `contact-message/${message.id}` };
 }
 
-/** To a new subscriber: welcome, and the link that unsubscribes them. */
-export function newsletterWelcomeEmail(to: string, token: string): EmailMessage {
-  const unsubscribeUrl = siteUrl(`/newsletter/baja?token=${encodeURIComponent(token)}`);
+/**
+ * To a new subscriber: welcome, and the link that unsubscribes them
+ * (lib/newsletter's unsubscribeUrl(); null only without AUTH_SECRET, and
+ * then the contact page instead).
+ */
+export function newsletterWelcomeEmail(to: string, unsubscribeUrl: string | null): EmailMessage {
+  const leaveUrl = unsubscribeUrl ?? siteUrl("/contacto");
+  const leaveText = unsubscribeUrl ? "Date de baja" : "Escríbenos y te damos de baja";
   const subject = `Te sumaste al newsletter de ${siteConfig.name}`;
   const html = layout(
     "¡Bienvenido al newsletter!",
     `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${COLORS.muted}">Te vamos a escribir con lanzamientos, ofertas y novedades de la tienda. Nada más.</p>
      <p style="margin:0 0 8px"><a href="${escapeHtml(siteUrl("/"))}" style="display:inline-block;background:${COLORS.brand};color:${COLORS.text};font-weight:700;text-decoration:none;padding:12px 20px;border-radius:10px">Ir a la tienda</a></p>`,
-    `¿No pediste esta suscripción o ya no quieres recibirla? <a href="${escapeHtml(unsubscribeUrl)}" style="color:${COLORS.text}">Date de baja</a>.`
+    `¿No pediste esta suscripción o ya no quieres recibirla? <a href="${escapeHtml(leaveUrl)}" style="color:${COLORS.text}">${leaveText}</a>.`
   );
   const text = [
     "¡Bienvenido al newsletter!",
     "",
     "Te vamos a escribir con lanzamientos, ofertas y novedades de la tienda.",
     "",
-    `Para darte de baja: ${unsubscribeUrl}`,
+    `Para darte de baja: ${leaveUrl}`,
   ].join("\n");
   return { to, subject, html, text };
 }

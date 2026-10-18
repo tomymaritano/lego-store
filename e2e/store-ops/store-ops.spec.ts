@@ -1,7 +1,7 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { logIn, uniqueEmail } from "../helpers/accounts";
 import { seriousAxeViolations } from "../helpers/axe";
-import { createE2eAccount } from "../helpers/db";
+import { createE2eAccount, createE2eContactMessages, createE2eSubscriber, isE2eSubscriberActive } from "../helpers/db";
 
 /*
  * The admin's store settings, content and inbox against the dev server and
@@ -188,4 +188,51 @@ test("a visitor's contact message reaches the admin's inbox", async ({ browser }
   await expect(page.getByRole("button", { name: /^No leído/ })).toBeVisible();
   await page.getByRole("button", { name: /^Archivar/ }).click();
   await expect(page.getByRole("button", { name: /^A la bandeja/ })).toBeVisible(COLD);
+});
+
+test("the inbox keeps the keyboard focus through mark read and archive", async ({ browser }) => {
+  test.slow();
+  const tag = `foco${Date.now()}`;
+  const [first, second] = await createE2eContactMessages(tag, ["Bruno Foco", "Carla Foco"]);
+  const page = await adminPage(browser, `/admin/mensajes?q=${tag}`);
+  const rows = page.getByTestId("admin-message-row");
+  await expect(rows).toHaveCount(2, COLD);
+  const firstRow = page.locator(`[data-message-id="${first!.id}"]`);
+  const secondRow = page.locator(`[data-message-id="${second!.id}"]`);
+  await expect(firstRow.getByRole("button", { name: /^Marcar leído/ })).toBeEnabled(COLD);
+
+  // Mark read from the keyboard: the same button, now "No leído", keeps the focus.
+  await firstRow.getByRole("button", { name: /^Marcar leído/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Lo marcamos como leído.")).toBeVisible(COLD);
+  await expect(firstRow.getByRole("button", { name: /^No leído/ })).toBeFocused();
+
+  // Archive: the row leaves the inbox and the focus goes to the next row.
+  await firstRow.getByRole("button", { name: /^Archivar/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(rows).toHaveCount(1, COLD);
+  await expect(secondRow.getByRole("button", { name: /^Marcar leído/ })).toBeFocused();
+
+  // The last one: the empty inbox takes it.
+  await secondRow.getByRole("button", { name: /^Archivar/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(rows).toHaveCount(0, COLD);
+  await expect(page.locator("[data-inbox-focus]")).toBeFocused();
+});
+
+test("an admin unsubscribes an address from the newsletter list", async ({ browser }) => {
+  const subscriber = await createE2eSubscriber();
+  const page = await adminPage(browser, `/admin/newsletter?q=${encodeURIComponent(subscriber.email)}`);
+  const row = page.getByTestId("admin-subscriber-row");
+  await expect(row).toHaveCount(1, COLD);
+  await expect(row).toContainText("Activo");
+  await row.getByRole("button", { name: /^Dar de baja/ }).click();
+  const dialog = page.getByRole("dialog", { name: `¿Dar de baja a ${subscriber.email}?` });
+  await dialog.getByRole("button", { name: "Dar de baja" }).click();
+  await expect(page.getByText(/^Lo dimos de baja/)).toBeVisible(COLD);
+  await expect(row).toContainText("De baja");
+  await expect(row.getByRole("button", { name: /^Dar de baja/ })).toHaveCount(0);
+  // The button is gone: the row's email has the focus, not the page's start.
+  await expect(row.getByRole("cell", { name: subscriber.email })).toBeFocused();
+  expect(await isE2eSubscriberActive(subscriber.email)).toBe(false);
 });

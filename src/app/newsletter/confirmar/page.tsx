@@ -4,7 +4,7 @@ import { LinkIcon } from "lucide-react";
 import { confirmNewsletterAction } from "@/lib/contact/actions";
 import { getDb } from "@/lib/db";
 import { findByResubscribeToken } from "@/lib/newsletter";
-import { unsubscribeTokenSchema } from "@/lib/validations/inbox";
+import { confirmTokenSchema } from "@/lib/validations/inbox";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { ConfirmSubscriptionForm } from "@/components/newsletter/ConfirmSubscriptionForm";
 
@@ -23,7 +23,7 @@ type PageProps = { searchParams: Promise<Record<string, string | string[] | unde
  */
 export default async function ConfirmSubscriptionPage({ searchParams }: PageProps) {
   const raw = (await searchParams).token;
-  const token = unsubscribeTokenSchema.safeParse(Array.isArray(raw) ? raw[0] : raw);
+  const token = confirmTokenSchema.safeParse(Array.isArray(raw) ? raw[0] : raw);
   const found = token.success ? await findByResubscribeToken(getDb(), token.data) : ({ found: false } as const);
 
   return (

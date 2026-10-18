@@ -531,9 +531,12 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» y
   con revalidación" es el data cache con el tag `content:<slug>`, que "Publicar"
   expira.
 - *Contacto y newsletter*: rate limit por IP (y por email el contacto), campo
-  trampa, aviso a `STORE_NOTIFY_EMAIL` o al email de contacto. Token de baja de
-  256 bits guardado como sha256; baja solo por POST (botón), nunca por GET.
-  Suscribirse otra vez contesta igual y no manda nada. Un email dado de baja no
+  trampa, aviso a `STORE_NOTIFY_EMAIL` o al email de contacto. Token de baja =
+  id del suscriptor + HMAC-SHA256 con `AUTH_SECRET` (nada guardado; se rearma
+  para cualquier envío y para la columna "Enlace de baja" del CSV; sobrevive a
+  una re-suscripción); baja solo por POST (botón), nunca por GET, y "Dar de
+  baja" auditado en `/admin/newsletter`. Suscribirse otra vez contesta igual
+  (un texto cierto en todos los casos) y no manda nada. Un email dado de baja no
   se reactiva desde el formulario público: recibe un email de confirmación
   (token propio, sha256 en `resubscribeTokenHash`, 7 días, uno por día) y
   vuelve solo con el botón de `/newsletter/confirmar`. Un email nuevo no tiene

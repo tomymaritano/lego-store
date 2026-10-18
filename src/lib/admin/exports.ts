@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { Db } from "@/lib/lists/product";
 import { STORE_TIME_ZONE } from "@/lib/argentina";
-import { subscriberWhere } from "@/lib/newsletter";
+import { subscriberWhere, unsubscribeUrl } from "@/lib/newsletter";
 import { ADMIN_ORDER_STATUS_LABELS, cardBrandLabel, formatOrderNumber, paymentMethodTypeLabel } from "@/lib/orders/format";
 import { PROVIDER_LABELS } from "@/lib/payments/provider";
 import type { AdminOrderFilters } from "@/lib/validations/admin";
@@ -205,7 +205,8 @@ export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminU
 // Newsletter subscribers
 // ---------------------------------------------------------------------------
 
-export const NEWSLETTER_EXPORT_HEADER = ["Email", "Estado", "Origen", "Alta", "Baja"] as const;
+/** "Enlace de baja": each active subscriber's own unsubscribe link (lib/newsletter), for a mailing tool's merge field. */
+export const NEWSLETTER_EXPORT_HEADER = ["Email", "Estado", "Origen", "Alta", "Baja", "Enlace de baja"] as const;
 
 export async function exportNewsletter(db: Db, actor: AuditActor, filters: AdminSubscriberFilters, now = new Date()): Promise<CsvExport> {
   const where = subscriberWhere(filters);
@@ -219,7 +220,14 @@ export async function exportNewsletter(db: Db, actor: AuditActor, filters: Admin
       take: BATCH,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    const lines = batch.map((row): CsvValue[] => [row.email, row.unsubscribedAt ? "De baja" : "Activo", row.source, csvDateTime(row.subscribedAt), csvDateTime(row.unsubscribedAt)]);
+    const lines = batch.map((row): CsvValue[] => [
+      row.email,
+      row.unsubscribedAt ? "De baja" : "Activo",
+      row.source,
+      csvDateTime(row.subscribedAt),
+      csvDateTime(row.unsubscribedAt),
+      row.unsubscribedAt ? "" : (unsubscribeUrl(row.id) ?? ""),
+    ]);
     return { lines, cursor: batch.length === BATCH ? batch.at(-1)!.id : null };
   });
   return { filename: filename("newsletter", now), rows, body };

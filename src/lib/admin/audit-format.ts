@@ -22,6 +22,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   settings: "Configuración",
   content: "Página de contenido",
   message: "Mensaje",
+  subscriber: "Suscriptor",
   export: "Exportación",
 };
 
@@ -62,6 +63,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "message.read": "Marcó el mensaje como leído",
   "message.unread": "Marcó el mensaje como no leído",
   "message.archive": "Archivó el mensaje",
+  "subscriber.unsubscribe": "Dio de baja al suscriptor del newsletter",
   "export.orders": "Exportó los pedidos",
   "export.customers": "Exportó los clientes",
   "export.newsletter": "Exportó los suscriptores",
@@ -231,6 +233,8 @@ export function auditEntityHref(entityType: string, entityId: string): string | 
       return `/admin/contenido/${id}`;
     case "message":
       return `/admin/mensajes/${id}`;
+    case "subscriber":
+      return "/admin/newsletter";
     default:
       return null;
   }

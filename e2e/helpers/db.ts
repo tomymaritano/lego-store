@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { Client } from "pg";
 import { loadEnv } from "../../prisma/env";
@@ -77,8 +77,20 @@ async function deleteE2eInbox(client: Client) {
   await client.query(`DELETE FROM "NewsletterSubscriber" WHERE "email" LIKE $1`, [pattern]);
 }
 
-/** sha256 (base64url) of a newsletter link's token, as src/lib/newsletter stores it. */
+/** sha256 (base64url) of a confirmation link's token, as src/lib/newsletter stores it. */
 const hashNewsletterToken = (token: string) => createHash("sha256").update(token).digest("base64url");
+
+/**
+ * A subscriber's unsubscribe token as src/lib/newsletter signs it (the id
+ * and an HMAC-SHA256 with AUTH_SECRET, src/lib/auth/signing.ts), with the
+ * secret the dev server reads from .env.local.
+ */
+function newsletterUnsubscribeToken(id: string): string {
+  loadEnv();
+  const secret = process.env.AUTH_SECRET?.trim();
+  if (!secret) throw new Error("AUTH_SECRET is not set: the newsletter's unsubscribe links need it (see README).");
+  return `${id}.${createHmac("sha256", secret).update(`newsletter-unsubscribe\n${id}`).digest("base64url")}`;
+}
 
 /**
  * A newsletter subscriber straight in the dev database, with the tokens of
@@ -88,16 +100,16 @@ const hashNewsletterToken = (token: string) => createHash("sha256").update(token
  */
 export async function createE2eSubscriber({ unsubscribed = false }: { unsubscribed?: boolean } = {}): Promise<{ email: string; unsubscribeToken: string; confirmToken: string | null }> {
   const email = uniqueEmail("boletin");
-  const unsubscribeToken = randomBytes(32).toString("base64url");
+  const id = `e2e_${randomBytes(8).toString("hex")}`;
   const confirmToken = unsubscribed ? randomBytes(32).toString("base64url") : null;
   await withClient((client) =>
     client.query(
-      `INSERT INTO "NewsletterSubscriber" ("id", "email", "source", "unsubscribeTokenHash", "unsubscribedAt", "resubscribeTokenHash", "resubscribeRequestedAt", "updatedAt")
-       VALUES ($1, $2, 'footer', $3, $4, $5, $4, now())`,
-      [`e2e_${randomBytes(8).toString("hex")}`, email, hashNewsletterToken(unsubscribeToken), unsubscribed ? new Date() : null, confirmToken ? hashNewsletterToken(confirmToken) : null]
+      `INSERT INTO "NewsletterSubscriber" ("id", "email", "source", "unsubscribedAt", "resubscribeTokenHash", "resubscribeRequestedAt", "updatedAt")
+       VALUES ($1, $2, 'footer', $3, $4, $3, now())`,
+      [id, email, unsubscribed ? new Date() : null, confirmToken ? hashNewsletterToken(confirmToken) : null]
     )
   );
-  return { email, unsubscribeToken, confirmToken };
+  return { email, unsubscribeToken: newsletterUnsubscribeToken(id), confirmToken };
 }
 
 /** Whether the address gets the newsletter (subscribed and not unsubscribed). */
@@ -106,6 +118,26 @@ export function isE2eSubscriberActive(email: string): Promise<boolean> {
     const { rows } = await client.query<{ active: boolean }>(`SELECT "unsubscribedAt" IS NULL AS active FROM "NewsletterSubscriber" WHERE "email" = $1`, [email]);
     return rows[0]?.active ?? false;
   });
+}
+
+/**
+ * Contact messages straight in the dev database (for specs about the inbox,
+ * not the form, which is rate limited): `tag` goes in each text, so the
+ * inbox's search finds exactly these. Returned newest first, as the inbox
+ * lists them.
+ */
+export async function createE2eContactMessages(tag: string, names: string[]): Promise<{ id: string; name: string }[]> {
+  const now = Date.now();
+  const rows = names.map((name, index) => ({ id: `e2e_${randomBytes(8).toString("hex")}`, name, createdAt: new Date(now - index * 60_000) }));
+  await withClient(async (client) => {
+    for (const row of rows) {
+      await client.query(
+        `INSERT INTO "ContactMessage" ("id", "topic", "name", "email", "message", "createdAt") VALUES ($1, 'otro', $2, $3, $4, $5)`,
+        [row.id, row.name, uniqueEmail("bandeja"), `Mensaje de prueba ${tag}.`, row.createdAt]
+      );
+    }
+  });
+  return rows.map(({ id, name }) => ({ id, name }));
 }
 
 /** Coupons the specs created (codes start with E2E_COUPON_PREFIX), with their uses and audit entries. */

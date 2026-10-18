@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
+import { unsubscribeSubscriberAction } from "@/lib/admin/actions";
 import { getAdminSubscribers } from "@/lib/admin/data";
 import { formatAdminDateTime } from "@/lib/admin/format";
 import { parseSubscriberFilters } from "@/lib/validations/inbox";
@@ -10,6 +11,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterSelect } from "@/components/admin/FilterSelect";
 import { Pagination } from "@/components/admin/Pagination";
 import { ExportButton } from "@/components/admin/ExportButton";
+import { UnsubscribeSubscriber } from "@/components/admin/UnsubscribeSubscriber";
 import { Badge, Button, Card, EmptyState, Field, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -20,7 +22,9 @@ const SOURCE_LABELS: Record<string, string> = { footer: "Pie de página", home: 
 
 /**
  * /admin/newsletter: who signed up, newest first, with who left and when.
- * Search by email and status in the URL (a plain GET form).
+ * Search by email and status in the URL (a plain GET form). "Dar de baja"
+ * unsubscribes someone who asked another way (audited); the export carries
+ * each active subscriber's own unsubscribe link for the mailing tool.
  */
 export default async function AdminNewsletterPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdmin({ callbackUrl: "/admin/newsletter" });
@@ -82,12 +86,21 @@ export default async function AdminNewsletterPage({ searchParams }: { searchPara
                 <TableHead>Estado</TableHead>
                 <TableHead className="hidden sm:table-cell">Origen</TableHead>
                 <TableHead className="hidden md:table-cell">Alta</TableHead>
+                <TableHead>
+                  <span className="sr-only">Acciones</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {page.items.map((subscriber) => (
                 <TableRow key={subscriber.id} data-testid="admin-subscriber-row">
-                  <TableCell className="max-w-72 truncate font-medium text-fg">{subscriber.email}</TableCell>
+                  <TableCell
+                    id={`subscriber-${subscriber.id}`}
+                    tabIndex={-1}
+                    className="max-w-72 truncate font-medium text-fg outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset"
+                  >
+                    {subscriber.email}
+                  </TableCell>
                   <TableCell>
                     {subscriber.unsubscribedAt ? (
                       <span className="flex flex-col gap-0.5">
@@ -100,6 +113,11 @@ export default async function AdminNewsletterPage({ searchParams }: { searchPara
                   </TableCell>
                   <TableCell className="hidden text-fg-secondary sm:table-cell">{SOURCE_LABELS[subscriber.source] ?? subscriber.source}</TableCell>
                   <TableCell className="hidden whitespace-nowrap text-fg-secondary md:table-cell">{formatAdminDateTime(subscriber.subscribedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    {subscriber.unsubscribedAt ? null : (
+                      <UnsubscribeSubscriber action={unsubscribeSubscriberAction.bind(null, subscriber.id)} email={subscriber.email} focusId={`subscriber-${subscriber.id}`} />
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

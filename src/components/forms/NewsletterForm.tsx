@@ -103,7 +103,7 @@ export function NewsletterForm({ className, labelledBy, source = "footer" }: New
               className="mt-2 flex items-center gap-2 text-label font-medium text-success"
             >
               <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
-              Suscribimos {subscribed}. Revisa tu correo.
+              Recibimos {subscribed}. Revisa tu correo.
             </m.p>
           ) : null}
         </AnimatePresence>

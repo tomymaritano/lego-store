@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ContactForm, NewsletterForm } from "@/components/forms";
+import { NEWSLETTER_SIGNUP_DONE } from "@/lib/validations/inbox";
 
 const toast = vi.hoisted(() => ({
   success: vi.fn(),
@@ -15,7 +16,7 @@ vi.mock("@/components/ui/Toast", () => ({ showToast: toast, toast: {}, Toaster: 
 // The Server Actions are the server's (integration tests): here they answer like it would.
 const actions = vi.hoisted(() => ({
   sendContactMessageAction: vi.fn(async (input: { email: string }) => ({ ok: true as const, email: input.email.toLowerCase() })),
-  subscribeNewsletterAction: vi.fn(async (email: string) => ({ ok: true as const, email, message: "¡Listo! Te sumamos al newsletter." })),
+  subscribeNewsletterAction: vi.fn(async (email: string) => ({ ok: true as const, email, message: "¡Listo!" })),
 }));
 vi.mock("@/lib/contact/actions", () => actions);
 
@@ -59,12 +60,15 @@ describe("NewsletterForm", () => {
     const user = userEvent.setup();
     render(<NewsletterForm />);
     const input = screen.getByLabelText("Tu email");
+    actions.subscribeNewsletterAction.mockResolvedValueOnce({ ok: true, email: "fan@lego.com", message: NEWSLETTER_SIGNUP_DONE });
     await user.type(input, "  fan@lego.com ");
     await user.click(screen.getByRole("button", { name: "Suscribirse" }));
 
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("¡Listo! Te sumamos al newsletter."));
+    // The server's answer, true whether the address was new, already in or unsubscribed (nothing says which).
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(NEWSLETTER_SIGNUP_DONE));
+    expect(NEWSLETTER_SIGNUP_DONE).not.toMatch(/te sumamos/i);
     expect(actions.subscribeNewsletterAction).toHaveBeenCalledWith("fan@lego.com", "footer");
-    expect(screen.getByRole("status")).toHaveTextContent("Suscribimos fan@lego.com");
+    expect(screen.getByRole("status")).toHaveTextContent("Recibimos fan@lego.com. Revisa tu correo.");
     expect(input).toHaveValue("");
   });
 

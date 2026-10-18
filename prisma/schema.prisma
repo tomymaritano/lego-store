@@ -735,9 +735,9 @@ model NewsletterSubscriber {
   source                 String
   subscribedAt           DateTime  @default(now())
   unsubscribedAt         DateTime?
-  /// sha256 of the token in the unsubscribe link (/newsletter/baja?token=...); a new
-  /// one is issued on every (re)subscription. Never the token itself.
-  unsubscribeTokenHash   String    @unique
+  // The unsubscribe link (/newsletter/baja?token=...) is not stored: its token is
+  // the row's id signed with AUTH_SECRET (src/lib/newsletter), so every email
+  // can carry it.
   /// Signing up again after unsubscribing needs the owner's confirmation: sha256 of
   /// the token in the "confirm" email (/newsletter/confirmar?token=...), and when
   /// it was sent (the link expires; one email per address per day).

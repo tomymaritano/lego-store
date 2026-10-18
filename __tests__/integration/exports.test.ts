@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { ORDER_EXPORT_HEADER } from "@/lib/admin/exports";
+import { NEWSLETTER_EXPORT_HEADER, ORDER_EXPORT_HEADER } from "@/lib/admin/exports";
+import { unsubscribeUrl } from "@/lib/newsletter";
 import { resetAndSeed, testDb } from "./setup/db";
 
 /*
@@ -9,6 +10,8 @@ import { resetAndSeed, testDb } from "./setup/db";
  * product, the list's filters, formulas neutralised, and every export in
  * the audit log with its filters and row count.
  */
+
+vi.stubEnv("AUTH_SECRET", "exports-integration-secret");
 
 type StubSession = { user: { id: string; role: string }; sessionVersion: number };
 const session = vi.hoisted(() => ({ current: null as StubSession | null }));
@@ -66,8 +69,8 @@ beforeAll(async () => {
   });
   await testDb.newsletterSubscriber.createMany({
     data: [
-      { email: "activa@export.test", source: "footer", unsubscribeTokenHash: "hash-a" },
-      { email: "-baja@export.test", source: "footer", unsubscribeTokenHash: "hash-b", unsubscribedAt: new Date() },
+      { email: "activa@export.test", source: "footer" },
+      { email: "-baja@export.test", source: "footer", unsubscribedAt: new Date() },
     ],
   });
 });
@@ -124,18 +127,26 @@ describe("GET /api/admin/export/<kind>", () => {
 
   it("exports customers with their orders, spending and newsletter flag", async () => {
     session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
-    await testDb.newsletterSubscriber.create({ data: { email: "exporta@admin.test", source: "footer", unsubscribeTokenHash: "hash-admin" } });
+    await testDb.newsletterSubscriber.create({ data: { email: "exporta@admin.test", source: "footer" } });
     const { lines } = await csvOf(await request("customers", "?role=ADMIN"));
     expect(lines[0]).toBe("ID;Email;Nombre;Rol;Alta;Bloqueada;Pedidos;Gastado;Newsletter");
     expect(lines.find((line) => line.includes("exporta@admin.test"))).toMatch(/;Admin;\d{4}-\d{2}-\d{2} \d{2}:\d{2};no;0;0;sí$/);
     expect(lines.every((line, index) => index === 0 || line.includes(";Admin;"))).toBe(true);
   });
 
-  it("exports the newsletter's subscribers with the list's filters", async () => {
+  it("exports the newsletter's subscribers with the list's filters, and each active one's unsubscribe link", async () => {
     session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
     const { lines } = await csvOf(await request("newsletter", "?q=export.test&status=unsubscribed"));
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toMatch(/^'-baja@export\.test;De baja;footer;/);
+    expect(lines[0]).toBe(NEWSLETTER_EXPORT_HEADER.join(";"));
+    // No link for who already left.
+    expect(lines[1]).toMatch(/^'-baja@export\.test;De baja;footer;[^;]+;[^;]+;$/);
+
+    const active = await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email: "activa@export.test" } });
+    const { lines: activeLines } = await csvOf(await request("newsletter", "?q=activa@export.test"));
+    expect(activeLines[1]).toMatch(/^activa@export\.test;Activo;footer;/);
+    expect(activeLines[1]!.endsWith(`;${unsubscribeUrl(active.id)}`)).toBe(true);
+    expect(unsubscribeUrl(active.id)).toContain(`/newsletter/baja?token=${active.id}.`);
     const entry = await testDb.auditLog.findFirstOrThrow({ where: { entityType: "export", entityId: "newsletter" } });
     expect(entry.changes).toEqual({ filters: "q=export.test status=unsubscribed", rows: 1 });
   });

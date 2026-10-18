@@ -6,11 +6,11 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { contactNotificationEmail, newsletterConfirmEmail, newsletterWelcomeEmail } from "@/lib/email/contact";
 import { sendEmail } from "@/lib/email/send";
-import { confirmResubscribe, subscribe, unsubscribeByToken, type UnsubscribeOutcome } from "@/lib/newsletter";
+import { confirmResubscribe, subscribe, unsubscribeByToken, unsubscribeUrl, type UnsubscribeOutcome } from "@/lib/newsletter";
 import { clientIp, rateLimits, waitMessage } from "@/lib/rate-limit";
 import { readStoreSettings } from "@/lib/settings";
 import { contactSchema, type ContactInput } from "@/lib/validations/contact";
-import { newsletterSignupSchema, unsubscribeTokenSchema } from "@/lib/validations/inbox";
+import { confirmTokenSchema, NEWSLETTER_SIGNUP_DONE, newsletterSignupSchema, unsubscribeTokenSchema } from "@/lib/validations/inbox";
 import { createContactMessage } from "./messages";
 
 /*
@@ -99,11 +99,11 @@ export async function subscribeNewsletterAction(email: unknown, source: unknown 
   const outcome = await subscribe(getDb(), { email: parsed.data.email, source: parsed.data.source, ip: ip === "unknown" ? null : ip });
   if (outcome.status === "subscribed") {
     revalidatePath("/admin/newsletter");
-    await sendEmail(newsletterWelcomeEmail(parsed.data.email, outcome.token));
+    await sendEmail(newsletterWelcomeEmail(parsed.data.email, unsubscribeUrl(outcome.id)));
   } else if (outcome.status === "confirm") {
     await sendEmail(newsletterConfirmEmail(parsed.data.email, outcome.token));
   }
-  return { ok: true, email: parsed.data.email, message: "¡Listo! Te sumamos al newsletter." };
+  return { ok: true, email: parsed.data.email, message: NEWSLETTER_SIGNUP_DONE };
 }
 
 /*
@@ -125,13 +125,13 @@ export async function unsubscribeNewsletterAction(token: unknown): Promise<Unsub
 export type ConfirmSubscriptionResult = "confirmed" | "invalid" | "rate_limited";
 
 export async function confirmNewsletterAction(token: unknown): Promise<ConfirmSubscriptionResult> {
-  const parsed = unsubscribeTokenSchema.safeParse(token);
+  const parsed = confirmTokenSchema.safeParse(token);
   if (!parsed.success) return "invalid";
   const ip = await requestIp();
   const limit = await rateLimits.newsletterConfirm.consume(`ip:${ip}`);
   if (!limit.ok) return "rate_limited";
   const outcome = await confirmResubscribe(getDb(), parsed.data, { ip: ip === "unknown" ? null : ip });
   if (outcome.status !== "confirmed") return "invalid";
-  await sendEmail(newsletterWelcomeEmail(outcome.email, outcome.token));
+  await sendEmail(newsletterWelcomeEmail(outcome.email, unsubscribeUrl(outcome.id)));
   return "confirmed";
 }

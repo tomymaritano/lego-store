@@ -201,7 +201,7 @@ test.describe("Footer and info pages", () => {
     const email = uniqueEmail("fan");
     await form.getByLabel("Tu email").fill(email);
     await form.getByRole("button", { name: "Suscribirse" }).click();
-    await expect(page.getByText(`Suscribimos ${email}. Revisa tu correo.`)).toBeVisible();
+    await expect(page.getByText(`Recibimos ${email}. Revisa tu correo.`)).toBeVisible();
   });
 });
 

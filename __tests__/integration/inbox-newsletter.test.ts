@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "@/lib/db";
-import { confirmResubscribe, findByResubscribeToken, findByUnsubscribeToken, hashUnsubscribeToken, listSubscribers, subscribe } from "@/lib/newsletter";
+import { confirmResubscribe, findByResubscribeToken, findByUnsubscribeToken, hashConfirmToken, listSubscribers, subscribe, unsubscribeToken, unsubscribeUrl } from "@/lib/newsletter";
+import { NEWSLETTER_SIGNUP_DONE } from "@/lib/validations/inbox";
 import { listAdminMessages } from "@/lib/contact/messages";
 import { parseMessageFilters } from "@/lib/validations/inbox";
 import { resetAndSeed, testDb } from "./setup/db";
@@ -9,9 +10,12 @@ import { resetAndSeed, testDb } from "./setup/db";
  * The contact form and the newsletter against the test database: messages
  * stored for the inbox (with the store's email notice), the honeypot and
  * the rate limits, the admin's status changes (audited, admins only), and
- * subscriptions with their unsubscribe token (hashed at rest, single
- * address, a GET-free unsubscribe through the action).
+ * subscriptions with their unsubscribe link (the id signed with
+ * AUTH_SECRET: nothing stored, the same in every email, a GET-free
+ * unsubscribe through the action) and the admin's audited "Dar de baja".
  */
+
+vi.stubEnv("AUTH_SECRET", "newsletter-integration-secret");
 
 type StubSession = { user: { id: string; role: string }; sessionVersion: number };
 const session = vi.hoisted(() => ({ current: null as StubSession | null }));
@@ -133,16 +137,21 @@ describe("the inbox", () => {
 
 describe("the newsletter", () => {
   const tokenIn = (text: string) => /token=([A-Za-z0-9_-]{43})/.exec(text)?.[1] ?? null;
+  const unsubscribeTokenIn = (text: string) => /baja\?token=([A-Za-z0-9_-]{1,64}\.[A-Za-z0-9_-]{43})/.exec(text)?.[1] ?? null;
+  const idOf = async (email: string) => (await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email }, select: { id: true } })).id;
 
-  it("subscribes once, stores only the token's hash and sends the welcome with the unsubscribe link", async () => {
-    expect(await publicActions.subscribeNewsletterAction("  Fan@Lego.com ", "footer")).toEqual({ ok: true, email: "fan@lego.com", message: "¡Listo! Te sumamos al newsletter." });
+  it("subscribes once, stores no link token and sends the welcome with the subscriber's unsubscribe link", async () => {
+    expect(await publicActions.subscribeNewsletterAction("  Fan@Lego.com ", "footer")).toEqual({ ok: true, email: "fan@lego.com", message: NEWSLETTER_SIGNUP_DONE });
     const [welcome] = sentEmails();
     expect(welcome).toContain("Para: fan@lego.com");
-    const token = tokenIn(welcome!)!;
+    const token = unsubscribeTokenIn(welcome!)!;
     expect(token).not.toBeNull();
     const row = await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email: "fan@lego.com" } });
-    expect(row).toMatchObject({ source: "footer", unsubscribedAt: null, unsubscribeTokenHash: hashUnsubscribeToken(token) });
-    expect(JSON.stringify(row)).not.toContain(token);
+    expect(row).toMatchObject({ source: "footer", unsubscribedAt: null });
+    expect(JSON.stringify(row)).not.toContain(token.split(".")[1]);
+    // Rebuilt the same for any later email: the link is the id, signed.
+    expect(token).toBe(unsubscribeToken(row.id));
+    expect(welcome).toContain(unsubscribeUrl(row.id)!);
 
     // Again: same answer, no second row, no second email (nobody learns who is subscribed).
     emails.mockClear();
@@ -153,10 +162,20 @@ describe("the newsletter", () => {
   });
 
   it("unsubscribes with the link's token only, once", async () => {
-    const { token } = (await subscribe(testDb, { email: "baja@lego.com", source: "footer" })) as { token: string };
+    const outcome = await subscribe(testDb, { email: "baja@lego.com", source: "footer" });
+    expect(outcome.status).toBe("subscribed");
+    const id = (outcome as { id: string }).id;
+    const token = unsubscribeToken(id)!;
     expect(await findByUnsubscribeToken(testDb, token)).toEqual({ found: true, email: "ba**@lego.com", active: true });
     expect(await publicActions.unsubscribeNewsletterAction("x".repeat(43))).toBe("invalid");
     expect(await publicActions.unsubscribeNewsletterAction("<script>")).toBe("invalid");
+    // Another subscriber's id with this signature, or this id signed with another secret: no.
+    const other = await idOf("fan@lego.com");
+    const foreign = unsubscribeToken(id, { AUTH_SECRET: "otro-secreto" } as unknown as NodeJS.ProcessEnv)!;
+    expect(await publicActions.unsubscribeNewsletterAction(`${other}.${token.split(".")[1]}`)).toBe("invalid");
+    expect(await publicActions.unsubscribeNewsletterAction(foreign)).toBe("invalid");
+    expect(await findByUnsubscribeToken(testDb, foreign)).toEqual({ found: false });
+    expect(unsubscribeToken(id, {} as NodeJS.ProcessEnv)).toBeNull();
     expect(await publicActions.unsubscribeNewsletterAction(token)).toBe("unsubscribed");
     expect(await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email: "baja@lego.com" } })).toMatchObject({ unsubscribedAt: expect.any(Date) });
     expect(await publicActions.unsubscribeNewsletterAction(token)).toBe("already");
@@ -164,19 +183,20 @@ describe("the newsletter", () => {
 
   it("a public sign-up of an unsubscribed address leaves it unsubscribed until its owner confirms", async () => {
     const before = await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email: "baja@lego.com" } });
-    const oldUnsubscribeToken = "x".repeat(43);
+    const oldUnsubscribeToken = unsubscribeToken(before.id)!;
 
     // Anyone can type the address: same answer as always, but only a confirmation email goes out.
-    expect(await publicActions.subscribeNewsletterAction("baja@lego.com", "home")).toMatchObject({ ok: true });
+    // The answer never says "you are subscribed": here the address stays out until its owner confirms.
+    expect(await publicActions.subscribeNewsletterAction("baja@lego.com", "home")).toEqual({ ok: true, email: "baja@lego.com", message: NEWSLETTER_SIGNUP_DONE });
     const after = await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email: "baja@lego.com" } });
-    expect(after).toMatchObject({ unsubscribedAt: before.unsubscribedAt, subscribedAt: before.subscribedAt, source: "footer", unsubscribeTokenHash: before.unsubscribeTokenHash });
+    expect(after).toMatchObject({ unsubscribedAt: before.unsubscribedAt, subscribedAt: before.subscribedAt, source: "footer" });
     const [confirmation] = sentEmails();
     expect(sentEmails()).toHaveLength(1);
     expect(confirmation).toContain("Para: baja@lego.com");
     expect(confirmation).toContain("/newsletter/confirmar?token=");
     expect(confirmation).not.toContain("/newsletter/baja");
     const confirmToken = tokenIn(confirmation!)!;
-    expect(after.resubscribeTokenHash).toBe(hashUnsubscribeToken(confirmToken));
+    expect(after.resubscribeTokenHash).toBe(hashConfirmToken(confirmToken));
     expect(await findByResubscribeToken(testDb, confirmToken)).toEqual({ found: true, email: "ba**@lego.com" });
 
     // Signing it up again soon after sends nothing more (no mailbox flooding).
@@ -184,16 +204,16 @@ describe("the newsletter", () => {
     expect(await publicActions.subscribeNewsletterAction("baja@lego.com")).toMatchObject({ ok: true });
     expect(sentEmails()).toEqual([]);
 
-    // A wrong token changes nothing; the owner's button subscribes again, once, with a new unsubscribe link.
+    // A wrong token (the unsubscribe link's among them) changes nothing; the owner's button subscribes again, once.
     expect(await publicActions.confirmNewsletterAction(oldUnsubscribeToken)).toBe("invalid");
     expect(await publicActions.confirmNewsletterAction("<script>")).toBe("invalid");
     expect(await publicActions.confirmNewsletterAction(confirmToken)).toBe("confirmed");
     const confirmed = await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { email: "baja@lego.com" } });
     expect(confirmed).toMatchObject({ unsubscribedAt: null, resubscribeTokenHash: null, resubscribeRequestedAt: null });
     const [welcome] = sentEmails();
-    const newUnsubscribeToken = tokenIn(welcome!)!;
-    expect(welcome).toContain("/newsletter/baja?token=");
-    expect(confirmed.unsubscribeTokenHash).toBe(hashUnsubscribeToken(newUnsubscribeToken));
+    // The welcome carries the same unsubscribe link as the first one: an old email's link still works.
+    expect(unsubscribeTokenIn(welcome!)).toBe(oldUnsubscribeToken);
+    const newUnsubscribeToken = oldUnsubscribeToken;
     expect(await publicActions.confirmNewsletterAction(confirmToken)).toBe("invalid");
     expect(await findByResubscribeToken(testDb, confirmToken)).toEqual({ found: false });
 
@@ -220,5 +240,20 @@ describe("the newsletter", () => {
     expect(page.items.map((row) => row.email).sort()).toEqual(["baja@lego.com", "fan@lego.com"]);
     expect((await listSubscribers(testDb, { q: "", status: "unsubscribed", page: 1 })).items.map((row) => row.email)).toEqual(["baja@lego.com"]);
     expect(page.active).toBe(1);
+  });
+
+  it("an admin unsubscribes an address, audited and for admins only", async () => {
+    const id = await idOf("fan@lego.com");
+    await expect(adminActions.unsubscribeSubscriberAction(id)).rejects.toThrow(/NEXT_REDIRECT/);
+    session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
+    expect(await adminActions.unsubscribeSubscriberAction("no-existe")).toEqual({ ok: false, error: "Ese suscriptor ya no existe." });
+    expect(await adminActions.unsubscribeSubscriberAction(id)).toMatchObject({ ok: true, message: expect.stringContaining("Lo dimos de baja") });
+    expect(await testDb.newsletterSubscriber.findUniqueOrThrow({ where: { id } })).toMatchObject({ unsubscribedAt: expect.any(Date) });
+    expect(await adminActions.unsubscribeSubscriberAction(id)).toEqual({ ok: true, message: "Ya estaba dado de baja." });
+    const entries = await testDb.auditLog.findMany({ where: { entityType: "subscriber", entityId: id } });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ action: "subscriber.unsubscribe", actorEmail: admin.email });
+    // The link in their emails now says so.
+    expect(await findByUnsubscribeToken(testDb, unsubscribeToken(id)!)).toMatchObject({ found: true, active: false });
   });
 });

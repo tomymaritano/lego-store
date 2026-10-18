@@ -8,6 +8,7 @@ import { contentDocumentSchema, contentIssuePath } from "@/lib/validations/conte
 import { discardContentDraft, publishContent, saveContentDraft } from "./content";
 import { setMessageStatus } from "@/lib/contact/messages";
 import { messageStatusSchema } from "@/lib/validations/inbox";
+import { unsubscribeAsAdmin } from "@/lib/newsletter";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { getDb } from "@/lib/db";
 import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
@@ -767,4 +768,20 @@ export async function setMessageStatusAction(id: unknown, status: unknown): Prom
   revalidatePath("/admin");
   refresh();
   return { ok: true, message: result.changed ? MESSAGE_DONE[parsed.data.status] : "No había nada que cambiar." };
+}
+
+// ---------------------------------------------------------------------------
+// Newsletter (/admin/newsletter)
+// ---------------------------------------------------------------------------
+
+/** "Dar de baja" on a subscriber's row: for someone who asked by email or phone (audited). */
+export async function unsubscribeSubscriberAction(subscriberId: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/newsletter" });
+  const parsed = idSchema.safeParse(subscriberId);
+  if (!parsed.success) return { ok: false, error: "Ese suscriptor ya no existe." };
+  const outcome = await unsubscribeAsAdmin(getDb(), admin, parsed.data);
+  if (outcome === "invalid") return { ok: false, error: "Ese suscriptor ya no existe." };
+  revalidatePath("/admin/newsletter");
+  refresh();
+  return { ok: true, message: outcome === "unsubscribed" ? "Lo dimos de baja: no le llega más el newsletter." : "Ya estaba dado de baja." };
 }

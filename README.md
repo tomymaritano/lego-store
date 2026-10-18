@@ -820,17 +820,24 @@ pedido viejo puede seguir usándolas.
   "Responder por email" (mailto con el asunto y el mensaje citado); auditado
   (`message.*`).
 - **Newsletter** (`NewsletterSubscriber`): el pie de página suscribe (zod, 10
-  por hora por IP) y manda la bienvenida con el enlace de baja. El enlace lleva
-  un token aleatorio de 256 bits del que la base guarda solo el sha256; cada
-  (re)suscripción emite uno nuevo. Suscribir un email ya suscripto contesta lo
-  mismo y no manda nada (no revela quién está). `/newsletter/baja?token=…`
+  por hora por IP) y manda la bienvenida con el enlace de baja. El token del
+  enlace es el id del suscriptor firmado con `AUTH_SECRET` (HMAC-SHA256, nada
+  guardado en la base): `unsubscribeUrl(id)` de `src/lib/newsletter` lo arma
+  igual para cualquier envío futuro, sirve aunque la persona se haya vuelto a
+  suscribir, y el CSV del newsletter lo trae en la columna "Enlace de baja"
+  (solo activos) para la herramienta de envíos. Cambiar `AUTH_SECRET` invalida
+  todos los enlaces ya enviados (y las sesiones). El formulario contesta siempre
+  "¡Listo! Revisa tu correo: si hace falta, te pedimos ahí que confirmes la
+  suscripción.", cierto en los tres casos y sin revelar quién está; suscribir
+  un email ya suscripto no manda nada. `/newsletter/baja?token=…`
   muestra a qué dirección corresponde (enmascarada) y da de baja con un botón:
   un GET nunca da de baja, porque los filtros de correo abren los enlaces.
   Una baja no se deshace desde el pie: suscribir de nuevo un email dado de baja
   solo le manda un email de confirmación (`/newsletter/confirmar?token=…`,
   vence en 7 días, como mucho uno por día por dirección) y sigue de baja hasta
   que su dueño aprieta "Confirmar la suscripción".
-  `/admin/newsletter` lista, busca y exporta.
+  `/admin/newsletter` lista, busca, exporta y "Da de baja" a quien lo pide por
+  otra vía (con confirmación, auditado como `subscriber.unsubscribe`).
 
 ## Cupones
 

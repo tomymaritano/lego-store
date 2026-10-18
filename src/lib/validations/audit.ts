@@ -6,7 +6,7 @@ import { dateParam, first, pageOf, textParam, type SearchParams } from "./admin"
  */
 
 /** What an audit entry can be about (AuditLog.entityType). */
-export const AUDIT_ENTITY_TYPES = ["product", "order", "review", "coupon", "user", "category", "theme", "upload", "settings", "content", "message", "export"] as const;
+export const AUDIT_ENTITY_TYPES = ["product", "order", "review", "coupon", "user", "category", "theme", "upload", "settings", "content", "message", "subscriber", "export"] as const;
 export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 
 export interface AuditFilters {
