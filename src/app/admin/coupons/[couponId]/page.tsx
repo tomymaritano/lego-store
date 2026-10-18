@@ -130,7 +130,12 @@ export default async function AdminCouponPage({ params, searchParams }: CouponPa
           detail={coupon.maxPerUser !== null ? `Hasta ${coupon.maxPerUser} por cliente` : "Sin límite por cliente"}
           tone={coupon.status === "exhausted" ? "warning" : "default"}
         />
-        <AdminStat icon={<Clock />} label="Sin pagar" value={coupon.reserved} detail="Pedidos que lo reservaron y esperan el pago" />
+        <AdminStat
+          icon={<Clock />}
+          label="Sin pagar"
+          value={<span data-testid="coupon-reserved">{coupon.reserved}</span>}
+          detail={`Reservas que esperan el pago · ${coupon.released === 1 ? "1 uso liberado" : `${coupon.released} usos liberados`} por pedidos cancelados`}
+        />
         <AdminStat
           icon={<BadgeDollarSign />}
           label="Descuento otorgado"
@@ -141,7 +146,7 @@ export default async function AdminCouponPage({ params, searchParams }: CouponPa
           icon={<ReceiptText />}
           label="Ventas con el cupón"
           value={<span data-testid="coupon-revenue">{formatPrice(coupon.revenue)}</span>}
-          detail={`${coupon.released} ${coupon.released === 1 ? "uso liberado" : "usos liberados"} por pedidos cancelados`}
+          detail={`Total cobrado en ${coupon.redeemed === 1 ? "1 pedido pagado" : `${coupon.redeemed} pedidos pagados`}`}
         />
       </section>
 
