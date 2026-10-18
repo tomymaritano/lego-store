@@ -56,6 +56,15 @@ function Navigate({ href }: { href: string }) {
   return null;
 }
 
+/** Toasts a held answer once (and forgets it). */
+function announce(answer: { current: ConfirmActionResult | null }) {
+  const result = answer.current;
+  if (!result) return;
+  answer.current = null;
+  if (result.ok) showToast.success(result.message);
+  else showToast.error(result.error);
+}
+
 /**
  * A button that asks before doing something with consequences (cancel an
  * order, refund, delete): a Dialog says what will happen, the confirm button
@@ -86,15 +95,13 @@ export function ConfirmAction({
   const [navigateTo, setNavigateTo] = useState<string | null>(null);
   // Opening the dialog needs JavaScript: no dead clicks before hydration.
   const hydrated = useHydrated();
-  // The answer, toasted once the transition (the action and the refreshed page) has committed.
+  // The answer, toasted once the transition (the action and the refreshed page) has committed: when it
+  // stops pending, or when the refreshed page replaced this button (blocked -> "Desbloquear").
   const answer = useRef<ConfirmActionResult | null>(null);
   useEffect(() => {
-    const result = answer.current;
-    if (pending || !result) return;
-    answer.current = null;
-    if (result.ok) showToast.success(result.message);
-    else showToast.error(result.error);
+    if (!pending) announce(answer);
   }, [pending]);
+  useEffect(() => () => announce(answer), []);
 
   const confirm = () =>
     startTransition(async () => {

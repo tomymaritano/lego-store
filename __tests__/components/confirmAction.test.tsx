@@ -27,6 +27,21 @@ describe("ConfirmAction", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("still toasts when the refreshed page replaces the button (blocked: now it says Desbloquear)", async () => {
+    const user = userEvent.setup();
+    toast.success.mockClear();
+    let finish: (value: { ok: true; message: string }) => void = () => {};
+    const action = () => new Promise<{ ok: true; message: string }>((resolve) => (finish = resolve));
+    const view = render(<ConfirmAction label="Bloquear" title="¿Bloquear?" description="d" confirmLabel="Bloquear cuenta" action={action} testId="block" />);
+    await user.click(screen.getByTestId("block"));
+    await user.click(screen.getByRole("button", { name: "Bloquear cuenta" }));
+    await act(async () => {
+      finish({ ok: true, message: "Bloqueamos la cuenta." });
+      view.rerender(<p>Desbloquear</p>);
+    });
+    expect(toast.success).toHaveBeenCalledWith("Bloqueamos la cuenta.");
+  });
+
   it("toasts a refusal as an error", async () => {
     const user = userEvent.setup();
     render(
