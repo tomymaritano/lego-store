@@ -160,19 +160,19 @@ export type OrderTransitionInput = z.infer<typeof orderTransitionSchema>;
 
 export const ADMIN_PAGE_SIZE = 20;
 
-type SearchParams = Record<string, string | string[] | undefined>;
+export type SearchParams = Record<string, string | string[] | undefined>;
 
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? "";
+export const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? "";
 
-const pageOf = (value: string) => {
+export const pageOf = (value: string) => {
   const page = /^\d{1,6}$/.test(value) ? Number(value) : 1;
   return Math.max(1, page);
 };
 
-const textParam = (value: string, max = 100) => value.trim().slice(0, max);
+export const textParam = (value: string, max = 100) => value.trim().slice(0, max);
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const dateParam = (value: string) => (DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) ? value : "");
+export const dateParam = (value: string) => (DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) ? value : "");
 
 export const PRODUCT_STATUS_FILTERS = ["active", "archived", "all"] as const;
 export const PRODUCT_STOCK_FILTERS = ["low", "out"] as const;

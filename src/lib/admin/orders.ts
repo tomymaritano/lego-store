@@ -9,6 +9,7 @@ import { restock } from "@/lib/orders/webhook";
 import type { PaymentGateway } from "@/lib/payments/gateway";
 import { orderRefundKey, paymentRefOf, refundColumnOf, refundRefOf } from "@/lib/payments/provider";
 import { ADMIN_PAGE_SIZE, type AdminOrderFilters, type OrderTransitionInput } from "@/lib/validations/admin";
+import { recordAudit, type AuditActor } from "./audit";
 import { canTransition, pageCount, storeDayEnd, storeDayStart, type Page } from "./format";
 
 /*
@@ -39,8 +40,9 @@ import { canTransition, pageCount, storeDayEnd, storeDayStart, type Page } from 
  * changes nothing. Cancelling a PAID order holds the order before asking
  * Stripe for the refund, so whatever happens to that call (no answer, a
  * timeout) the order cannot ship for money that went back (cancelPaid
- * below). Each change is recorded in OrderStatusChange: who, when, from
- * what to what, and the refund.
+ * below). Each change is recorded in OrderStatusChange (who, when, from
+ * what to what, and the refund: the order page's timeline) and in the
+ * general audit log (./audit.ts), in the same transaction.
  */
 
 type Tx = Prisma.TransactionClient;
@@ -267,10 +269,9 @@ export async function getAdminOrder(db: Db, id: string): Promise<AdminOrderView 
 // Status changes
 // ---------------------------------------------------------------------------
 
-export interface Actor {
-  id: string;
-  email: string;
-}
+export type Actor = AuditActor;
+
+const AUDIT_ACTION = { SHIPPED: "order.ship", DELIVERED: "order.deliver", CANCELLED: "order.cancel" } as const;
 
 export type TransitionResult =
   /** `changed: false`: the order already had that status (a repeated click): nothing was done. */
@@ -335,9 +336,15 @@ function precheck(order: LockedOrder | null, input: OrderTransitionInput): Trans
   return null;
 }
 
-function recordChange(tx: Tx, input: OrderTransitionInput, from: OrderStatus, actor: Actor, refundId: string | null) {
-  return tx.orderStatusChange.create({
+async function recordChange(tx: Tx, input: OrderTransitionInput, from: OrderStatus, actor: Actor, refundId: string | null) {
+  await tx.orderStatusChange.create({
     data: { orderId: input.orderId, fromStatus: from, toStatus: input.to, actorId: actor.id, actorEmail: actor.email.toLowerCase(), refundId },
+  });
+  await recordAudit(tx, actor, {
+    action: AUDIT_ACTION[input.to],
+    entityType: "order",
+    entityId: input.orderId,
+    changes: { status: [from, input.to], ...(refundId ? { refundId } : {}) },
   });
 }
 

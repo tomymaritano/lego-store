@@ -133,27 +133,6 @@ export const REDEMPTION_STATUS_BADGE = {
   RELEASED: "neutral",
 } as const;
 
-export const AUDIT_ACTION_LABELS: Record<string, string> = {
-  "coupon.create": "Creó el cupón",
-  "coupon.update": "Editó el cupón",
-  "coupon.activate": "Activó el cupón",
-  "coupon.deactivate": "Desactivó el cupón",
-};
-
-/** The coupon fields an audit entry can name, as the admin reads them. */
-export const COUPON_FIELD_LABELS: Record<string, string> = {
-  code: "código",
-  description: "nota",
-  type: "tipo",
-  value: "valor",
-  minSubtotal: "compra mínima",
-  startsAt: "válido desde",
-  expiresAt: "vence",
-  maxRedemptions: "límite total",
-  maxPerUser: "límite por cliente",
-  active: "activo",
-};
-
 const adminDateFormat = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: STORE_TIME_ZONE });
 
 /** "18/01/2024" (store time zone). */

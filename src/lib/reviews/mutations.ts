@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { recordAudit, type AuditActor } from "@/lib/admin/audit";
 import { refreshProductRatings } from "@/lib/api/ratings";
 import type { ReviewInput } from "@/lib/validations/review";
 
@@ -67,14 +68,34 @@ export function updateReview(db: PrismaClient, userId: string, reviewId: string,
   });
 }
 
-/** Deletes a review: the author's own, or any for an admin (moderation). */
-export function deleteReview(db: PrismaClient, actor: ReviewActor, reviewId: string): Promise<ReviewWriteResult> {
+/**
+ * Deletes a review: the author's own, or any for an admin (moderation). The
+ * admin panel's moderation passes `audit` (the admin making it): the review's
+ * content then goes to the audit log, since the review itself is gone.
+ */
+export function deleteReview(
+  db: PrismaClient,
+  actor: ReviewActor,
+  reviewId: string,
+  { audit }: { audit?: AuditActor } = {}
+): Promise<ReviewWriteResult> {
   return db.$transaction(async (tx) => {
     const where = actor.role === "ADMIN" ? { id: reviewId } : { id: reviewId, userId: actor.id };
-    const review = await tx.review.findFirst({ where, select: { productId: true } });
+    const review = await tx.review.findFirst({
+      where,
+      select: { productId: true, rating: true, title: true, comment: true, user: { select: { email: true } } },
+    });
     if (!review) return { ok: false, reason: "not_found" } as const;
     await tx.review.delete({ where: { id: reviewId } });
     await refreshProductRatings(tx, [review.productId]);
+    if (audit) {
+      await recordAudit(tx, audit, {
+        action: "review.delete",
+        entityType: "review",
+        entityId: reviewId,
+        changes: { productId: review.productId, author: review.user.email, rating: review.rating, title: review.title, comment: review.comment },
+      });
+    }
     return { ok: true, productId: review.productId, reviewId, ratingChanged: true } as const;
   });
 }

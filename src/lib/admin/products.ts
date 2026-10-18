@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { escapeLike, productSearchColumns, tokenize } from "@/lib/api/search";
 import type { Db } from "@/lib/lists/product";
 import { ADMIN_PAGE_SIZE, type AdminProductFilters, type ProductField, type ProductInput } from "@/lib/validations/admin";
+import { diffFields, recordAudit, snapshotFields, type AuditActor } from "./audit";
 import { LOW_STOCK, pageCount, type Page } from "./format";
 
 /*
@@ -11,7 +12,9 @@ import { LOW_STOCK, pageCount, type Page } from "./format";
  * ./actions.ts check the admin before calling these.
  *
  * The catalogue cache (src/lib/api/cache.ts) is the caller's job: every
- * write returns what it touched so the action can expire those tags.
+ * write returns what it touched so the action can expire those tags. Every
+ * write records its audit entry (./audit.ts), with the admin who made it, in
+ * the write's own transaction.
  *
  * Removing a product: a product that orders reference (OrderItem.productId)
  * is archived, never deleted, so the order keeps its link and the reports
@@ -216,12 +219,55 @@ async function productData(db: Db, input: ProductInput) {
 
 const NO_CATEGORY = { ok: false, reason: "invalid", fieldErrors: { categoryId: "Esa categoría no existe" } } as const;
 
+/** The product's columns an audit entry names (the form's fields; never the derived search columns). */
+const auditedSelect = {
+  name: true,
+  price: true,
+  originalPrice: true,
+  isNew: true,
+  isOnSale: true,
+  categoryId: true,
+  type: true,
+  age: true,
+  theme: true,
+  interests: true,
+  pieces: true,
+  highlight: true,
+  img: true,
+  imageSecondary: true,
+  images: true,
+  stock: true,
+  shortDescription: true,
+  description: true,
+} as const satisfies Prisma.ProductSelect;
+
+type ProductData = NonNullable<Awaited<ReturnType<typeof productData>>>;
+
+const AUDITED_FIELDS = Object.keys(auditedSelect) as (keyof typeof auditedSelect)[];
+
+/** A write's columns as its audit entry records them (the form's fields, with this stock). */
+function auditedValues(data: ProductData, stock: number): Record<keyof typeof auditedSelect, unknown> {
+  const values = data as Partial<Record<keyof typeof auditedSelect, unknown>>;
+  return Object.fromEntries(AUDITED_FIELDS.map((field) => [field, field === "stock" ? stock : values[field]])) as Record<
+    keyof typeof auditedSelect,
+    unknown
+  >;
+}
+
 /** A new product, on sale right away (rating 0 until someone reviews it). */
-export async function createProduct(db: Db, input: ProductInput): Promise<ProductWriteResult> {
-  const data = await productData(db, input);
-  if (!data) return NO_CATEGORY;
-  const product = await db.product.create({ data: { ...data, stock: input.stock }, select: { id: true } });
-  return { ok: true, productId: product.id };
+export async function createProduct(db: PrismaClient, actor: AuditActor, input: ProductInput): Promise<ProductWriteResult> {
+  return db.$transaction(async (tx): Promise<ProductWriteResult> => {
+    const data = await productData(tx, input);
+    if (!data) return NO_CATEGORY;
+    const product = await tx.product.create({ data: { ...data, stock: input.stock }, select: { id: true } });
+    await recordAudit(tx, actor, {
+      action: "product.create",
+      entityType: "product",
+      entityId: product.id,
+      changes: snapshotFields(auditedValues(data, input.stock)),
+    });
+    return { ok: true, productId: product.id };
+  });
 }
 
 /**
@@ -247,16 +293,27 @@ async function compareAndSetStock(db: Db, id: string, seen: number, stock: numbe
  * value the form loaded, and only if it is still that (compareAndSetStock):
  * otherwise nothing is saved.
  */
-export async function updateProduct(db: PrismaClient, id: string, input: ProductInput, stockSeen: number): Promise<ProductWriteResult> {
+export async function updateProduct(
+  db: PrismaClient,
+  actor: AuditActor,
+  id: string,
+  input: ProductInput,
+  stockSeen: number
+): Promise<ProductWriteResult> {
   return db.$transaction(async (tx): Promise<ProductWriteResult> => {
     const data = await productData(tx, input);
     if (!data) return NO_CATEGORY;
+    const before = await tx.product.findUnique({ where: { id }, select: auditedSelect });
+    if (!before) return { ok: false, reason: "not_found" };
     const { count } = await tx.product.updateMany({ where: { id }, data });
     if (count !== 1) return { ok: false, reason: "not_found" };
     if (input.stock !== stockSeen) {
       const stock = await compareAndSetStock(tx, id, stockSeen, input.stock);
       if (!stock.ok) throw new StockChanged(stock.reason === "stock_changed" ? stock.stock : null);
     }
+    // The stock the entry names: the one the admin set, or the one they left (a sale may have moved it).
+    const changes = diffFields(before, auditedValues(data, input.stock === stockSeen ? before.stock : input.stock));
+    if (Object.keys(changes).length > 0) await recordAudit(tx, actor, { action: "product.update", entityType: "product", entityId: id, changes });
     return { ok: true, productId: id };
   }).catch((error: unknown): ProductWriteResult => {
     if (!(error instanceof StockChanged)) throw error;
@@ -272,8 +329,14 @@ class StockChanged extends Error {
 }
 
 /** Sets the stock (quick edit) from `seen`, the value the admin saw, if it still is that one. */
-export function setProductStock(db: Db, id: string, seen: number, stock: number): Promise<StockWriteResult> {
-  return compareAndSetStock(db, id, seen, stock);
+export function setProductStock(db: PrismaClient, actor: AuditActor, id: string, seen: number, stock: number): Promise<StockWriteResult> {
+  return db.$transaction(async (tx) => {
+    const result = await compareAndSetStock(tx, id, seen, stock);
+    if (result.ok && seen !== stock) {
+      await recordAudit(tx, actor, { action: "product.stock", entityType: "product", entityId: id, changes: { stock: [seen, stock] } });
+    }
+    return result;
+  });
 }
 
 /**
@@ -292,19 +355,28 @@ async function archiveInTx(tx: Prisma.TransactionClient, id: string): Promise<bo
  * Takes the product off the store (archiveInTx). Archiving it twice changes
  * nothing. False for an unknown product.
  */
-export function archiveProduct(db: PrismaClient, id: string): Promise<boolean> {
+export function archiveProduct(db: PrismaClient, actor: AuditActor, id: string): Promise<boolean> {
   return db.$transaction(async (tx) => {
     const product = await tx.product.findUnique({ where: { id }, select: { id: true } });
     if (!product) return false;
-    await archiveInTx(tx, id);
+    if (await archiveInTx(tx, id)) await recordArchive(tx, actor, id);
     return true;
   });
 }
 
+const recordArchive = (tx: Prisma.TransactionClient, actor: AuditActor, id: string) =>
+  recordAudit(tx, actor, { action: "product.archive", entityType: "product", entityId: id, changes: { archived: [false, true] } });
+
 /** Puts an archived product back on the store. False for an unknown product. */
-export async function restoreProduct(db: Db, id: string): Promise<boolean> {
-  const { count } = await db.product.updateMany({ where: { id }, data: { archivedAt: null } });
-  return count === 1;
+export function restoreProduct(db: PrismaClient, actor: AuditActor, id: string): Promise<boolean> {
+  return db.$transaction(async (tx) => {
+    const { count } = await tx.product.updateMany({ where: { id, archivedAt: { not: null } }, data: { archivedAt: null } });
+    if (count === 1) {
+      await recordAudit(tx, actor, { action: "product.restore", entityType: "product", entityId: id, changes: { archived: [true, false] } });
+      return true;
+    }
+    return (await tx.product.count({ where: { id } })) === 1;
+  });
 }
 
 export type RemoveProductResult =
@@ -320,15 +392,20 @@ export type RemoveProductResult =
  * the orders keep pointing at it. The product row is locked first, so a
  * checkout cannot add an order line in between.
  */
-export function removeProduct(db: PrismaClient, id: string): Promise<RemoveProductResult> {
+export function removeProduct(db: PrismaClient, actor: AuditActor, id: string): Promise<RemoveProductResult> {
   return db.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Product" WHERE "id" = ${id} FOR UPDATE`;
     if (locked.length === 0) return { result: "not_found" } as const;
     const orderLines = await tx.orderItem.count({ where: { productId: id } });
     if (orderLines > 0) {
-      return (await archiveInTx(tx, id)) ? ({ result: "archived", orderLines } as const) : ({ result: "already_archived", orderLines } as const);
+      if (!(await archiveInTx(tx, id))) return { result: "already_archived", orderLines } as const;
+      await recordArchive(tx, actor, id);
+      return { result: "archived", orderLines } as const;
     }
+    const before = await tx.product.findUniqueOrThrow({ where: { id }, select: auditedSelect });
     await tx.product.delete({ where: { id } });
+    // The record is gone: its entry keeps what it was.
+    await recordAudit(tx, actor, { action: "product.delete", entityType: "product", entityId: id, changes: snapshotFields(before) });
     return { result: "deleted" } as const;
   });
 }

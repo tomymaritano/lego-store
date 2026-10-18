@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { Archive, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { archiveProductAction, removeProductAction, restoreProductAction, saveProductAction } from "@/lib/admin/actions";
-import { getAdminProductForEdit, getProductFormOptions } from "@/lib/admin/data";
+import { getAdminAuditHistory, getAdminProductForEdit, getProductFormOptions } from "@/lib/admin/data";
 import { formatOrderDate } from "@/lib/orders/format";
 import { idSchema } from "@/lib/validations/ids";
 import { pluralize } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { AuditHistory } from "@/components/admin/AuditHistory";
 import { ConfirmAction } from "@/components/admin/ConfirmAction";
 import { FlashNotice } from "@/components/admin/FlashNotice";
 import { ProductForm } from "@/components/admin/ProductForm";
@@ -36,10 +37,11 @@ export default async function EditProductPage({ params, searchParams }: EditProd
   const { productId } = await params;
   await requireAdmin({ callbackUrl: `/admin/products/${encodeURIComponent(productId)}` });
   const id = idSchema.safeParse(productId);
-  const [product, options, query] = await Promise.all([
+  const [product, options, query, history] = await Promise.all([
     id.success ? getAdminProductForEdit(id.data) : null,
     getProductFormOptions(),
     searchParams,
+    id.success ? getAdminAuditHistory("product", id.data) : [],
   ]);
   if (!product) notFound();
   const archived = product.archivedAt !== null;
@@ -92,7 +94,8 @@ export default async function EditProductPage({ params, searchParams }: EditProd
           suggestions={options.suggestions}
         />
 
-        <Card className="xl:sticky xl:top-24">
+        <div className="space-y-6">
+        <Card>
           <CardContent className="space-y-4">
             <h2 className="text-title">En la tienda</h2>
             <p className="text-label font-normal text-fg-secondary">
@@ -144,6 +147,8 @@ export default async function EditProductPage({ params, searchParams }: EditProd
             </div>
           </CardContent>
         </Card>
+        <AuditHistory entries={history} entity={{ type: "product", id: product.id }} />
+        </div>
       </div>
     </>
   );

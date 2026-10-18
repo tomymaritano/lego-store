@@ -4,7 +4,9 @@ import { cache } from "react";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import type { AdminOrderFilters, AdminProductFilters, AdminReviewFilters } from "@/lib/validations/admin";
+import type { AuditEntityType, AuditFilters } from "@/lib/validations/audit";
 import type { AdminCouponFilters } from "@/lib/validations/coupons";
+import { listAuditEntries, searchAuditLog } from "./audit";
 import { getAdminCoupon, listAdminCoupons } from "./coupons";
 import { getDashboard } from "./dashboard";
 import { getAdminOrder, listAdminOrders } from "./orders";
@@ -67,6 +69,18 @@ export async function getAdminReviews(filters: AdminReviewFilters) {
 export async function getAdminCoupons(filters: AdminCouponFilters) {
   await requireAdmin({ callbackUrl: "/admin/coupons" });
   return listAdminCoupons(getDb(), filters);
+}
+
+/** The audit log (/admin/audit), filtered. */
+export async function getAdminAuditLog(filters: AuditFilters) {
+  await requireAdmin({ callbackUrl: "/admin/audit" });
+  return searchAuditLog(getDb(), filters);
+}
+
+/** One record's audit trail (the history panels of the detail pages). */
+export async function getAdminAuditHistory(entityType: AuditEntityType, entityId: string) {
+  await requireAdmin();
+  return listAuditEntries(getDb(), entityType, entityId);
 }
 
 /** Once per request (the page and its generateMetadata both read it). */

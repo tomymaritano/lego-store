@@ -55,10 +55,12 @@ const form = (overrides: Partial<ProductFormInput> = {}): ProductFormInput => ({
 const parse = (overrides?: Partial<ProductFormInput>) => productFormSchema.parse(form(overrides));
 
 let ana: { id: string };
+let actor: { id: string; email: string };
 
 beforeAll(async () => {
   await resetAndSeed();
   ana = await testDb.user.create({ data: { email: "ana@productos.test", name: "Ana" } });
+  actor = await testDb.user.create({ data: { email: "jefa@productos.test", name: "Jefa", role: "ADMIN" }, select: { id: true, email: true } });
 });
 
 beforeEach(async () => {
@@ -107,7 +109,7 @@ describe("productFormSchema", () => {
 describe("creating and editing", () => {
   it("a new product is on the store at once: its page, its category, search (accents ignored) and the admin list", async () => {
     const before = (await getCategories()).find((category) => category.id === "buildings")!.productCount;
-    const created = await createProduct(testDb, parse());
+    const created = await createProduct(testDb, actor, parse());
     expect(created.ok).toBe(true);
     const id = (created as { productId: string }).productId;
 
@@ -120,7 +122,7 @@ describe("creating and editing", () => {
   });
 
   it("rejects an unknown category on its field", async () => {
-    expect(await createProduct(testDb, parse({ categoryId: "no-existe" }))).toEqual({
+    expect(await createProduct(testDb, actor, parse({ categoryId: "no-existe" }))).toEqual({
       ok: false,
       reason: "invalid",
       fieldErrors: { categoryId: "Esa categoría no existe" },
@@ -131,6 +133,7 @@ describe("creating and editing", () => {
     const seen = (await getAdminProduct(testDb, "14"))!.stock;
     const result = await updateProduct(
       testDb,
+      actor,
       "14",
       parse({ name: "Taj Mahal Edición Admin", price: "3799", isOnSale: true, originalPrice: "3999", categoryId: "buildings", stock: "7" }),
       seen
@@ -140,7 +143,7 @@ describe("creating and editing", () => {
     expect((await searchProducts("edicion admin")).map((product) => product.id)).toEqual(["14"]);
     // Rating and reviews are not form fields: untouched.
     expect((await getAdminProduct(testDb, "14"))!.reviewCount).toBeGreaterThan(0);
-    expect(await updateProduct(testDb, "no-such-product", parse(), 12)).toEqual({ ok: false, reason: "not_found" });
+    expect(await updateProduct(testDb, actor, "no-such-product", parse(), 12)).toEqual({ ok: false, reason: "not_found" });
   });
 
   it("a sale between loading the form and saving it is never undone", async () => {
@@ -157,12 +160,12 @@ describe("creating and editing", () => {
     await testDb.product.update({ where: { id: "15" }, data: { stock: { decrement: 6 } } });
 
     // Saving the price without touching Stock leaves the stock to the sale.
-    expect(await updateProduct(testDb, "15", parse({ ...values, price: "999" }), loaded.stock)).toEqual({ ok: true, productId: "15" });
+    expect(await updateProduct(testDb, actor, "15", parse({ ...values, price: "999" }), loaded.stock)).toEqual({ ok: true, productId: "15" });
     expect(await stockOf()).toBe(2);
     expect((await getAdminProduct(testDb, "15"))!.price).toBe(999);
 
     // Typing a new stock over the stale one: refused with the current number, and nothing else saved.
-    expect(await updateProduct(testDb, "15", parse({ ...values, price: "555", stock: "20" }), loaded.stock)).toEqual({
+    expect(await updateProduct(testDb, actor, "15", parse({ ...values, price: "555", stock: "20" }), loaded.stock)).toEqual({
       ok: false,
       reason: "stock_changed",
       stock: 2,
@@ -171,22 +174,22 @@ describe("creating and editing", () => {
     expect((await getAdminProduct(testDb, "15"))!.price).toBe(999);
 
     // From the current stock it goes through.
-    expect(await updateProduct(testDb, "15", parse({ ...values, price: "555", stock: "20" }), 2)).toEqual({ ok: true, productId: "15" });
+    expect(await updateProduct(testDb, actor, "15", parse({ ...values, price: "555", stock: "20" }), 2)).toEqual({ ok: true, productId: "15" });
     expect(await stockOf()).toBe(20);
 
     // The quick edit: the same compare-and-set.
     await testDb.product.update({ where: { id: "15" }, data: { stock: { decrement: 1 } } });
-    expect(await setProductStock(testDb, "15", 20, 30)).toEqual({ ok: false, reason: "stock_changed", stock: 19 });
+    expect(await setProductStock(testDb, actor, "15", 20, 30)).toEqual({ ok: false, reason: "stock_changed", stock: 19 });
     expect(await stockOf()).toBe(19);
-    expect(await setProductStock(testDb, "15", 19, 30)).toEqual({ ok: true });
+    expect(await setProductStock(testDb, actor, "15", 19, 30)).toEqual({ ok: true });
     expect(await stockOf()).toBe(30);
   });
 
   it("quick stock edit; filters for low (sold out included) and sold-out stock", async () => {
     const stockOf = async (id: string) => (await testDb.product.findUniqueOrThrow({ where: { id }, select: { stock: true } })).stock;
-    expect(await setProductStock(testDb, "13", await stockOf("13"), 0)).toEqual({ ok: true });
-    expect(await setProductStock(testDb, "12", await stockOf("12"), 3)).toEqual({ ok: true });
-    expect(await setProductStock(testDb, "nope", 0, 3)).toEqual({ ok: false, reason: "not_found" });
+    expect(await setProductStock(testDb, actor, "13", await stockOf("13"), 0)).toEqual({ ok: true });
+    expect(await setProductStock(testDb, actor, "12", await stockOf("12"), 3)).toEqual({ ok: true });
+    expect(await setProductStock(testDb, actor, "nope", 0, 3)).toEqual({ ok: false, reason: "not_found" });
     const out = await listAdminProducts(testDb, { q: "", category: "", status: "active", stock: "out", page: 1 });
     expect(out.items.map((product) => product.id)).toContain("13");
     expect(out.items.every((product) => product.stock === 0)).toBe(true);
@@ -212,7 +215,7 @@ describe("archiving", () => {
     await addToWishlist(testDb, ana.id, "11");
     const before = (await getCategories()).find((category) => category.id === "cars")!.productCount;
 
-    expect(await archiveProduct(testDb, "11")).toBe(true);
+    expect(await archiveProduct(testDb, actor, "11")).toBe(true);
     expect(await getProductById("11")).toBeNull();
     expect(await getProductsByIds(["11", "7"])).toHaveLength(1);
     expect((await searchProducts("porsche")).map((product) => product.id)).not.toContain("11");
@@ -241,27 +244,27 @@ describe("archiving", () => {
     const archived = await listAdminProducts(testDb, { q: "", category: "", status: "archived", stock: "", page: 1 });
     expect(archived.items.map((product) => [product.id, product.archived])).toEqual([["11", true]]);
 
-    expect(await restoreProduct(testDb, "11")).toBe(true);
+    expect(await restoreProduct(testDb, actor, "11")).toBe(true);
     expect(await getProductById("11")).toMatchObject({ id: "11" });
-    expect(await archiveProduct(testDb, "nope")).toBe(false);
+    expect(await archiveProduct(testDb, actor, "nope")).toBe(false);
   });
 });
 
 describe("removeProduct", () => {
   it("deletes a product nobody ordered, with its reviews and list lines", async () => {
-    const created = (await createProduct(testDb, parse({ name: "Para borrar" }))) as { productId: string };
+    const created = (await createProduct(testDb, actor, parse({ name: "Para borrar" }))) as { productId: string };
     await addToCart(testDb, ana.id, created.productId, 1);
     await createReview(testDb, ana.id, created.productId, { rating: 4, title: "Bien", comment: "Me gustó bastante." });
 
-    expect(await removeProduct(testDb, created.productId)).toEqual({ result: "deleted" });
+    expect(await removeProduct(testDb, actor, created.productId)).toEqual({ result: "deleted" });
     expect(await testDb.product.findUnique({ where: { id: created.productId } })).toBeNull();
     expect(await testDb.review.count({ where: { productId: created.productId } })).toBe(0);
     expect(await getCart(testDb, ana.id)).toEqual([]);
-    expect(await removeProduct(testDb, created.productId)).toEqual({ result: "not_found" });
+    expect(await removeProduct(testDb, actor, created.productId)).toEqual({ result: "not_found" });
   });
 
   it("archives a product that orders reference instead: the order keeps its line and link", async () => {
-    const created = (await createProduct(testDb, parse({ name: "Vendido una vez" }))) as { productId: string };
+    const created = (await createProduct(testDb, actor, parse({ name: "Vendido una vez" }))) as { productId: string };
     const order = await testDb.order.create({
       data: {
         email: "compra@productos.test",
@@ -281,12 +284,12 @@ describe("removeProduct", () => {
       },
     });
 
-    expect(await removeProduct(testDb, created.productId)).toEqual({ result: "archived", orderLines: 1 });
+    expect(await removeProduct(testDb, actor, created.productId)).toEqual({ result: "archived", orderLines: 1 });
     expect((await testDb.product.findUniqueOrThrow({ where: { id: created.productId } })).archivedAt).not.toBeNull();
     expect(await getProductById(created.productId)).toBeNull();
     expect(await testDb.orderItem.findFirstOrThrow({ where: { orderId: order.id } })).toMatchObject({ productId: created.productId });
     expect((await getAdminProduct(testDb, created.productId))!.orderLines).toBe(1);
     // Removing it again cannot delete it and has nothing left to archive: it says so.
-    expect(await removeProduct(testDb, created.productId)).toEqual({ result: "already_archived", orderLines: 1 });
+    expect(await removeProduct(testDb, actor, created.productId)).toEqual({ result: "already_archived", orderLines: 1 });
   });
 });

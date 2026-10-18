@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { refresh, revalidatePath } from "next/cache";
 import { updateCatalog } from "@/lib/api/cache";
 import { formText, type FormState } from "@/lib/auth/form-state";
-import { requireAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { getMercadoPago, getPaymentGateway } from "@/lib/payments/config";
@@ -12,15 +11,17 @@ import { deleteReview } from "@/lib/reviews/mutations";
 import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateSchema, type ProductField } from "@/lib/validations/admin";
 import { idSchema } from "@/lib/validations/ids";
 import { couponFormSchema, newCouponCodeSchema, type CouponField } from "@/lib/validations/coupons";
+import { requireAdminActor } from "./actor";
 import { createCoupon, setCouponActive, updateCoupon } from "./coupons";
 import { changeOrderStatus } from "./orders";
 import { archiveProduct, createProduct, removeProduct, restoreProduct, setProductStock, updateProduct } from "./products";
 
 /*
  * Server Actions of the admin panel. Each one checks the admin itself
- * (requireAdmin: a signed-out caller is sent to log in, a customer gets the
- * 403), validates its input with zod, and writes through ./products.ts,
- * ./orders.ts or the review mutations. Then:
+ * (requireAdminActor: a signed-out caller is sent to log in, a customer gets
+ * the 403), validates its input with zod, and writes through ./products.ts,
+ * ./orders.ts, ./coupons.ts or the review mutations, which record the change
+ * in the audit log (./audit.ts) with the admin and their IP. Then:
  *
  * - catalogue writes expire the cache tags they touched with updateCatalog
  *   (updateTag): the storefront's next request reads the new data, and the
@@ -28,9 +29,8 @@ import { archiveProduct, createProduct, removeProduct, restoreProduct, setProduc
  * - refresh() re-renders the admin page the action came from, which reads
  *   the database directly.
  *
- * Coupon writes also record their audit entry (./coupons.ts, ./audit.ts) and
- * revalidate the coupon pages; coupons are not in the catalogue cache (the
- * checkout reads them from the database every time).
+ * Coupon writes revalidate the coupon pages; coupons are not in the
+ * catalogue cache (the checkout reads them from the database every time).
  */
 
 export type AdminActionResult = { ok: true; message: string } | { ok: false; error: string };
@@ -82,7 +82,7 @@ export async function saveProductAction(
   _previous: FormState<ProductField>,
   formData: FormData
 ): Promise<FormState<ProductField>> {
-  await requireAdmin({ callbackUrl: "/admin/products" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/products" });
   const parsed = productFormSchema.safeParse(productFormValues(formData));
   if (!parsed.success) {
     const fieldErrors: Partial<Record<ProductField, string>> = {};
@@ -95,7 +95,7 @@ export async function saveProductAction(
 
   const db = getDb();
   if (productId === null) {
-    const created = await createProduct(db, parsed.data);
+    const created = await createProduct(db, admin, parsed.data);
     if (!created.ok) {
       return { status: "error", message: "Revisa los campos marcados.", fieldErrors: created.reason === "invalid" ? created.fieldErrors : {} };
     }
@@ -107,7 +107,7 @@ export async function saveProductAction(
   const id = idSchema.safeParse(productId);
   const stockSeen = stockSeenSchema.safeParse(formText(formData, "stockSeen"));
   if (!stockSeen.success) return { status: "error", message: "Recarga la página y vuelve a intentarlo.", fieldErrors: {} };
-  const saved = id.success ? await updateProduct(db, id.data, parsed.data, stockSeen.data) : ({ ok: false, reason: "not_found" } as const);
+  const saved = id.success ? await updateProduct(db, admin, id.data, parsed.data, stockSeen.data) : ({ ok: false, reason: "not_found" } as const);
   if (!saved.ok) {
     if (saved.reason === "stock_changed") {
       // The page re-renders with the current stock (and the form's stock field with it).
@@ -126,11 +126,11 @@ export async function saveProductAction(
 
 /** Quick stock edit (products list, dashboard), from the stock the admin saw (`seen`). */
 export async function updateStockAction(productId: unknown, stock: unknown, seen: unknown): Promise<AdminActionResult> {
-  await requireAdmin({ callbackUrl: "/admin/products" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/products" });
   const asText = (value: unknown) => (typeof value === "number" ? String(value) : value);
   const parsed = stockUpdateSchema.safeParse({ productId, stock: asText(stock), seen: asText(seen) });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Stock no válido." };
-  const result = await setProductStock(getDb(), parsed.data.productId, parsed.data.seen, parsed.data.stock);
+  const result = await setProductStock(getDb(), admin, parsed.data.productId, parsed.data.seen, parsed.data.stock);
   if (!result.ok) {
     if (result.reason === "not_found") return { ok: false, error: NOT_FOUND_PRODUCT };
     refresh();
@@ -143,18 +143,18 @@ export async function updateStockAction(productId: unknown, stock: unknown, seen
 }
 
 export async function archiveProductAction(productId: unknown): Promise<AdminActionResult> {
-  await requireAdmin({ callbackUrl: "/admin/products" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/products" });
   const id = idSchema.safeParse(productId);
-  if (!id.success || !(await archiveProduct(getDb(), id.data))) return { ok: false, error: NOT_FOUND_PRODUCT };
+  if (!id.success || !(await archiveProduct(getDb(), admin, id.data))) return { ok: false, error: NOT_FOUND_PRODUCT };
   updateCatalog({ productIds: [id.data], categories: true });
   refresh();
   return { ok: true, message: "Archivamos el producto: ya no se ve en la tienda." };
 }
 
 export async function restoreProductAction(productId: unknown): Promise<AdminActionResult> {
-  await requireAdmin({ callbackUrl: "/admin/products" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/products" });
   const id = idSchema.safeParse(productId);
-  if (!id.success || !(await restoreProduct(getDb(), id.data))) return { ok: false, error: NOT_FOUND_PRODUCT };
+  if (!id.success || !(await restoreProduct(getDb(), admin, id.data))) return { ok: false, error: NOT_FOUND_PRODUCT };
   updateCatalog({ productIds: [id.data], categories: true });
   refresh();
   return { ok: true, message: "El producto volvió a la tienda." };
@@ -162,9 +162,9 @@ export async function restoreProductAction(productId: unknown): Promise<AdminAct
 
 /** "Eliminar": deletes it, or archives it when orders reference it (./products.ts removeProduct). */
 export async function removeProductAction(productId: unknown): Promise<AdminActionResult & { removed?: "deleted" | "archived" }> {
-  await requireAdmin({ callbackUrl: "/admin/products" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/products" });
   const id = idSchema.safeParse(productId);
-  const outcome = id.success ? await removeProduct(getDb(), id.data) : ({ result: "not_found" } as const);
+  const outcome = id.success ? await removeProduct(getDb(), admin, id.data) : ({ result: "not_found" } as const);
   if (outcome.result === "not_found") return { ok: false, error: NOT_FOUND_PRODUCT };
   updateCatalog({ productIds: [id.data!], categories: true });
   // A deleted product's page is gone: the browser leaves for the list instead of re-rendering it.
@@ -195,7 +195,7 @@ const TRANSITION_DONE = {
 
 /** Moves an order to SHIPPED, DELIVERED or CANCELLED (./orders.ts changeOrderStatus has the rules). */
 export async function changeOrderStatusAction(input: unknown): Promise<AdminActionResult> {
-  const admin = await requireAdmin({ callbackUrl: "/admin/orders" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/orders" });
   const parsed = orderTransitionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "No entendimos ese cambio de estado." };
 
@@ -248,10 +248,10 @@ export async function changeOrderStatusAction(input: unknown): Promise<AdminActi
  * transaction; its page and the listings are refreshed.
  */
 export async function deleteReviewAsAdminAction(reviewId: unknown): Promise<AdminActionResult> {
-  const admin = await requireAdmin({ callbackUrl: "/admin/reviews" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/reviews" });
   const id = idSchema.safeParse(reviewId);
   if (!id.success) return { ok: false, error: "Esa reseña ya no existe." };
-  const result = await deleteReview(getDb(), { id: admin.id, role: "ADMIN" }, id.data);
+  const result = await deleteReview(getDb(), { id: admin.id, role: "ADMIN" }, id.data, { audit: admin });
   if (!result.ok) return { ok: false, error: "Esa reseña ya no existe." };
   updateCatalog({ productIds: [result.productId] });
   refresh();
@@ -287,7 +287,7 @@ export async function saveCouponAction(
   _previous: FormState<CouponField>,
   formData: FormData
 ): Promise<FormState<CouponField>> {
-  const admin = await requireAdmin({ callbackUrl: "/admin/coupons" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/coupons" });
   const values = couponFormValues(formData);
   const parsed = couponFormSchema.safeParse(values);
   const code = couponId === null ? newCouponCodeSchema.safeParse(values.code) : null;
@@ -325,7 +325,7 @@ export async function saveCouponAction(
 
 /** "Desactivar" / "Activar" from the list or the coupon's page. */
 export async function setCouponActiveAction(couponId: unknown, active: unknown): Promise<AdminActionResult> {
-  const admin = await requireAdmin({ callbackUrl: "/admin/coupons" });
+  const admin = await requireAdminActor({ callbackUrl: "/admin/coupons" });
   const id = idSchema.safeParse(couponId);
   if (!id.success || typeof active !== "boolean") return { ok: false, error: NOT_FOUND_COUPON };
   const result = await setCouponActive(getDb(), admin, id.data, active);

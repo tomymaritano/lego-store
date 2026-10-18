@@ -248,8 +248,8 @@ test.describe("coupons", () => {
     await expect(page.getByRole("heading", { level: 1, name: code })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(`Creamos el cupón ${code}.`)).toBeVisible();
     await expect(page.getByTestId("coupon-status")).toHaveText("Activo");
-    await expect(page.getByTestId("coupon-history")).toContainText("Creó el cupón");
-    await expect(page.getByTestId("coupon-history")).toContainText(E2E_ADMIN_EMAIL);
+    await expect(page.getByTestId("audit-history")).toContainText("Creó el cupón");
+    await expect(page.getByTestId("audit-history")).toContainText(E2E_ADMIN_EMAIL);
     await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
     const couponPage = page.url();
 

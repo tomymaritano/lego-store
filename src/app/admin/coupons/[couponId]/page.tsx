@@ -6,8 +6,6 @@ import { requireAdmin } from "@/lib/auth/session";
 import { saveCouponAction, setCouponActiveAction } from "@/lib/admin/actions";
 import { getAdminCouponDetail } from "@/lib/admin/data";
 import {
-  AUDIT_ACTION_LABELS,
-  COUPON_FIELD_LABELS,
   COUPON_STATUS_BADGE,
   COUPON_STATUS_LABELS,
   REDEMPTION_STATUS_BADGE,
@@ -21,10 +19,11 @@ import { idSchema } from "@/lib/validations/ids";
 import { formatPrice } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AdminStat } from "@/components/admin/AdminStat";
+import { AuditHistory } from "@/components/admin/AuditHistory";
 import { ConfirmAction } from "@/components/admin/ConfirmAction";
 import { CouponForm } from "@/components/admin/CouponForm";
 import { FlashNotice } from "@/components/admin/FlashNotice";
-import { Badge, Card, CardContent, CardHeader, EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
+import { Badge, Card, EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 
 type CouponPageProps = {
   params: Promise<{ couponId: string }>;
@@ -36,20 +35,6 @@ export async function generateMetadata({ params }: Pick<CouponPageProps, "params
   const id = idSchema.safeParse(couponId);
   const coupon = id.success ? await getAdminCouponDetail(id.data) : null;
   return { title: `${coupon?.code ?? "Cupón"} · Administración` };
-}
-
-/** An audit entry's changes in words: "valor: 10 → 15; vence: — → 31/12/2026". */
-function describeChanges(changes: Record<string, unknown> | null, action: string): string | null {
-  if (!changes || action === "coupon.create" || action === "coupon.activate" || action === "coupon.deactivate") return null;
-  const show = (value: unknown) => (value === null || value === "" ? "—" : typeof value === "boolean" ? (value ? "sí" : "no") : String(value));
-  const parts = Object.entries(changes).flatMap(([field, value]) => {
-    if (!Array.isArray(value)) return [];
-    const [from, to] = value as [unknown, unknown];
-    const date = field === "startsAt" || field === "expiresAt";
-    const asText = (v: unknown) => (date && typeof v === "string" ? couponDateInput(v, field === "expiresAt" ? "end" : "start") : show(v));
-    return [`${COUPON_FIELD_LABELS[field] ?? field}: ${asText(from) || "—"} → ${asText(to) || "—"}`];
-  });
-  return parts.length > 0 ? parts.join("; ") : null;
 }
 
 /**
@@ -168,31 +153,7 @@ export default async function AdminCouponPage({ params, searchParams }: CouponPa
           }}
         />
 
-        <Card className="self-start">
-          <CardHeader>
-            <h2 className="text-title text-fg">Historial</h2>
-          </CardHeader>
-          <CardContent>
-            {coupon.history.length === 0 ? (
-              <p className="text-label font-normal text-fg-muted">Sin cambios registrados.</p>
-            ) : (
-              <ol className="space-y-3 text-label font-normal" data-testid="coupon-history">
-                {coupon.history.map((entry) => {
-                  const detail = describeChanges(entry.changes, entry.action);
-                  return (
-                    <li key={entry.id} className="border-l-2 border-border pl-3">
-                      <span className="font-medium text-fg">{AUDIT_ACTION_LABELS[entry.action] ?? entry.action}</span>
-                      <span className="block text-caption text-fg-muted">
-                        {entry.actorEmail} · {formatAdminDateTime(entry.at)}
-                      </span>
-                      {detail ? <span className="block text-caption text-fg-secondary">{detail}</span> : null}
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </CardContent>
-        </Card>
+        <AuditHistory entries={coupon.history} entity={{ type: "coupon", id: coupon.id }} />
       </div>
 
       <section aria-labelledby="coupon-redemptions-title" className="mt-10">

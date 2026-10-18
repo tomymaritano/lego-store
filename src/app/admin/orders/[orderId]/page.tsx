@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CreditCard, ExternalLink, History, MapPin, Package, ReceiptText, UserRound, Wallet } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminCancelReasonLabel, formatAdminDateTime } from "@/lib/admin/format";
-import { getAdminOrderDetail } from "@/lib/admin/data";
+import { getAdminAuditHistory, getAdminOrderDetail } from "@/lib/admin/data";
 import {
   ORDER_STATUS_BADGE,
   ADMIN_ORDER_STATUS_LABELS,
@@ -22,6 +22,7 @@ import { formatPrice, pluralize } from "@/lib/utils";
 import { orderIdSchema } from "@/lib/validations/orders";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { OrderTimeline } from "@/components/account/OrderTimeline";
+import { AuditHistory } from "@/components/admin/AuditHistory";
 import { OrderStatusActions } from "@/components/admin/OrderStatusActions";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Badge, Card, CardContent, CardHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
@@ -75,7 +76,10 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const { orderId } = await params;
   await requireAdmin({ callbackUrl: `/admin/orders/${encodeURIComponent(orderId)}` });
   const id = orderIdSchema.safeParse(orderId);
-  const order = id.success ? await getAdminOrderDetail(id.data) : null;
+  const [order, history] = await Promise.all([
+    id.success ? getAdminOrderDetail(id.data) : null,
+    id.success ? getAdminAuditHistory("order", id.data) : [],
+  ]);
   if (!order) notFound();
 
   const number = formatOrderNumber(order.number);
@@ -331,6 +335,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               </dl>
             </CardContent>
           </Card>
+          <AuditHistory entries={history} entity={{ type: "order", id: order.id }} title="Cambios del admin" empty="Ningún admin lo tocó todavía." />
         </div>
       </div>
     </>
