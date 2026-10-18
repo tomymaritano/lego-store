@@ -26,6 +26,13 @@ import { escapeLike, nameHits, normalizeText, tokenize } from "./search";
 
 type Db = PrismaClient;
 
+/**
+ * Products on the storefront: archived ones (src/lib/admin/products.ts) stay
+ * in the database for the orders that reference them, but no catalogue read
+ * returns them. Every query in this file starts from it.
+ */
+export const LISTED = { archivedAt: null } as const satisfies Prisma.ProductWhereInput;
+
 export type Query = ProductQuery;
 
 const productSelect = {
@@ -100,12 +107,12 @@ type Vocabulary = Record<(typeof LIST_FIELDS)[ListFilter], string[]>;
  */
 async function loadVocabulary(db: Db): Promise<Vocabulary> {
   const rows = await db.$queryRaw<{ field: keyof Vocabulary; value: string }[]>`
-    SELECT DISTINCT 'theme' AS field, "theme" AS value FROM "Product"
-    UNION SELECT DISTINCT 'type', "type" FROM "Product"
-    UNION SELECT DISTINCT 'age', "age" FROM "Product"
-    UNION SELECT DISTINCT 'pieces', "pieces" FROM "Product"
-    UNION SELECT DISTINCT 'highlight', "highlight" FROM "Product"
-    UNION SELECT DISTINCT 'interests', unnest("interests") FROM "Product"
+    SELECT DISTINCT 'theme' AS field, "theme" AS value FROM "Product" WHERE "archivedAt" IS NULL
+    UNION SELECT DISTINCT 'type', "type" FROM "Product" WHERE "archivedAt" IS NULL
+    UNION SELECT DISTINCT 'age', "age" FROM "Product" WHERE "archivedAt" IS NULL
+    UNION SELECT DISTINCT 'pieces', "pieces" FROM "Product" WHERE "archivedAt" IS NULL
+    UNION SELECT DISTINCT 'highlight', "highlight" FROM "Product" WHERE "archivedAt" IS NULL
+    UNION SELECT DISTINCT 'interests', unnest("interests") FROM "Product" WHERE "archivedAt" IS NULL
   `;
   const vocabulary: Vocabulary = { theme: [], type: [], age: [], pieces: [], highlight: [], interests: [] };
   for (const { field, value } of rows) vocabulary[field].push(value);
@@ -124,7 +131,7 @@ function whereBuilder(db: Db) {
   let vocabulary: Promise<Vocabulary> | null = null;
 
   return async function where(query: Scope): Promise<Prisma.ProductWhereInput> {
-    const and: Prisma.ProductWhereInput[] = [];
+    const and: Prisma.ProductWhereInput[] = [LISTED];
 
     for (const term of tokenize(query.q ?? "")) and.push({ searchText: { contains: escapeLike(term) } });
     // Postgres rejects NUL in a text value: such a slug matches nothing instead of failing the query.
@@ -178,7 +185,7 @@ async function featuredIds(db: Db, where: Prisma.ProductWhereInput, q: string | 
 /** Full products for `ids`, in that order (missing ids skipped). */
 async function productsInOrder(db: Db, ids: string[]): Promise<Product[]> {
   if (ids.length === 0) return [];
-  const rows = await db.product.findMany({ where: { id: { in: ids } }, select: productSelect });
+  const rows = await db.product.findMany({ where: { id: { in: ids }, ...LISTED }, select: productSelect });
   const byId = new Map(rows.map((row) => [row.id, toProduct(row)]));
   return ids.map((id) => byId.get(id)).filter((p): p is Product => !!p);
 }
@@ -195,18 +202,18 @@ function clampInt(value: number | undefined, min: number, max: number, fallback:
 // ---------------------------------------------------------------------------
 
 export async function getProducts(db: Db): Promise<Product[]> {
-  const rows = await db.product.findMany({ select: productSelect, orderBy: catalogueOrder });
+  const rows = await db.product.findMany({ where: LISTED, select: productSelect, orderBy: catalogueOrder });
   return rows.map(toProduct);
 }
 
 /** Every product id (for bounding cache keys to ids that exist). */
 export async function getProductIds(db: Db): Promise<string[]> {
-  const rows = await db.product.findMany({ select: { id: true }, orderBy: { id: "asc" } });
+  const rows = await db.product.findMany({ where: LISTED, select: { id: true }, orderBy: { id: "asc" } });
   return rows.map((row) => row.id);
 }
 
 export async function getProductById(db: Db, id: string): Promise<Product | null> {
-  const row = await db.product.findUnique({ where: { id }, select: productSelect });
+  const row = await db.product.findFirst({ where: { id, ...LISTED }, select: productSelect });
   return row ? toProduct(row) : null;
 }
 
@@ -224,7 +231,7 @@ export async function getSearchSuggestions(
   if (tokenize(query).length === 0) return { items: [], total: 0 };
   const ids = await featuredIds(db, await whereBuilder(db)({ q: query }), query);
   const items = await db.product.findMany({
-    where: { id: { in: ids.slice(0, Math.max(0, limit)) } },
+    where: { id: { in: ids.slice(0, Math.max(0, limit)) }, ...LISTED },
     select: { id: true, name: true, price: true, img: true, theme: true },
   });
   const byId = new Map(items.map((item) => [item.id, item]));
@@ -282,7 +289,7 @@ export async function getRelatedProducts(db: Db, productId: string, limit = 4): 
   for (const tier of tiers) {
     if (related.length >= limit) break;
     const rows = await db.product.findMany({
-      where: { ...tier, id: { not: productId } },
+      where: { ...tier, ...LISTED, id: { not: productId } },
       select: productSelect,
       orderBy: [{ rating: "desc" }, ...catalogueOrder],
       take: limit - related.length,
@@ -441,7 +448,7 @@ export async function getFacetCounts(db: Db, query: ProductQuery = {}): Promise<
 
 export async function getFeaturedProducts(db: Db, limit = 8): Promise<Product[]> {
   const rows = await db.product.findMany({
-    where: { isNew: true },
+    where: { isNew: true, ...LISTED },
     select: productSelect,
     orderBy: catalogueOrder,
     take: Math.max(0, limit),
@@ -453,7 +460,7 @@ export async function getSaleProducts(db: Db, limit?: number): Promise<Product[]
   const take = limit === undefined ? null : Math.max(0, Math.trunc(limit));
   const rows = await db.$queryRaw<{ id: string }[]>`
     SELECT "id" FROM "Product"
-    WHERE "isOnSale" AND "originalPrice" IS NOT NULL
+    WHERE "isOnSale" AND "originalPrice" IS NOT NULL AND "archivedAt" IS NULL
     ORDER BY ("originalPrice" - "price")::float8 / "originalPrice" DESC, "createdAt", "id"
     LIMIT ${take}
   `;
@@ -463,7 +470,7 @@ export async function getSaleProducts(db: Db, limit?: number): Promise<Product[]
 export async function getCategories(db: Db): Promise<Category[]> {
   const rows = await db.category.findMany({
     orderBy: [{ position: "asc" }, { id: "asc" }],
-    select: { id: true, name: true, description: true, image: true, _count: { select: { products: true } } },
+    select: { id: true, name: true, description: true, image: true, _count: { select: { products: { where: LISTED } } } },
   });
   return rows.map(({ _count, ...category }) => ({ ...category, productCount: _count.products }));
 }

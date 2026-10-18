@@ -34,7 +34,7 @@ const isUniqueViolation = (error: unknown) =>
 export async function createReview(db: PrismaClient, userId: string, productId: string, input: ReviewInput): Promise<ReviewWriteResult> {
   try {
     return await db.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId }, select: { id: true } });
+      const product = await tx.product.findFirst({ where: { id: productId, archivedAt: null }, select: { id: true } });
       if (!product) return { ok: false, reason: "not_found" } as const;
       const existing = await tx.review.findUnique({ where: { userId_productId: { userId, productId } }, select: { id: true } });
       if (existing) return { ok: false, reason: "duplicate" } as const;

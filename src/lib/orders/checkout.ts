@@ -60,7 +60,8 @@ type Priced = { ok: true; lines: PricedLine[] } | { ok: false; unavailable: Unav
 /** The lines at today's prices, or what cannot be sold as asked. */
 async function priceLines(db: Db, wanted: { productId: string; quantity: number }[]): Promise<Priced> {
   const products = await db.product.findMany({
-    where: { id: { in: wanted.map((line) => line.productId) } },
+    // Archived products are off the store: they read as gone (available 0).
+    where: { id: { in: wanted.map((line) => line.productId) }, archivedAt: null },
     select: { id: true, name: true, price: true, img: true, stock: true },
   });
   const byId = new Map(products.map((product) => [product.id, product]));

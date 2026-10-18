@@ -123,6 +123,8 @@ function productRow(product: SeedProduct, categoryName: string) {
     imageSecondary: product.imageSecondary ?? null,
     images: product.images.length ? product.images : [product.img],
     stock: product.stock,
+    // Re-seeding puts an archived seed product back on the store.
+    archivedAt: null,
     shortDescription: product.shortDescription,
     description: product.description,
     ...productSearchColumns({

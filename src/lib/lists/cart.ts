@@ -15,7 +15,10 @@ import { listProductSelect, type Db, type ListProduct } from "./product";
  *   statement or transaction (quantity > 0 is also a database check);
  * - a product that is out of stock cannot be added; a line whose product sold
  *   out stays stored but is not listed (it comes back if it is restocked) and
- *   checkout never sees it.
+ *   checkout never sees it;
+ * - archived products (taken off the store by an admin) read as gone: they
+ *   cannot be added and their lines are not listed (archiving also deletes
+ *   them, src/lib/admin/products.ts).
  */
 
 export type CartWriteResult =
@@ -40,7 +43,7 @@ function toCartItem({ quantity, product }: LineRow): CartItem {
 /** The user's cart, oldest line first, with current product data; sold-out lines are left out. */
 export async function getCart(db: Db, userId: string): Promise<CartItem[]> {
   const rows = await db.cartItem.findMany({
-    where: { userId, product: { stock: { gt: 0 } } },
+    where: { userId, product: { stock: { gt: 0 }, archivedAt: null } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: lineSelect,
   });
@@ -76,7 +79,7 @@ function written(line: CartItem | null): CartWriteResult {
 }
 
 async function availability(tx: Prisma.TransactionClient, productId: string) {
-  const product = await tx.product.findUnique({ where: { id: productId }, select: { stock: true } });
+  const product = await tx.product.findFirst({ where: { id: productId, archivedAt: null }, select: { stock: true } });
   if (!product) return "not_found" as const;
   return product.stock > 0 ? ("ok" as const) : ("out_of_stock" as const);
 }
@@ -140,7 +143,7 @@ export async function mergeCartIn(tx: Prisma.TransactionClient, userId: string, 
   const wanted = combine(lines);
   if (wanted.length > 0) {
     const available = await tx.product.findMany({
-      where: { id: { in: wanted.map((line) => line.productId) }, stock: { gt: 0 } },
+      where: { id: { in: wanted.map((line) => line.productId) }, stock: { gt: 0 }, archivedAt: null },
       select: { id: true },
     });
     const ids = new Set(available.map((product) => product.id));

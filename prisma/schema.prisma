@@ -45,14 +45,16 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  cartItems     CartItem[]
-  wishlistItems WishlistItem[]
-  listMerges    ListMerge[]
-  reviews       Review[]
-  helpfulVotes  ReviewHelpful[]
-  orders        Order[]
+  accounts           Account[]
+  sessions           Session[]
+  cartItems          CartItem[]
+  wishlistItems      WishlistItem[]
+  listMerges         ListMerge[]
+  reviews            Review[]
+  helpfulVotes       ReviewHelpful[]
+  orders             Order[]
+  /// Order status changes this user made as an admin (audit trail).
+  orderStatusChanges OrderStatusChange[]
 }
 
 model Account {
@@ -118,18 +120,18 @@ model Category {
 
 model Product {
   /// Seeded products keep their historical ids ("1"…"22") so /item/1 keeps working.
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   name             String
   /// Price in pesos (ARS).
   price            Int
   /// Pre-discount price; set exactly when isOnSale.
   originalPrice    Int?
-  isNew            Boolean  @default(false)
-  isOnSale         Boolean  @default(false)
+  isNew            Boolean   @default(false)
+  isOnSale         Boolean   @default(false)
   /// Cached average of the product's reviews (0 when it has none), one decimal.
-  rating           Float    @default(0)
+  rating           Float     @default(0)
   /// Cached number of reviews.
-  reviewCount      Int      @default(0)
+  reviewCount      Int       @default(0)
   categoryId       String
   type             String
   age              String
@@ -140,7 +142,11 @@ model Product {
   img              String
   imageSecondary   String?
   images           String[]
-  stock            Int      @default(0)
+  stock            Int       @default(0)
+  /// Set when an admin archives the product: it leaves the storefront (catalogue,
+  /// search, product page, carts, wishlists, checkout) but stays in the database,
+  /// because orders reference it. Null = on sale. See src/lib/admin/products.ts.
+  archivedAt       DateTime?
   shortDescription String
   description      String
   /// Lowercase, accent-free name + theme + category (slug and name) + description: what search matches.
@@ -148,8 +154,8 @@ model Product {
   /// Lowercase, accent-free name: search ranking and the A-Z sort.
   searchName       String
   /// Catalogue order ("Destacados") is creation order; newest sorts by it too.
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   cartItems     CartItem[]
@@ -162,6 +168,7 @@ model Product {
   @@index([createdAt])
   @@index([price])
   @@index([rating])
+  @@index([archivedAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -303,8 +310,9 @@ model Order {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  items OrderItem[]
+  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  statusChanges OrderStatusChange[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -328,6 +336,28 @@ model OrderItem {
 
   @@unique([orderId, productId])
   @@index([productId])
+}
+
+/// Audit trail of the status changes an admin made to an order (src/lib/admin/orders.ts):
+/// who, when, from what to what. The webhook's and the cleanup's own changes are
+/// not listed here; their timestamps live on the order (paidAt, cancelledAt...).
+model OrderStatusChange {
+  id         String      @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+  /// Null once that account is deleted; actorEmail keeps who it was.
+  actorId    String?
+  actorEmail String
+  /// Stripe refund id when the change refunded the payment (PAID -> CANCELLED).
+  refundId   String?
+  createdAt  DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([actorId])
 }
 
 /// Stripe webhook idempotency: an event id is processed at most once.

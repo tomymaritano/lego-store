@@ -14,19 +14,19 @@ function toWishlistItem({ product }: { product: ListProduct }): WishlistItem {
   return { id: product.id, name: product.name, price: product.price, image: product.img, stock: product.stock };
 }
 
-/** Saved products, oldest first (sold-out ones included: the wishlist says "Agotado"). */
+/** Saved products, oldest first (sold-out ones included: the wishlist says "Agotado"; archived ones are not). */
 export async function getWishlist(db: Db, userId: string): Promise<WishlistItem[]> {
   const rows = await db.wishlistItem.findMany({
-    where: { userId },
+    where: { userId, product: { archivedAt: null } },
     orderBy: [{ createdAt: "asc" }, { productId: "asc" }],
     select: itemSelect,
   });
   return rows.map(toWishlistItem);
 }
 
-/** Saves a product (saving it twice is a no-op). Null for an unknown product. */
+/** Saves a product (saving it twice is a no-op). Null for an unknown or archived product. */
 export async function addToWishlist(db: Db, userId: string, productId: string): Promise<WishlistItem | null> {
-  const product = await db.product.findUnique({ where: { id: productId }, select: { id: true } });
+  const product = await db.product.findFirst({ where: { id: productId, archivedAt: null }, select: { id: true } });
   if (!product) return null;
   await db.wishlistItem.createMany({ data: [{ userId, productId }], skipDuplicates: true });
   const row = await db.wishlistItem.findUnique({ where: { userId_productId: { userId, productId } }, select: itemSelect });
@@ -49,7 +49,7 @@ export async function clearWishlist(db: Db, userId: string): Promise<void> {
 export async function mergeWishlistIn(tx: Prisma.TransactionClient, userId: string, productIds: string[]): Promise<WishlistItem[]> {
   const unique = Array.from(new Set(productIds));
   if (unique.length > 0) {
-    const known = await tx.product.findMany({ where: { id: { in: unique } }, select: { id: true } });
+    const known = await tx.product.findMany({ where: { id: { in: unique }, archivedAt: null }, select: { id: true } });
     const ids = new Set(known.map((product) => product.id));
     // Explicit, increasing timestamps: the merged items keep the guest list's order, after the saved ones.
     const start = Date.now();
