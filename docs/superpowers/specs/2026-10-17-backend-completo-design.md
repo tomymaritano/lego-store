@@ -113,7 +113,7 @@ README pasa a describir el proyecto en vez de un producto a la venta.
   al registrarse). *Desvío al implementar*: el formulario de registro rechaza
   `ADMIN_EMAIL`; como no hay verificación de email, el primero en registrarse con esa
   dirección en una base nueva sería admin. El admin sale del seed o de un primer
-  ingreso con Google con el email verificado (README, «Cuentas y sesiones»). `/admin/*` y las acciones de admin protegidas por middleware +
+  ingreso con Google con el email verificado (docs/backend.md, «Detalle: cuentas y sesiones»). `/admin/*` y las acciones de admin protegidas por middleware +
   verificación en servidor.
 - Páginas nuevas: `/login`, `/register`, `/account` (perfil + mis pedidos),
   `/account/orders/[id]`. Navbar muestra estado de sesión.
@@ -130,7 +130,7 @@ README pasa a describir el proyecto en vez de un producto a la venta.
   carrito del usuario y manda el email. Si al confirmar ya no hay stock suficiente, se
   reembolsa automáticamente y el pedido pasa a CANCELLED.
 - La pantalla de confirmación muestra el ID real del pedido.
-- Desarrollo local de webhooks con Stripe CLI (`stripe listen`), documentado en README.
+- Desarrollo local de webhooks con Stripe CLI (`stripe listen`), documentado en docs/payments.md.
 
 **Capa de datos en el frontend**
 - Hoy varias páginas importan `@/data/products` directamente (home, category, item,
@@ -158,7 +158,7 @@ README pasa a describir el proyecto en vez de un producto a la venta.
   stock (misma lógica atómica que el webhook, con tests). SHIPPED/DELIVERED no se
   cancelan. Se manda email al cliente al pasar a PAID y a SHIPPED.
 - *Emails*: si faltan `RESEND_API_KEY` o `EMAIL_FROM` se loguean a consola en vez de
-  enviarse (dev, tests, CI). README explica que sin dominio verificado Resend solo
+  enviarse (dev, tests, CI). docs/deploy.md explica que sin dominio verificado Resend solo
   entrega al dueño de la cuenta.
 - *Pedidos de invitado*: no se vinculan automáticamente a una cuenta creada después con
   el mismo email (no hay verificación de email, sería un riesgo). No cuentan para
@@ -194,8 +194,7 @@ README pasa a describir el proyecto en vez de un producto a la venta.
 
 ## Notas de implementación: checkout y pedidos
 
-Decisiones tomadas al construir la etapa (el README, «Checkout, pagos y pedidos»,
-tiene el detalle):
+Decisiones tomadas al construir la etapa (docs/payments.md tiene el detalle):
 
 - *Acceso de invitados*: crear el pedido deja en el navegador una cookie HttpOnly con
   un token aleatorio (la base guarda su sha256). Con ella un invitado ve el estado y
@@ -247,7 +246,7 @@ tiene el detalle):
 - *Moderación*: el admin borra reseñas sin pasar por el límite de ediciones de
   los clientes.
 - Las tablas `ListMerge` (etapa de listas) y el token de fusión no estaban
-  mencionados acá: ver README, «Carrito, favoritos y reseñas».
+  mencionados acá: ver docs/backend.md, «Detalle: carrito, favoritos y reseñas».
 
 ## Ampliación: decisiones de Tomy (2026-10-17)
 
@@ -344,8 +343,8 @@ cuentas externas reales para desarrollar o testear.
 
 ## Notas de implementación: pagos (Mercado Pago + Stripe)
 
-Decisiones tomadas al construir la etapa de pagos de la ampliación (el README,
-«Checkout, pagos y pedidos», tiene el detalle):
+Decisiones tomadas al construir la etapa de pagos de la ampliación (docs/payments.md
+tiene el detalle):
 
 - *Interfaz*: `PaymentProvider` (`src/lib/payments/provider.ts`) cubre lo que es
   común después de cobrar: cancelar un pago no acreditado, reembolsar (total o
@@ -405,7 +404,7 @@ Decisiones tomadas al construir la etapa de pagos de la ampliación (el README,
 
 ## Notas de implementación: cupones
 
-Decisiones tomadas al construir la etapa (el README, «Cupones», tiene el detalle):
+Decisiones tomadas al construir la etapa (docs/payments.md, «Cupones en los totales», tiene el detalle):
 
 - *Cuentas*: porcentaje redondeado al peso, mitad hacia arriba; monto fijo
   tope el subtotal; el envío nunca se descuenta y el envío gratis se decide
@@ -455,8 +454,8 @@ Decisiones tomadas al construir la etapa (el README, «Cupones», tiene el detal
 
 ## Notas de implementación: admin (catálogo, usuarios, auditoría)
 
-Decisiones tomadas al construir la etapa (el README, «Panel de admin» e
-«Imágenes subidas», tiene el detalle). Reemplazan a las notas anteriores
+Decisiones tomadas al construir la etapa (docs/admin.md y docs/backend.md,
+«Subidas de imágenes», tienen el detalle). Reemplazan a las notas anteriores
 "Imágenes: solo URLs" y "Auditoría: solo `OrderStatusChange`".
 
 - *Auditoría general*: `AuditLog` (admin, acción `<entidad>.<verbo>`, entidad e
@@ -508,8 +507,8 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» e
 
 ## Notas de implementación: admin de la tienda (configuración, contenido, bandeja, dashboard, exports)
 
-Decisiones tomadas al construir la etapa (el README, «Panel de admin» y
-«Configuración, contenido y bandeja», tiene el detalle):
+Decisiones tomadas al construir la etapa (docs/admin.md y docs/backend.md,
+«Detalle: configuración, contenido, contacto y newsletter», tienen el detalle):
 
 - *Configuración*: `StoreSettings` es una fila (id 1, check) y la app cae en
   `DEFAULT_STORE_SETTINGS` mientras falta. Las páginas la leen con el tag
@@ -551,3 +550,20 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» y
 - *Exportaciones*: `;` + BOM para Excel en español, comillas RFC 4180,
   apóstrofo ante `= + - @ tab CR`, streaming por lotes, auditadas con filtros y
   filas.
+
+## Notas de implementación: documentación y cierre
+
+- *Documentación*: el detalle que vivía en el README pasó a `docs/`:
+  `backend.md` (arquitectura del servidor y los detalles de sesión, listas y
+  bandeja), `data-model.md` (tablas, reglas y máquinas de estado en mermaid),
+  `payments.md`, `admin.md` y `deploy.md` (con la referencia de variables). El
+  README queda como resumen, inicio rápido y enlaces. Las guías de arquitectura,
+  tests y contribución de la rama de UI se trajeron y se actualizaron para el
+  backend.
+- *Sitemap y robots*: `/sitemap.xml` sale de la base (inicio, categorías
+  visibles, productos a la venta, páginas informativas con contenido publicado
+  válido) con la fecha de cada cambio, cacheado bajo los tags `products`,
+  `categories` y `content:<slug>` más una revalidación de 1 h. `/robots.txt`
+  excluye `/admin`, `/account`, `/checkout`, `/newsletter/` y `/api/`; las demás
+  páginas `noindex` (carrito, búsqueda, login…) siguen rastreables para que los
+  buscadores lean su `noindex`, y un test garantiza que ninguna entra al sitemap.
