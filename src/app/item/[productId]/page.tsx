@@ -8,6 +8,7 @@ import { formatPrice } from "@/lib/utils";
 import { defaultOgImage, pageMetadata } from "@/lib/metadata";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
 import { Badge, Breadcrumbs, Price, Rating } from "@/components/ui";
 import { ProductDetailsTabs } from "@/components/product/ProductDetailsTabs";
 import { ProductGallery } from "@/components/product/ProductGallery";
@@ -49,8 +50,8 @@ const emptyReviewPage: ReviewPage = {
   hasMore: false,
 };
 
-const perks = [
-  { icon: Truck, title: "Envío gratis", detail: `Desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}` },
+const perksFor = (freeShippingFrom: number) => [
+  { icon: Truck, title: "Envío gratis", detail: `Desde ${formatPrice(freeShippingFrom)}` },
   { icon: Shield, title: "Garantía", detail: "Producto original" },
   { icon: RotateCcw, title: "Devolución", detail: `${siteConfig.commerce.returnDays} días` },
 ];
@@ -68,12 +69,14 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const product = await getProductById(productId);
   if (!product) notFound();
 
-  const [category, categoryNames, related, reviewPage] = await Promise.all([
+  const [category, categoryNames, related, reviewPage, settings] = await Promise.all([
     getCategoryById(product.category),
     getCategoryNames(),
     getRelatedProducts(product.id, 4),
     getReviewPage(product.id, DEFAULT_REVIEW_SORT),
+    getStoreSettings(),
   ]);
+  const perks = perksFor(settings.shipping.freeFrom);
   const reviews = reviewPage ?? emptyReviewPage;
   // A hidden category still has a name (getCategoryById only finds visible ones), but no page of its own:
   // its breadcrumb goes to the search filtered by it.

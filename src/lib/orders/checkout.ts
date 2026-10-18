@@ -3,6 +3,7 @@ import { claimCoupon, holdOrderCoupon, relaxOrderCoupon, secureOrderCoupon, type
 import type { CouponRejection } from "@/lib/coupons/rules";
 import type { Db } from "@/lib/lists/product";
 import { linesSubtotal, orderTotals, type OrderTotals } from "@/lib/pricing";
+import { readShippingRules } from "@/lib/settings";
 import { PaymentDeclinedError, REUSABLE_INTENT_STATUSES, toCentavos, type IntentStatus, type PaymentGateway } from "@/lib/payments/gateway";
 import type { PrepareOrderInput } from "@/lib/validations/orders";
 import { accessSelect, canAccessOrder, hashAccessToken, newAccessToken, type CheckoutAccess, type Requester } from "./access";
@@ -162,7 +163,8 @@ export async function writeOrderWithCoupon<T extends { id: string }>(
   const priced = lines.map((line) => ({ price: line.unitPrice, quantity: line.quantity }));
   const claim = await claimCoupon(tx, couponCode, { customer, subtotal: linesSubtotal(priced), orderId });
   if (!claim.ok) throw new CouponRefusedError(claim);
-  const totals = orderTotals(priced, claim.terms);
+  // The store's current shipping rule, read in this transaction (never a cached copy).
+  const totals = orderTotals(priced, await readShippingRules(tx), claim.terms);
   const order = await write(totals);
   await holdOrderCoupon(tx, order.id, claim, { customer, discount: totals.discount });
   return { order, totals };

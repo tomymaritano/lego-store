@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { refresh, revalidatePath } from "next/cache";
-import { updateCatalog } from "@/lib/api/cache";
+import { updateCatalog, updateSettingsCache } from "@/lib/api/cache";
 import { formText, type FormState } from "@/lib/auth/form-state";
 import { getDb } from "@/lib/db";
 import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
@@ -29,6 +29,16 @@ import { createCoupon, setCouponActive, updateCoupon } from "./coupons";
 import { changeOrderStatus } from "./orders";
 import { archiveProduct, createProduct, removeProduct, restoreProduct, setProductStock, updateProduct } from "./products";
 import { setUserBlocked, setUserRole, type UserWriteResult } from "./users";
+import { saveSettingsSection, setFeaturedProducts, type SettingsSection } from "./settings";
+import {
+  announcementSettingsSchema,
+  contactSettingsSchema,
+  featuredSettingsSchema,
+  shippingSettingsSchema,
+  type AnnouncementSettingsField,
+  type ContactSettingsField,
+  type ShippingSettingsField,
+} from "@/lib/validations/settings";
 
 /*
  * Server Actions of the admin panel. Each one checks the admin itself
@@ -589,4 +599,77 @@ export async function deleteThemeAction(themeId: unknown): Promise<AdminActionRe
   }
   themesChanged();
   return { ok: true, removed: "deleted", message: "Eliminamos el tema." };
+}
+
+// ---------------------------------------------------------------------------
+// Store settings (/admin/configuracion)
+// ---------------------------------------------------------------------------
+
+/** Every page reads the settings (announcement bar, footer, the cart's shipping): their tag, and the admin page. */
+function settingsChanged() {
+  updateSettingsCache();
+  revalidatePath("/admin/configuracion");
+}
+
+const SETTINGS_SAVED = {
+  shipping: "Guardamos el envío. Los próximos pedidos ya se cobran así.",
+  announcement: "Guardamos la barra de anuncio. Ya se ve en la tienda.",
+  contact: "Guardamos los datos de contacto. Ya se ven en la tienda.",
+} as const satisfies Record<SettingsSection, string>;
+
+async function saveSection<Field extends string>(
+  section: SettingsSection,
+  schema: { safeParse: (value: unknown) => { success: true; data: unknown } | { success: false; error: { issues: { path: PropertyKey[]; message: string }[] } } },
+  values: Record<string, unknown>
+): Promise<FormState<Field>> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/configuracion" });
+  const parsed = schema.safeParse(values);
+  if (!parsed.success) return { status: "error", message: "Revisa los campos marcados.", fieldErrors: formErrors<Field>(parsed.error.issues) };
+  // The schema's output is the section's input (zod checked it above).
+  const result = await saveSettingsSection(getDb(), admin, section, parsed.data as never);
+  if (!result.changed) return { status: "success", message: "No había cambios para guardar." };
+  settingsChanged();
+  refresh();
+  return { status: "success", message: SETTINGS_SAVED[section] };
+}
+
+export async function saveShippingSettingsAction(_previous: FormState<ShippingSettingsField>, formData: FormData) {
+  return saveSection<ShippingSettingsField>("shipping", shippingSettingsSchema, {
+    shippingCost: formText(formData, "shippingCost"),
+    freeShippingFrom: formText(formData, "freeShippingFrom"),
+  });
+}
+
+export async function saveAnnouncementSettingsAction(_previous: FormState<AnnouncementSettingsField>, formData: FormData) {
+  return saveSection<AnnouncementSettingsField>("announcement", announcementSettingsSchema, {
+    announcementActive: flag(formData, "announcementActive"),
+    announcementText: formText(formData, "announcementText"),
+    announcementLinkUrl: formText(formData, "announcementLinkUrl"),
+    announcementLinkLabel: formText(formData, "announcementLinkLabel"),
+    announcementTone: formText(formData, "announcementTone"),
+  });
+}
+
+export async function saveContactSettingsAction(_previous: FormState<ContactSettingsField>, formData: FormData) {
+  const fields = ["contactEmail", "contactPhone", "contactAddress", "contactHours", "socialFacebook", "socialInstagram", "socialYoutube", "socialX"] as const;
+  return saveSection<ContactSettingsField>("contact", contactSettingsSchema, Object.fromEntries(fields.map((field) => [field, formText(formData, field)])));
+}
+
+/** The home page's "Destacados", in order (the editor sends the whole list). */
+export async function saveFeaturedProductsAction(productIds: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/configuracion" });
+  const parsed = featuredSettingsSchema.safeParse({ productIds });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "No entendimos esa lista." };
+  const result = await setFeaturedProducts(getDb(), admin, parsed.data.productIds);
+  if (!result.ok) {
+    refresh();
+    return { ok: false, error: "Uno de los productos ya no está a la venta (se archivó o se eliminó). Revisa la lista y vuelve a guardar." };
+  }
+  if (!result.changed) return { ok: true, message: "No había cambios para guardar." };
+  settingsChanged();
+  refresh();
+  return {
+    ok: true,
+    message: parsed.data.productIds.length > 0 ? "Guardamos los destacados. Ya se ven en la home." : "Quitamos los destacados: la home ya no muestra esa sección.",
+  };
 }

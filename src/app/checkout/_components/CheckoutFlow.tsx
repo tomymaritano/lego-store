@@ -7,7 +7,8 @@ import { AnimatePresence, m } from "motion/react";
 import { fadeIn } from "@/lib/motion";
 import type { OrderView, UnavailableLine } from "@/lib/orders/types";
 import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
-import { orderTotals } from "@/lib/pricing";
+import { linesSubtotal, orderTotals } from "@/lib/pricing";
+import { useShippingRules } from "@/providers/ShippingRulesProvider";
 import { useViewer } from "@/providers/ViewerProvider";
 import { useAppliedCoupon, useCartItems, useCartStore, useCheckedCoupon, useCheckoutStore, useCouponStore, useStoreHydrated } from "@/stores";
 import { isMercadoPagoPayment, type MercadoPagoPaymentSummary, type PaymentSummary } from "@/stores/checkoutStore";
@@ -49,7 +50,7 @@ const couponStore = useCouponStore.getState;
  */
 function couponCodeFor(cart: CartItem[]): string | undefined {
   const { coupon, checked } = couponStore();
-  return coupon && checked === coupon.code && orderTotals(cart, coupon).coupon?.applies ? coupon.code : undefined;
+  return coupon && checked === coupon.code && linesSubtotal(cart) >= coupon.minSubtotal ? coupon.code : undefined;
 }
 
 /** The confirmation enters from the top of the page, not from wherever the review was scrolled. */
@@ -152,6 +153,7 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
   useCouponRecheck();
   const storedCoupon = useAppliedCoupon();
   const coupon = useCheckedCoupon();
+  const shippingRules = useShippingRules();
   const couponSettled = couponHydrated && (storedCoupon === null || coupon !== null);
 
   const currentStep = useCheckoutStore((state) => state.currentStep);
@@ -209,7 +211,7 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
         ? "payment"
         : currentStep;
 
-  const cartTotals = orderTotals(cart, coupon);
+  const cartTotals = orderTotals(cart, shippingRules, coupon);
   const couponCode = coupon && cartTotals.coupon?.applies ? coupon.code : undefined;
   // Waits for the persisted coupon and the server's answer about it: preparing without it would reserve
   // nothing and price the order without the discount (and then again with it).

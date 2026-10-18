@@ -60,7 +60,7 @@ function YoutubeIcon(props: IconProps) {
   );
 }
 
-/** Icon for each network in siteConfig.social. */
+/** Icon for each network the store settings can link (src/lib/settings/defaults.ts SOCIAL_NETWORKS). */
 export const socialIcons = {
   Facebook: FacebookIcon,
   Instagram: InstagramIcon,

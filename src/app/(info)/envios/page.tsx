@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { CalendarClock, MapPinned, PackageCheck, Truck } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
 import { pageMetadata } from "@/lib/metadata";
 import { formatPrice } from "@/lib/utils";
 import { FactCard, InfoPageHeader, Prose } from "@/components/info/InfoPage";
 
-export const metadata = pageMetadata({
-  title: "Envíos y entregas",
-  description: `Costos, plazos y seguimiento de envíos. Envío gratis en compras desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}.`,
-  path: "/envios",
-});
+export async function generateMetadata() {
+  const { shipping } = await getStoreSettings();
+  return pageMetadata({
+    title: "Envíos y entregas",
+    description: `Costos, plazos y seguimiento de envíos. Envío gratis en compras desde ${formatPrice(shipping.freeFrom)}.`,
+    path: "/envios",
+  });
+}
 
 const { commerce } = siteConfig;
 
@@ -19,7 +23,8 @@ const zones = [
   { zone: "NOA, NEA y Patagonia", time: `5 a ${commerce.deliveryDays.max} días hábiles` },
 ];
 
-export default function ShippingPage() {
+export default async function ShippingPage() {
+  const { shipping } = await getStoreSettings();
   return (
     <>
       <InfoPageHeader
@@ -30,9 +35,9 @@ export default function ShippingPage() {
 
       <ul className="mb-12 grid gap-4 sm:grid-cols-3">
         <FactCard icon={<PackageCheck />} title="Envío gratis">
-          En compras desde {formatPrice(commerce.freeShippingThreshold)}.
+          En compras desde {formatPrice(shipping.freeFrom)}.
         </FactCard>
-        <FactCard icon={<Truck />} title={`Costo: ${formatPrice(commerce.shippingCost)}`}>
+        <FactCard icon={<Truck />} title={`Costo: ${formatPrice(shipping.cost)}`}>
           Tarifa única para pedidos menores al mínimo.
         </FactCard>
         <FactCard

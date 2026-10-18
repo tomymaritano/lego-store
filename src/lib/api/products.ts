@@ -143,6 +143,9 @@ export const getFeaturedProducts = cached(
   (limit?) => isSmallLimit(limit, MAX_PAGE_SIZE)
 );
 
+/** The home page's "Destacados" (the admin's picks, in order): a product edit or a new pick refreshes it. */
+export const getHomePicks = cached("getHomePicks", () => catalog.getHomePicks(getDb()), () => [products, CATALOG_TAGS.settings]);
+
 /** Discounted products, biggest discount first. */
 export const getSaleProducts = cached(
   "getSaleProducts",

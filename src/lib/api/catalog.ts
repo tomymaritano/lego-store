@@ -491,6 +491,15 @@ export async function getFeaturedProducts(db: Db, limit = 8): Promise<Product[]>
   return rows.map(toProduct);
 }
 
+/** The admin's picks for the home page ("Destacados", /admin/configuracion), in their order; archived ones skipped. */
+export async function getHomePicks(db: Db): Promise<Product[]> {
+  const rows = await db.featuredProduct.findMany({ orderBy: [{ position: "asc" }, { productId: "asc" }], select: { productId: true } });
+  return productsInOrder(
+    db,
+    rows.map((row) => row.productId)
+  );
+}
+
 export async function getSaleProducts(db: Db, limit?: number): Promise<Product[]> {
   const take = limit === undefined ? null : Math.max(0, Math.trunc(limit));
   const rows = await db.$queryRaw<{ id: string }[]>`

@@ -218,6 +218,8 @@ model Product {
   wishlistItems WishlistItem[]
   reviews       Review[]
   orderItems    OrderItem[]
+  /// Its place among the home page's "Destacados", if an admin picked it.
+  featured      FeaturedProduct?
 
   @@index([categoryId])
   @@index([themeId])
@@ -599,6 +601,62 @@ model AuditLog {
   @@index([entityType, entityId, createdAt])
   @@index([createdAt])
   @@index([actorId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Store settings (src/lib/settings): what an admin changes in /admin/configuracion.
+// ---------------------------------------------------------------------------
+
+/// The announcement bar's colours: a pair of design tokens (background and the
+/// text on it, src/lib/settings/announcement.ts), never a raw colour.
+enum AnnouncementTone {
+  BRAND
+  PRIMARY
+  INFO
+  SUCCESS
+  NEUTRAL
+}
+
+/// The store's settings: a single row (id 1, check constraint). The app reads
+/// it through the data cache (tag "settings") and falls back to
+/// DEFAULT_STORE_SETTINGS (src/lib/settings/defaults.ts) while it is missing.
+model StoreSettings {
+  id                    Int              @id @default(1)
+  /// Pesos (lib/pricing): flat shipping below freeShippingFrom (> 0, check constraint).
+  shippingCost          Int
+  /// Subtotals from this amount ship free (> 0, check constraint).
+  freeShippingFrom      Int
+  /// The bar above the header. Text may use the placeholders of src/lib/settings/placeholders.ts.
+  announcementActive    Boolean          @default(true)
+  announcementText      String           @default("")
+  /// A site path ("/envios") or an https URL; empty = no link.
+  announcementLinkUrl   String           @default("")
+  announcementLinkLabel String           @default("")
+  announcementTone      AnnouncementTone @default(BRAND)
+  /// Contact details shown in the footer and on /contacto.
+  contactEmail          String
+  contactPhone          String
+  contactAddress        String
+  contactHours          String
+  /// Profile URLs (https); empty = not shown.
+  socialFacebook        String           @default("")
+  socialInstagram       String           @default("")
+  socialYoutube         String           @default("")
+  socialX               String           @default("")
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+}
+
+/// The home page's "Destacados", in order (archived products are skipped).
+model FeaturedProduct {
+  productId String   @id
+  /// 0-based order on the home page.
+  position  Int
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([position])
 }
 
 /// Stripe webhook idempotency: an event id is processed at most once.

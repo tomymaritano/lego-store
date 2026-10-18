@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
+import type { StoreSettings } from "@/lib/settings/defaults";
 import { pageMetadata } from "@/lib/metadata";
 import { LegalPage, type LegalSection } from "@/components/info/LegalPage";
 
@@ -10,7 +12,7 @@ export const metadata = pageMetadata({
   path: "/privacidad",
 });
 
-const sections: LegalSection[] = [
+const sectionsFor = ({ contact }: StoreSettings): LegalSection[] => [
   {
     id: "datos",
     title: "Qué datos usamos",
@@ -66,7 +68,7 @@ const sections: LegalSection[] = [
       <p>
         Puedes pedir acceso, rectificación o eliminación de tus datos en cualquier momento, como prevé la Ley 25.326 de
         Protección de Datos Personales. Escríbenos a{" "}
-        <a href={`mailto:${siteConfig.contact.email}`}>{siteConfig.contact.email}</a> o desde la página de{" "}
+        <a href={`mailto:${contact.email}`}>{contact.email}</a> o desde la página de{" "}
         <Link href="/contacto">contacto</Link>.
       </p>
     ),
@@ -83,7 +85,8 @@ const sections: LegalSection[] = [
   },
 ];
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const sections = sectionsFor(await getStoreSettings());
   return (
     <LegalPage
       icon={<ShieldCheck />}

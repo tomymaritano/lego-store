@@ -5,6 +5,13 @@
  * orderTotals). Pure and serializable: amounts are plain numbers in the store
  * currency (ARS, whole pesos).
  *
+ * Shipping: a flat cost below a free-shipping threshold. Both are store
+ * settings an admin changes (/admin/configuracion, src/lib/settings), so
+ * every function takes the rules as an argument: the server reads them from
+ * the database when it prices an order, the browser gets them from the root
+ * layout (useShippingRules). DEFAULT_SHIPPING_RULES are what a new store
+ * starts with (the seed, a database without its settings row, tests).
+ *
  * Coupons (the rules the server enforces live in src/lib/coupons; this is
  * only the arithmetic, the same in the browser and on the server):
  * - PERCENT takes `value`% of the products' subtotal, rounded to whole pesos,
@@ -19,10 +26,20 @@
  *   charge $0).
  */
 
-/** Flat shipping rate for orders below FREE_SHIPPING_FROM. */
-export const SHIPPING_COST = 299;
-/** Orders whose subtotal reaches this amount ship free. */
-export const FREE_SHIPPING_FROM = 5000;
+/** The store's shipping rule (StoreSettings.shippingCost / freeShippingFrom). */
+export interface ShippingRules {
+  /**
+   * Flat rate for orders below `freeFrom` (pesos, > 0: never free, so a coupon
+   * that covers every product still leaves shipping to pay; a store that
+   * ships everything free sets `freeFrom` to 1).
+   */
+  cost: number;
+  /** Orders whose subtotal reaches this amount ship free (pesos, > 0). */
+  freeFrom: number;
+}
+
+/** A new store's rule: $299, free from $5.000 (seed, missing settings row, tests). */
+export const DEFAULT_SHIPPING_RULES: ShippingRules = Object.freeze({ cost: 299, freeFrom: 5000 });
 
 export interface ShippingQuote {
   /** Shipping charged for this subtotal (0 when free or the cart is empty). */
@@ -73,10 +90,7 @@ export interface OrderTotals {
 }
 
 /** Shipping for a subtotal: flat rate below the threshold, free from it on. */
-export function quoteShipping(
-  subtotal: number,
-  { freeFrom = FREE_SHIPPING_FROM, cost = SHIPPING_COST }: { freeFrom?: number; cost?: number } = {}
-): ShippingQuote {
+export function quoteShipping(subtotal: number, { freeFrom, cost }: ShippingRules): ShippingQuote {
   const total = Math.max(0, subtotal);
   const free = total >= freeFrom;
   return {
@@ -105,11 +119,11 @@ export function couponDiscount(subtotal: number, coupon: CouponTerms | null | un
 }
 
 /** Subtotal, discount, shipping and total from a subtotal (see the rules above). */
-export function totalsFor(subtotal: number, count: number, coupon: CouponTerms | null = null): OrderTotals {
+export function totalsFor(subtotal: number, count: number, rules: ShippingRules, coupon: CouponTerms | null = null): OrderTotals {
   const discount = couponDiscount(subtotal, coupon);
-  let shipping = quoteShipping(subtotal);
+  let shipping = quoteShipping(subtotal, rules);
   // Every product covered by the coupon: shipping is still charged (an order is never free).
-  if (subtotal > 0 && discount >= subtotal && shipping.cost === 0) shipping = { ...shipping, cost: SHIPPING_COST, free: false };
+  if (subtotal > 0 && discount >= subtotal && shipping.cost === 0) shipping = { ...shipping, cost: rules.cost, free: false };
   return {
     subtotal,
     discount,
@@ -123,10 +137,11 @@ export function totalsFor(subtotal: number, count: number, coupon: CouponTerms |
 }
 
 /** Subtotal, discount, shipping and total for a set of order lines and, optionally, a coupon. */
-export function orderTotals(lines: readonly PricedLine[], coupon: CouponTerms | null = null): OrderTotals {
+export function orderTotals(lines: readonly PricedLine[], rules: ShippingRules, coupon: CouponTerms | null = null): OrderTotals {
   return totalsFor(
     linesSubtotal(lines),
     lines.reduce((sum, line) => sum + line.quantity, 0),
+    rules,
     coupon
   );
 }

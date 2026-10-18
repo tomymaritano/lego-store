@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { HelpCircle, MessageCircle } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
+import type { StoreSettings } from "@/lib/settings/defaults";
 import { pageMetadata } from "@/lib/metadata";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -16,7 +18,7 @@ export const metadata = pageMetadata({
 const { commerce } = siteConfig;
 
 /** Plain-text answers too, for the FAQPage structured data. */
-const sections: { id: string; title: string; items: (AccordionItem & { text: string })[] }[] = [
+const sectionsFor = ({ shipping }: StoreSettings): { id: string; title: string; items: (AccordionItem & { text: string })[] }[] => [
   {
     id: "pedidos",
     title: "Pedidos y pagos",
@@ -59,11 +61,11 @@ const sections: { id: string; title: string; items: (AccordionItem & { text: str
     items: [
       {
         question: "¿Cuánto cuesta el envío?",
-        text: `El envío cuesta ${formatPrice(commerce.shippingCost)} y es gratis en compras desde ${formatPrice(commerce.freeShippingThreshold)}.`,
+        text: `El envío cuesta ${formatPrice(shipping.cost)} y es gratis en compras desde ${formatPrice(shipping.freeFrom)}.`,
         answer: (
           <p>
-            El envío cuesta {formatPrice(commerce.shippingCost)} y es{" "}
-            <strong>gratis en compras desde {formatPrice(commerce.freeShippingThreshold)}</strong>. Más detalles en{" "}
+            El envío cuesta {formatPrice(shipping.cost)} y es{" "}
+            <strong>gratis en compras desde {formatPrice(shipping.freeFrom)}</strong>. Más detalles en{" "}
             <Link href="/envios">Envíos y entregas</Link>.
           </p>
         ),
@@ -129,7 +131,7 @@ const sections: { id: string; title: string; items: (AccordionItem & { text: str
   },
 ];
 
-const structuredData = {
+const structuredDataFor = (sections: ReturnType<typeof sectionsFor>) => ({
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: sections.flatMap((section) =>
@@ -139,9 +141,11 @@ const structuredData = {
       acceptedAnswer: { "@type": "Answer", text: item.text },
     }))
   ),
-};
+});
 
-export default function FaqPage() {
+export default async function FaqPage() {
+  const sections = sectionsFor(await getStoreSettings());
+  const structuredData = structuredDataFor(sections);
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />

@@ -4,11 +4,13 @@ import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { CategoriesProvider } from "@/providers/CategoriesProvider";
 import { ViewerProvider } from "@/providers/ViewerProvider";
+import { ShippingRulesProvider } from "@/providers/ShippingRulesProvider";
 import { ClientProviders, Footer, Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui";
 import { getCategories, getCategoryNames, getThemes } from "@/lib/api";
 import { themeNavItems } from "@/config/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getStoreSettings } from "@/lib/settings";
 import { ThemeScript } from "@/components/layout/ThemeScript";
 import { siteConfig } from "@/config/site";
 
@@ -70,12 +72,14 @@ export default async function RootLayout({
 }>) {
   // The session makes every page render per request (see README, «Rendimiento»); the
   // catalogue reads stay in the data cache, so this costs one session check and one query.
-  const [categories, categoryNames, themes, user] = await Promise.all([
+  const [categories, categoryNames, themes, user, settings] = await Promise.all([
     getCategories().then((list) => list.map(({ id, name }) => ({ id, name }))),
     // Hidden categories too: their products still show the category's name.
     getCategoryNames(),
     getThemes().then(themeNavItems),
     getCurrentUser(),
+    // The admin's settings (announcement bar, footer, the cart's shipping rule), cached under the "settings" tag.
+    getStoreSettings(),
   ]);
   const account = user ? { name: user.name, email: user.email, role: user.role } : null;
   const viewer = user ? { id: user.id, name: user.name } : null;
@@ -96,14 +100,16 @@ export default async function RootLayout({
         <QueryProvider>
           <CategoriesProvider categories={categoryNames}>
             <ViewerProvider viewer={viewer}>
-              <ClientProviders>
-                <Navbar categories={categories} themes={themes} account={account} />
-                <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
-                  {children}
-                </main>
-                <Footer categories={categories} themes={themes} />
-                <Toaster />
-              </ClientProviders>
+              <ShippingRulesProvider rules={settings.shipping}>
+                <ClientProviders>
+                  <Navbar categories={categories} themes={themes} account={account} settings={settings} />
+                  <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
+                    {children}
+                  </main>
+                  <Footer categories={categories} themes={themes} settings={settings} />
+                  <Toaster />
+                </ClientProviders>
+              </ShippingRulesProvider>
             </ViewerProvider>
           </CategoriesProvider>
         </QueryProvider>

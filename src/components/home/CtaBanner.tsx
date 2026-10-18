@@ -2,11 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Truck } from "lucide-react";
 import { Button } from "@/components/ui";
 import { Reveal } from "@/components/motion/Reveal";
-import { siteConfig } from "@/config/site";
 import { formatPrice } from "@/lib/utils";
 
-/** Closing call to action: free-shipping threshold and a way into the catalogue. */
-export function CtaBanner() {
+/** Closing call to action: free-shipping threshold (the store's setting) and a way into the catalogue. */
+export function CtaBanner({ freeShippingFrom }: { freeShippingFrom: number }) {
   return (
     <section aria-labelledby="cta-title" className="bg-bg pb-16 md:pb-20">
       <div className="container-custom">
@@ -20,7 +19,7 @@ export function CtaBanner() {
             <div className="max-w-xl">
               <p className="flex items-center gap-2 text-label tracking-wider uppercase">
                 <Truck aria-hidden="true" className="size-5" />
-                Envío gratis desde {formatPrice(siteConfig.commerce.freeShippingThreshold)}
+                Envío gratis desde {formatPrice(freeShippingFrom)}
               </p>
               <h2 id="cta-title" className="mt-3 text-on-info-surface">
                 Arma tu próxima aventura

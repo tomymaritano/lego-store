@@ -16,6 +16,7 @@ import { listAdminReviews, reviewedProducts } from "./reviews";
 import { getAdminUser, listAdminUsers } from "./users";
 import { getAdminCategory, listAdminCategories } from "./categories";
 import { getAdminTheme, listAdminThemes } from "./themes";
+import { getAdminSettings } from "./settings";
 
 /*
  * What the /admin pages read. Each function checks the admin itself (data
@@ -125,3 +126,9 @@ export const getAdminThemeDetail = cache(async (id: string) => {
   await requireAdmin({ callbackUrl: `/admin/themes/${encodeURIComponent(id)}` });
   return getAdminTheme(getDb(), id);
 });
+
+/** /admin/configuracion: the settings, the featured products and the settings' audit trail. */
+export async function getAdminSettingsPage() {
+  await requireAdmin({ callbackUrl: "/admin/configuracion" });
+  return getAdminSettings(getDb());
+}

@@ -2,6 +2,7 @@ import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import type { OrderStatus } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
 import type { AuditEntityType } from "@/lib/validations/audit";
+import { ANNOUNCEMENT_TONE_LABELS, type AnnouncementTone } from "@/lib/settings/defaults";
 import { couponDateInput, formatAdminDateTime } from "./format";
 
 /*
@@ -18,6 +19,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   category: "Categoría",
   theme: "Tema",
   upload: "Imagen",
+  settings: "Configuración",
 };
 
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -47,6 +49,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "theme.reorder": "Movió el tema",
   "theme.delete": "Eliminó el tema",
   "upload.create": "Subió una imagen",
+  "settings.shipping": "Cambió el envío",
+  "settings.announcement": "Cambió la barra de anuncio",
+  "settings.contact": "Cambió los datos de contacto",
+  "settings.featured": "Cambió los destacados de la home",
 };
 
 export const auditActionLabel = (action: string) => AUDIT_ACTION_LABELS[action] ?? action;
@@ -107,6 +113,23 @@ const FIELD_LABELS: Record<string, string> = {
   url: "URL",
   alt: "texto alternativo",
   bytes: "tamaño",
+  // Store settings
+  shippingCost: "costo del envío",
+  freeShippingFrom: "envío gratis desde",
+  announcementActive: "barra de anuncio activa",
+  announcementText: "texto del anuncio",
+  announcementLinkUrl: "enlace del anuncio",
+  announcementLinkLabel: "texto del enlace",
+  announcementTone: "color del anuncio",
+  contactEmail: "email de contacto",
+  contactPhone: "teléfono",
+  contactAddress: "ubicación",
+  contactHours: "horario",
+  socialFacebook: "Facebook",
+  socialInstagram: "Instagram",
+  socialYoutube: "YouTube",
+  socialX: "X",
+  featured: "destacados",
 };
 
 /** Where an entity calls a field something else. */
@@ -117,7 +140,7 @@ const ENTITY_FIELD_LABELS: Partial<Record<string, Record<string, string>>> = {
 export const auditFieldLabel = (field: string, entityType = "") => ENTITY_FIELD_LABELS[entityType]?.[field] ?? FIELD_LABELS[field] ?? field;
 
 const ROLE_LABELS: Record<string, string> = { USER: "Cliente", ADMIN: "Admin" };
-const MONEY_FIELDS = new Set(["price", "originalPrice", "minSubtotal"]);
+const MONEY_FIELDS = new Set(["price", "originalPrice", "minSubtotal", "shippingCost", "freeShippingFrom"]);
 /** Long texts: an entry says they changed, not what they say. */
 const LONG_TEXT = 80;
 
@@ -131,13 +154,14 @@ function show(field: string, value: unknown, entityType: string): string {
     return ADMIN_ORDER_STATUS_LABELS[text as OrderStatus];
   }
   if (field === "role" && ROLE_LABELS[text]) return ROLE_LABELS[text];
+  if (field === "announcementTone" && Object.hasOwn(ANNOUNCEMENT_TONE_LABELS, text)) return ANNOUNCEMENT_TONE_LABELS[text as AnnouncementTone];
   if (entityType === "coupon" && (field === "startsAt" || field === "expiresAt")) return couponDateInput(text, field === "expiresAt" ? "end" : "start");
   if (/At$/.test(field) && !Number.isNaN(Date.parse(text))) return formatAdminDateTime(text);
   return text.length > LONG_TEXT ? `${text.slice(0, LONG_TEXT - 1)}…` : text;
 }
 
 /** Fields whose edits only say they changed: the values are long, or lists. */
-const NAME_ONLY = new Set(["description", "shortDescription", "comment", "images", "imageAlts", "interests"]);
+const NAME_ONLY = new Set(["description", "shortDescription", "comment", "images", "imageAlts", "interests", "featured"]);
 
 /** What a creation or a deletion shows of the record it saved (the rest is in the entry). */
 const SUMMARY_FIELDS = new Set(["name", "code", "slug", "email", "price", "stock", "categoryId", "theme", "url", "author", "rating", "title", "productId"]);
@@ -181,6 +205,8 @@ export function auditEntityHref(entityType: string, entityId: string): string | 
       return `/admin/categories/${id}`;
     case "theme":
       return `/admin/themes/${id}`;
+    case "settings":
+      return "/admin/configuracion";
     default:
       return null;
   }

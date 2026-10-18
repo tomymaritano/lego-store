@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
-import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
+import { phoneHref } from "@/lib/settings/defaults";
 import { pageMetadata } from "@/lib/metadata";
 import { ContactForm } from "@/components/forms";
 import { InfoPageHeader } from "@/components/info/InfoPage";
@@ -12,16 +13,14 @@ export const metadata = pageMetadata({
   path: "/contacto",
 });
 
-const { contact } = siteConfig;
-
-const channels = [
-  { icon: Mail, label: "Email", value: contact.email, href: `mailto:${contact.email}` },
-  { icon: Phone, label: "Teléfono", value: contact.phone, href: contact.phoneHref },
-  { icon: Clock, label: "Horario de atención", value: contact.hours },
-  { icon: MapPin, label: "Ubicación", value: contact.address },
-];
-
-export default function ContactPage() {
+export default async function ContactPage() {
+  const { contact } = await getStoreSettings();
+  const channels = [
+    { icon: Mail, label: "Email", value: contact.email, href: `mailto:${contact.email}` },
+    { icon: Phone, label: "Teléfono", value: contact.phone, href: phoneHref(contact.phone) },
+    { icon: Clock, label: "Horario de atención", value: contact.hours },
+    { icon: MapPin, label: "Ubicación", value: contact.address },
+  ];
   return (
     <>
       <InfoPageHeader

@@ -9,6 +9,9 @@ import { revalidateTag, unstable_cache, updateTag } from "next/cache";
  *   product:<id>     one product (its page, its by-id lookup)
  *   categories       category metadata and counts
  *   themes           the "Temas" menu (the visible themes, in order)
+ *   settings         the store's settings (src/lib/settings) and the
+ *                    home page's featured products
+ *   content:<slug>   one info page's published content (src/lib/content)
  *
  * Statically generated pages that used tagged data are regenerated on the
  * next visit after the tag is invalidated. REVALIDATE_SECONDS is a safety net
@@ -19,7 +22,9 @@ export const CATALOG_TAGS = {
   products: "products",
   categories: "categories",
   themes: "themes",
+  settings: "settings",
   product: (id: string) => `product:${id}`,
+  content: (slug: string) => `content:${slug}`,
 } as const;
 
 const REVALIDATE_SECONDS = 3600;
@@ -85,4 +90,18 @@ export function updateCatalog({
   for (const id of productIds) updateTag(CATALOG_TAGS.product(id));
   if (categories) updateTag(CATALOG_TAGS.categories);
   if (themes) updateTag(CATALOG_TAGS.themes);
+}
+
+/**
+ * After an admin saves the store's settings (Server Actions only): every
+ * page reads them (the announcement bar, the footer, the cart's shipping),
+ * and the admin sees the result in the action's own response.
+ */
+export function updateSettingsCache() {
+  updateTag(CATALOG_TAGS.settings);
+}
+
+/** After an admin publishes an info page (Server Actions only). */
+export function updateContentCache(slug: string) {
+  updateTag(CATALOG_TAGS.content(slug));
 }

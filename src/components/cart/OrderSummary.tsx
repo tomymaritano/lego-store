@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
 import { orderTotals } from "@/lib/pricing";
 import { useCheckedCoupon } from "@/stores";
+import { useShippingRules } from "@/providers/ShippingRulesProvider";
 import type { CartItem } from "@/types";
 import { Button, Card, CardContent, CardHeader } from "@/components/ui";
 import { CouponField } from "./CouponField";
@@ -17,8 +18,8 @@ interface OrderSummaryProps {
 }
 
 /**
- * Cart page totals: subtotal, the coupon's discount, shipping ($299, free
- * from $5000) with the progress toward free shipping, total and the checkout
+ * Cart page totals: subtotal, the coupon's discount, shipping (the store's
+ * setting: a flat cost, free from a threshold) with the progress toward free shipping, total and the checkout
  * CTA. The amounts come from lib/pricing (orderTotals), the same rules the
  * drawer, checkout and the server use; the coupon field asks the server
  * whether a code applies, and again about the applied one when the page
@@ -27,7 +28,7 @@ interface OrderSummaryProps {
 export function OrderSummary({ lines, className }: OrderSummaryProps) {
   useCouponRecheck();
   const coupon = useCheckedCoupon();
-  const totals = orderTotals(lines, coupon);
+  const totals = orderTotals(lines, useShippingRules(), coupon);
   const subtotal = totals.subtotal;
   return (
     <Card className={className} aria-labelledby="order-summary-title" role="region">

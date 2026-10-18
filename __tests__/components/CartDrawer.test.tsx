@@ -3,7 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { useCartStore } from "@/stores";
-import { siteConfig } from "@/config/site";
+import { DEFAULT_SHIPPING_RULES } from "@/lib/pricing";
+import { ShippingRulesProvider } from "@/providers/ShippingRulesProvider";
 import { formatPrice as format } from "@/lib/utils";
 
 /** formatPrice with plain spaces (toHaveTextContent normalises the received text only). */
@@ -48,7 +49,7 @@ describe("CartDrawer", () => {
       `${formatPrice(2000)}${formatPrice(1000)} c/u`
     );
 
-    const { freeShippingThreshold, shippingCost } = siteConfig.commerce;
+    const { freeFrom: freeShippingThreshold, cost: shippingCost } = DEFAULT_SHIPPING_RULES;
     expect(within(dialog).getByTestId("free-shipping")).toHaveTextContent(
       `Te faltan ${formatPrice(freeShippingThreshold - 2500)} para el envío gratis`
     );
@@ -57,8 +58,19 @@ describe("CartDrawer", () => {
     expect(within(dialog).getByRole("link", { name: "Ver carrito" })).toHaveAttribute("href", "/cart");
   });
 
+  it("prices shipping with the store's rule from the layout", () => {
+    useCartStore.setState({ cart: [line("1", 6000)] });
+    render(
+      <ShippingRulesProvider rules={{ cost: 450, freeFrom: 8000 }}>
+        <CartDrawer isOpen onClose={() => {}} />
+      </ShippingRulesProvider>
+    );
+    expect(screen.getByTestId("free-shipping")).toHaveTextContent(`Te faltan ${formatPrice(2000)} para el envío gratis`);
+    expect(screen.getByTestId("cart-drawer-total")).toHaveTextContent(formatPrice(6450));
+  });
+
   it("celebrates free shipping once the subtotal reaches the threshold", () => {
-    useCartStore.setState({ cart: [line("1", siteConfig.commerce.freeShippingThreshold)] });
+    useCartStore.setState({ cart: [line("1", DEFAULT_SHIPPING_RULES.freeFrom)] });
     render(<CartDrawer isOpen onClose={() => {}} />);
     expect(screen.getByTestId("free-shipping")).toHaveTextContent("¡Tienes envío gratis!");
     expect(screen.getByText("Gratis")).toBeInTheDocument();

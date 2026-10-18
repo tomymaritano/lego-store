@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { Db } from "@/lib/lists/product";
 import { orderTotals, type CouponTerms, type OrderTotals } from "@/lib/pricing";
+import { readShippingRules } from "@/lib/settings";
 import {
   couponLabel,
   couponRejection,
@@ -293,7 +294,7 @@ export async function quoteCoupon(
     const price = prices.get(line.productId);
     return price === undefined ? [] : [{ price, quantity: line.quantity }];
   });
-  const totals = orderTotals(priced, checked.terms);
+  const totals = orderTotals(priced, await readShippingRules(db), checked.terms);
   return {
     ok: true,
     quote: {

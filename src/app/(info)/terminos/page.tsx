@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
+import type { StoreSettings } from "@/lib/settings/defaults";
 import { pageMetadata } from "@/lib/metadata";
 import { formatPrice } from "@/lib/utils";
 import { LegalPage, type LegalSection } from "@/components/info/LegalPage";
@@ -13,7 +15,7 @@ export const metadata = pageMetadata({
 
 const { commerce } = siteConfig;
 
-const sections: LegalSection[] = [
+const sectionsFor = ({ shipping }: StoreSettings): LegalSection[] => [
   {
     id: "aceptacion",
     title: "Aceptación",
@@ -40,8 +42,8 @@ const sections: LegalSection[] = [
     title: "Envíos",
     body: (
       <p>
-        El envío cuesta {formatPrice(commerce.shippingCost)} y es gratis desde{" "}
-        {formatPrice(commerce.freeShippingThreshold)}. Los plazos son estimados; puedes ver el detalle en{" "}
+        El envío cuesta {formatPrice(shipping.cost)} y es gratis desde{" "}
+        {formatPrice(shipping.freeFrom)}. Los plazos son estimados; puedes ver el detalle en{" "}
         <Link href="/envios">Envíos y entregas</Link>.
       </p>
     ),
@@ -89,7 +91,8 @@ const sections: LegalSection[] = [
   },
 ];
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const sections = sectionsFor(await getStoreSettings());
   return (
     <LegalPage
       icon={<FileText />}

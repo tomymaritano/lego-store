@@ -19,6 +19,7 @@ export {
   getFacetCounts,
   getFeaturedProducts,
   getSaleProducts,
+  getHomePicks,
   getCategories,
   getCategoryById,
   getCategoryNames,

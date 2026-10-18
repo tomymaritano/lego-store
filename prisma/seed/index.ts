@@ -3,11 +3,13 @@ import { products as seedProducts, type SeedProduct } from "@/data/products";
 import { categories as seedCategories } from "@/data/categories";
 import { themes as seedThemes } from "@/data/themes";
 import { coupons as sampleCoupons } from "@/data/coupons";
+import { seedFeaturedProductIds } from "@/data/settings";
 import { storeDayEnd } from "@/lib/admin/format";
 import { productSearchColumns } from "@/lib/api/search";
 import { refreshProductRatings } from "@/lib/api/ratings";
 import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
-import { orderTotals } from "@/lib/pricing";
+import { DEFAULT_SHIPPING_RULES, orderTotals } from "@/lib/pricing";
+import { DEFAULT_STORE_SETTINGS } from "@/lib/settings/defaults";
 import {
   handwrittenReviews,
   reviewTemplates,
@@ -23,7 +25,9 @@ import { DEV_ADMIN } from "./admin";
  * slug, product id, user email, one review per user and product, fixed ids for
  * the sample orders, coupon code); rows created by people (registrations, real
  * reviews, orders, coupons and their uses) are left alone, and the cached
- * ratings are recomputed over every review at the end.
+ * ratings are recomputed over every review at the end. The store's settings
+ * and the home page's featured products are only written while missing: a
+ * re-seed never undoes what an admin set in /admin/configuracion.
  *
  * Catalogue rows are reset to the seed values on every run, stock included:
  * re-seeding a dev database puts the catalogue back where it started.
@@ -64,6 +68,7 @@ export async function seedDatabase(db: PrismaClient, options: SeedOptions): Prom
   log(`Reseñas: ${reviewIds.length} de ${users.size} usuarios de ejemplo, ${helpfulVotes} votos "útil", ${orders} pedidos entregados.`);
   await seedCoupons(db);
   log(`Cupones de ejemplo: ${sampleCoupons.map((coupon) => coupon.code).join(", ")}.`);
+  if (await seedStoreSettings(db)) log("Configuración de la tienda: valores iniciales y destacados de la home.");
 
   let admin: string | null = null;
   if (options.admin) {
@@ -108,6 +113,41 @@ async function seedCoupons(db: PrismaClient) {
       return db.coupon.upsert({ where: { code: coupon.code }, create: { code: coupon.code, ...data }, update: data });
     })
   );
+}
+
+// ---------------------------------------------------------------------------
+// Store settings (src/lib/settings/defaults.ts) and the home page's picks
+// ---------------------------------------------------------------------------
+
+/** Writes the settings row and the featured products if they are missing. True if it wrote anything. */
+async function seedStoreSettings(db: PrismaClient): Promise<boolean> {
+  const { shipping, announcement, contact, social } = DEFAULT_STORE_SETTINGS;
+  const existing = await db.storeSettings.findUnique({ where: { id: 1 }, select: { id: true } });
+  if (!existing) {
+    await db.storeSettings.create({
+      data: {
+        id: 1,
+        shippingCost: shipping.cost,
+        freeShippingFrom: shipping.freeFrom,
+        announcementActive: announcement.active,
+        announcementText: announcement.text,
+        announcementLinkUrl: announcement.linkUrl,
+        announcementLinkLabel: announcement.linkLabel,
+        announcementTone: announcement.tone,
+        contactEmail: contact.email,
+        contactPhone: contact.phone,
+        contactAddress: contact.address,
+        contactHours: contact.hours,
+        socialFacebook: social.facebook,
+        socialInstagram: social.instagram,
+        socialYoutube: social.youtube,
+        socialX: social.x,
+      },
+    });
+  }
+  // Only on a store that never had settings: an admin may have cleared the picks on purpose.
+  const picks = existing ? 0 : (await db.featuredProduct.createMany({ data: seedFeaturedProductIds.map((productId, position) => ({ productId, position })), skipDuplicates: true })).count;
+  return !existing || picks > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +372,10 @@ async function seedOrders(
       const product = byId.get(r.productId)!;
       return { productId: product.id, name: product.name, unitPrice: product.price, image: product.img, quantity: 1 };
     });
-    const totals = orderTotals(lines.map((l) => ({ price: l.unitPrice, quantity: l.quantity })));
+    const totals = orderTotals(
+      lines.map((l) => ({ price: l.unitPrice, quantity: l.quantity })),
+      DEFAULT_SHIPPING_RULES
+    );
     // Ordered two weeks before the user's first review, delivered a week later.
     const firstReview = Math.min(...verified.map((r) => r.createdAt.getTime()));
     const createdAt = new Date(firstReview - 14 * DAY);
