@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { E2E_ADMIN_EMAIL, logIn, uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
-import { createE2eAccount, latestOrder } from "./helpers/db";
+import { clearCheckoutRateLimits, createE2eAccount, latestOrder } from "./helpers/db";
 import { notifyPayment, payPreference, setLatestPaymentStatus } from "./helpers/mercadopago";
 
 /*
@@ -56,6 +56,8 @@ async function review(page: Page, option: RegExp) {
   // $2.490 + $799 + $299 shipping, priced by the server.
   await expect(page.getByTestId("review-total")).toHaveText(/3\.588/);
 }
+
+test.beforeEach(() => clearCheckoutRateLimits());
 
 test.describe("Mercado Pago checkout", () => {
   test("an approved card: paid at once, the stock taken, the cart emptied", async ({ page }) => {

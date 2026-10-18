@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
 import { keepSeededCart } from "./helpers/catalog";
-import { latestOrder } from "./helpers/db";
+import { clearCheckoutRateLimits, latestOrder } from "./helpers/db";
 import { deliverPaymentSucceeded, useStripeCheckout } from "./helpers/stripe";
 
 /*
@@ -59,7 +59,10 @@ async function chooseCard(page: Page, card: RegExp = /Visa aprobada/) {
 }
 
 // Every spec here checks out with Stripe (the Mercado Pago checkout is mercadopago.spec.ts).
-test.beforeEach(async ({ context, baseURL }) => useStripeCheckout(context, baseURL));
+test.beforeEach(async ({ context, baseURL }) => {
+  await clearCheckoutRateLimits();
+  await useStripeCheckout(context, baseURL);
+});
 
 const stepper = (page: Page) => page.getByRole("navigation", { name: "Pasos del checkout" });
 

@@ -180,6 +180,19 @@ export async function createPaidE2eOrder(label: string): Promise<{ id: string; n
   });
 }
 
+/**
+ * Clears the checkout's and the coupons' rate-limit counters. Every spec
+ * shares one client address (the dev server trusts no proxy: "unknown"), so
+ * the specs that pay would otherwise add up to more than one customer's
+ * budget (checkout-pay: 15 per 15 min) within a single run. No spec tests
+ * these limits (the integration tests do).
+ */
+export function clearCheckoutRateLimits(): Promise<void> {
+  return withClient(async (client) => {
+    await client.query(`DELETE FROM "RateLimit" WHERE "key" LIKE 'checkout-%' OR "key" LIKE 'coupon-%'`);
+  });
+}
+
 /** Returns the admin's password. */
 export async function prepareAuthFixtures(): Promise<string> {
   const password = randomBytes(18).toString("base64url");

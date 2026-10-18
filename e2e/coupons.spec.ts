@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { E2E_ADMIN_EMAIL, logIn, uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
-import { createE2eCoupon, e2eCouponCode, latestOrder, latestOrderCoupon, setE2eCouponActive, setE2eCouponValue } from "./helpers/db";
+import { clearCheckoutRateLimits, createE2eCoupon, e2eCouponCode, latestOrder, latestOrderCoupon, setE2eCouponActive, setE2eCouponValue } from "./helpers/db";
 import { notifyPayment, payPreference } from "./helpers/mercadopago";
 
 /*
@@ -83,6 +83,8 @@ async function toReview(page: Page, email: string, option: RegExp = /Mastercard 
   await page.getByRole("button", { name: /Revisar pedido/ }).click();
   await expect(page.getByRole("heading", { name: "Revisa tu pedido" })).toBeFocused();
 }
+
+test.beforeEach(() => clearCheckoutRateLimits());
 
 test.describe("coupons", () => {
   test("applied in the cart, carried into the checkout, paid with the discount", async ({ page }) => {
