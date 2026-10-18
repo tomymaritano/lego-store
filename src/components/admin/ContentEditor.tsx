@@ -482,7 +482,11 @@ export function ContentEditor({ page, initial, published, settings, save, publis
               </CardContent>
             </Card>
 
-            <ol className="space-y-4" aria-label="Bloques de la página">
+            {/* The block titles are h3s under the page's h1: this keeps the outline in order. */}
+            <h2 id="content-blocks-title" className="sr-only">
+              Bloques de la página
+            </h2>
+            <ol className="space-y-4" aria-labelledby="content-blocks-title">
               {doc.blocks.map((block, index) => {
                 const label = `bloque ${index + 1}`;
                 return (

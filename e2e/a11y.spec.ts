@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { logIn } from "./helpers/accounts";
-import { seriousAxeViolations } from "./helpers/axe";
+import { axeRuleViolations, seriousAxeViolations } from "./helpers/axe";
 import { createE2eAccount } from "./helpers/db";
 
 /**
@@ -139,6 +139,10 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
         await expectNoSeriousViolations(page);
+        // The announcement preview is not a second "Anuncio" landmark; the editor's outline has no gaps.
+        if (path === "/admin/configuracion" || path.startsWith("/admin/contenido/")) {
+          expect(await axeRuleViolations(page, ["landmark-unique", "heading-order", "duplicate-id"])).toEqual([]);
+        }
       }
       // A user's, a category's and a theme's page: the first row of each list.
       for (const [list, row] of [
