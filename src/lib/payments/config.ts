@@ -183,6 +183,24 @@ export function checkoutPaymentsConfig(env: Env = process.env, mockOverride?: st
   return { provider: "MERCADOPAGO", mode: mercadopago.mode, mercadopago };
 }
 
+/** Why the checkout cannot take payments: null when it can (credentials or the test mock). */
+export interface PaymentsUnavailable {
+  provider: PaymentProviderId;
+  /** Development only: which variables to set (empty in production). */
+  missing: string[];
+}
+
+/**
+ * Whether the store's checkout can take payments now: the cart and the
+ * checkout's first step say so before the customer types an address, rather
+ * than only on the payment step.
+ */
+export function paymentsUnavailable(env: Env = process.env, mockOverride?: string | null): PaymentsUnavailable | null {
+  const config = checkoutPaymentsConfig(env, mockOverride);
+  if (config.mode !== "unconfigured") return null;
+  return { provider: config.provider, missing: config.provider === "STRIPE" ? config.stripe.missing : config.mercadopago.missing };
+}
+
 /** Whether a provider can take payments (and refunds) on this server. */
 export function providerConfigured(provider: PaymentProviderId, env: Env = process.env): boolean {
   return provider === "STRIPE" ? paymentsMode(env) !== "unconfigured" : mercadoPagoMode(env) !== "unconfigured";

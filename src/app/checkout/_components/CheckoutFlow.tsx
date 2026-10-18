@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
 import { fadeIn } from "@/lib/motion";
 import type { OrderView, UnavailableLine } from "@/lib/orders/types";
-import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
+import type { CheckoutPaymentsConfig, PaymentsUnavailable } from "@/lib/payments/config";
 import { linesSubtotal, orderTotals } from "@/lib/pricing";
 import { useShippingRules } from "@/providers/ShippingRulesProvider";
 import { useViewer } from "@/providers/ViewerProvider";
@@ -143,7 +143,16 @@ type Prepared = { key: string; order: OrderView } | { key: string; error: string
  * and summary) for the confirmation as one unit, so nothing reflows while the
  * review fades out.
  */
-export function CheckoutFlow({ payments, account = null }: { payments: CheckoutPaymentsConfig; account?: CheckoutAccount | null }) {
+export function CheckoutFlow({
+  payments,
+  unavailable = null,
+  account = null,
+}: {
+  payments: CheckoutPaymentsConfig;
+  /** The store cannot take payments: the shipping step says so and does not go on. */
+  unavailable?: PaymentsUnavailable | null;
+  account?: CheckoutAccount | null;
+}) {
   const router = useRouter();
   const viewer = useViewer();
   const hydrated = useStoreHydrated(useCartStore);
@@ -507,7 +516,7 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
               <div className="min-w-0 lg:col-span-2">
                 <AnimatePresence mode="wait" custom={direction} initial={false}>
                   {step === "shipping" && (
-                    <ShippingStep key="shipping" initialData={shippingInfo} account={account} focusHeading={moved} onSubmit={handleShippingSubmit} />
+                    <ShippingStep key="shipping" initialData={shippingInfo} account={account} paymentsUnavailable={unavailable} focusHeading={moved} onSubmit={handleShippingSubmit} />
                   )}
                   {step === "payment" && shippingInfo && (
                     <PaymentStep

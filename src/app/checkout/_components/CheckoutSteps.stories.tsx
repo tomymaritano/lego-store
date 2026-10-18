@@ -167,6 +167,13 @@ export const PaymentsNotConfigured: Story = {
 
 export const PaymentsNotConfiguredDark: Story = { ...PaymentsNotConfigured, globals: { theme: "dark" } };
 
+/** What the customer sees first when the store cannot take payments: the notice, with "Continuar al pago" off. */
+export const ShippingPaymentsUnavailable: Story = {
+  render: () => <ShippingStep initialData={null} paymentsUnavailable={{ provider: "MERCADOPAGO", missing: [] }} focusHeading={false} onSubmit={noop} />,
+};
+
+export const ShippingPaymentsUnavailableDark: Story = { ...ShippingPaymentsUnavailable, globals: { theme: "dark" } };
+
 export const ConfirmingPayment: Story = { render: () => <ConfirmationStep order={order()} canViewInAccount={false} /> };
 
 export const Paid: Story = {

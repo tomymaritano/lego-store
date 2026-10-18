@@ -10,6 +10,7 @@ import {
   getMercadoPago,
   mercadoPagoClientConfig,
   mercadoPagoMode,
+  paymentsUnavailable,
   providerEnvironment,
 } from "@/lib/payments/config";
 import { mercadoPagoApi, toMpPayment } from "@/lib/payments/mercadopago/api";
@@ -443,6 +444,16 @@ describe("configuration", () => {
     expect(providerEnvironment("MERCADOPAGO", { ...credentials, MERCADOPAGO_ACCESS_TOKEN: "APP_USR-1" })).toBe("live");
     expect(providerEnvironment("STRIPE", { PAYMENTS_MOCK: "1", NODE_ENV: "test" })).toBe("mock");
     expect(providerEnvironment("STRIPE", {})).toBe("unconfigured");
+  });
+
+  it("says when the checkout cannot take payments, naming the variables only outside production", () => {
+    expect(paymentsUnavailable({ NODE_ENV: "development" })).toEqual({
+      provider: "MERCADOPAGO",
+      missing: ["MERCADOPAGO_ACCESS_TOKEN", "NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY", "MERCADOPAGO_WEBHOOK_SECRET"],
+    });
+    expect(paymentsUnavailable({ NODE_ENV: "production", PAYMENT_PROVIDER: "stripe" })).toEqual({ provider: "STRIPE", missing: [] });
+    expect(paymentsUnavailable(credentials)).toBeNull();
+    expect(paymentsUnavailable({ PAYMENTS_MOCK: "1", NODE_ENV: "test" })).toBeNull();
   });
 
   it("only gives Mercado Pago a notification_url it can reach (https, not localhost)", () => {

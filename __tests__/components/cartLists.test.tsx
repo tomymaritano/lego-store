@@ -103,6 +103,14 @@ describe("CartView", () => {
     expect(screen.getByRole("link", { name: /Finalizar compra/ })).toHaveAttribute("href", "/checkout");
   });
 
+  it("without payments, says so and turns 'Finalizar compra' off before the checkout", () => {
+    useCartStore.setState({ cart: [line("1", 1000, 2)] });
+    renderWithQuery(<CartView recommended={[]} paymentsUnavailable={{ provider: "MERCADOPAGO", missing: [] }} />);
+    expect(screen.getByTestId("payments-unavailable")).toHaveTextContent("Los pagos no están disponibles en este momento");
+    expect(screen.queryByRole("link", { name: /Finalizar compra/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Finalizar compra/ })).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("ships free from $5000", () => {
     useCartStore.setState({ cart: [line("1", 2500, 2)] });
     renderWithQuery(<CartView recommended={[]} />);

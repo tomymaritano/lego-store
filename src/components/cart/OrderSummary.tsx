@@ -6,7 +6,9 @@ import { orderTotals } from "@/lib/pricing";
 import { useCheckedCoupon } from "@/stores";
 import { useShippingRules } from "@/providers/ShippingRulesProvider";
 import type { CartItem } from "@/types";
+import type { PaymentsUnavailable } from "@/lib/payments/config";
 import { Button, Card, CardContent, CardHeader } from "@/components/ui";
+import { PaymentsUnavailableNotice } from "@/components/orders/PaymentsUnavailableNotice";
 import { CouponField } from "./CouponField";
 import { FreeShippingProgress } from "./FreeShippingProgress";
 import { OrderTotals, totalsView } from "./OrderTotals";
@@ -14,6 +16,8 @@ import { useCouponRecheck } from "./useCouponRecheck";
 
 interface OrderSummaryProps {
   lines: CartItem[];
+  /** The store cannot take payments: say so here, with "Finalizar compra" off. */
+  paymentsUnavailable?: PaymentsUnavailable | null;
   className?: string;
 }
 
@@ -25,7 +29,7 @@ interface OrderSummaryProps {
  * whether a code applies, and again about the applied one when the page
  * loads (the discount counts once it answers). A secondary "Seguir comprando" link returns to the store.
  */
-export function OrderSummary({ lines, className }: OrderSummaryProps) {
+export function OrderSummary({ lines, paymentsUnavailable = null, className }: OrderSummaryProps) {
   useCouponRecheck();
   const coupon = useCheckedCoupon();
   const totals = orderTotals(lines, useShippingRules(), coupon);
@@ -45,10 +49,20 @@ export function OrderSummary({ lines, className }: OrderSummaryProps) {
         <OrderTotals totals={totalsView(totals)} testIdPrefix="cart" />
 
         <div className="space-y-3">
-          <Button className="w-full" size="lg" render={<Link href="/checkout" />} data-testid="cart-checkout-btn">
-            Finalizar compra
-            <ArrowRight aria-hidden="true" />
-          </Button>
+          {paymentsUnavailable ? (
+            <>
+              <PaymentsUnavailableNotice unavailable={paymentsUnavailable} />
+              <Button className="w-full" size="lg" disabled focusableWhenDisabled data-testid="cart-checkout-btn">
+                Finalizar compra
+                <ArrowRight aria-hidden="true" />
+              </Button>
+            </>
+          ) : (
+            <Button className="w-full" size="lg" render={<Link href="/checkout" />} data-testid="cart-checkout-btn">
+              Finalizar compra
+              <ArrowRight aria-hidden="true" />
+            </Button>
+          )}
           <Button variant="ghost" className="w-full" render={<Link href="/" />}>
             Seguir comprando
           </Button>

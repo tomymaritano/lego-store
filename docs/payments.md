@@ -59,9 +59,13 @@ bajo el bloqueo del pedido (`applyLocked` para Mercado Pago, los handlers de
 - `PAYMENT_PROVIDER=mercadopago` (o vacío) → Mercado Pago; `stripe` → Stripe.
   Cualquier otro valor cuenta como Mercado Pago, con un aviso en el log.
 - Cada proveedor está en uno de tres modos: **configurado** (sus tres variables),
-  **simulado** (`PAYMENTS_MOCK=1` fuera de producción) o **sin configurar** (el
-  paso Pago dice "Pagos no configurados", en desarrollo con la lista de lo que
-  falta, y las rutas de checkout responden 503).
+  **simulado** (`PAYMENTS_MOCK=1` fuera de producción) o **sin configurar**: el
+  carrito y el primer paso del checkout ya dicen "Los pagos no están disponibles"
+  (en desarrollo con la lista de lo que falta) y apagan "Finalizar compra" y
+  "Continuar al pago", así un deploy mal configurado no deja que el cliente
+  complete la dirección para nada (`paymentsUnavailable()`; el carrito es una
+  página estática y lo lee al compilar, el checkout en cada request). Las rutas
+  de checkout responden 503.
 - El resumen del admin muestra quién cobra los pedidos nuevos y en qué modo:
   producción, credenciales de prueba (`TEST-…` o `sk_test_…`), simulado o sin
   configurar.

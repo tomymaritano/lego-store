@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui";
 import type { ShippingInfo } from "@/types";
+import type { PaymentsUnavailable } from "@/lib/payments/config";
+import { PaymentsUnavailableNotice } from "@/components/orders/PaymentsUnavailableNotice";
 import { RequiredNote } from "./RequiredNote";
 import { StepCount, StepPanel } from "./StepPanel";
 
@@ -28,6 +30,8 @@ export interface CheckoutAccount {
 interface ShippingStepProps {
   initialData: ShippingInfo | null;
   account?: CheckoutAccount | null;
+  /** The store cannot take payments: said before the form, and "Continuar al pago" is off. */
+  paymentsUnavailable?: PaymentsUnavailable | null;
   focusHeading: boolean;
   onSubmit: (data: ShippingInfo) => void;
 }
@@ -57,7 +61,7 @@ const provinceItems = ARGENTINA_PROVINCES.map((province) => ({ value: province, 
  * Step 1: contact and delivery address. Validates on submit (focus goes to
  * the first invalid field) and then as each field is left.
  */
-export function ShippingStep({ initialData, account, focusHeading, onSubmit }: ShippingStepProps) {
+export function ShippingStep({ initialData, account, paymentsUnavailable = null, focusHeading, onSubmit }: ShippingStepProps) {
   const {
     register,
     control,
@@ -84,6 +88,7 @@ export function ShippingStep({ initialData, account, focusHeading, onSubmit }: S
         aria-labelledby="shipping-title"
         className="space-y-5"
       >
+        {paymentsUnavailable ? <PaymentsUnavailableNotice unavailable={paymentsUnavailable} /> : null}
         <fieldset className="space-y-4">
           <legend className="mb-3 text-label font-semibold text-fg">Contacto</legend>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -170,7 +175,7 @@ export function ShippingStep({ initialData, account, focusHeading, onSubmit }: S
           </Button>
           <div className="flex flex-col-reverse items-center gap-3 sm:flex-row">
             <RequiredNote />
-            <Button type="submit" size="lg" disabled={isSubmitting} className="w-full sm:w-auto">
+            <Button type="submit" size="lg" disabled={isSubmitting || paymentsUnavailable !== null} focusableWhenDisabled className="w-full sm:w-auto">
               Continuar al pago
               <ArrowRight aria-hidden="true" />
             </Button>

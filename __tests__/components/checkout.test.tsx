@@ -130,6 +130,17 @@ describe("Checkout", { timeout: 20_000 }, () => {
     expect(items[2]).not.toHaveAttribute("aria-current");
   });
 
+  it("without payments, the shipping step says so first and does not go on to the payment", async () => {
+    const user = userEvent.setup();
+    render(<CheckoutFlow payments={MOCK} unavailable={{ provider: "MERCADOPAGO", missing: [] }} />);
+    expect(screen.getByTestId("payments-unavailable")).toHaveTextContent("Los pagos no están disponibles en este momento");
+    const next = screen.getByRole("button", { name: /Continuar al pago/ });
+    expect(next).toHaveAttribute("aria-disabled", "true");
+    await user.click(next);
+    expect(screen.queryByText("Ingresa tu nombre")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Datos de envío" })).toBeInTheDocument();
+  });
+
   it("shows Spanish errors on an empty shipping form and focuses the first invalid field", async () => {
     const user = userEvent.setup();
     render(<CheckoutFlow payments={MOCK} />);
