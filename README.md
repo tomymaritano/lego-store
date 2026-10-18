@@ -143,7 +143,9 @@ scripts/               Presupuesto de JS y capturas del README
   se renderizan por pedido (el navbar depende de la sesión, ver
   [Cuentas y sesiones](#cuentas-y-sesiones)), pero sus lecturas del catálogo salen
   de esa caché hasta que una escritura llama a `invalidateCatalog()`
-  (`src/lib/api/cache.ts`, vencimiento inmediato). Hay además una revalidación por tiempo de 1 h como red de
+  (`src/lib/api/cache.ts`, vencimiento inmediato) o, desde una Server Action cuyo
+  usuario tiene que ver su cambio al instante (una reseña), a `updateCatalog()`
+  (`updateTag`: Next re-renderiza la página actual en la misma respuesta). Hay además una revalidación por tiempo de 1 h como red de
   seguridad. Lo que depende del usuario (carrito, pedidos, cuenta) no pasa por esta
   caché.
 - **Islas cliente** (infinite scroll, autocompletado, comparador, favoritos,
@@ -221,9 +223,9 @@ scripts/               Presupuesto de JS y capturas del README
   compartidos pero no deja afuera al dueño en los navegadores que ya usa (un
   dispositivo nuevo del dueño sí puede esperar hasta una hora si alguien llenó el
   límite por cuenta desde muchas IPs). Registro: 20 cuentas por IP por hora;
-  contraseña actual en `/account`: 5 cada 15 min. Para limitar algo nuevo (reseñas,
-  contacto, newsletter) se agrega una entrada en `rateLimits` y se llama
-  `consume(sujeto)`. `memoryStore()` existe para tests: no se comparte entre
+  contraseña actual en `/account`: 5 cada 15 min; reseñas nuevas: 10 por usuario por
+  hora; votos "útil": 60 por usuario cada 15 min. Para limitar algo nuevo (contacto,
+  newsletter) se agrega una entrada en `rateLimits` y se llama `consume(sujeto)`. `memoryStore()` existe para tests: no se comparte entre
   instancias.
 - **La IP del cliente** (`clientIp()`) solo sale de headers que pone
   infraestructura de confianza, porque `X-Forwarded-For` lo puede mandar cualquiera
@@ -245,12 +247,58 @@ scripts/               Presupuesto de JS y capturas del README
   avisan que falta. Fuera de Vercel, `next start` necesita `AUTH_TRUST_HOST=true`
   (o `AUTH_URL`) para que Auth.js acepte el host.
 
+## Carrito, favoritos y reseñas
+
+- **Visitantes**: carrito y favoritos viven en localStorage, como siempre. Al cargar
+  la página, las líneas del carrito toman precio y stock actuales del catálogo
+  (`/api/products/by-ids`); las de productos borrados o agotados se quitan.
+- **Con sesión** el servidor es la verdad (`CartItem`, `WishlistItem`). Los stores de
+  Zustand siguen siendo la capa de UI y guardan de quién es la copia (`owner`).
+  `<ListsSync />` (`src/components/layout/ListsSync.tsx`, reglas en
+  `src/lib/lists/sync-plan.ts`):
+  - al **ingresar**, el carrito y los favoritos del visitante se fusionan con los de
+    la cuenta (`mergeListsAction`): cantidades sumadas y topeadas por el stock,
+    favoritos unidos, productos inexistentes o agotados descartados. Pasa una sola
+    vez: después la copia es de la cuenta y no se vuelve a sumar;
+  - en cada carga y al volver a la pestaña recarga las listas de la cuenta
+    (`GET /api/lists`, sin caché): precios, nombres y stock actuales, nunca un
+    snapshot. Una recarga que se cruzó con un cambio en curso se descarta;
+  - al **cerrar sesión** (o si la sesión vence) borra la copia de la cuenta de ese
+    navegador. La copia de otra cuenta nunca se fusiona.
+- **Cambios optimistas** (`src/stores/listsRemote.ts`): el store cambia al instante y
+  manda la Server Action (`src/lib/lists/actions.ts`: zod, sesión propia, solo ids y
+  cantidades). La respuesta trae la línea como la tiene el servidor (cantidad
+  topeada por stock, precio actual) y reemplaza la local; si el servidor la rechaza
+  o no responde, la línea vuelve a como estaba y un toast lo explica. Si llegan
+  respuestas viejas después de un cambio más nuevo de la misma línea, se ignoran.
+- **Stock**: toda escritura topea la cantidad con el stock en la misma transacción
+  (los incrementos son atómicos en SQL, dos pestañas no se pisan). Una línea cuyo
+  producto se agotó queda guardada pero no se lista ni llega al checkout; vuelve si
+  hay reposición.
+- **Reseñas** (`src/lib/reviews`): crear exige sesión y es una por usuario y producto
+  (clave única); se pueden editar y borrar (las propias; un admin borra cualquiera).
+  El nombre publicado es el de la cuenta. Cada escritura recalcula `Product.rating` y
+  `reviewCount` en la misma transacción y después llama a `updateCatalog()`, así que
+  la página del producto (rating, cantidad, lista) se actualiza en la misma respuesta
+  y los listados en el próximo pedido. "Útil" es un voto por usuario que se puede
+  retirar (no sobre la reseña propia). **Compra verificada** = el autor tiene un
+  pedido de su cuenta en PAID, SHIPPED o DELIVERED con ese producto (los pedidos de
+  invitado no cuentan).
+- **Lista de reseñas**: orden (recientes, útiles, mejor y peor valoradas) y páginas de
+  5 en el servidor (`GET /api/products/<id>/reviews?sort=&page=`, en el data cache
+  bajo los tags del producto); el resumen (promedio e histograma) es sobre todas.
+  Lo del usuario (su reseña y sus votos) sale de
+  `GET /api/products/<id>/reviews/mine`, sin caché.
+
 ## Estado del cliente
 
 - Stores de Zustand con **selectores** (`useCartCount`, `useCartSubtotal`,
   `useIsInCart(id)`, `useIsInWishlist(id)`, `useCompareIds`…).
 - Persistencia versionada con `migrate` desde formatos anteriores. Comparar y
-  vistos recientemente guardan IDs; favoritos, un snapshot mínimo.
+  vistos recientemente guardan IDs; favoritos, un snapshot mínimo. Carrito y
+  favoritos guardan además `owner` (ver [Carrito, favoritos y reseñas](#carrito-favoritos-y-reseñas)).
+  Las reseñas ya no viven en el navegador: el store viejo (`lego-reviews-storage`)
+  se borra al cargar.
 - Hidratación: los stores usan `skipHydration` y `<StoreHydrator />` los carga una
   sola vez tras hidratar (y sincroniza pestañas). `useStoresHydrated()` distingue
   "cargando" de "vacío" donde importa.
@@ -369,12 +417,17 @@ npm run dev
   escrituras, Route Handlers y proxy (incluidas las rutas protegidas), seed
   (contenido, idempotencia, admin), las restricciones del schema, cuentas
   (registro, credenciales, roles, contraseña, adapter de OAuth), las Server
-  Actions de login y registro, los helpers de sesión y permisos y el rate limiter
-  en Postgres (concurrencia y ventanas).
+  Actions de login y registro, los helpers de sesión y permisos, el rate limiter
+  en Postgres (concurrencia y ventanas), carrito y favoritos por usuario (fusión al
+  ingresar, topes de stock, datos frescos, cada usuario solo toca lo suyo) y
+  reseñas (una por usuario, compra verificada, rating recalculado en la misma
+  transacción, "útil" una vez, dueño, rate limit, invalidación, orden y páginas).
 - `__tests__/lib`: parser de queries, búsqueda normalizada, caché del catálogo
   (tags e invalidación), validación de cuentas, callbackUrl, roles, rate limiter y
   utilidades.
-- `__tests__/stores`: stores, selectores, migraciones e hidratación.
+- `__tests__/stores`: stores, selectores, migraciones e hidratación; la capa
+  optimista contra el servidor (rollback, respuestas viejas, recargas que se
+  cruzan con un cambio) y las reglas de sincronización al ingresar y salir.
 - `__tests__/components`: primitivos (`ui/`), carrito lateral, carrito /
   favoritos / comparador, catálogo y filtros, checkout, formularios, galería,
   ficha de producto, reseñas, autocompletado, formularios y menú de cuenta,
@@ -390,11 +443,16 @@ npm run dev
   footer, páginas de información, 404), `state` (estado persistido), `a11y`
   (axe WCAG 2.1 AA en cada página, en modo claro y oscuro), `auth` (registro →
   logout → login → cuenta, redirección de rutas protegidas, callbackUrl, 403 de
-  admin, cambio de contraseña, menú móvil, axe) y el proyecto `prod` (navegación,
+  admin, cambio de contraseña, menú móvil, axe), `account-lists` (carrito y
+  favoritos de visitante → cuenta, otro navegador, logout), `reviews` (login para
+  opinar, publicar / editar / borrar, "útil", orden y páginas, axe) y el proyecto `prod` (navegación,
   transiciones y códigos de estado sobre el build de producción). Los E2E de
   cuentas usan emails `@e2e.lego-store.test`: el setup global los borra de la base
   de dev, limpia los contadores de rate limiting y crea un admin con una contraseña
-  aleatoria; el teardown vuelve a borrarlos.
+  aleatoria; el teardown vuelve a borrarlos (y recalcula los ratings, porque sus
+  reseñas se van en cascada). Los specs de reseñas comparan la página con la base y
+  no con lo que mostraba antes: una corrida que falló a mitad puede dejar el data
+  cache del servidor de dev un paso atrás hasta 1 h.
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
