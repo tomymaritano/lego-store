@@ -691,7 +691,8 @@ cae en "sin filtro").
   filtro lista los temas en ese orden. Los enlaces del menú y los valores del
   filtro usan el slug (`/search?theme=star-wars`), así que renombrar un tema
   no rompe sus enlaces; `?theme=` sigue aceptando el nombre
-  (`/search?theme=Star%20Wars`, enlaces viejos). Renombrar recalcula las
+  (`/search?theme=Star%20Wars`, enlaces viejos): el catálogo lo pasa al slug
+  (marca su casilla y reemplaza la URL por `?theme=star-wars`). Renombrar recalcula las
   columnas de búsqueda de sus productos. Eliminar solo si ningún producto lo
   usa.
 - **Usuarios** (`/admin/users`; `/admin/usuarios` redirige): lista con
