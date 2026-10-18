@@ -682,7 +682,14 @@ cliente, activo/inactivo (`Coupon`, `CouponRedemption`; reglas en
   intentos cada 15 min por usuario o IP: los códigos se pueden adivinar), que
   valida el cupón y cotiza las líneas con precios de la base. El navegador
   guarda solo los términos devueltos (`lego-coupon-storage`) para mostrar el
-  descuento mientras cambia el carrito; nunca se confía en eso.
+  descuento mientras cambia el carrito; nunca se confía en eso: el carrito y el
+  checkout vuelven a preguntar por el cupón guardado al cargar y al volver a
+  la pestaña (`recheck: true`, con su propio límite de 60 cada 15 min), y
+  hasta esa respuesta no muestran el descuento («Comprobando que siga
+  vigente…»). Términos nuevos (el admin lo editó) reemplazan a los guardados;
+  un cupón que ya no vale se quita con el motivo en el campo. El cupón es de
+  quien lo aplicó, como el carrito: cerrar sesión o entrar con otra cuenta lo
+  quita; un visitante que inicia sesión lo conserva (y la consulta decide).
 - **Cuentas** (`orderTotals`, la misma función en carrito, checkout, el pedido
   y lo que cobran Mercado Pago y Stripe): un porcentaje se redondea al peso,
   mitad hacia arriba (10% de $2.445 = $245); un monto fijo nunca pasa el
@@ -693,20 +700,38 @@ cliente, activo/inactivo (`Coupon`, `CouponRedemption`; reglas en
   falta y no descuenta; el pedido se prepara sin él hasta llegar.
 - **Reserva**: al entrar a «Revisar», el pedido PENDING se escribe en la misma
   transacción que valida el cupón con su fila bloqueada (`FOR UPDATE`) y
-  reserva el uso (`RESERVED`). Los límites cuentan RESERVED + REDEEMED; el de
-  cliente cuenta la cuenta **o** el email del pedido (un invitado es su email).
-  Dos checkouts que compiten por el último uso se serializan en ese bloqueo: el
-  segundo ve la reserva del primero y se rechaza (hay tests de concurrencia).
-  El pedido guarda `couponCode` y `discount` (instantánea: editar el cupón no
-  cambia pedidos existentes). Si el cupón dejó de valer en el camino, el
-  checkout lo quita y vuelve a preparar el pedido diciendo por qué.
+  reserva el uso (`RESERVED`) por **30 minutos** (`holdExpiresAt`,
+  `COUPON_HOLD_MS`): un checkout sin pagar no cuesta nada, así que su reserva
+  vence sola y no puede dejar un cupón limitado sin usos. Preparar un pedido
+  con cupón tiene además su propio límite (15 cada 15 min por usuario o IP).
+  Los límites cuentan REDEEMED + las reservas vigentes. Dos checkouts que
+  compiten por el último uso se serializan en ese bloqueo: el segundo ve la
+  reserva del primero y se rechaza (hay tests de concurrencia). El pedido
+  guarda `couponCode` y `discount` (instantánea: editar el cupón no cambia
+  pedidos existentes). Si el cupón dejó de valer en el camino, el checkout lo
+  quita y vuelve a preparar el pedido diciendo por qué.
+- **Al pagar** («Realizar pedido», antes de que se mueva plata): se vuelven a
+  contar los límites con el cupón bloqueado y la reserva pasa a durar hasta
+  que el pedido se resuelva (`holdExpiresAt` NULL). Si la reserva venció y su
+  lugar se ocupó, o el email ya lo usó, el pago se rechaza con `code:
+  "coupon"` y el checkout prepara el pedido sin el cupón y lo dice; un pago
+  rechazado devuelve la reserva corta. Checkout Pro («Cuenta de Mercado
+  Pago») solo renueva la reserva corta (el pago se hace en su sitio); el
+  pedido la retiene en cuanto Mercado Pago informa el pago (PAYMENT_PENDING,
+  por el trigger).
+- **Por cliente**: por cuenta, los usos vigentes de la cuenta, en todos los
+  pasos. Por email (un invitado es su email; los pedidos como invitado de una
+  cuenta con ese email también cuentan), solo los usos pagados o con el pago
+  enviado, y solo al pagar: cualquiera puede escribir un email, así que un
+  checkout sin pagar con el email de otra persona no le gasta sus usos, y ni
+  la consulta ni «Revisar» dicen si un email ya usó un cupón.
 - **Después**: un trigger de la base (`Order_coupon_redemption_status`, en la
   migración de cupones) sigue el estado del pedido: PAID → `REDEEMED`,
   CANCELLED → `RELEASED`, por cualquier camino (vencimiento, reemplazo, pago
-  rechazado, ticket vencido, reembolso, contracargo, cancelación del admin).
-  PAYMENT_PENDING conserva la reserva. Un pedido abandonado retiene el uso
-  hasta que la limpieza lo cancela (24 h) o el mismo navegador lo vuelve a
-  preparar sin cupón.
+  rechazado, ticket vencido, reembolso, contracargo, cancelación del admin);
+  PAYMENT_PENDING retiene la reserva hasta que se resuelva. Un pedido
+  abandonado deja de contar a los 30 minutos y la limpieza lo cancela a las
+  24 h. El admin ve esas reservas como «Reserva vencida» (no cuentan).
 - **Seed**: `BIENVENIDA10` (10% desde $2.000, una vez por cliente) y `LEGO500`
   ($500 desde $4.000, 100 usos, hasta el 31/12/2027), en `src/data/coupons.ts`.
 

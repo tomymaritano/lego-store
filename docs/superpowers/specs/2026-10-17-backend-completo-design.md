@@ -416,11 +416,24 @@ Decisiones tomadas al construir la etapa (el README, «Cupones», tiene el detal
   monto de Mercado Pago/Stripe.
 - *Reserva atómica*: el pedido PENDING y la reserva del uso se escriben en la
   misma transacción, con la fila del cupón bloqueada; los límites cuentan
-  RESERVED + REDEEMED. Por cliente = la cuenta o el email del pedido.
+  REDEEMED + las reservas vigentes.
+- *Reserva corta* (revisión de la etapa): «Revisar» reserva por 30 min
+  (`holdExpiresAt`); al enviar el pago se vuelven a contar los límites con el
+  cupón bloqueado y la reserva dura hasta que el pedido se resuelva. Sin esto,
+  checkouts sin pagar (gratis y anónimos) retenían usos 24 h: alcanzaba con
+  repetirlos para agotar un cupón limitado. Más un límite propio para preparar
+  pedidos con cupón.
+- *Por cliente*: la cuenta, en todos los pasos; el email (no verificado: lo
+  escribe cualquiera) solo con usos pagados o con el pago enviado, y solo al
+  pagar. Así nadie gasta el cupón de otra persona con checkouts a su nombre,
+  y la consulta del carrito no revela si un email compró con un cupón.
+- *El navegador vuelve a preguntar*: carrito y checkout consultan el cupón
+  guardado al cargar (y al volver a la pestaña) y no muestran el descuento
+  hasta la respuesta; el cupón guardado tiene dueño (como el carrito).
 - *Liberar*: un trigger sobre `Order.status` (PAID → REDEEMED, CANCELLED →
   RELEASED) en vez de tocar cada camino de cancelación (limpieza, reemplazo,
-  admin, rechazos, reembolsos, contracargos): ninguno puede olvidarse. Un
-  pedido abandonado retiene el uso hasta la limpieza (24 h).
+  admin, rechazos, reembolsos, contracargos): ninguno puede olvidarse.
+  PAYMENT_PENDING retiene la reserva (migración de la reserva corta).
 - *Admin*: el código no se edita y los cupones no se borran (los pedidos los
   guardan); «Desactivar» corta los usos nuevos. `AuditLog` es la tabla de
   auditoría general (todas las mutaciones del admin salvo los cambios de
