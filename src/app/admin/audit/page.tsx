@@ -103,7 +103,7 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
             <TableHeader>
               <TableRow>
                 <TableHead>Fecha</TableHead>
-                <TableHead>Admin</TableHead>
+                <TableHead className="hidden sm:table-cell">Admin</TableHead>
                 <TableHead>Acción</TableHead>
                 <TableHead className="hidden md:table-cell">Detalle</TableHead>
                 <TableHead className="hidden lg:table-cell">IP</TableHead>
@@ -117,11 +117,13 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
                 return (
                   <TableRow key={entry.id} data-testid="audit-row">
                     <TableCell className="whitespace-nowrap text-fg-secondary">{formatAdminDateTime(entry.at)}</TableCell>
-                    <TableCell className="max-w-56">
+                    <TableCell className="hidden max-w-56 sm:table-cell">
                       <span className="block truncate">{entry.actorEmail}</span>
                     </TableCell>
                     <TableCell className="min-w-48">
                       <span className="block font-medium text-fg">{auditActionLabel(entry.action)}</span>
+                      {/* On a phone the Admin column is hidden: who did it goes under the action. */}
+                      <span className="block truncate text-caption text-fg-secondary sm:hidden">{entry.actorEmail}</span>
                       <span className="block text-caption text-fg-muted">
                         {label}{" "}
                         {href ? (
