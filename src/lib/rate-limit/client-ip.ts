@@ -14,7 +14,7 @@ type IpEnv = Record<string, string | undefined>;
  *   the client sent (Next only fills it in when it is missing), so no IP is
  *   trusted and every client shares the "unknown" bucket. That errs on the
  *   strict side: per-IP limits then apply to the whole site at once, so a
- *   public self-hosted deploy must set TRUSTED_PROXY_HOPS (see README).
+ *   public self-hosted deploy must set TRUSTED_PROXY_HOPS (see docs/deploy.md).
  *
  * Per-account limits (login by email, known devices) do not depend on this.
  */
@@ -60,6 +60,6 @@ export function untrustedIpWarning(env: IpEnv = process.env): string | null {
     "[rate-limit] Ni VERCEL=1 ni TRUSTED_PROXY_HOPS están configurados: no se confía en ninguna IP de cliente " +
     'y todos los visitantes comparten el límite por IP "unknown". Una sola persona puede bloquear el login, el ' +
     "registro y el checkout como invitado para todos. Configura TRUSTED_PROXY_HOPS con la cantidad de proxies " +
-    "delante del servidor (ver README, «Producción»)."
+    "delante del servidor (ver docs/deploy.md, «TRUSTED_PROXY_HOPS»)."
   );
 }

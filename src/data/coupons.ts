@@ -1,6 +1,6 @@
 /**
  * The sample coupons the seed writes (prisma/seed/index.ts), so a dev or demo
- * store has something to try in the cart. README, "Cupones", lists them.
+ * store has something to try in the cart. The README ("Inicio rápido") lists them.
  * Re-seeding puts their terms back (not their uses).
  */
 export interface SeedCoupon {

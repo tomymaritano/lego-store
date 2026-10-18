@@ -28,7 +28,7 @@ const isCurrent = (pathname: string, href: string, exact: boolean) =>
  * screens, a row above it on tablets, a two-column grid on phones (a single row
  * would cut off the last section at 390px; an odd last one spans the row). The current
  * section carries aria-current="page". No prefetch, like the other links to
- * /admin (README, "La sesión no se renueva sola").
+ * /admin (docs/backend.md, "La sesión no se renueva sola").
  */
 export function AdminNav() {
   // Null outside the App Router (Storybook).

@@ -9,7 +9,7 @@ import { PrismaClient } from "@/generated/prisma/client";
 export function createPrismaClient(connectionString = process.env.DATABASE_URL): PrismaClient {
   if (!connectionString) {
     throw new Error(
-      "DATABASE_URL no está definida. Levanta Postgres con `npm run db:up` y copia .env.example a .env.local (ver README, «Puesta en marcha local del backend»)."
+      "DATABASE_URL no está definida. Levanta Postgres con `npm run db:up` y copia .env.example a .env.local (ver README, «Inicio rápido»)."
     );
   }
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });

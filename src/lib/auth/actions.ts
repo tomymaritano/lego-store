@@ -25,7 +25,7 @@ export async function googleSignInAction(formData: FormData): Promise<void> {
  * the next person at this browser does not inherit the last checkout).
  * A customer's other devices stay signed in. An admin's logout ends every
  * admin session (a copied admin cookie must not outlive the logout); for a
- * customer that is logoutEverywhereAction (README, "Sesiones").
+ * customer that is logoutEverywhereAction (docs/backend.md, "Detalle: cuentas y sesiones").
  */
 export async function logoutAction(): Promise<void> {
   const user = await getCurrentUser();

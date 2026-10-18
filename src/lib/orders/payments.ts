@@ -44,7 +44,7 @@ export function publicUrl(path: string, base = process.env.NEXT_PUBLIC_SITE_URL?
 /**
  * Mercado Pago's notification_url for our webhook, or null where Mercado Pago
  * could not reach it (http, localhost): local development relies on the
- * return page and the cleanup then (README, "Mercado Pago en local").
+ * return page and the cleanup then (docs/payments.md, "Webhooks en tu máquina").
  */
 export function mercadoPagoNotificationUrl(base?: string): string | null {
   const url = new URL(publicUrl("/api/webhooks/mercadopago", base));

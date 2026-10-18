@@ -8,7 +8,7 @@
  * The CSP also turns off plugins (object-src) and <base> hijacking of relative
  * URLs (base-uri), which nothing here uses. A script-src allow-list needs
  * per-request nonces (proxy.ts) for Next's inline scripts, Stripe and Google
- * sign-in: not done yet (README, "Headers de seguridad").
+ * sign-in: not done yet (docs/backend.md, "Headers de seguridad y dependencias").
  */
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },

@@ -10,7 +10,7 @@ import { afterMercadoPagoPayment } from "@/lib/orders/payment-effects";
  * (and their Stripe PaymentIntents), and settles Mercado Pago payments that
  * stayed pending past their ticket's expiry (lib/orders/expire.ts). For a scheduler: Vercel
  * Cron sends `Authorization: Bearer $CRON_SECRET` by itself; elsewhere, any
- * job that does the same (README, "Pedidos pendientes"). Without CRON_SECRET
+ * job that does the same (docs/deploy.md). Without CRON_SECRET
  * the route is off (503).
  */
 export async function GET(request: NextRequest) {

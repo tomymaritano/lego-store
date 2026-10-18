@@ -72,7 +72,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The session makes every page render per request (see README, «Rendimiento»); the
+  // The session makes every page render per request (see docs/architecture.md, «Renderizado y caché»); the
   // catalogue reads stay in the data cache, so this costs one session check and one query.
   const [categories, categoryNames, themes, user, settings] = await Promise.all([
     getCategories().then((list) => list.map(({ id, name }) => ({ id, name }))),

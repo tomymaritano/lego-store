@@ -6,7 +6,7 @@ export function AuthNotConfigured() {
   if (isAuthConfigured()) return null;
   return (
     <FormAlert className="mb-6">
-      El ingreso no está configurado en este servidor: falta la variable AUTH_SECRET (ver README).
+      El ingreso no está configurado en este servidor: falta la variable AUTH_SECRET (ver .env.example y el README, «Inicio rápido»).
     </FormAlert>
   );
 }

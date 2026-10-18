@@ -1,4 +1,4 @@
-# Local Postgres for development and tests (see README, "Puesta en marcha local del backend").
+# Local Postgres for development and tests (see README, "Inicio rápido", and CONTRIBUTING.md).
 # One server, two databases: lego_store (dev, `npm run dev`) and
 # lego_store_test (Vitest integration tests, wiped on every run).
 # The host port defaults to 5433 so it never clashes with a native Postgres on 5432.

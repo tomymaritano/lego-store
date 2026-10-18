@@ -88,7 +88,7 @@ const hashNewsletterToken = (token: string) => createHash("sha256").update(token
 function newsletterUnsubscribeToken(id: string): string {
   loadEnv();
   const secret = process.env.AUTH_SECRET?.trim();
-  if (!secret) throw new Error("AUTH_SECRET is not set: the newsletter's unsubscribe links need it (see README).");
+  if (!secret) throw new Error("AUTH_SECRET is not set: the newsletter's unsubscribe links need it (see .env.example).");
   return `${id}.${createHmac("sha256", secret).update(`newsletter-unsubscribe\n${id}`).digest("base64url")}`;
 }
 

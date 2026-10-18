@@ -43,7 +43,7 @@ export function PaymentsNotConfigured({ provider, missing, onBack }: { provider:
         {missing.length > 0 ? (
           <p className="mt-2 text-label font-normal text-fg-secondary">
             Este servidor no tiene {provider} configurado. Define <span className="font-mono text-fg">{missing.join(", ")}</span> en{" "}
-            <span className="font-mono text-fg">.env.local</span> (ver README, «Checkout, pagos y pedidos») y reinicia el servidor.
+            <span className="font-mono text-fg">.env.local</span> (ver docs/payments.md) y reinicia el servidor.
           </p>
         ) : (
           <p className="mt-2 text-label font-normal text-fg-secondary">Los pagos no están disponibles en este momento. Inténtalo más tarde.</p>
