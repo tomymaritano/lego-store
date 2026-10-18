@@ -113,7 +113,7 @@ export function ConfirmationStep({ order, canViewInAccount, stale = false }: Con
             </dd>
           </div>
           <div>
-            <dt className="text-caption text-fg-muted">{phase === "cancelled" ? "Total" : "Total pagado"}</dt>
+            <dt className="text-caption text-fg-muted">{phase === "paid" ? "Total pagado" : "Total"}</dt>
             <dd className="text-title text-fg tabular-nums" data-testid="order-total">
               {formatPrice(order.total)}
             </dd>
