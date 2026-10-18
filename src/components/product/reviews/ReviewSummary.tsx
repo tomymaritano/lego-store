@@ -9,7 +9,10 @@ import { Rating } from "@/components/ui";
 /**
  * Average rating and the 5-to-1 star histogram over all of the product's
  * reviews (computed on the server, not from the loaded page). Bars grow in
- * when scrolled into view.
+ * when mounted and follow later changes. Not whileInView: the summary
+ * usually mounts inside the reviews tab panel while it is hidden
+ * (display: none), and the bars must not stay empty if the in-view
+ * observer never fires for it.
  */
 export function ReviewSummary({ summary }: { summary: Summary }) {
   const { average, count: total } = summary;
@@ -38,8 +41,7 @@ export function ReviewSummary({ summary }: { summary: Summary }) {
               <m.span
                 className="block h-full origin-left rounded-full bg-rating"
                 initial={{ scaleX: 0 }}
-                whileInView={{ scaleX: share }}
-                viewport={{ once: true }}
+                animate={{ scaleX: share }}
                 transition={transitions.slow}
               />
             </span>
