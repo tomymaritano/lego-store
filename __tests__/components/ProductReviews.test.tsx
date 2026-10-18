@@ -125,9 +125,14 @@ describe("ProductReviews", () => {
     renderReviews(<ProductReviews productId="1" initialPage={pageOf(many.slice(0, 5), { total: 7 })} />);
     expect(screen.getAllByTestId("review")).toHaveLength(5);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ver más reseñas" }));
+    const more = screen.getByRole("button", { name: "Ver más reseñas" });
+    more.focus();
+    fireEvent.click(more);
     await waitFor(() => expect(screen.getAllByTestId("review")).toHaveLength(7));
     expect(server.requests.at(-1)?.search).toBe("?sort=recent&page=2");
+    // The button is gone (last page): focus moves to the first review it loaded, not to <body>.
+    expect(screen.queryByRole("button", { name: "Ver más reseñas" })).toBeNull();
+    await waitFor(() => expect(screen.getAllByTestId("review")[5]).toHaveFocus());
     expect(screen.queryByRole("button", { name: "Ver más reseñas" })).toBeNull();
   });
 
@@ -219,7 +224,7 @@ describe("ProductReviews", () => {
       fireEvent.click(screen.getByRole("radio", { name: "4 estrellas" }));
       fireEvent.change(screen.getByLabelText(/Título/), { target: { value: "  Genial " } });
       fireEvent.change(screen.getByLabelText(/Tu reseña/), { target: { value: "Muy buen set, lo recomiendo" } });
-      const mine: Review = { ...published[0]!, id: "new", productId: "2", userId: ANA.id, userName: "Ana Pérez", title: "Genial" };
+      const mine: Review = { ...published[0]!, id: "new", productId: "2", userName: "Ana Pérez", title: "Genial" };
       server.pages = () => pageOf([mine]);
       server.mine = { review: mine, helpful: [] };
       fireEvent.click(screen.getByRole("button", { name: "Publicar reseña" }));
@@ -249,7 +254,7 @@ describe("ProductReviews", () => {
     });
 
     it("edits and deletes the user's own review, which has no vote button", async () => {
-      const own: Review = { ...published[1]!, userId: ANA.id, userName: "Ana Pérez" };
+      const own: Review = { ...published[1]!, userName: "Ana Pérez" };
       server.mine = { review: own, helpful: [] };
       server.pages = () => pageOf([published[0]!, own]);
       renderReviews(<ProductReviews productId="1" initialPage={pageOf([published[0]!, own])} />, ANA);

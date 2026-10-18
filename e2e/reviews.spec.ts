@@ -135,8 +135,12 @@ test.describe("Reviews", () => {
     await page.getByRole("tab", { name: /Reseñas/ }).click();
     const items = reviewsRegion(page).getByTestId("review");
     await expect(items).toHaveCount(5);
-    await reviewsRegion(page).getByRole("button", { name: "Ver más reseñas" }).click();
+    await reviewsRegion(page).getByRole("button", { name: "Ver más reseñas" }).focus();
+    await page.keyboard.press("Enter");
     await expect(items).toHaveCount(await countReviews("11"));
+    // Focus moves to the first review loaded (the button may be gone), never to <body>.
+    await expect(items.nth(5)).toBeFocused();
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 
     await reviewsRegion(page).getByRole("combobox", { name: "Ordenar reseñas" }).click();
     await page.getByRole("option", { name: "Peor valoradas" }).click();

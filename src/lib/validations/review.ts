@@ -26,6 +26,3 @@ export const reviewSchema = z.object({
 export type ReviewInput = z.infer<typeof reviewSchema>;
 
 export type ReviewField = keyof ReviewInput;
-
-/** Ids from the client (review, product): non-empty, short strings. */
-export const reviewIdSchema = z.string().trim().min(1).max(64);

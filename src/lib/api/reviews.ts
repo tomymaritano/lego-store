@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { STORE_TIME_ZONE } from "@/lib/argentina";
 import type { ReviewSort } from "@/lib/reviews/sorts";
 import type { Review, ReviewPage, ReviewSummary, ViewerReviews } from "@/types";
 
@@ -48,10 +49,19 @@ async function verifiedBuyers(db: Db, productId: string, userIds: string[]): Pro
   return new Set(buyers.flatMap((order) => (order.userId ? [order.userId] : [])));
 }
 
+/** YYYY-MM-DD in the store's time zone (en-CA formats dates that way). */
+const storeDate = new Intl.DateTimeFormat("en-CA", {
+  timeZone: STORE_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /**
  * Rows in the shape the reviews UI renders: author display name, "útil" votes
  * counted from ReviewHelpful, verified when the author paid for the product,
- * date as YYYY-MM-DD (UTC).
+ * date as YYYY-MM-DD in Argentina (a review posted at 22:00 there is still
+ * that day's). The author's account id stays here: these lists are public.
  */
 async function toReviews(db: Db, productId: string, rows: ReviewRow[]): Promise<Review[]> {
   const verified = await verifiedBuyers(
@@ -62,21 +72,14 @@ async function toReviews(db: Db, productId: string, rows: ReviewRow[]): Promise<
   return rows.map((row) => ({
     id: row.id,
     productId: row.productId,
-    userId: row.userId,
     userName: row.user.name?.trim() || "Cliente",
     rating: row.rating,
     title: row.title,
     comment: row.comment,
-    date: row.createdAt.toISOString().slice(0, 10),
+    date: storeDate.format(row.createdAt),
     helpful: row._count.helpfulVotes,
     verified: verified.has(row.userId),
   }));
-}
-
-/** Every review of a product, newest first. */
-export async function getProductReviews(db: Db, productId: string): Promise<Review[]> {
-  const rows = await db.review.findMany({ where: { productId }, orderBy: ORDER_BY.recent, select: reviewSelect });
-  return toReviews(db, productId, rows);
 }
 
 /** Average (one decimal) and the 5-to-1 histogram of a product's reviews. */

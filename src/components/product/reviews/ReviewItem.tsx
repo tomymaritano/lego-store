@@ -58,7 +58,9 @@ export function ReviewItem({
       animate="visible"
       exit="exit"
       transition={transitions.spring}
-      className="py-6"
+      // Focusable from script only: "Ver más reseñas" moves focus to the first review it loaded.
+      tabIndex={-1}
+      className="py-6 outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-inset"
       data-testid="review"
       data-review-id={review.id}
     >

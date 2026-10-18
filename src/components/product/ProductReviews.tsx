@@ -88,6 +88,9 @@ export function ProductReviews({ productId, initialPage, focusRequest }: Product
   const [pendingVotes, setPendingVotes] = useState<ReadonlyMap<string, boolean>>(new Map());
   const toggleRef = useRef<HTMLButtonElement & HTMLAnchorElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  /** A review "Ver más reseñas" just loaded, to focus once it renders. */
+  const [focusReviewId, setFocusReviewId] = useState<string | null>(null);
   const formPanelRef = useRef<HTMLDivElement>(null);
   /** True while the form is opening for a "write a review" link; focus waits for it to load and finish opening. */
   const [focusFormWhenOpen, setFocusFormWhenOpen] = useState(false);
@@ -209,6 +212,26 @@ export function ProductReviews({ productId, initialPage, focusRequest }: Product
     await refresh();
     headingRef.current?.focus();
   };
+
+  /**
+   * Loads the next page and moves focus to its first review: the button that
+   * asked for it may unmount (last page), and focus must not fall to <body>.
+   */
+  const loadMore = async () => {
+    const loaded = reviews.length;
+    const result = await list.fetchNextPage();
+    const next = result.data?.pages.flatMap((page) => page.items)[loaded];
+    if (next) setFocusReviewId(next.id);
+  };
+
+  // Focuses the first loaded review once it is rendered.
+  useEffect(() => {
+    if (!focusReviewId) return;
+    const item = listRef.current?.querySelector<HTMLElement>(`[data-review-id="${CSS.escape(focusReviewId)}"]`);
+    if (!item) return;
+    item.focus({ preventScroll: false });
+    setFocusReviewId(null);
+  }, [focusReviewId, reviews.length]);
 
   /** A review as shown: the pending vote counted in. */
   const shown = (review: Review): { review: Review; voted: boolean } => {
@@ -333,11 +356,11 @@ export function ProductReviews({ productId, initialPage, focusRequest }: Product
               </div>
             ) : (
               <LayoutGroup>
-                <ul className="divide-y divide-border" aria-label="Reseñas" aria-busy={list.isFetching}>
+                <ul ref={listRef} className="divide-y divide-border" aria-label="Reseñas" aria-busy={list.isFetching}>
                   <AnimatePresence initial={false}>
                     {reviews.map((item) => {
                       const { review, voted } = shown(item);
-                      const isMine = !!viewer && review.userId === viewer.id;
+                      const isMine = !!ownReview && review.id === ownReview.id;
                       return (
                         <ReviewItem
                           key={review.id}
@@ -367,7 +390,7 @@ export function ProductReviews({ productId, initialPage, focusRequest }: Product
             ) : null}
             {list.hasNextPage ? (
               <div className="flex justify-center">
-                <Button variant="secondary" onClick={() => void list.fetchNextPage()} loading={list.isFetchingNextPage}>
+                <Button variant="secondary" onClick={() => void loadMore()} loading={list.isFetchingNextPage}>
                   Ver más reseñas
                 </Button>
               </div>

@@ -21,7 +21,6 @@ export {
   getSaleProducts,
   getCategories,
   getCategoryById,
-  getProductReviews,
   getReviewPage,
 } from "./products";
 export { CATALOG_TAGS, invalidateCatalog, updateCatalog } from "./cache";

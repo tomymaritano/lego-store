@@ -13,7 +13,6 @@ export const mockReviews: Review[] = [
   {
     id: "r1",
     productId: "1",
-    userId: "u1",
     userName: "Carlos M.",
     rating: 5,
     title: "Increíble nivel de detalle",
@@ -26,7 +25,6 @@ export const mockReviews: Review[] = [
   {
     id: "r2",
     productId: "1",
-    userId: "u2",
     userName: "Ana L.",
     rating: 4,
     title: "Muy bueno pero algo difícil",
@@ -39,7 +37,6 @@ export const mockReviews: Review[] = [
   {
     id: "r3",
     productId: "3",
-    userId: "u3",
     userName: "Roberto G.",
     rating: 5,
     title: "El mejor helmet de la colección",
@@ -51,7 +48,6 @@ export const mockReviews: Review[] = [
   {
     id: "r4",
     productId: "4",
-    userId: "u4",
     userName: "María S.",
     rating: 5,
     title: "¡Espectacular en la repisa!",

@@ -14,7 +14,6 @@ import { ReviewSummary } from "./ReviewSummary";
 const review: Review = {
   id: "r1",
   productId: "1",
-  userId: "u1",
   userName: "Carlos M.",
   rating: 5,
   title: "Increíble nivel de detalle",

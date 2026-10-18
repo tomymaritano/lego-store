@@ -3,7 +3,7 @@ import "server-only";
 import { getDb } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE, SORT_OPTIONS } from "@/lib/productQuery";
 import { MAX_REVIEW_PAGE, REVIEW_PAGE_SIZE, type ReviewSort } from "@/lib/reviews/sorts";
-import type { Category, Product, Review, ReviewPage } from "@/types";
+import type { Category, Product, ReviewPage } from "@/types";
 import * as catalog from "./catalog";
 import * as reviews from "./reviews";
 import { CATALOG_TAGS, cached } from "./cache";
@@ -158,22 +158,6 @@ export const getCategories = cached("getCategories", () => catalog.getCategories
 export async function getCategoryById(id: string): Promise<Category | null> {
   const wanted = id.toLowerCase();
   return (await getCategories()).find((category) => category.id.toLowerCase() === wanted) ?? null;
-}
-
-const getCachedProductReviews = cached(
-  "getProductReviews",
-  (productId: string) => reviews.getProductReviews(getDb(), productId),
-  (productId) => [products, product(productId)]
-);
-
-/**
- * A product's reviews, newest first (unknown ids: none, and no cache entry).
- * Tagged with the product, so the invalidateCatalog({ productIds }) a review
- * write already does (the rating moves) refreshes them too.
- */
-export async function getProductReviews(productId: string): Promise<Review[]> {
-  if (!(await isKnownProduct(productId))) return [];
-  return getCachedProductReviews(productId);
 }
 
 const getCachedReviewPage = cached(

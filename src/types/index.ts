@@ -180,7 +180,7 @@ export type Theme = "light" | "dark" | "system";
 export interface Review {
   id: string;
   productId: string;
-  userId: string;
+  /** The author's display name (their account id is never sent: review lists are public). */
   userName: string;
   rating: number;
   title: string;
