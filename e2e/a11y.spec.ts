@@ -137,6 +137,46 @@ for (const colorScheme of ["light", "dark"] as const) {
       }
     });
 
+    test.describe("coupon states", () => {
+      const cart = { "lego-cart-storage": { cart: [{ ...line, quantity: 3 }] } };
+      const seeded = { ...cart, "lego-coupon-storage": { coupon: { code: "BIENVENIDA10", type: "PERCENT", value: 10, minSubtotal: 2000, label: "10% de descuento" } } };
+
+      test("cart: a refused code on the field", async ({ page }) => {
+        await seed(page, cart);
+        await page.goto("/cart");
+        await page.getByLabel("Código de descuento").fill("NOEXISTE1");
+        await page.getByRole("button", { name: "Aplicar" }).click();
+        await expect(page.getByTestId("cart-coupon").getByRole("alert")).toHaveText(/no existe/);
+        await expect(page.getByLabel("Código de descuento")).toHaveAttribute("aria-invalid", "true");
+        await expectNoSeriousViolations(page);
+      });
+
+      test("cart: a stored coupon the server took off, with the notice", async ({ page }) => {
+        await seed(page, { ...cart, "lego-coupon-storage": { coupon: { code: "NOEXISTE2", type: "FIXED", value: 100, minSubtotal: 0, label: "$ 100 de descuento" } } });
+        await page.goto("/cart");
+        await expect(page.getByTestId("cart-coupon").getByRole("alert")).toHaveText(/Quitamos el cupón NOEXISTE2/);
+        await expectNoSeriousViolations(page);
+      });
+
+      test("checkout with a coupon (desktop)", async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await seed(page, seeded);
+        await page.goto("/checkout");
+        await expect(page.getByTestId("checkout-discount").first()).toBeVisible({ timeout: 30_000 });
+        await expectNoSeriousViolations(page);
+      });
+
+      test("checkout with a coupon (390px, summary open)", async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seed(page, seeded);
+        await page.goto("/checkout");
+        await page.locator("summary", { hasText: "Ver resumen" }).click();
+        await expect(page.getByTestId("checkout-mobile-coupon-applied")).toContainText("BIENVENIDA10", { timeout: 30_000 });
+        await expect(page.getByTestId("checkout-mobile-discount")).toBeVisible();
+        await expectNoSeriousViolations(page);
+      });
+    });
+
     test("cart drawer", async ({ page }) => {
       await seed(page, { "lego-cart-storage": { cart: [{ ...line, quantity: 1 }] } });
       await page.goto("/search?q=star");
