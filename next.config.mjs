@@ -1,5 +1,26 @@
+/**
+ * Sent on every response. No page of ours is ever framed (the Stripe Payment
+ * Element frames js.stripe.com inside our pages, not the other way round), so
+ * framing is denied everywhere: this blocks clickjacking of /admin and
+ * /account. HSTS only in production: `next dev` and the e2e server run on
+ * plain http://localhost.
+ */
+const securityHeaders = [
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  ...(process.env.NODE_ENV === "production"
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]
+    : []),
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
   // Playwright's production server builds into its own folder (NEXT_DIST_DIR,
   // see playwright.config.ts) so `next build` never rewrites the .next folder
   // the dev server is reading at the same time.
