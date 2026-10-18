@@ -3,7 +3,7 @@ import "server-only";
 import { getDb } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE, SORT_OPTIONS } from "@/lib/productQuery";
 import { MAX_REVIEW_PAGE, REVIEW_PAGE_SIZE, type ReviewSort } from "@/lib/reviews/sorts";
-import type { Category, Product, ReviewPage } from "@/types";
+import type { Category, Product, ProductTheme, ReviewPage } from "@/types";
 import * as catalog from "./catalog";
 import * as reviews from "./reviews";
 import { CATALOG_TAGS, cached } from "./cache";
@@ -20,7 +20,7 @@ import { CATALOG_TAGS, cached } from "./cache";
  * so requests cannot grow the data cache without limit.
  */
 
-const { products, categories, product } = CATALOG_TAGS;
+const { products, categories, themes, product } = CATALOG_TAGS;
 const all = () => [products];
 const categoryTags = () => [categories, products];
 
@@ -151,14 +151,28 @@ export const getSaleProducts = cached(
   (limit?) => isSmallLimit(limit, MAX_PAGE_SIZE)
 );
 
-/** Categories in navigation order, with their product count. */
+/** The visible categories in navigation order, with their product count. */
 export const getCategories = cached("getCategories", () => catalog.getCategories(getDb()), categoryTags);
 
-/** One category by id (case-insensitive), read from the cached category list. */
+/** Every category's display name, hidden ones too (for the names products show). */
+export const getCategoryNames = cached("getCategoryNames", () => catalog.getCategoryNames(getDb()), () => [categories]);
+
+/** One visible category by id (case-insensitive), read from the cached category list. */
 export async function getCategoryById(id: string): Promise<Category | null> {
   const wanted = id.toLowerCase();
   return (await getCategories()).find((category) => category.id.toLowerCase() === wanted) ?? null;
 }
+
+/**
+ * The current slug of a category whose old slug this is (an admin changed
+ * it), or null. Uncached: only asked for slugs that are not a category.
+ */
+export function getCategoryRedirect(slug: string): Promise<string | null> {
+  return catalog.getCategoryRedirect(getDb(), slug);
+}
+
+/** The visible themes, in the admin's order: the "Temas" menu. */
+export const getThemes: () => Promise<ProductTheme[]> = cached("getThemes", () => catalog.getThemes(getDb()), () => [themes]);
 
 const getCachedReviewPage = cached(
   "getReviewPage",

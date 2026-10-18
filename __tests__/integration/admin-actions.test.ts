@@ -35,6 +35,8 @@ const data = await import("@/lib/admin/data");
 
 let customer: { id: string };
 let admin: { id: string };
+/** A seeded theme, for the product form. */
+let themeId = "";
 
 const signInAs = (user: { id: string } | null, tokenRole = "USER") => {
   session.current = user ? { user: { id: user.id, role: tokenRole }, sessionVersion: 0 } : null;
@@ -51,13 +53,12 @@ const productForm = (overrides: Record<string, string> = {}) => {
     categoryId: "ships",
     type: "Set",
     age: "9+",
-    theme: "Espacio",
+    themeId,
     interests: "Naves",
     pieces: "501-1000",
     highlight: "Nuevo",
-    img: "/images/lego.png",
+    gallery: JSON.stringify([{ url: "/images/lego.png", alt: "Nave de Acción" }]),
     imageSecondary: "",
-    images: "",
     stock: "4",
     shortDescription: "Corta.",
     description: "Larga.",
@@ -71,6 +72,7 @@ beforeAll(async () => {
   await resetAndSeed();
   customer = await testDb.user.create({ data: { email: "cliente@acciones.test", name: "Cliente" } });
   admin = await testDb.user.create({ data: { email: "jefa@acciones.test", name: "Jefa", role: "ADMIN" } });
+  themeId = (await testDb.theme.findFirstOrThrow({ where: { name: "Star Wars" } })).id;
 });
 
 beforeEach(() => {
@@ -125,8 +127,8 @@ describe("product actions", () => {
   });
 
   it("returns field errors (and keeps the database as it was) for invalid input", async () => {
-    const state = await actions.saveProductAction("7", {}, productForm({ price: "abc", img: "http://www.lego.com/cdn/x.png" }));
-    expect(state).toMatchObject({ status: "error", fieldErrors: { price: expect.any(String), img: expect.any(String) } });
+    const state = await actions.saveProductAction("7", {}, productForm({ price: "abc", gallery: JSON.stringify([{ url: "http://www.lego.com/cdn/x.png", alt: "x" }]) }));
+    expect(state).toMatchObject({ status: "error", fieldErrors: { price: expect.any(String), gallery: expect.any(String) } });
     expect((await testDb.product.findUniqueOrThrow({ where: { id: "7" } })).name).toBe("Batmobile");
     expect(updateTag).not.toHaveBeenCalled();
   });

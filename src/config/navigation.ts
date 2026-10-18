@@ -9,11 +9,14 @@ export interface NavItem {
   href: string;
 }
 
-/** Themes link to a search, which matches the theme name (same algorithm as /search). */
-export const themeLinks: NavItem[] = ["Star Wars", "Marvel", "Disney", "Harry Potter"].map((name) => ({
-  name,
-  href: `/search?q=${encodeURIComponent(name)}`,
-}));
+/** Where a theme of the "Temas" menu goes: the catalogue filtered by it (/search?theme=Star%20Wars). */
+export const themeHref = (name: string) => `/search?theme=${encodeURIComponent(name)}`;
+
+/**
+ * The "Temas" menu (navbar, mobile menu, footer): the themes an admin left
+ * visible, in their order (read from the database by the root layout).
+ */
+export const themeNavItems = (themes: { name: string }[]): NavItem[] => themes.map((theme) => ({ name: theme.name, href: themeHref(theme.name) }));
 
 export const helpLinks: NavItem[] = [
   { name: "Preguntas frecuentes", href: "/faq" },

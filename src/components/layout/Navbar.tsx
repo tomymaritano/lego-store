@@ -4,7 +4,7 @@ import { Truck } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
 import { logoutAction } from "@/lib/auth/actions";
-import { themeLinks, type NavItem } from "@/config/navigation";
+import type { NavItem } from "@/config/navigation";
 import { SearchAutocomplete } from "@/components/search";
 import type { Category } from "@/types";
 import { NavLink } from "./NavLink";
@@ -25,7 +25,16 @@ const navLinkClasses =
  * The root layout reads the session and passes `account`, so the signed-in
  * state is in the server HTML (no flash after hydration).
  */
-export function Navbar({ categories, account }: { categories: Pick<Category, "id" | "name">[]; account: NavAccount | null }) {
+export function Navbar({
+  categories,
+  themes,
+  account,
+}: {
+  categories: Pick<Category, "id" | "name">[];
+  /** The "Temas" menu (config/navigation.ts themeNavItems). */
+  themes: NavItem[];
+  account: NavAccount | null;
+}) {
   const links: NavItem[] = [
     { name: "Todos", href: "/" },
     ...categories.map((c) => ({ name: c.name, href: `/category/${c.id}` })),
@@ -62,7 +71,7 @@ export function Navbar({ categories, account }: { categories: Pick<Category, "id
                 </li>
               ))}
               <li>
-                <ThemesMenu themes={themeLinks} triggerClassName="h-10 px-3 text-body font-medium" />
+                {themes.length > 0 ? <ThemesMenu themes={themes} triggerClassName="h-10 px-3 text-body font-medium" /> : null}
               </li>
             </ul>
           </nav>
@@ -71,7 +80,7 @@ export function Navbar({ categories, account }: { categories: Pick<Category, "id
             <SearchAutocomplete className="w-full max-w-md" />
           </div>
 
-          <NavbarActions links={links} themes={themeLinks} account={account} logoutAction={logoutAction} />
+          <NavbarActions links={links} themes={themes} account={account} logoutAction={logoutAction} />
         </div>
       </header>
     </>

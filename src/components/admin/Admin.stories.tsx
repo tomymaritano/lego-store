@@ -86,12 +86,23 @@ const form = (
     <ProductForm
       mode="create"
       action={stubFormAction({ status: "error", message: "Revisa los campos marcados.", fieldErrors: { price: "Completa el precio" } })}
-      initial={{ ...EMPTY_PRODUCT, name: "Torre de prueba", img: "/images/lego.png", images: ["/images/lego.png", "https://example.com/x.png"] }}
+      initial={{
+        ...EMPTY_PRODUCT,
+        name: "Torre de prueba",
+        gallery: [
+          { url: "/images/lego.png", alt: "Torre de prueba, vista de frente" },
+          { url: "https://example.com/x.png", alt: "" },
+        ],
+      }}
       categories={[
         { id: "buildings", name: "Edificios" },
         { id: "cars", name: "Vehículos" },
       ]}
-      suggestions={{ type: ["Set"], age: ["18+"], theme: ["Star Wars"], pieces: ["501-1000"], highlight: ["Exclusivo"], interests: ["Naves"] }}
+      themes={[
+        { id: "t1", name: "Star Wars", visible: true },
+        { id: "t2", name: "Ideas", visible: false },
+      ]}
+      suggestions={{ type: ["Set"], age: ["18+"], pieces: ["501-1000"], highlight: ["Exclusivo"], interests: ["Naves"] }}
     />
   </div>
 );

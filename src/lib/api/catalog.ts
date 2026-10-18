@@ -10,6 +10,7 @@ import type {
   ProductFilters,
   ProductQuery,
   SearchSuggestion,
+  ProductTheme,
 } from "@/types";
 import { escapeLike, nameHits, normalizeText, tokenize } from "./search";
 
@@ -47,13 +48,14 @@ const productSelect = {
   categoryId: true,
   type: true,
   age: true,
-  theme: true,
+  theme: { select: { name: true } },
   interests: true,
   pieces: true,
   highlight: true,
   img: true,
   imageSecondary: true,
   images: true,
+  imageAlts: true,
   stock: true,
   shortDescription: true,
   description: true,
@@ -62,9 +64,10 @@ const productSelect = {
 type ProductRow = Prisma.ProductGetPayload<{ select: typeof productSelect }>;
 
 /** DB row -> the app's Product (optional fields left out rather than null). */
-function toProduct({ categoryId, originalPrice, imageSecondary, ...row }: ProductRow): Product {
+function toProduct({ categoryId, originalPrice, imageSecondary, theme, ...row }: ProductRow): Product {
   return {
     ...row,
+    theme: theme.name,
     category: categoryId,
     ...(originalPrice !== null && { originalPrice }),
     ...(imageSecondary !== null && { imageSecondary }),
@@ -92,7 +95,6 @@ const ORDER_BY: Record<Exclude<ProductQuery["sort"], "featured" | undefined>, Pr
 // ---------------------------------------------------------------------------
 
 const LIST_FIELDS = {
-  themes: "theme",
   types: "type",
   ages: "age",
   pieces: "pieces",
@@ -106,18 +108,17 @@ type Vocabulary = Record<(typeof LIST_FIELDS)[ListFilter], string[]>;
 /**
  * Every distinct value of the list facets. URL filter values are matched to
  * these ignoring case and accents ("disney" -> "Disney"), so the WHERE can use
- * exact, indexable comparisons.
+ * exact, indexable comparisons. Themes are their own table (matchThemes).
  */
 async function loadVocabulary(db: Db): Promise<Vocabulary> {
   const rows = await db.$queryRaw<{ field: keyof Vocabulary; value: string }[]>`
-    SELECT DISTINCT 'theme' AS field, "theme" AS value FROM "Product" WHERE "archivedAt" IS NULL
-    UNION SELECT DISTINCT 'type', "type" FROM "Product" WHERE "archivedAt" IS NULL
+    SELECT DISTINCT 'type' AS field, "type" AS value FROM "Product" WHERE "archivedAt" IS NULL
     UNION SELECT DISTINCT 'age', "age" FROM "Product" WHERE "archivedAt" IS NULL
     UNION SELECT DISTINCT 'pieces', "pieces" FROM "Product" WHERE "archivedAt" IS NULL
     UNION SELECT DISTINCT 'highlight', "highlight" FROM "Product" WHERE "archivedAt" IS NULL
     UNION SELECT DISTINCT 'interests', unnest("interests") FROM "Product" WHERE "archivedAt" IS NULL
   `;
-  const vocabulary: Vocabulary = { theme: [], type: [], age: [], pieces: [], highlight: [], interests: [] };
+  const vocabulary: Vocabulary = { type: [], age: [], pieces: [], highlight: [], interests: [] };
   for (const { field, value } of rows) vocabulary[field].push(value);
   return vocabulary;
 }
@@ -127,11 +128,26 @@ function canonical(known: string[], requested: string[]): string[] {
   return known.filter((value) => wanted.has(normalizeText(value)));
 }
 
+type ThemeRef = { id: string; name: string; slug: string };
+
+const loadThemes = (db: Db): Promise<ThemeRef[]> => db.theme.findMany({ select: { id: true, name: true, slug: true } });
+
+/**
+ * The themes a ?theme= filter names: by name ignoring case and accents
+ * ("star wars" -> "Star Wars", the values the filters and the menu use) or by
+ * slug ("star-wars"). Hidden themes still filter: only the menus leave them out.
+ */
+export function matchThemes(themes: ThemeRef[], requested: string[]): string[] {
+  const wanted = new Set(requested.map(normalizeText));
+  return themes.filter((theme) => wanted.has(normalizeText(theme.name)) || wanted.has(theme.slug)).map((theme) => theme.id);
+}
+
 type Scope = Pick<ProductQuery, "q"> & ProductFilters;
 
 /** Builds WHERE clauses for a scope; loads the facet vocabulary once, only if a list filter needs it. */
 function whereBuilder(db: Db) {
   let vocabulary: Promise<Vocabulary> | null = null;
+  let themes: Promise<ThemeRef[]> | null = null;
 
   return async function where(query: Scope): Promise<Prisma.ProductWhereInput> {
     const and: Prisma.ProductWhereInput[] = [LISTED];
@@ -148,6 +164,10 @@ function whereBuilder(db: Db) {
       vocabulary ??= loadVocabulary(db);
       const values = canonical((await vocabulary)[field], requested);
       and.push(field === "interests" ? { interests: { hasSome: values } } : { [field]: { in: values } });
+    }
+    if (query.themes?.length) {
+      themes ??= loadThemes(db);
+      and.push({ themeId: { in: matchThemes(await themes, query.themes) } });
     }
 
     // Bounds outside the int4 price column are clamped (parseProductQuery already does it for URLs).
@@ -235,9 +255,9 @@ export async function getSearchSuggestions(
   const ids = await featuredIds(db, await whereBuilder(db)({ q: query }), query);
   const items = await db.product.findMany({
     where: { id: { in: ids.slice(0, Math.max(0, limit)) }, ...LISTED },
-    select: { id: true, name: true, price: true, img: true, theme: true },
+    select: { id: true, name: true, price: true, img: true, theme: { select: { name: true } } },
   });
-  const byId = new Map(items.map((item) => [item.id, item]));
+  const byId = new Map(items.map(({ theme, ...item }) => [item.id, { ...item, theme: theme.name }]));
   return {
     items: ids.slice(0, Math.max(0, limit)).flatMap((id) => byId.get(id) ?? []),
     total: ids.length,
@@ -280,13 +300,13 @@ export async function getPaginatedProducts(db: Db, query: ProductQuery = {}): Pr
 
 /** Same theme and category first, then same theme, then same category; best rated first within each. */
 export async function getRelatedProducts(db: Db, productId: string, limit = 4): Promise<Product[]> {
-  const product = await db.product.findUnique({ where: { id: productId }, select: { theme: true, categoryId: true } });
+  const product = await db.product.findUnique({ where: { id: productId }, select: { themeId: true, categoryId: true } });
   if (!product) return [];
 
   const tiers: Prisma.ProductWhereInput[] = [
-    { theme: product.theme, categoryId: product.categoryId },
-    { theme: product.theme, categoryId: { not: product.categoryId } },
-    { theme: { not: product.theme }, categoryId: product.categoryId },
+    { themeId: product.themeId, categoryId: product.categoryId },
+    { themeId: product.themeId, categoryId: { not: product.categoryId } },
+    { themeId: { not: product.themeId }, categoryId: product.categoryId },
   ];
   const related: Product[] = [];
   for (const tier of tiers) {
@@ -312,12 +332,19 @@ const RATING_THRESHOLDS = [4.5, 4, 3] as const;
 /** Leading number of "12+", "501-1000", "2001+" for natural ordering. */
 const leadingNumber = (value: string) => Number.parseInt(value, 10) || 0;
 
-type ScalarFacet = "categoryId" | "theme" | "type" | "age" | "pieces" | "highlight";
+type ScalarFacet = "categoryId" | "themeId" | "type" | "age" | "pieces" | "highlight";
 
 /** Products per value of one column, inside `where`. */
 async function countByColumn(db: Db, field: ScalarFacet, where: Prisma.ProductWhereInput): Promise<Record<string, number>> {
   const groups = await db.product.groupBy({ by: [field], where, _count: { _all: true } });
   return Object.fromEntries(groups.map((group) => [group[field], group._count._all]));
+}
+
+/** Products per theme name, inside `where` (the facets are keyed by name, like the URL values). */
+async function countThemes(db: Db, where: Prisma.ProductWhereInput, themes: Promise<ThemeRef[]>): Promise<Record<string, number>> {
+  const [byId, list] = await Promise.all([countByColumn(db, "themeId", where), themes]);
+  const names = new Map(list.map((theme) => [theme.id, theme.name]));
+  return Object.fromEntries(Object.entries(byId).flatMap(([id, count]) => (names.has(id) ? [[names.get(id)!, count]] : [])));
 }
 
 /** Products per interest (multi-valued: a product counts once per interest it has). */
@@ -355,11 +382,12 @@ export async function getFilterOptions(
   const where = await whereBuilder(db)({ q: scopeQuery.q, category: scopeQuery.category });
   const and = (extra: Prisma.ProductWhereInput) => ({ AND: [where, extra] });
 
-  const [categories, names, themes, types, ages, interests, pieces, highlights, price, ratings, onSale, inStock, isNew, total] =
+  const [categories, names, themes, themeList, types, ages, interests, pieces, highlights, price, ratings, onSale, inStock, isNew, total] =
     await Promise.all([
       countByColumn(db, "categoryId", where),
-      db.category.findMany({ select: { id: true, name: true } }),
-      countByColumn(db, "theme", where),
+      db.category.findMany({ where: { visible: true }, select: { id: true, name: true } }),
+      countByColumn(db, "themeId", where),
+      db.theme.findMany({ where: { visible: true }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true } }),
       countByColumn(db, "type", where),
       countByColumn(db, "age", where),
       countInterests(db, where),
@@ -373,10 +401,13 @@ export async function getFilterOptions(
       db.product.count({ where }),
     ]);
   const categoryName = new Map(names.map((c) => [c.id, c.name]));
+  // Hidden categories and themes (the admin's "visible" off) are not offered as filters.
+  const visibleCategories = Object.fromEntries(Object.entries(categories).filter(([slug]) => categoryName.has(slug)));
 
   return {
-    categories: options(categories, "alpha", (slug) => categoryName.get(slug) ?? slug),
-    themes: options(themes),
+    categories: options(visibleCategories, "alpha", (slug) => categoryName.get(slug) ?? slug),
+    // Themes in the admin's order (the "Temas" menu's), not A-Z.
+    themes: themeList.filter((theme) => (themes[theme.id] ?? 0) > 0).map((theme) => ({ value: theme.name, label: theme.name, count: themes[theme.id]! })),
     types: options(types),
     ages: options(ages, "numeric"),
     interests: options(interests),
@@ -396,6 +427,7 @@ export async function getFilterOptions(
 export async function getFacetCounts(db: Db, query: ProductQuery = {}): Promise<FacetCounts> {
   const where = whereBuilder(db);
   const without = (field: keyof ProductFilters) => where({ ...query, [field]: undefined });
+  const themeList = loadThemes(db);
 
   const [byCategory, byTheme, byType, byAge, byInterest, byPieces, byHighlight, byRating, bySale, byStock, byNew] =
     await Promise.all([
@@ -416,7 +448,7 @@ export async function getFacetCounts(db: Db, query: ProductQuery = {}): Promise<
   const [categories, themes, types, ages, interests, pieces, highlights, ratings, onSale, inStock, isNew, anyCategory, anyRating] =
     await Promise.all([
       countByColumn(db, "categoryId", byCategory),
-      countByColumn(db, "theme", byTheme),
+      countThemes(db, byTheme, themeList),
       countByColumn(db, "type", byType),
       countByColumn(db, "age", byAge),
       countInterests(db, byInterest),
@@ -470,10 +502,29 @@ export async function getSaleProducts(db: Db, limit?: number): Promise<Product[]
   return productsInOrder(db, rows.map((row) => row.id));
 }
 
+/** The visible categories (navigation, home, filters), in the admin's order, with their product count. */
 export async function getCategories(db: Db): Promise<Category[]> {
   const rows = await db.category.findMany({
+    where: { visible: true },
     orderBy: [{ position: "asc" }, { id: "asc" }],
-    select: { id: true, name: true, description: true, image: true, _count: { select: { products: { where: LISTED } } } },
+    select: { id: true, name: true, description: true, image: true, imageAlt: true, _count: { select: { products: { where: LISTED } } } },
   });
   return rows.map(({ _count, ...category }) => ({ ...category, productCount: _count.products }));
+}
+
+/** Every category's display name, hidden ones included: products in a hidden category still show it. */
+export function getCategoryNames(db: Db): Promise<Pick<Category, "id" | "name">[]> {
+  return db.category.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true } });
+}
+
+/** Where a category's old slug goes now (an admin changed it): its current slug, or null. */
+export async function getCategoryRedirect(db: Db, slug: string): Promise<string | null> {
+  if (slug.includes("\u0000") || slug.length > 64) return null;
+  const row = await db.categoryRedirect.findFirst({ where: { slug: { equals: slug, mode: "insensitive" } }, select: { categoryId: true } });
+  return row?.categoryId ?? null;
+}
+
+/** The visible themes in the admin's order: the "Temas" menu. */
+export function getThemes(db: Db): Promise<ProductTheme[]> {
+  return db.theme.findMany({ where: { visible: true }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, slug: true, name: true } });
 }

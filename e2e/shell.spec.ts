@@ -30,12 +30,12 @@ test.describe("App shell", () => {
     await expect(nav.getByRole("link", { name: "Todos" })).not.toHaveAttribute("aria-current");
   });
 
-  test("themes disclosure opens, lists searches and closes on Escape", async ({ page }) => {
+  test("themes disclosure opens, lists the themes from the database and closes on Escape", async ({ page }) => {
     await page.goto("/");
     const trigger = page.getByRole("button", { name: "Temas" });
     await trigger.click();
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("link", { name: "Marvel" }).first()).toHaveAttribute("href", "/search?q=Marvel");
+    await expect(page.getByRole("link", { name: "Marvel" }).first()).toHaveAttribute("href", "/search?theme=Marvel");
     await page.keyboard.press("Escape");
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await expect(trigger).toBeFocused();

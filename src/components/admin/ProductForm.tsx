@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { useHydrated } from "@/hooks/useHydrated";
 import type { FormState } from "@/lib/auth/form-state";
 import { REMOTE_IMAGE_HOSTS } from "@/lib/images";
-import { splitList, MAX_PRODUCT_IMAGES, type ProductField } from "@/lib/validations/admin";
+import { MAX_PRODUCT_IMAGES, type GalleryImage, type ProductField } from "@/lib/validations/admin";
 import {
   Button,
   Card,
@@ -24,7 +24,8 @@ import {
 } from "@/components/ui";
 import { FormAlert } from "@/components/auth/FormAlert";
 import { useFocusFirstInvalid } from "@/components/auth/useFormFeedback";
-import { ImagePreview } from "./ImagePreview";
+import { GalleryEditor } from "./GalleryEditor";
+import { ImageField } from "./ImageField";
 
 /** What the form starts with: a product's current values, or empty for a new one. */
 export interface ProductFormValues {
@@ -34,15 +35,15 @@ export interface ProductFormValues {
   isNew: boolean;
   isOnSale: boolean;
   categoryId: string;
+  themeId: string;
   type: string;
   age: string;
-  theme: string;
   interests: string[];
   pieces: string;
   highlight: string;
-  img: string;
+  /** The pictures in order (the first is the main one), each with its alt text. */
+  gallery: GalleryImage[];
   imageSecondary: string | null;
-  images: string[];
   stock: number;
   shortDescription: string;
   description: string;
@@ -55,15 +56,14 @@ export const EMPTY_PRODUCT: ProductFormValues = {
   isNew: true,
   isOnSale: false,
   categoryId: "",
+  themeId: "",
   type: "",
   age: "",
-  theme: "",
   interests: [],
   pieces: "",
   highlight: "",
-  img: "",
+  gallery: [],
   imageSecondary: null,
-  images: [],
   stock: 0,
   shortDescription: "",
   description: "",
@@ -74,8 +74,10 @@ export interface ProductFormProps {
   action: (state: FormState<ProductField>, formData: FormData) => Promise<FormState<ProductField>>;
   initial: ProductFormValues;
   categories: { id: string; name: string }[];
+  /** Every theme in the store's order (hidden ones marked: their products keep them). */
+  themes: { id: string; name: string; visible: boolean }[];
   /** Values already in use, offered as suggestions. */
-  suggestions: Record<"type" | "age" | "theme" | "pieces" | "highlight" | "interests", string[]>;
+  suggestions: Record<"type" | "age" | "pieces" | "highlight" | "interests", string[]>;
   mode: "create" | "edit";
 }
 
@@ -92,22 +94,21 @@ function Suggestions({ id, values }: { id: string; values: string[] }) {
 /**
  * Create / edit a product (/admin/products/new, /admin/products/<id>). Every
  * field of the storefront's product, validated again on the server with the
- * same zod schema (src/lib/validations/admin.ts). Pictures are URLs (a file
- * of the site or the allowed CDN), previewed as the store will show them.
+ * same zod schema (src/lib/validations/admin.ts). Pictures are uploaded or
+ * pasted as URLs (a file of the site or the allowed CDN), each with its alt
+ * text, previewed as the store will show them; the first is the main one.
  *
  * The form is submitted through the action by hand (not `<form action>`), so
  * React does not reset it after an error: what the admin typed stays.
  */
-export function ProductForm({ action, initial, categories, suggestions, mode }: ProductFormProps) {
+export function ProductForm({ action, initial, categories, themes, suggestions, mode }: ProductFormProps) {
   const [state, formAction] = useActionState(action, {});
   const [pending, startTransition] = useTransition();
   const formRef = useFocusFirstInvalid(state);
   const [categoryId, setCategoryId] = useState(initial.categoryId);
+  const [themeId, setThemeId] = useState(initial.themeId);
   const [isNew, setIsNew] = useState(initial.isNew);
   const [isOnSale, setIsOnSale] = useState(initial.isOnSale);
-  const [img, setImg] = useState(initial.img);
-  const [imageSecondary, setImageSecondary] = useState(initial.imageSecondary ?? "");
-  const [images, setImages] = useState(initial.images.join("\n"));
   const errors = state.fieldErrors ?? {};
   const handled = useRef(state);
   const hydrated = useHydrated();
@@ -124,8 +125,8 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
     startTransition(() => formAction(data));
   };
 
-  const gallery = splitList(images, /\r?\n/).slice(0, MAX_PRODUCT_IMAGES);
   const categoryItems = Object.fromEntries(categories.map((category) => [category.id, category.name]));
+  const themeItems = Object.fromEntries(themes.map((theme) => [theme.id, theme.visible ? theme.name : `${theme.name} (oculto)`]));
 
   return (
     <form ref={formRef} onSubmit={submit} noValidate aria-label={mode === "create" ? "Nuevo producto" : "Editar producto"} className="space-y-6">
@@ -155,8 +156,20 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
             </Select>
             <input type="hidden" name="categoryId" value={categoryId} />
           </Field>
-          <Field label="Tema" error={errors.theme} hint="Por ejemplo: Star Wars, Marvel, Technic." required>
-            <Input name="theme" defaultValue={initial.theme} list="admin-themes" maxLength={60} autoComplete="off" />
+          <Field label="Tema" error={errors.themeId} hint="Los temas se crean y ordenan en Temas." required>
+            <Select items={themeItems} value={themeId || null} onValueChange={(value) => setThemeId(typeof value === "string" ? value : "")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Elige un tema" />
+              </SelectTrigger>
+              <SelectContent>
+                {themes.map((theme) => (
+                  <SelectItem key={theme.id} value={theme.id}>
+                    {themeItems[theme.id]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <input type="hidden" name="themeId" value={themeId} />
           </Field>
           <Field label="Tipo" error={errors.type} required>
             <Input name="type" defaultValue={initial.type} list="admin-types" maxLength={60} autoComplete="off" />
@@ -173,7 +186,6 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
           <Field label="Intereses" error={errors.interests} hint="Separados por comas." className="sm:col-span-2">
             <Input name="interests" defaultValue={initial.interests.join(", ")} autoComplete="off" />
           </Field>
-          <Suggestions id="admin-themes" values={suggestions.theme} />
           <Suggestions id="admin-types" values={suggestions.type} />
           <Suggestions id="admin-ages" values={suggestions.age} />
           <Suggestions id="admin-pieces" values={suggestions.pieces} />
@@ -220,44 +232,19 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
         <CardHeader>
           <h2 className="text-title text-fg">Imágenes</h2>
           <CardDescription>
-            URLs: un archivo del sitio (/images/…) o una imagen https de {REMOTE_IMAGE_HOSTS.join(", ")}.
+            Hasta {MAX_PRODUCT_IMAGES}, en orden: la primera es la principal (tarjetas, carrito, búsqueda). Sube JPG, PNG, WebP o AVIF, o pega la
+            URL de un archivo del sitio (/images/…) o de {REMOTE_IMAGE_HOSTS.join(", ")}.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="flex items-start gap-4">
-            <Field label="Imagen principal" error={errors.img} required className="min-w-0 flex-1">
-              <Input name="img" type="url" value={img} onChange={(event) => setImg(event.target.value)} autoComplete="off" />
-            </Field>
-            <ImagePreview url={img} label="Imagen principal" className="mt-7 size-20 sm:size-24" />
-          </div>
-          <div className="flex items-start gap-4">
-            <Field label="Imagen al pasar el mouse" error={errors.imageSecondary} hint="Opcional." className="min-w-0 flex-1">
-              <Input
-                name="imageSecondary"
-                type="url"
-                value={imageSecondary}
-                onChange={(event) => setImageSecondary(event.target.value)}
-                autoComplete="off"
-              />
-            </Field>
-            <ImagePreview url={imageSecondary} label="Imagen al pasar el mouse" className="mt-7 size-20 sm:size-24" />
-          </div>
-          <Field
-            label="Galería"
-            error={errors.images}
-            hint={`Una URL por línea, hasta ${MAX_PRODUCT_IMAGES}. Vacía: se usa la imagen principal.`}
-          >
-            <Textarea name="images" rows={4} value={images} onChange={(event) => setImages(event.target.value)} className="font-mono text-caption" />
-          </Field>
-          {gallery.length > 0 ? (
-            <ul aria-label="Vista previa de la galería" className="flex flex-wrap gap-3">
-              {gallery.map((url, index) => (
-                <li key={`${url}-${index}`}>
-                  <ImagePreview url={url} label={`Galería, imagen ${index + 1}`} className="size-20" />
-                </li>
-              ))}
-            </ul>
-          ) : null}
+        <CardContent className="space-y-8">
+          <GalleryEditor name="gallery" initial={initial.gallery} error={errors.gallery} />
+          <ImageField
+            name="imageSecondary"
+            label="Imagen al pasar el mouse"
+            initialUrl={initial.imageSecondary ?? ""}
+            error={errors.imageSecondary}
+            hint="Opcional: la tarjeta la muestra al pasar el mouse. Sube una imagen o pega su URL."
+          />
         </CardContent>
       </Card>
 

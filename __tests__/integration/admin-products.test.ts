@@ -30,6 +30,12 @@ import { shipping } from "./setup/checkout";
  * only deletes what no order references.
  */
 
+/** The test theme (created in beforeAll): its name has an accent and an eñe, for the search. */
+let themeId = "";
+
+const TOWER = "https://www.lego.com/cdn/cs/set/assets/blt0000/torre.png";
+const gallery = (...images: { url: string; alt: string }[]) => JSON.stringify(images);
+
 const form = (overrides: Partial<ProductFormInput> = {}): ProductFormInput => ({
   name: "Torre de Prueba",
   price: "1500",
@@ -39,13 +45,12 @@ const form = (overrides: Partial<ProductFormInput> = {}): ProductFormInput => ({
   categoryId: "buildings",
   type: "Set",
   age: "12+",
-  theme: "Arquitectura Ñandú",
+  themeId,
   interests: "Edificios, Viajes, Edificios",
   pieces: "501-1000",
   highlight: "Exclusivo",
-  img: "https://www.lego.com/cdn/cs/set/assets/blt0000/torre.png",
+  gallery: gallery({ url: TOWER, alt: "Torre de prueba de frente" }),
   imageSecondary: "",
-  images: "",
   stock: "12",
   shortDescription: "Una torre para probar.",
   description: "Una torre de prueba con una descripción larga.",
@@ -61,6 +66,7 @@ beforeAll(async () => {
   await resetAndSeed();
   ana = await testDb.user.create({ data: { email: "ana@productos.test", name: "Ana" } });
   actor = await testDb.user.create({ data: { email: "jefa@productos.test", name: "Jefa", role: "ADMIN" }, select: { id: true, email: true } });
+  themeId = (await testDb.theme.create({ data: { name: "Arquitectura Ñandú", slug: "arquitectura-nandu", position: 50 } })).id;
 });
 
 beforeEach(async () => {
@@ -69,32 +75,47 @@ beforeEach(async () => {
 });
 
 describe("productFormSchema", () => {
-  it("normalises the form: numbers, lists, gallery defaulting to the main picture, no original price off sale", () => {
+  it("normalises the form: numbers, lists, the gallery in order with its alt texts, no original price off sale", () => {
     expect(parse({ originalPrice: "9999" })).toMatchObject({
       price: 1500,
       originalPrice: null,
       interests: ["Edificios", "Viajes"],
-      images: ["https://www.lego.com/cdn/cs/set/assets/blt0000/torre.png"],
+      img: TOWER,
+      images: [TOWER],
+      imageAlts: ["Torre de prueba de frente"],
       imageSecondary: null,
       stock: 12,
     });
+    // The first picture is the main one.
+    const two = parse({ gallery: gallery({ url: "/uploads/aa.webp", alt: " Vista  lateral " }, { url: TOWER, alt: "Frente" }) });
+    expect(two).toMatchObject({ img: "/uploads/aa.webp", images: ["/uploads/aa.webp", TOWER], imageAlts: ["Vista lateral", "Frente"] });
+  });
+
+  it("every picture needs an allowed URL and its alt text, and there is at least one", () => {
+    const issues = (galleryValue: string) => productFormSchema.safeParse(form({ gallery: galleryValue })).error?.issues.map((issue) => issue.message) ?? [];
+    expect(issues(gallery())).toEqual(["Agrega al menos una imagen"]);
+    expect(issues(gallery({ url: TOWER, alt: "  " }))).toEqual(["La imagen principal necesita su texto alternativo (qué se ve en ella)"]);
+    expect(issues(gallery({ url: TOWER, alt: "A" }, { url: "https://evil.example.com/x.png", alt: "B" }))[0]).toMatch(/^La imagen 2 no tiene una URL permitida/);
+    expect(issues(gallery({ url: TOWER, alt: "A" }, { url: TOWER, alt: "B" }))).toEqual(["Hay una imagen repetida en la galería"]);
+    expect(issues("not json")).toEqual(["No pudimos leer la galería. Recarga la página."]);
+    expect(issues(gallery(...Array.from({ length: 11 }, (_, index) => ({ url: `/images/x${index}.png`, alt: "x" }))))).toEqual(["Como máximo 10 imágenes"]);
   });
 
   it("explains each problem on its field", () => {
     const result = productFormSchema.safeParse(
-      form({ name: " ", price: "12.5", isOnSale: true, originalPrice: "1000", img: "https://evil.example.com/x.png", stock: "-1" })
+      form({ name: " ", price: "12.5", isOnSale: true, originalPrice: "1000", imageSecondary: "https://evil.example.com/x.png", stock: "-1" })
     );
     expect(result.success).toBe(false);
     const errors = Object.fromEntries(result.error!.issues.map((issue) => [issue.path[0], issue.message]));
     expect(errors).toMatchObject({
       name: "Completa el nombre",
       price: "Tiene que ser un número entero, sin puntos ni signos",
-      img: expect.stringContaining("www.lego.com"),
+      imageSecondary: expect.stringContaining("www.lego.com"),
       stock: "Tiene que ser un número entero, sin puntos ni signos",
     });
     // next/image throws on a site file with a query string: the server refuses it as the preview does.
-    const query = productFormSchema.safeParse(form({ img: "/images/lego.png?v=2", images: "/images/lego.png#x" }));
-    expect(query.error?.issues.map((issue) => issue.path[0]).sort()).toEqual(["images", "img"]);
+    const query = productFormSchema.safeParse(form({ gallery: gallery({ url: "/images/lego.png?v=2", alt: "x" }), imageSecondary: "/images/lego.png#x" }));
+    expect(query.error?.issues.map((issue) => issue.path[0]).sort()).toEqual(["gallery", "imageSecondary"]);
   });
 
   it("a product on sale needs an original price above its price", () => {
@@ -121,11 +142,16 @@ describe("creating and editing", () => {
     expect((await listAdminProducts(testDb, { q: id, category: "", status: "all", stock: "", page: 1 })).items).toHaveLength(1);
   });
 
-  it("rejects an unknown category on its field", async () => {
+  it("rejects an unknown category or theme on its field", async () => {
     expect(await createProduct(testDb, actor, parse({ categoryId: "no-existe" }))).toEqual({
       ok: false,
       reason: "invalid",
       fieldErrors: { categoryId: "Esa categoría no existe" },
+    });
+    expect(await createProduct(testDb, actor, parse({ themeId: "no-existe" }))).toEqual({
+      ok: false,
+      reason: "invalid",
+      fieldErrors: { themeId: "Ese tema no existe" },
     });
   });
 

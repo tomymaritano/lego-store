@@ -53,13 +53,12 @@ const PRODUCT_TEXT_FIELDS = [
   "categoryId",
   "type",
   "age",
-  "theme",
+  "themeId",
   "interests",
   "pieces",
   "highlight",
-  "img",
   "imageSecondary",
-  "images",
+  "gallery",
   "stock",
   "shortDescription",
   "description",
@@ -402,3 +401,4 @@ export async function setUserBlockedAction(userId: unknown, blocked: unknown, re
       : "Desbloqueamos la cuenta: ya puede volver a iniciar sesión.",
   };
 }
+

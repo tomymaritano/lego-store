@@ -8,6 +8,7 @@ import { revalidateTag, unstable_cache, updateTag } from "next/cache";
  *   products         every product read and list (any product change)
  *   product:<id>     one product (its page, its by-id lookup)
  *   categories       category metadata and counts
+ *   themes           the "Temas" menu (the visible themes, in order)
  *
  * Statically generated pages that used tagged data are regenerated on the
  * next visit after the tag is invalidated. REVALIDATE_SECONDS is a safety net
@@ -17,6 +18,7 @@ import { revalidateTag, unstable_cache, updateTag } from "next/cache";
 export const CATALOG_TAGS = {
   products: "products",
   categories: "categories",
+  themes: "themes",
   product: (id: string) => `product:${id}`,
 } as const;
 
@@ -56,12 +58,14 @@ export function cached<A extends unknown[], R>(
 export function invalidateCatalog({
   productIds = [],
   categories = false,
+  themes = false,
   listings = true,
-}: { productIds?: string[]; categories?: boolean; listings?: boolean } = {}) {
+}: { productIds?: string[]; categories?: boolean; themes?: boolean; listings?: boolean } = {}) {
   if (listings) revalidateTag(CATALOG_TAGS.products, { expire: 0 });
   for (const id of productIds) revalidateTag(CATALOG_TAGS.product(id), { expire: 0 });
   // Category counts change when products are created, deleted or moved.
   if (categories) revalidateTag(CATALOG_TAGS.categories, { expire: 0 });
+  if (themes) revalidateTag(CATALOG_TAGS.themes, { expire: 0 });
 }
 
 /**
@@ -74,9 +78,11 @@ export function invalidateCatalog({
 export function updateCatalog({
   productIds = [],
   categories = false,
+  themes = false,
   listings = true,
-}: { productIds?: string[]; categories?: boolean; listings?: boolean } = {}) {
+}: { productIds?: string[]; categories?: boolean; themes?: boolean; listings?: boolean } = {}) {
   if (listings) updateTag(CATALOG_TAGS.products);
   for (const id of productIds) updateTag(CATALOG_TAGS.product(id));
   if (categories) updateTag(CATALOG_TAGS.categories);
+  if (themes) updateTag(CATALOG_TAGS.themes);
 }

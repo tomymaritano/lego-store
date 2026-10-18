@@ -6,7 +6,8 @@ import { CategoriesProvider } from "@/providers/CategoriesProvider";
 import { ViewerProvider } from "@/providers/ViewerProvider";
 import { ClientProviders, Footer, Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui";
-import { getCategories } from "@/lib/api";
+import { getCategories, getCategoryNames, getThemes } from "@/lib/api";
+import { themeNavItems } from "@/config/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { ThemeScript } from "@/components/layout/ThemeScript";
 import { siteConfig } from "@/config/site";
@@ -69,8 +70,11 @@ export default async function RootLayout({
 }>) {
   // The session makes every page render per request (see README, «Rendimiento»); the
   // catalogue reads stay in the data cache, so this costs one session check and one query.
-  const [categories, user] = await Promise.all([
+  const [categories, categoryNames, themes, user] = await Promise.all([
     getCategories().then((list) => list.map(({ id, name }) => ({ id, name }))),
+    // Hidden categories too: their products still show the category's name.
+    getCategoryNames(),
+    getThemes().then(themeNavItems),
     getCurrentUser(),
   ]);
   const account = user ? { name: user.name, email: user.email, role: user.role } : null;
@@ -90,14 +94,14 @@ export default async function RootLayout({
           Saltar al contenido principal
         </a>
         <QueryProvider>
-          <CategoriesProvider categories={categories}>
+          <CategoriesProvider categories={categoryNames}>
             <ViewerProvider viewer={viewer}>
               <ClientProviders>
-                <Navbar categories={categories} account={account} />
+                <Navbar categories={categories} themes={themes} account={account} />
                 <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
                   {children}
                 </main>
-                <Footer categories={categories} />
+                <Footer categories={categories} themes={themes} />
                 <Toaster />
               </ClientProviders>
             </ViewerProvider>

@@ -23,6 +23,12 @@ export function gallerySources(product: Pick<Product, "img" | "images">): string
   return Array.from(new Set([product.img, ...product.images].filter(Boolean)));
 }
 
+/** A picture's alt text: the one the admin wrote for it (Product.imageAlts), or the product's name. */
+export function galleryAlt(product: Pick<Product, "name" | "images" | "imageAlts">, src: string): string {
+  const index = product.images.indexOf(src);
+  return (index >= 0 ? product.imageAlts?.[index]?.trim() : "") || product.name;
+}
+
 /**
  * Product page gallery: the zoomable main picture (ImageZoom), previous/next
  * buttons, a thumbnail strip and, on touch screens, swipe. Arrow keys work on
@@ -124,7 +130,7 @@ export function ProductGallery({ product }: { product: Product }) {
             onClickCapture={swallowClickAfterDrag}
             style={touch && count > 1 ? { touchAction: "pan-y" } : undefined}
           >
-            <Slide src={gallery.selectedSrc} alt={product.name} />
+            <Slide src={gallery.selectedSrc} alt={galleryAlt(product, gallery.selectedSrc)} />
           </m.div>
         </AnimatePresence>
 

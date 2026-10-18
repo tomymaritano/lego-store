@@ -30,7 +30,7 @@ describe("lib/api after catalogue writes", () => {
         categoryId: "cars",
         type: "Sets",
         age: "12+",
-        theme: "City",
+        themeId: (await testDb.theme.upsert({ where: { name: "City" }, create: { name: "City", slug: "city", position: 99 }, update: {} })).id,
         interests: ["Vehículos"],
         pieces: "0-500",
         highlight: "Destacados",

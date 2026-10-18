@@ -116,15 +116,55 @@ model VerificationToken {
 // ---------------------------------------------------------------------------
 
 model Category {
-  /// URL slug, e.g. "helmet" (Product.categoryId, /category/<id>).
+  /// URL slug, e.g. "helmet" (Product.categoryId, /category/<id>). An admin can
+  /// change it (src/lib/admin/categories.ts): the products follow (ON UPDATE
+  /// CASCADE) and the old slug stays as a CategoryRedirect.
   id          String   @id
   name        String
   description String
   image       String
+  /// What the image shows, for screen readers (required by the admin form).
+  imageAlt    String   @default("")
   /// Navigation order.
   position    Int
+  /// Off: out of the navigation, the home page and the filters, and its page
+  /// is not found; its products stay on sale (search, their own pages).
+  visible     Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  products  Product[]
+  redirects CategoryRedirect[]
+
+  @@index([position])
+}
+
+/// A category's previous slug: /category/<slug> redirects to the category's
+/// current one (permanently). Removed if a new category takes the slug.
+model CategoryRedirect {
+  slug       String   @id
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([categoryId])
+}
+
+/// A product theme ("Star Wars", "Technic"): the product cards' label, the
+/// "Temas" menu and the theme filter. Edited in /admin/themes.
+model Theme {
+  id        String   @id @default(cuid())
+  /// "star-wars": also accepted as a theme filter value (?theme=star-wars).
+  slug      String   @unique
+  /// Unique ignoring case and accents (the app checks it before writing).
+  name      String   @unique
+  /// Menu and filter order.
+  position  Int
+  /// Off: out of the "Temas" menu and the filter list; its products keep it.
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   products Product[]
 
@@ -148,13 +188,15 @@ model Product {
   categoryId       String
   type             String
   age              String
-  theme            String
+  themeId          String
   interests        String[]
   pieces           String
   highlight        String
   img              String
   imageSecondary   String?
   images           String[]
+  /// Alt text of each gallery image, in the same order as `images`.
+  imageAlts        String[] @default([])
   stock            Int       @default(0)
   /// Set when an admin archives the product: it leaves the storefront (catalogue,
   /// search, product page, carts, wishlists, checkout) but stays in the database,
@@ -171,13 +213,14 @@ model Product {
   updatedAt        DateTime  @updatedAt
 
   category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  theme         Theme          @relation(fields: [themeId], references: [id], onDelete: Restrict)
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
   reviews       Review[]
   orderItems    OrderItem[]
 
   @@index([categoryId])
-  @@index([theme])
+  @@index([themeId])
   @@index([createdAt])
   @@index([price])
   @@index([rating])

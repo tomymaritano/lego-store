@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getCategoryById, getProductById } from "@/lib/api";
+import { getCategoryById, getCategoryRedirect, getProductById } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { loginHref } from "@/lib/auth/callback-url";
 
@@ -17,7 +17,8 @@ import { loginHref } from "@/lib/auth/callback-url";
  * /category/<id> and /item/<id>: unknown ids get a real 404 before any
  * rendering (the not-found page would otherwise be rendered with a 200 by
  * the on-demand render). Keep these lookups cheap: they run on every request
- * to those pages.
+ * to those pages. A category's old slug (an admin changed it) is a permanent
+ * redirect to its current one, filters included.
  */
 
 const PROTECTED = new Set(["account", "admin"]);
@@ -65,6 +66,13 @@ export async function proxy(request: NextRequest): Promise<Response> {
   }
   const lookup = exists[section];
   if (id && lookup && (await lookup(id))) return NextResponse.next();
+
+  const moved = section === "category" && id ? await getCategoryRedirect(id) : null;
+  if (moved) {
+    const target = request.nextUrl.clone();
+    target.pathname = `/category/${encodeURIComponent(moved)}`;
+    return NextResponse.redirect(target, 308);
+  }
 
   // No route matches this path, so Next renders the app's not-found page with a 404.
   const missing = request.nextUrl.clone();

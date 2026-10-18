@@ -89,8 +89,13 @@ export default async function EditProductPage({ params, searchParams }: EditProd
         <ProductForm
           mode="edit"
           action={saveProductAction.bind(null, product.id)}
-          initial={product}
+          initial={{
+            ...product,
+            // The gallery with each picture's alt text (the product's name for one that never had its own).
+            gallery: product.images.map((url, index) => ({ url, alt: product.imageAlts[index] ?? product.name })),
+          }}
           categories={options.categories}
+          themes={options.themes}
           suggestions={options.suggestions}
         />
 

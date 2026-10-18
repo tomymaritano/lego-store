@@ -118,15 +118,16 @@ export async function getAdminProduct(db: Db, id: string) {
       isNew: true,
       isOnSale: true,
       categoryId: true,
+      themeId: true,
       type: true,
       age: true,
-      theme: true,
       interests: true,
       pieces: true,
       highlight: true,
       img: true,
       imageSecondary: true,
       images: true,
+      imageAlts: true,
       stock: true,
       shortDescription: true,
       description: true,
@@ -156,19 +157,25 @@ export function adminCategories(db: Db): Promise<{ id: string; name: string }[]>
   return db.category.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true } });
 }
 
-/** The categories plus the values already in use, offered as suggestions in the form (datalists). */
+/** Every theme, in the store's order (the form's select; hidden ones too, marked). */
+export function adminThemes(db: Db): Promise<{ id: string; name: string; visible: boolean }[]> {
+  return db.theme.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true, visible: true } });
+}
+
+/** The categories and themes plus the values already in use, offered as suggestions in the form (datalists). */
 export async function productFormOptions(db: Db) {
-  const [categories, rows] = await Promise.all([
+  const [categories, themes, rows] = await Promise.all([
     adminCategories(db),
-    db.product.findMany({ select: { type: true, age: true, theme: true, pieces: true, highlight: true, interests: true } }),
+    adminThemes(db),
+    db.product.findMany({ select: { type: true, age: true, pieces: true, highlight: true, interests: true } }),
   ]);
   const distinct = (values: string[]) => Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "es"));
   return {
     categories,
+    themes,
     suggestions: {
       type: distinct(rows.map((row) => row.type)),
       age: distinct(rows.map((row) => row.age)),
-      theme: distinct(rows.map((row) => row.theme)),
       pieces: distinct(rows.map((row) => row.pieces)),
       highlight: distinct(rows.map((row) => row.highlight)),
       interests: distinct(rows.flatMap((row) => row.interests)),
@@ -185,9 +192,22 @@ export type ProductWriteResult =
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "invalid"; fieldErrors: Partial<Record<ProductField, string>> };
 
+type InvalidInput = Extract<ProductWriteResult, { reason: "invalid" }>;
+
+const isInvalid = (value: object): value is InvalidInput => "reason" in value && value.reason === "invalid";
+
+/** The columns a write sets, or the field errors when its category or theme does not exist. */
 async function productData(db: Db, input: ProductInput) {
-  const category = await db.category.findUnique({ where: { id: input.categoryId }, select: { id: true, name: true } });
-  if (!category) return null;
+  const [category, theme] = await Promise.all([
+    db.category.findUnique({ where: { id: input.categoryId }, select: { id: true, name: true } }),
+    db.theme.findUnique({ where: { id: input.themeId }, select: { id: true, name: true } }),
+  ]);
+  if (!category || !theme) {
+    const fieldErrors: InvalidInput["fieldErrors"] = {};
+    if (!category) fieldErrors.categoryId = "Esa categoría no existe";
+    if (!theme) fieldErrors.themeId = "Ese tema no existe";
+    return { ok: false, reason: "invalid", fieldErrors } satisfies InvalidInput;
+  }
   return {
     name: input.name,
     price: input.price,
@@ -195,29 +215,28 @@ async function productData(db: Db, input: ProductInput) {
     isNew: input.isNew,
     isOnSale: input.isOnSale,
     categoryId: category.id,
+    themeId: theme.id,
     type: input.type,
     age: input.age,
-    theme: input.theme,
     interests: input.interests,
     pieces: input.pieces,
     highlight: input.highlight,
     img: input.img,
     imageSecondary: input.imageSecondary,
     images: input.images,
+    imageAlts: input.imageAlts,
     shortDescription: input.shortDescription,
     description: input.description,
     // What the storefront search matches (src/lib/api/search.ts): recomputed on every write.
     ...productSearchColumns({
       name: input.name,
-      theme: input.theme,
+      theme: theme.name,
       categoryId: category.id,
       categoryName: category.name,
       description: input.description,
     }),
   } satisfies Prisma.ProductUncheckedUpdateInput;
 }
-
-const NO_CATEGORY = { ok: false, reason: "invalid", fieldErrors: { categoryId: "Esa categoría no existe" } } as const;
 
 /** The product's columns an audit entry names (the form's fields; never the derived search columns). */
 const auditedSelect = {
@@ -227,21 +246,22 @@ const auditedSelect = {
   isNew: true,
   isOnSale: true,
   categoryId: true,
+  themeId: true,
   type: true,
   age: true,
-  theme: true,
   interests: true,
   pieces: true,
   highlight: true,
   img: true,
   imageSecondary: true,
   images: true,
+  imageAlts: true,
   stock: true,
   shortDescription: true,
   description: true,
 } as const satisfies Prisma.ProductSelect;
 
-type ProductData = NonNullable<Awaited<ReturnType<typeof productData>>>;
+type ProductData = Exclude<Awaited<ReturnType<typeof productData>>, InvalidInput>;
 
 const AUDITED_FIELDS = Object.keys(auditedSelect) as (keyof typeof auditedSelect)[];
 
@@ -258,7 +278,7 @@ function auditedValues(data: ProductData, stock: number): Record<keyof typeof au
 export async function createProduct(db: PrismaClient, actor: AuditActor, input: ProductInput): Promise<ProductWriteResult> {
   return db.$transaction(async (tx): Promise<ProductWriteResult> => {
     const data = await productData(tx, input);
-    if (!data) return NO_CATEGORY;
+    if (isInvalid(data)) return data;
     const product = await tx.product.create({ data: { ...data, stock: input.stock }, select: { id: true } });
     await recordAudit(tx, actor, {
       action: "product.create",
@@ -302,7 +322,7 @@ export async function updateProduct(
 ): Promise<ProductWriteResult> {
   return db.$transaction(async (tx): Promise<ProductWriteResult> => {
     const data = await productData(tx, input);
-    if (!data) return NO_CATEGORY;
+    if (isInvalid(data)) return data;
     const before = await tx.product.findUnique({ where: { id }, select: auditedSelect });
     if (!before) return { ok: false, reason: "not_found" };
     const { count } = await tx.product.updateMany({ where: { id }, data });

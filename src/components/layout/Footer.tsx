@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Clock, Mail, MapPin, Phone, RotateCcw, Shield, Truck } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
-import { companyLinks, helpLinks, legalLinks, themeLinks, type NavItem } from "@/config/navigation";
+import { companyLinks, helpLinks, legalLinks, type NavItem } from "@/config/navigation";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
 import { socialIcons } from "@/components/icons/SocialIcons";
 import type { Category } from "@/types";
@@ -50,7 +50,7 @@ function LinkColumn({ title, links }: { title: string; links: NavItem[] }) {
  * Site footer. Server Component; only the newsletter form hydrates.
  * Every link resolves to a page (see config/navigation.ts and its test).
  */
-export function Footer({ categories }: { categories: Pick<Category, "id" | "name">[] }) {
+export function Footer({ categories, themes }: { categories: Pick<Category, "id" | "name">[]; themes: NavItem[] }) {
   const shopLinks: NavItem[] = [
     { name: "Todos los sets", href: "/" },
     ...categories.slice(0, 4).map((c) => ({ name: c.name, href: `/category/${c.id}` })),
@@ -151,7 +151,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
 
           <nav aria-label="Pie de página" className="col-span-2 grid grid-cols-2 gap-x-8 gap-y-10 md:col-span-4 md:grid-cols-4 lg:gap-12">
             <LinkColumn title="Comprar" links={shopLinks} />
-            <LinkColumn title="Temas" links={themeLinks} />
+            {themes.length > 0 ? <LinkColumn title="Temas" links={themes} /> : null}
             <LinkColumn title="Ayuda" links={helpLinks} />
             <LinkColumn title="La tienda" links={[...companyLinks, ...legalLinks]} />
           </nav>

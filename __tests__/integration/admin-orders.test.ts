@@ -301,7 +301,7 @@ describe("changeOrderStatus: cancelling", () => {
         categoryId: "cars",
         type: "Set",
         age: "9+",
-        theme: "Prueba",
+        themeId: (await testDb.theme.findFirstOrThrow()).id,
         interests: [],
         pieces: "1-100",
         highlight: "Prueba",

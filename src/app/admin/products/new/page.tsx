@@ -29,6 +29,7 @@ export default async function NewProductPage() {
         action={saveProductAction.bind(null, null)}
         initial={EMPTY_PRODUCT}
         categories={options.categories}
+        themes={options.themes}
         suggestions={options.suggestions}
       />
     </>

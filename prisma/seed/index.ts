@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { products as seedProducts, type SeedProduct } from "@/data/products";
 import { categories as seedCategories } from "@/data/categories";
+import { themes as seedThemes } from "@/data/themes";
 import { coupons as sampleCoupons } from "@/data/coupons";
 import { storeDayEnd } from "@/lib/admin/format";
 import { productSearchColumns } from "@/lib/api/search";
@@ -116,13 +117,34 @@ async function seedCoupons(db: PrismaClient) {
 async function seedCatalogue(db: PrismaClient) {
   const categoryNames = new Map(seedCategories.map((c) => [c.id, c.name]));
 
+  const themeIds = new Map<string, string>();
+  for (const [position, theme] of seedThemes.entries()) {
+    const data = { slug: theme.slug, position, visible: true };
+    const row = await db.theme.upsert({ where: { name: theme.name }, create: { name: theme.name, ...data }, update: data, select: { id: true } });
+    themeIds.set(theme.name, row.id);
+  }
+  const themeOf = (name: string) => {
+    const id = themeIds.get(name);
+    if (!id) throw new Error(`El producto de ejemplo usa el tema "${name}", que no está en src/data/themes.ts.`);
+    return id;
+  };
+
   await db.$transaction([
+    // A seed slug an admin moved away from (a redirect) is the seed category's again.
+    db.categoryRedirect.deleteMany({ where: { slug: { in: seedCategories.map((category) => category.id) } } }),
     ...seedCategories.map((category, position) => {
-      const data = { name: category.name, description: category.description, image: category.image, position };
+      const data = {
+        name: category.name,
+        description: category.description,
+        image: category.image,
+        imageAlt: category.imageAlt ?? category.name,
+        position,
+        visible: true,
+      };
       return db.category.upsert({ where: { id: category.id }, create: { id: category.id, ...data }, update: data });
     }),
     ...seedProducts.map((product, index) => {
-      const data = productRow(product, categoryNames.get(product.category) ?? product.category);
+      const data = productRow(product, categoryNames.get(product.category) ?? product.category, themeOf(product.theme));
       // Catalogue order ("Destacados") is creation order: one minute apart, in file order.
       const createdAt = new Date(CATALOGUE_EPOCH + index * 60_000);
       return db.product.upsert({
@@ -134,7 +156,8 @@ async function seedCatalogue(db: PrismaClient) {
   ]);
 }
 
-function productRow(product: SeedProduct, categoryName: string) {
+function productRow(product: SeedProduct, categoryName: string, themeId: string) {
+  const images = product.images.length ? product.images : [product.img];
   return {
     name: product.name,
     price: product.price,
@@ -144,13 +167,14 @@ function productRow(product: SeedProduct, categoryName: string) {
     categoryId: product.category,
     type: product.type,
     age: product.age,
-    theme: product.theme,
+    themeId,
     interests: product.interests,
     pieces: product.pieces,
     highlight: product.highlight,
     img: product.img,
     imageSecondary: product.imageSecondary ?? null,
-    images: product.images.length ? product.images : [product.img],
+    images,
+    imageAlts: images.map((_, index) => (index === 0 ? product.name : `${product.name}, imagen ${index + 1}`)),
     stock: product.stock,
     // Re-seeding puts an archived seed product back on the store.
     archivedAt: null,

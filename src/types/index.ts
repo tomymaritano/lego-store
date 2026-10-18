@@ -30,6 +30,8 @@ export interface Product {
   img: string;
   imageSecondary?: string;
   images: string[];
+  /** Alt text of each gallery image (same order as `images`); the product name when missing. */
+  imageAlts?: string[];
   stock: number;
   shortDescription: string;
   description: string;
@@ -51,7 +53,16 @@ export interface Category {
   name: string;
   description: string;
   image: string;
+  /** What the image shows (empty: decorative). */
+  imageAlt?: string;
   productCount: number;
+}
+
+/** A product theme as the storefront shows it (the "Temas" menu, filters). */
+export interface ProductTheme {
+  id: string;
+  slug: string;
+  name: string;
 }
 
 // ---------------------------------------------------------------------------

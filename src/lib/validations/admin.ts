@@ -17,6 +17,8 @@ export const MAX_ADMIN_PRICE = 100_000_000;
 export const MAX_ADMIN_STOCK = 1_000_000;
 export const MAX_PRODUCT_IMAGES = 10;
 export const MAX_PRODUCT_INTERESTS = 10;
+/** Longest alt text a picture takes. */
+export const MAX_IMAGE_ALT = 200;
 
 const text = (label: string, max: number) =>
   z
@@ -39,9 +41,53 @@ const wholeNumber = (label: string, min: number, max: number) =>
         .max(max, `Como máximo ${max.toLocaleString("es-AR")}`)
     );
 
-const IMAGE_RULE = `Usa una ruta del sitio (/images/…) o una URL https de ${REMOTE_IMAGE_HOSTS.join(", ")}`;
+export const IMAGE_RULE = `Sube una imagen, o usa una ruta del sitio (/images/…) o una URL https de ${REMOTE_IMAGE_HOSTS.join(", ")}`;
 
-const imageUrl = z.string().trim().min(1, "Completa la imagen principal").refine(isAllowedImageUrl, IMAGE_RULE);
+/** One picture of a gallery as the form sends it. */
+export interface GalleryImage {
+  url: string;
+  alt: string;
+}
+
+/**
+ * The gallery as the form sends it: a JSON list of { url, alt }, in order
+ * (the first is the main picture). Every picture needs an allowed URL and
+ * its alt text; the messages name the picture by its position.
+ */
+const gallery = z.string().transform((value, ctx): GalleryImage[] => {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(value || "[]");
+  } catch {
+    raw = null;
+  }
+  if (!Array.isArray(raw)) {
+    ctx.addIssue({ code: "custom", message: "No pudimos leer la galería. Recarga la página." });
+    return z.NEVER;
+  }
+  if (raw.length === 0) {
+    ctx.addIssue({ code: "custom", message: "Agrega al menos una imagen" });
+    return z.NEVER;
+  }
+  if (raw.length > MAX_PRODUCT_IMAGES) {
+    ctx.addIssue({ code: "custom", message: `Como máximo ${MAX_PRODUCT_IMAGES} imágenes` });
+    return z.NEVER;
+  }
+  const images: GalleryImage[] = [];
+  for (const [index, item] of raw.entries()) {
+    const url = typeof item?.url === "string" ? item.url.trim() : "";
+    const alt = typeof item?.alt === "string" ? item.alt.trim().replace(/\s+/g, " ") : "";
+    const which = index === 0 ? "La imagen principal" : `La imagen ${index + 1}`;
+    if (!isAllowedImageUrl(url)) ctx.addIssue({ code: "custom", message: `${which} no tiene una URL permitida. ${IMAGE_RULE}` });
+    else if (!alt) ctx.addIssue({ code: "custom", message: `${which} necesita su texto alternativo (qué se ve en ella)` });
+    else if (alt.length > MAX_IMAGE_ALT) ctx.addIssue({ code: "custom", message: `${which}: el texto alternativo tiene como máximo ${MAX_IMAGE_ALT} caracteres` });
+    images.push({ url, alt });
+  }
+  if (new Set(images.map((image) => image.url)).size !== images.length) {
+    ctx.addIssue({ code: "custom", message: "Hay una imagen repetida en la galería" });
+  }
+  return images;
+});
 
 /** "a, b , ,c" -> ["a", "b", "c"] (distinct, in order). */
 export const splitList = (value: string, separator: RegExp) =>
@@ -50,7 +96,7 @@ export const splitList = (value: string, separator: RegExp) =>
 /**
  * The product form as the browser sends it: every field a string (as in
  * FormData), flags as booleans. Interests are comma separated and the gallery
- * one URL per line.
+ * a JSON list of { url, alt } (the gallery editor's hidden field).
  */
 export const productFormSchema = z
   .object({
@@ -62,7 +108,7 @@ export const productFormSchema = z
     categoryId: z.string().trim().min(1, "Elige una categoría").max(64),
     type: text("el tipo", 60),
     age: text("la edad", 20),
-    theme: text("el tema", 60),
+    themeId: z.string().trim().min(1, "Elige un tema").max(64),
     interests: z
       .string()
       .transform((value) => splitList(value, /,/))
@@ -73,19 +119,11 @@ export const productFormSchema = z
       ),
     pieces: text("las piezas", 20),
     highlight: text("el destacado", 60),
-    img: imageUrl,
+    gallery,
     imageSecondary: z
       .string()
       .trim()
       .refine((value) => value === "" || isAllowedImageUrl(value), IMAGE_RULE),
-    images: z
-      .string()
-      .transform((value) => splitList(value, /\r?\n/))
-      .pipe(
-        z
-          .array(z.string().refine(isAllowedImageUrl, `Hay una URL no permitida. ${IMAGE_RULE}`))
-          .max(MAX_PRODUCT_IMAGES, `Como máximo ${MAX_PRODUCT_IMAGES} imágenes`)
-      ),
     stock: wholeNumber("el stock", 0, MAX_ADMIN_STOCK),
     shortDescription: text("la descripción corta", 300),
     description: text("la descripción", 5000),
@@ -104,14 +142,16 @@ export const productFormSchema = z
         originalPrice = parsed;
       }
     }
-    // The gallery always has at least the main picture (the product page shows it).
-    const images = input.images.length > 0 ? input.images : [input.img];
+    const { gallery: pictures, ...rest } = input;
     return {
-      ...input,
+      ...rest,
       // Not on sale: no original price (the database requires both or neither).
       originalPrice,
       imageSecondary: input.imageSecondary === "" ? null : input.imageSecondary,
-      images,
+      // The first picture is the main one (cards, cart, search); the gallery has them all.
+      img: pictures[0]!.url,
+      images: pictures.map((picture) => picture.url),
+      imageAlts: pictures.map((picture) => picture.alt),
     };
   });
 
