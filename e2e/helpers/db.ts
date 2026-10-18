@@ -88,6 +88,33 @@ export function latestOrder(
   });
 }
 
+/**
+ * A PAID order written straight to the database (no checkout, no Stripe), for
+ * specs about how the admin page treats one. Its single line points at no
+ * product, so the teardown's stock give-back skips it; the teardown deletes
+ * it with the other e2e orders.
+ */
+export async function createPaidE2eOrder(label: string): Promise<{ id: string; number: number }> {
+  const email = uniqueEmail(label);
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ id: string; number: number }>(
+      `INSERT INTO "Order" ("id", "email", "status", "firstName", "lastName", "phone", "address", "city", "state", "zipCode", "country",
+         "subtotal", "shipping", "total", "stripePaymentIntentId", "paymentBrand", "paymentLast4", "submittedAt", "paidAt", "updatedAt")
+       VALUES ($1, $2, 'PAID', 'Ana', 'Prueba', '+54 11 5555-0000', 'Av. Siempre Viva 742', 'Rosario', 'Santa Fe', '2000', 'Argentina',
+         1000, 0, 1000, $3, 'visa', '4242', now(), now(), now())
+       RETURNING "id", "number"`,
+      [`e2e-order-${randomBytes(8).toString("hex")}`, email, `pi_e2e_${randomBytes(8).toString("hex")}`]
+    );
+    const order = rows[0]!;
+    await client.query(
+      `INSERT INTO "OrderItem" ("id", "orderId", "productId", "name", "unitPrice", "image", "quantity")
+       SELECT $1, $2, NULL, 'Set de prueba', 1000, "images"[1], 1 FROM "Product" WHERE cardinality("images") > 0 ORDER BY "id" LIMIT 1`,
+      [`e2e-item-${randomBytes(8).toString("hex")}`, order.id]
+    );
+    return order;
+  });
+}
+
 /** Returns the admin's password. */
 export async function prepareAuthFixtures(): Promise<string> {
   const password = randomBytes(18).toString("base64url");

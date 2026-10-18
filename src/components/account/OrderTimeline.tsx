@@ -1,4 +1,5 @@
 import { Check, X } from "lucide-react";
+import { formatAdminDateTime } from "@/lib/admin/format";
 import { formatOrderDateTime, orderTimeline } from "@/lib/orders/format";
 import type { OrderView } from "@/lib/orders/types";
 import { cn } from "@/lib/utils";
@@ -6,10 +7,12 @@ import { cn } from "@/lib/utils";
 /**
  * The order's progress as an ordered list: placed → paid → shipped →
  * delivered, or the steps it reached and then "Cancelado". The current step
- * carries aria-current; each reached step shows when it happened.
+ * carries aria-current; each reached step shows when it happened, in the
+ * customer's words ("17 oct, 14:05") or the admin's numeric dates.
  */
-export function OrderTimeline({ order }: { order: OrderView }) {
+export function OrderTimeline({ order, dateStyle = "store" }: { order: OrderView; dateStyle?: "store" | "admin" }) {
   const steps = orderTimeline(order);
+  const formatAt = dateStyle === "admin" ? formatAdminDateTime : formatOrderDateTime;
   return (
     <ol aria-label="Estado del pedido" className="grid gap-4 sm:auto-cols-fr sm:grid-flow-col sm:gap-0" data-testid="order-timeline">
       {steps.map((step, index) => {
@@ -47,7 +50,7 @@ export function OrderTimeline({ order }: { order: OrderView }) {
                 {step.label}
                 {step.state === "upcoming" ? <span className="sr-only"> (pendiente)</span> : null}
               </span>
-              {step.at ? <span className="text-caption text-fg-muted">{formatOrderDateTime(step.at)}</span> : null}
+              {step.at ? <span className="text-caption text-fg-muted">{formatAt(step.at)}</span> : null}
             </span>
           </li>
         );

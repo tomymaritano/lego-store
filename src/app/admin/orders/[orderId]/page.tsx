@@ -3,15 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreditCard, History, MapPin, Package, ReceiptText, UserRound } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
-import { formatAdminDateTime } from "@/lib/admin/format";
+import { adminCancelReasonLabel, formatAdminDateTime } from "@/lib/admin/format";
 import { getAdminOrderDetail } from "@/lib/admin/data";
-import {
-  ORDER_STATUS_BADGE,
-  ORDER_STATUS_LABELS,
-  cancelReasonLabel,
-  formatOrderNumber,
-  paymentLabel,
-} from "@/lib/orders/format";
+import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderNumber, paymentLabel } from "@/lib/orders/format";
+import { paymentsMode } from "@/lib/payments/config";
 import { formatPrice, pluralize } from "@/lib/utils";
 import { orderIdSchema } from "@/lib/validations/orders";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -84,16 +79,14 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         <div className="min-w-0 space-y-6">
           <Card>
             <CardContent className="space-y-5">
-              <OrderTimeline order={order} />
+              <OrderTimeline order={order} dateStyle="admin" />
               {order.status === "CANCELLED" ? (
                 <p className="rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary">
                   <span className="font-semibold text-fg">Motivo: </span>
-                  {order.cancelReason === "amount_mismatch"
-                    ? "Stripe cobró un monto distinto del total del pedido; se reembolsó automáticamente."
-                    : cancelReasonLabel(order.cancelReason)}
+                  {adminCancelReasonLabel(order.cancelReason, order.stripeRefundId)}
                 </p>
               ) : null}
-              <OrderStatusActions order={order} />
+              <OrderStatusActions order={order} paymentsConfigured={paymentsMode() !== "unconfigured"} />
             </CardContent>
           </Card>
 
@@ -170,7 +163,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             <CardContent>
               <dl className="space-y-3 text-label font-normal" aria-labelledby="admin-order-totals-title">
                 <div className="flex justify-between gap-4">
-                  <dt className="text-fg-secondary">Subtotal ({pluralize(units, "unidad", "unidades")})</dt>
+                  <dt className="text-fg-secondary">Subtotal ({pluralize(units, "producto")})</dt>
                   <dd className="tabular-nums">{formatPrice(order.subtotal)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">

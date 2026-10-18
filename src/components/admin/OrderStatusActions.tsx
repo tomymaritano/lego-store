@@ -4,6 +4,7 @@ import { ADMIN_TRANSITIONS } from "@/lib/admin/format";
 import { formatOrderNumber } from "@/lib/orders/format";
 import type { OrderStatus } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
+import { Button } from "@/components/ui";
 import { ConfirmAction } from "./ConfirmAction";
 
 interface OrderStatusActionsProps {
@@ -15,7 +16,15 @@ interface OrderStatusActionsProps {
     email: string;
     /** A cancellation's refund has an unknown outcome: no shipping until it is cancelled again. */
     refundPending?: boolean;
+    /** A pending order with a PaymentIntent: cancelling it cancels that payment in Stripe. */
+    stripePaymentIntentId?: string | null;
   };
+  /**
+   * False when the server has no payment provider (paymentsMode "unconfigured"):
+   * a cancellation that has to refund or cancel a payment in Stripe is then
+   * shown disabled, with the reason, instead of failing after the dialog.
+   */
+  paymentsConfigured?: boolean;
 }
 
 /**
@@ -26,11 +35,14 @@ interface OrderStatusActionsProps {
  * An order held by a refund of unknown outcome only offers to retry the
  * cancellation (the server refuses to ship it too).
  */
-export function OrderStatusActions({ order }: OrderStatusActionsProps) {
+export function OrderStatusActions({ order, paymentsConfigured = true }: OrderStatusActionsProps) {
   const number = formatOrderNumber(order.number);
   const held = order.status === "PAID" && order.refundPending === true;
   const next = ADMIN_TRANSITIONS[order.status].filter((to) => !(held && to === "SHIPPED"));
   if (next.length === 0) return null;
+  // Cancelling refunds a paid order or cancels the pending payment: both go through Stripe.
+  const cancelBlocked = !paymentsConfigured && (order.status === "PAID" || Boolean(order.stripePaymentIntentId));
+  const cancelLabel = held ? "Reintentar la cancelación" : order.status === "PAID" ? "Cancelar y reembolsar" : "Cancelar pedido";
   const run = (to: (typeof next)[number]) => changeOrderStatusAction.bind(null, { orderId: order.id, to, expected: order.status });
 
   return (
@@ -67,9 +79,15 @@ export function OrderStatusActions({ order }: OrderStatusActionsProps) {
             action={run("DELIVERED")}
           />
         ) : null}
-        {next.includes("CANCELLED") ? (
+        {next.includes("CANCELLED") && cancelBlocked ? (
+          <Button variant="secondary" size="md" disabled aria-describedby="order-cancel-blocked">
+            <Ban aria-hidden="true" />
+            {cancelLabel}
+          </Button>
+        ) : null}
+        {next.includes("CANCELLED") && !cancelBlocked ? (
           <ConfirmAction
-            label={held ? "Reintentar la cancelación" : order.status === "PAID" ? "Cancelar y reembolsar" : "Cancelar pedido"}
+            label={cancelLabel}
             icon={<Ban aria-hidden="true" />}
             variant="secondary"
             size="md"
@@ -90,6 +108,12 @@ export function OrderStatusActions({ order }: OrderStatusActionsProps) {
           />
         ) : null}
       </div>
+      {next.includes("CANCELLED") && cancelBlocked ? (
+        <p id="order-cancel-blocked" className="text-caption text-fg-muted" data-testid="order-cancel-blocked">
+          Los pagos no están configurados en este servidor: cancelar este pedido necesita Stripe para{" "}
+          {order.status === "PAID" ? "reembolsar el pago" : "cancelar el pago pendiente"}.
+        </p>
+      ) : null}
     </div>
   );
 }

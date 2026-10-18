@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_TRANSITIONS, canTransition, formatAdminDateTime, pageCount, storeDate, storeDayEnd, storeDayStart } from "@/lib/admin/format";
+import {
+  ADMIN_TRANSITIONS,
+  adminCancelReasonLabel,
+  canTransition,
+  formatAdminDateTime,
+  pageCount,
+  storeDate,
+  storeDayEnd,
+  storeDayStart,
+} from "@/lib/admin/format";
+import { formatOrderDateTime } from "@/lib/orders/format";
 import { pageHref } from "@/components/admin/Pagination";
 import { orderTransitionSchema, parseOrderFilters, parseProductFilters, parseReviewFilters, stockUpdateSchema } from "@/lib/validations/admin";
 
@@ -83,6 +93,29 @@ describe("admin list filters from the URL", () => {
   it("admin dates always carry the year (store time)", () => {
     expect(formatAdminDateTime("2024-01-18T17:05:00Z")).toBe("18/01/2024, 14:05");
     expect(formatAdminDateTime("2026-01-01T02:30:00Z")).toBe("31/12/2025, 23:30");
+  });
+
+  it("the customer's timeline uses the same 24-hour clock", () => {
+    expect(formatOrderDateTime("2026-10-18T07:51:00Z")).toBe("18 oct, 04:51");
+    expect(formatOrderDateTime("2026-10-18T17:05:00Z")).toBe("18 oct, 14:05");
+  });
+});
+
+describe("cancel reasons, as the admin reads them", () => {
+  it("an admin's cancellation says whether it refunded a payment", () => {
+    expect(adminCancelReasonLabel("admin", "re_123")).toBe("Cancelado por un admin; se reembolsó el pago.");
+    expect(adminCancelReasonLabel("admin", null)).toBe("Cancelado por un admin antes del pago; no se cobró nada.");
+  });
+
+  it("never speaks to the customer, and survives unknown reasons", () => {
+    for (const reason of ["out_of_stock", "amount_mismatch", "payment_canceled", "expired", "superseded", "payment_setup_failed", "refunded"]) {
+      const label = adminCancelReasonLabel(reason, null);
+      expect(label).not.toMatch(/te|tu tarjeta/);
+      expect(label.length).toBeGreaterThan(10);
+    }
+    expect(adminCancelReasonLabel("amount_mismatch", "re_1")).toMatch(/monto distinto/);
+    expect(adminCancelReasonLabel("toString", null)).toBe("Se canceló el pedido.");
+    expect(adminCancelReasonLabel(null, null)).toBe("Se canceló el pedido.");
   });
 });
 

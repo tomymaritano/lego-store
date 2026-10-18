@@ -1,5 +1,5 @@
 import { STORE_TIME_ZONE } from "@/lib/argentina";
-import type { OrderStatus } from "@/lib/orders/types";
+import type { CancelReason, OrderStatus } from "@/lib/orders/types";
 import { ADMIN_PAGE_SIZE } from "@/lib/validations/admin";
 
 /*
@@ -63,8 +63,29 @@ const adminDateTimeFormat = new Intl.DateTimeFormat("es-AR", {
 });
 
 /**
- * "18/01/2024, 14:05" (store time zone): the admin's tables and order pages
- * span years of orders, so the year is always there (the customer's
- * formatOrderDateTime leaves it out).
+ * "18/01/2024, 14:05" (store time zone), on purpose numeric: the admin's
+ * tables and order pages span years of orders and are scanned in columns, so
+ * every admin date (the order page's timeline included) has the year and the
+ * same width. The customer's pages use words ("18 de octubre de 2026").
  */
 export const formatAdminDateTime = (iso: string) => adminDateTimeFormat.format(new Date(iso));
+
+const ADMIN_CANCEL_REASONS: Record<Exclude<CancelReason, "admin">, string> = {
+  out_of_stock: "Se agotó un producto mientras se procesaba el pago; se reembolsó automáticamente.",
+  amount_mismatch: "Stripe cobró un monto distinto del total del pedido; se reembolsó automáticamente.",
+  payment_canceled: "El pago se canceló en Stripe antes de cobrarse; no se cobró nada.",
+  expired: "El pago no se completó a tiempo y la limpieza de pendientes lo canceló; no se cobró nada.",
+  superseded: "Lo reemplazó un pedido más nuevo del mismo navegador; no se cobró nada.",
+  payment_setup_failed: "No se pudo crear el pago en Stripe; no se cobró nada.",
+  refunded: "El pago se reembolsó desde Stripe (fuera del panel), así que el pedido se canceló.",
+};
+
+/**
+ * Why an order was cancelled, as the admin reads it: what happened, not the
+ * customer's "te devolvimos el dinero". An admin's own cancellation says
+ * whether it refunded a payment (it then has a refund id) or came before any.
+ */
+export function adminCancelReasonLabel(reason: string | null, refundId: string | null): string {
+  if (reason === "admin") return refundId ? "Cancelado por un admin; se reembolsó el pago." : "Cancelado por un admin antes del pago; no se cobró nada.";
+  return reason && Object.hasOwn(ADMIN_CANCEL_REASONS, reason) ? ADMIN_CANCEL_REASONS[reason as keyof typeof ADMIN_CANCEL_REASONS] : "Se canceló el pedido.";
+}
