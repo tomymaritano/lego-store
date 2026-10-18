@@ -17,8 +17,11 @@ import { deliverPaymentSucceeded } from "./helpers/stripe";
 async function logInAsAdmin(page: Page, callbackUrl: string) {
   await page.goto(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   await logIn(page, E2E_ADMIN_EMAIL, process.env.E2E_ADMIN_PASSWORD);
-  await expect(page).toHaveURL(new RegExp(`${callbackUrl.replace(/[/?]/g, "\\$&")}$`), { timeout: 15_000 });
+  await expect(page).toHaveURL(new RegExp(`${callbackUrl.replace(/[/?]/g, "\\$&")}$`), COLD);
 }
+
+/** Admin routes are not in the global warm-up (they need a session): a cold dev compile under parallel load can take a while. */
+const COLD = { timeout: 30_000 };
 
 const field = (page: Page, label: string) => page.getByRole("main").getByLabel(new RegExp(`^${label}[*]?$`));
 
@@ -40,9 +43,9 @@ test("an admin edits a product and the store shows it right away", async ({ page
   await page.getByRole("button", { name: "Filtrar" }).click();
   await expect(page).toHaveURL(/q=taj/);
   const row = page.getByTestId("admin-product-row").filter({ hasText: "Taj Mahal" });
-  await expect(row).toHaveCount(1);
+  await expect(row).toHaveCount(1, COLD);
   await row.getByRole("link", { name: /^Editar/ }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Taj Mahal" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Taj Mahal" })).toBeVisible(COLD);
 
   const price = await field(page, "Precio").inputValue();
   const shortDescription = await field(page, "Descripción corta").inputValue();
@@ -66,6 +69,7 @@ test("an admin edits a product and the store shows it right away", async ({ page
     await expect(page.getByTestId("product-card").filter({ hasText: "Taj Mahal" })).toContainText(formatted);
   } finally {
     await page.goto("/admin/products/14");
+    await expect(page.getByTestId("product-save")).toBeEnabled(COLD);
     await saveProduct(page, price, shortDescription);
   }
 });
@@ -106,12 +110,12 @@ test("an admin ships and then delivers a paid order", async ({ page, browser }) 
   const admin = await context.newPage();
   await logInAsAdmin(admin, "/admin");
   await admin.getByRole("link", { name: /^Por enviar/ }).click();
-  await expect(admin).toHaveURL(/\/admin\/orders\?status=PAID$/);
+  await expect(admin).toHaveURL(/\/admin\/orders\?status=PAID$/, COLD);
   await admin.getByRole("searchbox", { name: "Email o número" }).fill(email);
   await admin.getByRole("button", { name: "Filtrar" }).click();
-  await expect(admin.getByTestId("admin-order-row")).toHaveCount(1);
+  await expect(admin.getByTestId("admin-order-row")).toHaveCount(1, COLD);
   await admin.getByRole("link", { name: number }).click();
-  await expect(admin.getByRole("heading", { level: 1, name: `Pedido ${number}` })).toBeVisible();
+  await expect(admin.getByRole("heading", { level: 1, name: `Pedido ${number}` })).toBeVisible(COLD);
   await expect(admin.getByTestId("admin-order-status")).toHaveText("Pagado");
   await expect(admin.getByTestId("admin-order-items")).toContainText("Empire State Building");
   await expect(admin.getByText(order.paymentIntentId!)).toBeVisible();

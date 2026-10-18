@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { useHydrated } from "@/hooks/useHydrated";
 import {
   Button,
   type ButtonProps,
@@ -72,6 +73,8 @@ export function ConfirmAction({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [navigateTo, setNavigateTo] = useState<string | null>(null);
+  // Opening the dialog needs JavaScript: no dead clicks before hydration.
+  const hydrated = useHydrated();
 
   const confirm = () =>
     startTransition(async () => {
@@ -98,7 +101,7 @@ export function ConfirmAction({
     <>
       {navigateTo ? <Navigate href={navigateTo} /> : null}
       <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
-        <DialogTrigger render={<Button variant={variant} size={size} data-testid={testId} />}>
+        <DialogTrigger render={<Button variant={variant} size={size} disabled={!hydrated} data-testid={testId} />}>
           {icon}
           {label}
         </DialogTrigger>

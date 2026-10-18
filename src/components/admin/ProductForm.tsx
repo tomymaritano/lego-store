@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useHydrated } from "@/hooks/useHydrated";
 import type { FormState } from "@/lib/auth/form-state";
 import { REMOTE_IMAGE_HOSTS } from "@/lib/images";
 import { splitList, MAX_PRODUCT_IMAGES, type ProductField } from "@/lib/validations/admin";
@@ -109,6 +110,7 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
   const [images, setImages] = useState(initial.images.join("\n"));
   const errors = state.fieldErrors ?? {};
   const handled = useRef(state);
+  const hydrated = useHydrated();
 
   useEffect(() => {
     if (handled.current === state) return;
@@ -268,7 +270,7 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
       </Card>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" loading={pending} data-testid="product-save">
+        <Button type="submit" loading={pending} disabled={!hydrated} data-testid="product-save">
           {pending ? "Guardando…" : mode === "create" ? "Crear producto" : "Guardar cambios"}
         </Button>
       </div>
