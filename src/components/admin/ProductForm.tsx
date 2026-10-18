@@ -2,9 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useHydrated } from "@/hooks/useHydrated";
-import type { FormState } from "@/lib/auth/form-state";
 import { REMOTE_IMAGE_HOSTS } from "@/lib/images";
-import { MAX_PRODUCT_IMAGES, type GalleryImage, type ProductField } from "@/lib/validations/admin";
+import { MAX_PRODUCT_IMAGES, type GalleryImage, type ProductFormState } from "@/lib/validations/admin";
 import {
   Button,
   Card,
@@ -71,7 +70,7 @@ export const EMPTY_PRODUCT: ProductFormValues = {
 
 export interface ProductFormProps {
   /** saveProductAction bound to the product id (null to create). */
-  action: (state: FormState<ProductField>, formData: FormData) => Promise<FormState<ProductField>>;
+  action: (state: ProductFormState, formData: FormData) => Promise<ProductFormState>;
   initial: ProductFormValues;
   categories: { id: string; name: string }[];
   /** Every theme in the store's order (hidden ones marked: their products keep them). */
@@ -237,7 +236,7 @@ export function ProductForm({ action, initial, categories, themes, suggestions, 
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-          <GalleryEditor name="gallery" initial={initial.gallery} error={errors.gallery} />
+          <GalleryEditor name="gallery" initial={initial.gallery} error={errors.gallery} issue={state.galleryIssue} />
           <ImageField
             name="imageSecondary"
             label="Imagen al pasar el mouse"

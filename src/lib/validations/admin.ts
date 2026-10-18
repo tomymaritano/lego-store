@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isAllowedImageUrl, REMOTE_IMAGE_HOSTS } from "@/lib/images";
+import type { FormState } from "@/lib/auth/form-state";
 import { idSchema } from "./ids";
 
 /*
@@ -49,6 +50,19 @@ export interface GalleryImage {
   alt: string;
 }
 
+/** Which picture of the gallery a validation error is about (index as sent) and which part of it. */
+export interface GalleryIssue {
+  index: number;
+  field: "url" | "alt";
+}
+
+/** The picture a gallery issue's path points to (["gallery", 1, "alt"]), if any. */
+export function galleryIssueOf(path: readonly PropertyKey[]): GalleryIssue | undefined {
+  const [field, index, part] = path;
+  if (field !== "gallery" || typeof index !== "number" || (part !== "url" && part !== "alt")) return undefined;
+  return { index, field: part };
+}
+
 /**
  * The gallery as the form sends it: a JSON list of { url, alt }, in order
  * (the first is the main picture). Every picture needs an allowed URL and
@@ -78,9 +92,11 @@ const gallery = z.string().transform((value, ctx): GalleryImage[] => {
     const url = typeof item?.url === "string" ? item.url.trim() : "";
     const alt = typeof item?.alt === "string" ? item.alt.trim().replace(/\s+/g, " ") : "";
     const which = index === 0 ? "La imagen principal" : `La imagen ${index + 1}`;
-    if (!isAllowedImageUrl(url)) ctx.addIssue({ code: "custom", message: `${which} no tiene una URL permitida. ${IMAGE_RULE}` });
-    else if (!alt) ctx.addIssue({ code: "custom", message: `${which} necesita su texto alternativo (qué se ve en ella)` });
-    else if (alt.length > MAX_IMAGE_ALT) ctx.addIssue({ code: "custom", message: `${which}: el texto alternativo tiene como máximo ${MAX_IMAGE_ALT} caracteres` });
+    // The path names the picture, so the form can mark its alt field (galleryIssueOf).
+    if (!isAllowedImageUrl(url)) ctx.addIssue({ code: "custom", path: [index, "url"], message: `${which} no tiene una URL permitida. ${IMAGE_RULE}` });
+    else if (!alt) ctx.addIssue({ code: "custom", path: [index, "alt"], message: `${which} necesita su texto alternativo (qué se ve en ella)` });
+    else if (alt.length > MAX_IMAGE_ALT)
+      ctx.addIssue({ code: "custom", path: [index, "alt"], message: `${which}: el texto alternativo tiene como máximo ${MAX_IMAGE_ALT} caracteres` });
     images.push({ url, alt });
   }
   if (new Set(images.map((image) => image.url)).size !== images.length) {
@@ -158,6 +174,8 @@ export const productFormSchema = z
 export type ProductFormInput = z.input<typeof productFormSchema>;
 export type ProductInput = z.output<typeof productFormSchema>;
 export type ProductField = keyof ProductFormInput;
+/** The product form's state: field errors, plus the picture a gallery error is about. */
+export type ProductFormState = FormState<ProductField> & { galleryIssue?: GalleryIssue };
 
 /**
  * The stock a form or the quick edit loaded (a hidden value, not typed): the

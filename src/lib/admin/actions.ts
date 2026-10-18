@@ -8,7 +8,16 @@ import { getDb } from "@/lib/db";
 import { ADMIN_ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { getMercadoPago, getPaymentGateway } from "@/lib/payments/config";
 import { deleteReview } from "@/lib/reviews/mutations";
-import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateSchema, type ProductField } from "@/lib/validations/admin";
+import {
+  galleryIssueOf,
+  orderTransitionSchema,
+  productFormSchema,
+  stockSeenSchema,
+  stockUpdateSchema,
+  type GalleryIssue,
+  type ProductField,
+  type ProductFormState,
+} from "@/lib/validations/admin";
 import { idSchema } from "@/lib/validations/ids";
 import { couponFormSchema, newCouponCodeSchema, type CouponField } from "@/lib/validations/coupons";
 import { requireAdminActor } from "./actor";
@@ -83,18 +92,22 @@ function productFormValues(formData: FormData) {
  */
 export async function saveProductAction(
   productId: string | null,
-  _previous: FormState<ProductField>,
+  _previous: ProductFormState,
   formData: FormData
-): Promise<FormState<ProductField>> {
+): Promise<ProductFormState> {
   const admin = await requireAdminActor({ callbackUrl: "/admin/products" });
   const parsed = productFormSchema.safeParse(productFormValues(formData));
   if (!parsed.success) {
     const fieldErrors: Partial<Record<ProductField, string>> = {};
+    let galleryIssue: GalleryIssue | undefined;
     for (const issue of parsed.error.issues) {
       const field = issue.path[0] as ProductField | undefined;
-      if (field && !fieldErrors[field]) fieldErrors[field] = issue.message;
+      if (field && !fieldErrors[field]) {
+        fieldErrors[field] = issue.message;
+        if (field === "gallery") galleryIssue = galleryIssueOf(issue.path);
+      }
     }
-    return { status: "error", message: "Revisa los campos marcados.", fieldErrors };
+    return { status: "error", message: "Revisa los campos marcados.", fieldErrors, galleryIssue };
   }
 
   const db = getDb();

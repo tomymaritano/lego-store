@@ -128,9 +128,22 @@ describe("product actions", () => {
 
   it("returns field errors (and keeps the database as it was) for invalid input", async () => {
     const state = await actions.saveProductAction("7", {}, productForm({ price: "abc", gallery: JSON.stringify([{ url: "http://www.lego.com/cdn/x.png", alt: "x" }]) }));
-    expect(state).toMatchObject({ status: "error", fieldErrors: { price: expect.any(String), gallery: expect.any(String) } });
+    expect(state).toMatchObject({ status: "error", fieldErrors: { price: expect.any(String), gallery: expect.any(String) }, galleryIssue: { index: 0, field: "url" } });
     expect((await testDb.product.findUniqueOrThrow({ where: { id: "7" } })).name).toBe("Batmobile");
     expect(updateTag).not.toHaveBeenCalled();
+  });
+
+  it("names the picture whose alt text is missing, so the form can mark that field", async () => {
+    const gallery = JSON.stringify([
+      { url: "/images/lego.png", alt: "Frente" },
+      { url: "/images/placeholder-product.svg", alt: "  " },
+    ]);
+    const state = await actions.saveProductAction("7", {}, productForm({ gallery }));
+    expect(state).toMatchObject({
+      status: "error",
+      fieldErrors: { gallery: "La imagen 2 necesita su texto alternativo (qué se ve en ella)" },
+      galleryIssue: { index: 1, field: "alt" },
+    });
   });
 
   it("saving an edit refreshes the product's tags and the admin page", async () => {
