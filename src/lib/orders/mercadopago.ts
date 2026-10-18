@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import type { CouponCustomer } from "@/lib/coupons/server";
+import { relaxOrderCoupon, secureOrderCoupon, type CouponCustomer } from "@/lib/coupons/server";
+import type { CouponRejection } from "@/lib/coupons/rules";
 import type { OrderTotals } from "@/lib/pricing";
 import { cancelMercadoPagoPayment, mercadoPagoEvent, mercadoPagoProvider } from "@/lib/payments/mercadopago/provider";
 import { fullRefundOf, mapMercadoPagoStatus, mercadoPagoPaymentStage, rejectionMessage } from "@/lib/payments/mercadopago/status";
@@ -34,6 +35,10 @@ import { restock, takeStock } from "./webhook";
  *    creates (or updates) this browser's PENDING order with the discounted
  *    total. Mercado Pago has nothing to set up before the payment.
  * 2. payMercadoPagoOrder, on "Realizar pedido": the only call that charges.
+ *    First the coupon's limits are checked again and its use is held until
+ *    the order settles (secureOrderCoupon; a refused payment lets it go back
+ *    to a short hold, and Checkout Pro only renews the short hold: the
+ *    order holds it once Mercado Pago reports the payment).
  *    Card and cash: creates the payment from the Payment Brick's formData,
  *    for the order's total (never the browser's amount), with
  *    external_reference = the order id, our notification_url and an
@@ -192,7 +197,9 @@ export type MercadoPagoPayOutcome =
   | { ok: false; code: "not_found" }
   | { ok: false; code: "not_pending"; order: OrderView }
   | { ok: false; code: "unavailable"; unavailable: UnavailableLine[] }
-  | { ok: false; code: "declined" | "payment_method"; message: string };
+  | { ok: false; code: "declined" | "payment_method"; message: string }
+  /** The coupon's place was taken (its hold lapsed) or this email used it up: prepare the order again without it. */
+  | { ok: false; code: "coupon"; rejection: CouponRejection; message: string };
 
 /** The Brick's data is not usable any more (a spent or expired card token, a method Mercado Pago refused). */
 export const PAYMENT_DATA_MESSAGE = "Vuelve a ingresar los datos del medio de pago.";
@@ -233,6 +240,10 @@ export async function payMercadoPagoOrder(
 
     const number = formatOrderNumber(order.number);
     const notificationUrl = mercadoPagoNotificationUrl(siteUrl) ?? undefined;
+
+    // Before any money moves: the coupon still fits its limits.
+    const secured = await secureOrderCoupon(tx, order.id, { extend: input.method !== "wallet" });
+    if (!secured.ok) return { ok: false, code: "coupon", rejection: secured.rejection, message: secured.message };
 
     if (input.method === "wallet") {
       // The same preference while the total stands (re-preparing clears it): a second click opens the same payment.
@@ -278,6 +289,7 @@ export async function payMercadoPagoOrder(
     } catch (error) {
       if (error instanceof MercadoPagoRequestError) {
         console.warn(`[mercadopago] Mercado Pago rechazó el pedido de pago de ${order.id}:`, error.message);
+        await relaxOrderCoupon(tx, order.id);
         return { ok: false, code: "payment_method", message: PAYMENT_DATA_MESSAGE };
       }
       throw error;
@@ -286,7 +298,10 @@ export async function payMercadoPagoOrder(
     const applied = await applyLocked(tx, mp, order.id, mercadoPagoEvent(payment), "checkout");
     // A retried request gets the same payment back (the idempotency key): "duplicate", but still a rejection.
     const failed = applied.result === "declined" || (applied.result === "duplicate" && mapMercadoPagoStatus(payment.status) === "failed");
-    if (failed) return { ok: false, code: "declined", message: rejectionMessage(payment.statusDetail) };
+    if (failed) {
+      await relaxOrderCoupon(tx, order.id);
+      return { ok: false, code: "declined", message: rejectionMessage(payment.statusDetail) };
+    }
     if (applied.result === "cancelled" || applied.result === "ignored") return { ok: false, code: "not_pending", order: await view() };
     return { ok: true, next: "done", order: await view(), applied };
   }, LOCKED_TX);

@@ -15,13 +15,15 @@ export { COUPON_CODE_MESSAGE, couponCodeSchema };
 
 /**
  * POST /api/checkout/coupon: does this code apply to these lines? The lines
- * are priced on the server; `email` (the checkout's, once known) lets the
- * per-customer limit be checked for a guest before the order is created.
+ * are priced on the server. No email: an email's uses are only checked when
+ * a payment is submitted (src/lib/coupons/server.ts), so this never tells
+ * whether some email has used a coupon. `recheck`: the cart or the checkout
+ * asking again about the coupon it already applied (its own rate limit).
  */
 export const couponQuoteSchema = z.object({
   code: couponCodeSchema,
   lines: prepareOrderSchema.shape.lines,
-  email: z.email().max(254).optional(),
+  recheck: z.boolean().optional(),
 });
 
 export type CouponQuoteInput = z.infer<typeof couponQuoteSchema>;

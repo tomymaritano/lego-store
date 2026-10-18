@@ -34,10 +34,10 @@ export interface CouponRow {
   active: boolean;
 }
 
-/** Uses of a coupon that count toward its limits (RESERVED + REDEEMED). */
+/** Uses of a coupon that count toward its limits (live holds + REDEEMED: src/lib/coupons/server.ts). */
 export interface CouponUses {
   total: number;
-  /** By this customer: their account or their email. */
+  /** By this customer: their account (and, when the payment is submitted, their email). */
   customer: number;
 }
 

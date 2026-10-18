@@ -8,14 +8,17 @@ import { COUPON_CODE_MESSAGE } from "@/lib/validations/coupon-code";
 
 /**
  * POST /api/checkout/coupon: "Aplicar" in the cart's or the checkout's
- * summary. Body: { code, lines: [{ productId, quantity }], email? }.
- * Checks the coupon (active, dates, limits, per customer: the signed-in
- * account and/or `email`) and prices the lines from the database. Reserves
- * nothing: the order does, when the checkout prepares it, and checks again.
+ * summary, and the re-check of an applied coupon when the cart or the
+ * checkout loads. Body: { code, lines: [{ productId, quantity }], recheck? }.
+ * Checks the coupon (active, dates, total limit, the signed-in account's
+ * limit; an email's is checked when the payment is submitted) and prices the
+ * lines from the database. Reserves nothing: the order does, when the
+ * checkout prepares it, and checks again.
  *
  * 200 { coupon: { code, type, value, minSubtotal, label }, totals } ·
  * 400 invalid · 422 code "coupon" with `rejection` and the reason in
- * Spanish · 429 (it is a guessable code: tries are limited per user or IP).
+ * Spanish · 429 (it is a guessable code: tries are limited per user or IP;
+ * re-checks have their own, larger budget).
  */
 export async function POST(request: NextRequest) {
   const refused = crossSite(request);
@@ -28,14 +31,14 @@ export async function POST(request: NextRequest) {
   }
 
   const requester = await requesterOf(request);
-  const limited = await rateLimited(rateLimits.couponQuote, request, requester);
+  const limited = await rateLimited(parsed.data.recheck ? rateLimits.couponRecheck : rateLimits.couponQuote, request, requester);
   if (limited) return limited;
 
   try {
     const outcome = await quoteCoupon(getDb(), {
       code: parsed.data.code,
       lines: parsed.data.lines,
-      customer: { userId: requester.userId, email: parsed.data.email ?? null },
+      userId: requester.userId,
     });
     if (!outcome.ok) return checkoutError("coupon", outcome.message, 422, { rejection: outcome.rejection });
     return NextResponse.json(outcome.quote satisfies CouponQuote, { headers: NO_STORE });

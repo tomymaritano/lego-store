@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
-import { claimCoupon, holdOrderCoupon, type CouponClaim, type CouponCustomer } from "@/lib/coupons/server";
+import { claimCoupon, holdOrderCoupon, relaxOrderCoupon, secureOrderCoupon, type CouponClaim, type CouponCustomer } from "@/lib/coupons/server";
 import type { CouponRejection } from "@/lib/coupons/rules";
 import type { Db } from "@/lib/lists/product";
 import { linesSubtotal, orderTotals, type OrderTotals } from "@/lib/pricing";
@@ -19,8 +19,9 @@ import type { CancelReason, OrderView, UnavailableLine } from "./types";
  *    digits from the ConfirmationToken, and creates the PENDING order with
  *    a PaymentIntent for its total (or updates this browser's pending order
  *    and its intent, when there is one that can still be paid).
- * 2. payOrder, on "Realizar pedido": confirms the PaymentIntent with the
- *    ConfirmationToken. The money moves here, but the order only becomes
+ * 2. payOrder, on "Realizar pedido": checks the coupon's limits again and
+ *    holds its use until the order settles (secureOrderCoupon), then
+ *    confirms the PaymentIntent with the ConfirmationToken. The money moves here, but the order only becomes
  *    PAID when Stripe's webhook says so (./webhook.ts), which is also where
  *    the stock is taken atomically.
  *
@@ -278,7 +279,9 @@ export type PayOutcome =
   | { ok: false; code: "not_found" }
   | { ok: false; code: "not_pending"; order: OrderView }
   | { ok: false; code: "unavailable"; unavailable: UnavailableLine[] }
-  | { ok: false; code: "declined" | "payment_method"; message: string };
+  | { ok: false; code: "declined" | "payment_method"; message: string }
+  /** The coupon's place was taken (its hold lapsed) or this email used it up: prepare the order again without it. */
+  | { ok: false; code: "coupon"; rejection: CouponRejection; message: string };
 
 export async function payOrder(
   db: PrismaClient,
@@ -330,12 +333,18 @@ export async function payOrder(
       return { ok: false, code: "payment_method", message: CARD_CHANGED_MESSAGE };
     }
 
+    // Before any money moves: the coupon still fits its limits, and its use is held until the order settles.
+    const secured = await secureOrderCoupon(tx, order.id);
+    if (!secured.ok) return { ok: false, code: "coupon", rejection: secured.rejection, message: secured.message };
+
     const amount = toCentavos(order.total);
     if (intent.amount !== amount) intent = await gateway.updateIntentAmount(intent.id, amount);
 
-    // A refused card is not a purchase: the order leaves "Mis pedidos" (an earlier 3D Secure attempt may have listed it).
+    // A refused card is not a purchase: the order leaves "Mis pedidos" (an earlier 3D Secure attempt may have
+    // listed it), and its coupon goes back to a short hold.
     const declined = async (code: "declined" | "payment_method", message: string): Promise<PayOutcome> => {
       await tx.order.update({ where: { id: order.id }, data: { submittedAt: null } });
+      await relaxOrderCoupon(tx, order.id);
       return { ok: false, code, message };
     };
     try {

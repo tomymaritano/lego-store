@@ -27,9 +27,11 @@ import { pageCount, type Page } from "./format";
 export type { CouponStatus };
 
 export interface CouponStats {
-  /** Uses that count toward the limits: reserved (waiting for payment) + redeemed. */
+  /** Uses that count toward the limits: reserved (a live hold, waiting for payment) + redeemed. */
   uses: number;
   reserved: number;
+  /** Reservations whose hold lapsed without a payment (the order is still unpaid): they no longer count. */
+  lapsed: number;
   redeemed: number;
   released: number;
   /** Discount given on paid orders (redeemed uses). */
@@ -72,7 +74,7 @@ const couponSelect = {
 
 type CouponRecord = Prisma.CouponGetPayload<{ select: typeof couponSelect }>;
 
-const EMPTY_STATS: CouponStats = { uses: 0, reserved: 0, redeemed: 0, released: 0, discountGiven: 0, revenue: 0 };
+const EMPTY_STATS: CouponStats = { uses: 0, reserved: 0, lapsed: 0, redeemed: 0, released: 0, discountGiven: 0, revenue: 0 };
 
 /** Where a coupon stands now: off, not started, over, used up, or usable. */
 export function couponStatus(coupon: Pick<CouponRecord, "active" | "startsAt" | "expiresAt" | "maxRedemptions">, uses: number, now: Date): CouponStatus {
@@ -84,20 +86,27 @@ export function couponStatus(coupon: Pick<CouponRecord, "active" | "startsAt" | 
 }
 
 /** Uses per status and the money of the paid ones, for these coupons. */
-async function statsOf(db: Db, couponIds: string[]): Promise<Map<string, CouponStats>> {
+async function statsOf(db: Db, couponIds: string[], now: Date): Promise<Map<string, CouponStats>> {
   const stats = new Map<string, CouponStats>();
   if (couponIds.length === 0) return stats;
-  const rows = await db.$queryRaw<{ couponId: string; status: "RESERVED" | "REDEEMED" | "RELEASED"; count: number; discount: number; revenue: number }[]>`
-    SELECT r."couponId", r."status", COUNT(*)::int AS "count",
-           COALESCE(SUM(r."discount"), 0)::int AS "discount",
-           COALESCE(SUM(o."total"), 0)::int AS "revenue"
-    FROM "CouponRedemption" r JOIN "Order" o ON o."id" = r."orderId"
-    WHERE r."couponId" = ANY(${couponIds}::text[])
-    GROUP BY r."couponId", r."status"
+  // A RESERVED use whose hold lapsed (src/lib/coupons/server.ts) is LAPSED here: it no longer counts.
+  const rows = await db.$queryRaw<{ couponId: string; status: "RESERVED" | "LAPSED" | "REDEEMED" | "RELEASED"; count: number; discount: number; revenue: number }[]>`
+    SELECT s."couponId", s."status", COUNT(*)::int AS "count",
+           COALESCE(SUM(s."discount"), 0)::int AS "discount",
+           COALESCE(SUM(s."total"), 0)::int AS "revenue"
+    FROM (
+      SELECT r."couponId", r."discount", o."total",
+             CASE WHEN r."status" = 'RESERVED' AND r."holdExpiresAt" IS NOT NULL AND r."holdExpiresAt" <= ${now}
+                  THEN 'LAPSED' ELSE r."status"::text END AS "status"
+      FROM "CouponRedemption" r JOIN "Order" o ON o."id" = r."orderId"
+      WHERE r."couponId" = ANY(${couponIds}::text[])
+    ) s
+    GROUP BY s."couponId", s."status"
   `;
   for (const row of rows) {
     const entry = stats.get(row.couponId) ?? { ...EMPTY_STATS };
     if (row.status === "RESERVED") entry.reserved = row.count;
+    if (row.status === "LAPSED") entry.lapsed = row.count;
     if (row.status === "RELEASED") entry.released = row.count;
     if (row.status === "REDEEMED") {
       entry.redeemed = row.count;
@@ -137,7 +146,8 @@ export async function listAdminCoupons(db: Db, filters: AdminCouponFilters, now 
   });
   const stats = await statsOf(
     db,
-    coupons.map((coupon) => coupon.id)
+    coupons.map((coupon) => coupon.id),
+    now
   );
   const rows = coupons
     .map((coupon) => toRow(coupon, stats.get(coupon.id) ?? EMPTY_STATS, now))
@@ -149,7 +159,8 @@ export async function listAdminCoupons(db: Db, filters: AdminCouponFilters, now 
 
 export interface CouponRedemptionView {
   id: string;
-  status: "RESERVED" | "REDEEMED" | "RELEASED";
+  /** LAPSED: reserved by an unpaid checkout whose hold ran out (it no longer counts). */
+  status: "RESERVED" | "LAPSED" | "REDEEMED" | "RELEASED";
   discount: number;
   email: string;
   hasAccount: boolean;
@@ -170,7 +181,7 @@ export async function getAdminCoupon(db: Db, id: string, now = new Date()): Prom
   const coupon = await db.coupon.findUnique({ where: { id }, select: couponSelect });
   if (!coupon) return null;
   const [stats, redemptions, history] = await Promise.all([
-    statsOf(db, [coupon.id]),
+    statsOf(db, [coupon.id], now),
     db.couponRedemption.findMany({
       where: { couponId: coupon.id },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -178,6 +189,7 @@ export async function getAdminCoupon(db: Db, id: string, now = new Date()): Prom
       select: {
         id: true,
         status: true,
+        holdExpiresAt: true,
         discount: true,
         email: true,
         userId: true,
@@ -191,7 +203,7 @@ export async function getAdminCoupon(db: Db, id: string, now = new Date()): Prom
     ...toRow(coupon, stats.get(coupon.id) ?? EMPTY_STATS, now),
     redemptions: redemptions.map((row) => ({
       id: row.id,
-      status: row.status,
+      status: row.status === "RESERVED" && row.holdExpiresAt !== null && row.holdExpiresAt <= now ? "LAPSED" : row.status,
       discount: row.discount,
       email: row.email,
       hasAccount: row.userId !== null,

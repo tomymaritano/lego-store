@@ -473,7 +473,7 @@ model Coupon {
   /// Valid from / until (inclusive / exclusive); null = no bound.
   startsAt       DateTime?
   expiresAt      DateTime?
-  /// Most uses in total (RESERVED + REDEEMED); null = no limit.
+  /// Most uses in total (live RESERVED holds + REDEEMED); null = no limit.
   maxRedemptions Int?
   /// Most uses per customer (an account, or an email for guests); null = no limit.
   maxPerUser     Int?
@@ -490,20 +490,25 @@ model Coupon {
 
 /// One use of a coupon by one order (at most one coupon per order).
 model CouponRedemption {
-  id         String                 @id @default(cuid())
-  couponId   String
-  orderId    String                 @unique
+  id            String                 @id @default(cuid())
+  couponId      String
+  orderId       String                 @unique
   /// The order's account (null for guests); the per-customer limit counts by it or by email.
-  userId     String?
+  userId        String?
   /// The order's email (lowercased).
-  email      String
-  status     CouponRedemptionStatus @default(RESERVED)
+  email         String
+  status        CouponRedemptionStatus @default(RESERVED)
+  /// While RESERVED: when the hold lapses if no payment is submitted (set by "Revisar",
+  /// src/lib/coupons/server.ts COUPON_HOLD_MS). Null: held until the order settles
+  /// (a payment was submitted, or the order is waiting on one). A lapsed hold no
+  /// longer counts toward the limits.
+  holdExpiresAt DateTime?
   /// Discount the order got (pesos, snapshot).
-  discount   Int
-  createdAt  DateTime               @default(now())
-  updatedAt  DateTime               @updatedAt
-  redeemedAt DateTime?
-  releasedAt DateTime?
+  discount      Int
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  redeemedAt    DateTime?
+  releasedAt    DateTime?
 
   coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
   order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)

@@ -58,10 +58,19 @@ export const rateLimits = {
    */
   checkoutPrepare: limiter("checkout-prepare", 30, 15 * MINUTE),
   /**
+   * "Revisar" with a coupon, per user or IP: a new order holds one of the
+   * coupon's uses for a while (src/lib/coupons/server.ts), so a script cannot
+   * take a limited coupon's uses by preparing orders. Room for a customer
+   * changing their cart or address on the review a few times.
+   */
+  couponPrepare: limiter("coupon-prepare", 15, 15 * MINUTE),
+  /**
    * Coupon codes tried in the cart and the checkout, per user or IP: codes
-   * can be guessed, so tries are few (an applied coupon is not re-checked).
+   * can be guessed, so tries are few (re-checks of an applied one: couponRecheck).
    */
   couponQuote: limiter("coupon-quote", 20, 15 * MINUTE),
+  /** The cart and the checkout asking again about the coupon they applied, when they load. */
+  couponRecheck: limiter("coupon-recheck", 60, 15 * MINUTE),
   /** "Realizar pedido" (payment confirmations), per user or IP: slows down card testing. */
   checkoutPay: limiter("checkout-pay", 15, 15 * MINUTE),
   /**

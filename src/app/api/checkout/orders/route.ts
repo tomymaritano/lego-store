@@ -56,6 +56,12 @@ export async function POST(request: NextRequest) {
   const requester = await requesterOf(request);
   const limited = await rateLimited(rateLimits.checkoutPrepare, request, requester);
   if (limited) return limited;
+  // An order with a coupon holds one of its uses for a while: those have a tighter budget.
+  const couponCode = stripe?.success ? stripe.data.couponCode : mercadopago?.data?.couponCode;
+  if (couponCode) {
+    const hoarding = await rateLimited(rateLimits.couponPrepare, request, requester);
+    if (hoarding) return hoarding;
+  }
 
   try {
     let outcome: PrepareOutcome;

@@ -4,7 +4,7 @@ import { createCoupon, getAdminCoupon, listAdminCoupons, setCouponActive, update
 import { changeOrderStatus } from "@/lib/admin/orders";
 import { storeDayEnd } from "@/lib/admin/format";
 import type { Requester } from "@/lib/orders/access";
-import { prepareOrder } from "@/lib/orders/checkout";
+import { payOrder, prepareOrder } from "@/lib/orders/checkout";
 import { expireStaleOrders } from "@/lib/orders/expire";
 import { payMercadoPagoOrder, prepareMercadoPagoOrder } from "@/lib/orders/mercadopago";
 import { getMercadoPago, getMercadoPagoMockControls } from "@/lib/payments/config";
@@ -23,9 +23,12 @@ import { cookieOf, enableMockPayments, jsonRequest, mercadoPagoNotification, shi
  * mocks at the boundary: the quote, the reservation when the order is
  * prepared (discount in the order and in what the provider charges), every
  * limit (total, per account, per guest email) including under parallel
- * checkouts, and the use following the order: redeemed when paid, released
- * when it is cancelled by any path (cleanup, admin, refund, chargeback,
- * an expired cash ticket).
+ * checkouts, the short hold of an unpaid checkout and the check when the
+ * payment is submitted (so unpaid checkouts cannot take a coupon's or a
+ * customer's uses, and no answer tells whether an email used a coupon), and
+ * the use following the order: redeemed when paid, released when it is
+ * cancelled by any path (cleanup, admin, refund, chargeback, an expired cash
+ * ticket).
  */
 
 type StubSession = { user: { id: string; role: string }; sessionVersion: number };
@@ -62,6 +65,8 @@ async function coupon(data: Partial<Parameters<typeof testDb.coupon.create>[0]["
 }
 
 const redemption = (orderId: string) => testDb.couponRedemption.findUnique({ where: { orderId } });
+/** The order's hold ran out (as if COUPON_HOLD_MS had passed without a payment). */
+const lapse = (orderId: string) => testDb.couponRedemption.update({ where: { orderId }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
 
 async function prepareMp(
   couponCode: string | undefined,
@@ -156,15 +161,26 @@ describe("POST /api/checkout/coupon (the cart's quote)", () => {
     expect((await quote({ code: "BIENVENIDA10", lines: [] })).status).toBe(400);
   });
 
-  it("checks the per-customer limit by the signed-in account, and by the email a guest gives", async () => {
+  it("checks the per-customer limit of the signed-in account, never of an email someone types", async () => {
     const once = await coupon({ maxPerUser: 1 });
-    await preparedMp(once.code, { requester: { userId: ana.id, access: null }, email: ana.email });
+    const used = await preparedMp(once.code, { requester: { userId: ana.id, access: null }, email: ana.email });
+    await payMercadoPagoOrder(testDb, mp, used.order.id, card(), used.requester);
 
     session.current = { user: { id: ana.id, role: "USER" }, sessionVersion: 0 };
     expect((await quote({ code: once.code, lines: [BATMOBILE] })).body).toMatchObject({ rejection: "per_customer" });
     session.current = null;
     expect((await quote({ code: once.code, lines: [BATMOBILE] })).status).toBe(200);
-    expect((await quote({ code: once.code, lines: [BATMOBILE], email: ana.email })).body).toMatchObject({ rejection: "per_customer" });
+    // A visitor's answer is the same whether or not that email used it: the quote tells nothing about anyone's orders.
+    const withEmail = await quote({ code: once.code, lines: [BATMOBILE], email: ana.email });
+    const without = await quote({ code: once.code, lines: [BATMOBILE], email: "nadie@coupons.test" });
+    expect(withEmail).toEqual(without);
+    expect(withEmail.status).toBe(200);
+  });
+
+  it("re-checks have their own, larger budget", async () => {
+    for (let i = 0; i < 20; i++) await quote({ code: `NOPE${i}`, lines: [BATMOBILE] });
+    expect((await quote({ code: "BIENVENIDA10", lines: [BATMOBILE] })).status).toBe(429);
+    expect((await quote({ code: "BIENVENIDA10", lines: [BATMOBILE], recheck: true })).status).toBe(200);
   });
 
   it("limits how many codes one visitor can try", async () => {
@@ -253,13 +269,115 @@ describe("preparing the order reserves the coupon and prices it", () => {
 });
 
 describe("limits", () => {
-  it("per customer: an account cannot use it again from another browser, nor a guest with the same email", async () => {
+  it("per customer: an account cannot use it again from another browser, even before paying", async () => {
     const once = await coupon({ maxPerUser: 1 });
     const asAna: Requester = { userId: ana.id, access: null };
     await preparedMp(once.code, { requester: asAna, email: ana.email });
     expect(await prepareMp(once.code, { requester: asAna, email: "otra@coupons.test" })).toMatchObject({ ok: false, rejection: "per_customer" });
-    expect(await prepareMp(once.code, { email: ana.email })).toMatchObject({ ok: false, rejection: "per_customer" });
     expect((await prepareMp(once.code, { email: "nadie@coupons.test" })).ok).toBe(true);
+  });
+
+  it("per customer by email: checked when the payment is submitted, counting only paid or submitted uses", async () => {
+    const once = await coupon({ maxPerUser: 1 });
+    const email = "ana-guest@coupons.test";
+    const first = await preparedMp(once.code, { email });
+    // Unpaid, it takes nothing from that email: another checkout with it is prepared (and says nothing about the first).
+    const second = await preparedMp(once.code, { email });
+    expect(second.order.id).not.toBe(first.order.id);
+
+    expect(await payMercadoPagoOrder(testDb, mp, first.order.id, card(), first.requester)).toMatchObject({ ok: true, order: { status: "PAID" } });
+    const create = vi.spyOn(mp, "createPayment");
+    const refused = await payMercadoPagoOrder(testDb, mp, second.order.id, card(), second.requester);
+    expect(refused).toMatchObject({ ok: false, code: "coupon", rejection: "per_customer", message: expect.stringMatching(/Ya usaste este cupón/) });
+    // Refused before anything was charged; the order is still at the checkout, to prepare again without it.
+    expect(create).not.toHaveBeenCalled();
+    create.mockRestore();
+    expect((await testDb.order.findUniqueOrThrow({ where: { id: second.order.id } })).status).toBe("PENDING");
+
+    // An account's guest orders with its email count too, once paid.
+    const asAna: Requester = { userId: ana.id, access: null };
+    const mine = await preparedMp(once.code, { requester: asAna, email });
+    expect(await payMercadoPagoOrder(testDb, mp, mine.order.id, card(), mine.requester)).toMatchObject({ ok: false, code: "coupon", rejection: "per_customer" });
+  });
+
+  it("nobody can use up someone else's per-customer allowance with unpaid checkouts in their name", async () => {
+    const once = await coupon({ maxPerUser: 1 });
+    const victim = "victima@coupons.test";
+    // Anonymous checkouts with the victim's email, never paid.
+    for (let i = 0; i < 3; i++) await preparedMp(once.code, { email: victim });
+    const own = await preparedMp(once.code, { email: victim });
+    expect(await payMercadoPagoOrder(testDb, mp, own.order.id, card(), own.requester)).toMatchObject({ ok: true, order: { status: "PAID", discount: 249 } });
+  });
+
+  it("an unpaid checkout holds its use only for a while; then the next customer gets it, and the first is refused when paying", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const first = await preparedMp(one.code, { email: "slow@coupons.test" });
+    const held = await redemption(first.order.id);
+    expect(held?.holdExpiresAt?.getTime()).toBeGreaterThan(Date.now() + 25 * 60 * 1000);
+    expect(held?.holdExpiresAt?.getTime()).toBeLessThanOrEqual(Date.now() + 30 * 60 * 1000);
+    expect(await prepareMp(one.code, { email: "next@coupons.test" })).toMatchObject({ ok: false, rejection: "exhausted" });
+
+    await lapse(first.order.id);
+    const next = await preparedMp(one.code, { email: "next@coupons.test" });
+    const create = vi.spyOn(mp, "createPayment");
+    expect(await payMercadoPagoOrder(testDb, mp, first.order.id, card(), first.requester)).toMatchObject({ ok: false, code: "coupon", rejection: "exhausted" });
+    expect(create).not.toHaveBeenCalled();
+    create.mockRestore();
+    expect(await payMercadoPagoOrder(testDb, mp, next.order.id, card(), next.requester)).toMatchObject({ ok: true, order: { status: "PAID" } });
+    // The first browser prepares its order again without the coupon, at the full total.
+    const again = await preparedMp(undefined, { requester: first.requester, email: "slow@coupons.test" });
+    expect(again.order).toMatchObject({ id: first.order.id, couponCode: null, total: 2789 });
+  });
+
+  it("a lapsed hold whose place is still free is held again when paying", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const { order, requester } = await preparedMp(one.code, { email: "late-but-ok@coupons.test" });
+    await lapse(order.id);
+    expect(await payMercadoPagoOrder(testDb, mp, order.id, card(), requester)).toMatchObject({ ok: true, order: { status: "PAID" } });
+    expect(await redemption(order.id)).toMatchObject({ status: "REDEEMED", holdExpiresAt: null });
+  });
+
+  it("submitting the payment holds the use until the order settles; a refused card puts the short hold back", async () => {
+    const { order, requester } = await preparedMp("BIENVENIDA10", { email: "declined@coupons.test" });
+    const rejected: PayMercadoPagoOrderInput = { ...card(), formData: { ...card().formData!, token: mpMockToken("rejected") } };
+    expect(await payMercadoPagoOrder(testDb, mp, order.id, rejected, requester)).toMatchObject({ ok: false, code: "declined" });
+    expect((await redemption(order.id))?.holdExpiresAt).not.toBeNull();
+
+    // A cash ticket: Mercado Pago has the payment, the order waits on it and holds its coupon.
+    await payMercadoPagoOrder(testDb, mp, order.id, cash(), requester);
+    expect(await redemption(order.id)).toMatchObject({ status: "RESERVED", holdExpiresAt: null });
+  });
+
+  it("Checkout Pro only renews the short hold; the order holds it once it waits on Mercado Pago's payment", async () => {
+    const { order, requester } = await preparedMp("BIENVENIDA10", { email: "wallet@coupons.test" });
+    await lapse(order.id);
+    expect(await payMercadoPagoOrder(testDb, mp, order.id, { attemptId: randomUUID(), method: "wallet" }, requester)).toMatchObject({ ok: true, next: "redirect" });
+    expect((await redemption(order.id))?.holdExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+    // The hold-expiry migration's trigger: an order waiting on a payment (PAYMENT_PENDING) holds it until it settles.
+    await testDb.order.update({ where: { id: order.id }, data: { status: "PAYMENT_PENDING" } });
+    expect(await redemption(order.id)).toMatchObject({ status: "RESERVED", holdExpiresAt: null });
+  });
+
+  it("Stripe: the payment checks the coupon again before confirming anything", async () => {
+    const one = await coupon({ maxRedemptions: 1 });
+    const gateway = mockGateway();
+    const prepare = async (email: string) => {
+      const outcome = await prepareOrder(
+        testDb,
+        gateway,
+        prepareOrderSchema.parse({ shipping: { ...shipping, email }, lines: [BATMOBILE], confirmationTokenId: "ctoken_mock_visa", couponCode: one.code }),
+        guest
+      );
+      if (!outcome.ok) throw new Error(outcome.code);
+      return { order: outcome.order, requester: { userId: null, access: outcome.access } satisfies Requester };
+    };
+    const first = await prepare("stripe-slow@coupons.test");
+    await lapse(first.order.id);
+    await prepare("stripe-next@coupons.test");
+    const confirm = vi.spyOn(gateway, "confirmIntent");
+    expect(await payOrder(testDb, gateway, first.order.id, "ctoken_mock_visa", first.requester)).toMatchObject({ ok: false, code: "coupon", rejection: "exhausted" });
+    expect(confirm).not.toHaveBeenCalled();
+    confirm.mockRestore();
   });
 
   it("never over-redeems under parallel checkouts: the total limit", async () => {
@@ -270,11 +388,30 @@ describe("limits", () => {
     expect(await testDb.couponRedemption.count({ where: { couponId: three.id, status: "RESERVED" } })).toBe(3);
   });
 
-  it("never over-redeems under parallel checkouts: the per-customer limit", async () => {
+  it("never over-redeems under parallel checkouts: the per-customer limit, by account and by email", async () => {
     const once = await coupon({ maxPerUser: 1 });
-    const outcomes = await Promise.all(Array.from({ length: 5 }, () => prepareMp(once.code, { email: "same@coupons.test" })));
-    expect(outcomes.filter((outcome) => outcome.ok)).toHaveLength(1);
-    expect(await testDb.couponRedemption.count({ where: { couponId: once.id } })).toBe(1);
+    const asAna: Requester = { userId: ana.id, access: null };
+    const accounts = await Promise.all(Array.from({ length: 5 }, () => prepareMp(once.code, { requester: asAna, email: ana.email })));
+    expect(accounts.filter((outcome) => outcome.ok)).toHaveLength(1);
+
+    const sameEmail = await Promise.all(Array.from({ length: 5 }, () => preparedMp(once.code, { email: "same@coupons.test" })));
+    const paid = await Promise.all(sameEmail.map(({ order, requester }) => payMercadoPagoOrder(testDb, mp, order.id, card(), requester)));
+    expect(paid.filter((outcome) => outcome.ok)).toHaveLength(1);
+    expect(paid.filter((outcome) => !outcome.ok && outcome.code === "coupon" && outcome.rejection === "per_customer")).toHaveLength(4);
+    expect(await testDb.couponRedemption.count({ where: { couponId: once.id, email: "same@coupons.test", status: "REDEEMED" } })).toBe(1);
+  });
+
+  it("preparing orders with a coupon has its own rate limit, so a script cannot hold a coupon's uses", async () => {
+    const body = { shipping: { ...shipping, email: "hoard@coupons.test" }, lines: [BATMOBILE], provider: "MERCADOPAGO", couponCode: "LEGO500" };
+    const statuses: number[] = [];
+    for (let i = 0; i < 16; i++) statuses.push((await prepareRoute(jsonRequest("/api/checkout/orders", body))).status);
+    // Refused for its minimum (422) until the limit (429): each try counts.
+    expect(statuses.slice(0, 15).every((status) => status === 422)).toBe(true);
+    expect(statuses[15]).toBe(429);
+    // Without a coupon, the checkout's own (larger) limit still has room.
+    const { couponCode: _omit, ...plain } = body;
+    void _omit;
+    expect((await prepareRoute(jsonRequest("/api/checkout/orders", plain))).status).toBe(200);
   });
 });
 
@@ -391,13 +528,20 @@ describe("admin", () => {
 
     const page = await listAdminCoupons(testDb, { q: "", status: "", page: 1 });
     const row = page.items.find((item) => item.id === tracked.id)!;
-    expect(row).toMatchObject({ status: "exhausted", uses: 2, reserved: 1, redeemed: 1, discountGiven: 200, revenue: 2490 - 200 + 299, label: expect.stringMatching(/200 de descuento/) });
+    expect(row).toMatchObject({ status: "exhausted", uses: 2, reserved: 1, lapsed: 0, redeemed: 1, discountGiven: 200, revenue: 2490 - 200 + 299, label: expect.stringMatching(/200 de descuento/) });
     expect(page.items.find((item) => item.id === expiredOne.id)?.status).toBe("expired");
     expect((await listAdminCoupons(testDb, { q: "", status: "expired", page: 1 })).items.every((item) => item.status === "expired")).toBe(true);
     expect((await listAdminCoupons(testDb, { q: tracked.code.toLowerCase(), status: "", page: 1 })).items.map((item) => item.id)).toEqual([tracked.id]);
 
     const detail = await getAdminCoupon(testDb, tracked.id);
     expect(detail?.redemptions.map((use) => use.status).sort()).toEqual(["REDEEMED", "RESERVED"]);
+
+    // A hold that ran out without a payment no longer counts: the coupon has a use free again.
+    const unpaid = detail!.redemptions.find((use) => use.status === "RESERVED")!;
+    await lapse(unpaid.orderId);
+    const after = (await listAdminCoupons(testDb, { q: tracked.code, status: "", page: 1 })).items[0]!;
+    expect(after).toMatchObject({ status: "active", uses: 1, reserved: 0, lapsed: 1 });
+    expect((await getAdminCoupon(testDb, tracked.id))?.redemptions.map((use) => use.status).sort()).toEqual(["LAPSED", "REDEEMED"]);
   });
 });
 

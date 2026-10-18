@@ -119,12 +119,14 @@ export const COUPON_STATUS_BADGE = {
 
 export const REDEMPTION_STATUS_LABELS = {
   RESERVED: "Reservado",
+  LAPSED: "Reserva vencida",
   REDEEMED: "Usado",
   RELEASED: "Liberado",
 } as const;
 
 export const REDEMPTION_STATUS_BADGE = {
   RESERVED: "warning",
+  LAPSED: "neutral",
   REDEEMED: "success",
   RELEASED: "neutral",
 } as const;

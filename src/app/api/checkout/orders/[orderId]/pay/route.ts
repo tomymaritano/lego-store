@@ -34,7 +34,9 @@ import { orderIdSchema, payMercadoPagoOrderSchema, payOrderSchema } from "@/lib/
  * "redirect", url } "Cuenta de Mercado Pago": the browser goes to pay there.
  *
  * Both: 402 declined (with the reason) · 422 the payment data has to be
- * entered again · 409 sold out / not payable · 404 not this browser's order ·
+ * entered again, or code "coupon": the coupon cannot be used any more (its
+ * place was taken, or this email used it up; prepare the order again without
+ * it) · 409 sold out / not payable · 404 not this browser's order ·
  * 429 · 503 not configured.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
@@ -80,6 +82,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return checkoutError("unavailable", CHECKOUT_MESSAGES.unavailable, 409, { unavailable: outcome.unavailable });
       case "payment_method":
         return checkoutError("payment_method", outcome.message, 422);
+      case "coupon":
+        return checkoutError("coupon", outcome.message, 422, { rejection: outcome.rejection });
       default:
         return checkoutError("declined", outcome.message, 402);
     }
