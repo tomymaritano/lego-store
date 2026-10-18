@@ -262,7 +262,8 @@ export async function relaxOrderCoupon(tx: Tx, orderId: string, now: Date = new 
 
 /** What the browser gets for a code that applies: its terms (the discount math is lib/pricing) and the server's totals. */
 export interface CouponQuote {
-  coupon: CouponTerms & { label: string };
+  /** `recheckToken`: signed for the code by the Route Handler (src/lib/coupons/recheck.ts); null here. */
+  coupon: CouponTerms & { label: string; recheckToken: string | null };
   totals: Pick<OrderTotals, "subtotal" | "discount" | "total" | "count" | "coupon"> & { shipping: number };
 }
 
@@ -296,7 +297,7 @@ export async function quoteCoupon(
   return {
     ok: true,
     quote: {
-      coupon: { ...checked.terms, label: couponLabel(checked.terms) },
+      coupon: { ...checked.terms, label: couponLabel(checked.terms), recheckToken: null },
       totals: {
         subtotal: totals.subtotal,
         discount: totals.discount,

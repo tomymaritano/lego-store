@@ -18,12 +18,15 @@ export { COUPON_CODE_MESSAGE, couponCodeSchema };
  * are priced on the server. No email: an email's uses are only checked when
  * a payment is submitted (src/lib/coupons/server.ts), so this never tells
  * whether some email has used a coupon. `recheck`: the cart or the checkout
- * asking again about the coupon it already applied (its own rate limit).
+ * asking again about the coupon it already applied, with the `recheckToken`
+ * its quote came with (its own rate limit only with a valid one:
+ * src/lib/coupons/recheck.ts).
  */
 export const couponQuoteSchema = z.object({
   code: couponCodeSchema,
   lines: prepareOrderSchema.shape.lines,
   recheck: z.boolean().optional(),
+  recheckToken: z.string().max(128).optional(),
 });
 
 export type CouponQuoteInput = z.infer<typeof couponQuoteSchema>;

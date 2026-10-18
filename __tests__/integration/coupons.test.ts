@@ -40,6 +40,8 @@ vi.mock("react", async (importOriginal) => {
 });
 
 enableMockPayments({ provider: "mercadopago" });
+// Signs the re-check tokens (src/lib/coupons/recheck.ts).
+vi.stubEnv("AUTH_SECRET", "coupons-integration-secret");
 
 const { POST: quoteRoute } = await import("@/app/api/checkout/coupon/route");
 const { POST: prepareRoute } = await import("@/app/api/checkout/orders/route");
@@ -125,7 +127,7 @@ describe("POST /api/checkout/coupon (the cart's quote)", () => {
     expect(status).toBe(200);
     // Seeded: 10% from $2.000. $2490 + $189 = $2679; 10% = $267.90 → $268 (half up); $299 shipping.
     expect(body).toEqual({
-      coupon: { code: "BIENVENIDA10", type: "PERCENT", value: 10, minSubtotal: 2000, label: "10% de descuento" },
+      coupon: { code: "BIENVENIDA10", type: "PERCENT", value: 10, minSubtotal: 2000, label: "10% de descuento", recheckToken: expect.any(String) },
       totals: { subtotal: 2679, discount: 268, shipping: 299, total: 2710, count: 2, coupon: { code: "BIENVENIDA10", applies: true, shortBy: 0 } },
     });
   });
@@ -177,10 +179,25 @@ describe("POST /api/checkout/coupon (the cart's quote)", () => {
     expect(withEmail.status).toBe(200);
   });
 
-  it("re-checks have their own, larger budget", async () => {
-    for (let i = 0; i < 20; i++) await quote({ code: `NOPE${i}`, lines: [BATMOBILE] });
+  it("re-checks of a code it accepted have their own, larger budget", async () => {
+    const applied = await quote({ code: "BIENVENIDA10", lines: [BATMOBILE] });
+    const recheckToken = (applied.body.coupon as { recheckToken: string }).recheckToken;
+    for (let i = 0; i < 19; i++) await quote({ code: `NOPE${i}`, lines: [BATMOBILE] });
     expect((await quote({ code: "BIENVENIDA10", lines: [BATMOBILE] })).status).toBe(429);
-    expect((await quote({ code: "BIENVENIDA10", lines: [BATMOBILE], recheck: true })).status).toBe(200);
+    expect((await quote({ code: "BIENVENIDA10", lines: [BATMOBILE], recheck: true, recheckToken })).status).toBe(200);
+  });
+
+  it("a re-check without a valid token for its code counts as a try: the larger budget is no way to guess codes", async () => {
+    const applied = await quote({ code: "BIENVENIDA10", lines: [BATMOBILE] });
+    const recheckToken = (applied.body.coupon as { recheckToken: string }).recheckToken;
+    const statuses: number[] = [];
+    // No token, a made-up one, or the token of another code.
+    for (let i = 0; i < 19; i++) {
+      const token = [undefined, "forged", recheckToken][i % 3];
+      statuses.push((await quote({ code: `NOPE${i}`, lines: [BATMOBILE], recheck: true, ...(token ? { recheckToken: token } : {}) })).status);
+    }
+    expect(statuses.every((status) => status === 422)).toBe(true);
+    expect((await quote({ code: "NOPE99", lines: [BATMOBILE], recheck: true, recheckToken })).status).toBe(429);
   });
 
   it("limits how many codes one visitor can try", async () => {

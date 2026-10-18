@@ -43,7 +43,8 @@ export function useCouponRecheck() {
       controller = current;
       let result;
       try {
-        result = await requestCouponQuote({ code, lines, recheck: true }, current.signal);
+        const recheckToken = useCouponStore.getState().coupon?.recheckToken ?? undefined;
+        result = await requestCouponQuote({ code, lines, recheck: true, ...(recheckToken ? { recheckToken } : {}) }, current.signal);
       } catch {
         return; // Aborted: a newer check is on its way, or the page left.
       }

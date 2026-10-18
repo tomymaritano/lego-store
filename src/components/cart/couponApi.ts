@@ -10,7 +10,7 @@ export const COUPON_NETWORK_ERROR = "No pudimos validar el cupón. Revisa tu con
 
 /** POST /api/checkout/coupon: the server checks the code and prices the lines. */
 export async function requestCouponQuote(
-  body: { code: string; lines: { productId: string; quantity: number }[]; recheck?: boolean },
+  body: { code: string; lines: { productId: string; quantity: number }[]; recheck?: boolean; recheckToken?: string },
   signal?: AbortSignal
 ): Promise<QuoteResult> {
   try {

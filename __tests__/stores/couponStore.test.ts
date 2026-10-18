@@ -44,6 +44,15 @@ describe("couponStore", () => {
     expect(state()).toMatchObject({ coupon: TERMS, owner: "user-1", checked: null });
   });
 
+  it("keeps the re-check token its quote came with, and reads a coupon saved without one", async () => {
+    state().apply({ ...TERMS, recheckToken: "signed" }, null);
+    await useCouponStore.persist.rehydrate();
+    expect(state().coupon?.recheckToken).toBe("signed");
+    window.localStorage.setItem("lego-coupon-storage", JSON.stringify({ state: { coupon: TERMS, owner: null }, version: 2 }));
+    await useCouponStore.persist.rehydrate();
+    expect(state().coupon).toEqual({ ...TERMS, recheckToken: null });
+  });
+
   it("reads a coupon saved before owners existed as a visitor's", async () => {
     window.localStorage.setItem("lego-coupon-storage", JSON.stringify({ state: { coupon: TERMS }, version: 1 }));
     await useCouponStore.persist.rehydrate();

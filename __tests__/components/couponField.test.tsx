@@ -123,7 +123,7 @@ describe("Coupon field (cart summary)", () => {
     });
 
     it("leaves the discount out until the server answers, then adopts its terms (an admin changed the value)", async () => {
-      stored({ ...QUOTE.coupon, value: 50, label: "50% de descuento" });
+      stored({ ...QUOTE.coupon, value: 50, label: "50% de descuento", recheckToken: "token-from-apply" });
       let answer: (response: Response) => void = () => {};
       requests = [];
       globalThis.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -136,11 +136,15 @@ describe("Coupon field (cart summary)", () => {
       expect(screen.queryByTestId("cart-discount")).toBeNull();
       expect(text(screen.getByTestId("cart-total"))).toBe(formatPrice(2490 + 299));
       await waitFor(() => expect(requests).toHaveLength(1));
-      expect(requests[0]).toEqual({ url: "/api/checkout/coupon", body: { code: "BIENVENIDA10", lines: [{ productId: "7", quantity: 1 }], recheck: true } });
+      // The token its quote came with: only that gets the re-checks' rate limit (src/lib/coupons/recheck.ts).
+      expect(requests[0]).toEqual({
+        url: "/api/checkout/coupon",
+        body: { code: "BIENVENIDA10", lines: [{ productId: "7", quantity: 1 }], recheck: true, recheckToken: "token-from-apply" },
+      });
 
-      answer(new Response(JSON.stringify(QUOTE), { status: 200, headers: { "Content-Type": "application/json" } }));
+      answer(new Response(JSON.stringify({ ...QUOTE, coupon: { ...QUOTE.coupon, recheckToken: "token-renewed" } }), { status: 200, headers: { "Content-Type": "application/json" } }));
       await waitFor(() => expect(text(screen.getByTestId("cart-discount"))).toBe(formatPrice(249)));
-      expect(useCouponStore.getState().coupon).toMatchObject({ value: 10, label: "10% de descuento" });
+      expect(useCouponStore.getState().coupon).toMatchObject({ value: 10, label: "10% de descuento", recheckToken: "token-renewed" });
       expect(screen.queryByTestId("cart-coupon-checking")).toBeNull();
     });
 

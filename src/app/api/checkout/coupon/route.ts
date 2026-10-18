@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { couponRecheckToken, isCouponRecheckToken } from "@/lib/coupons/recheck";
 import { quoteCoupon, type CouponQuote } from "@/lib/coupons/server";
 import { getDb } from "@/lib/db";
 import { CHECKOUT_MESSAGES, NO_STORE, checkoutError, crossSite, jsonBody, rateLimited, requesterOf } from "@/lib/orders/http";
@@ -9,16 +10,17 @@ import { COUPON_CODE_MESSAGE } from "@/lib/validations/coupon-code";
 /**
  * POST /api/checkout/coupon: "Aplicar" in the cart's or the checkout's
  * summary, and the re-check of an applied coupon when the cart or the
- * checkout loads. Body: { code, lines: [{ productId, quantity }], recheck? }.
+ * checkout loads. Body: { code, lines: [{ productId, quantity }], recheck?,
+ * recheckToken? } (the token an accepted quote returned for the code).
  * Checks the coupon (active, dates, total limit, the signed-in account's
  * limit; an email's is checked when the payment is submitted) and prices the
  * lines from the database. Reserves nothing: the order does, when the
  * checkout prepares it, and checks again.
  *
- * 200 { coupon: { code, type, value, minSubtotal, label }, totals } ·
+ * 200 { coupon: { code, type, value, minSubtotal, label, recheckToken }, totals } ·
  * 400 invalid · 422 code "coupon" with `rejection` and the reason in
  * Spanish · 429 (it is a guessable code: tries are limited per user or IP;
- * re-checks have their own, larger budget).
+ * re-checks of a code it accepted, with its token, have their own, larger budget).
  */
 export async function POST(request: NextRequest) {
   const refused = crossSite(request);
@@ -31,17 +33,21 @@ export async function POST(request: NextRequest) {
   }
 
   const requester = await requesterOf(request);
-  const limited = await rateLimited(parsed.data.recheck ? rateLimits.couponRecheck : rateLimits.couponQuote, request, requester);
+  // Only a code this server accepted before gets the re-checks' budget: anything else is a try.
+  const { code, recheck, recheckToken } = parsed.data;
+  const trusted = recheck === true && isCouponRecheckToken(code, recheckToken);
+  const limited = await rateLimited(trusted ? rateLimits.couponRecheck : rateLimits.couponQuote, request, requester);
   if (limited) return limited;
 
   try {
     const outcome = await quoteCoupon(getDb(), {
-      code: parsed.data.code,
+      code,
       lines: parsed.data.lines,
       userId: requester.userId,
     });
     if (!outcome.ok) return checkoutError("coupon", outcome.message, 422, { rejection: outcome.rejection });
-    return NextResponse.json(outcome.quote satisfies CouponQuote, { headers: NO_STORE });
+    const quote: CouponQuote = { ...outcome.quote, coupon: { ...outcome.quote.coupon, recheckToken: couponRecheckToken(outcome.quote.coupon.code) } };
+    return NextResponse.json(quote, { headers: NO_STORE });
   } catch (error) {
     console.error("[coupons] No se pudo validar el cupón:", error);
     return checkoutError("server", CHECKOUT_MESSAGES.server, 502);

@@ -25,6 +25,8 @@ import { isRecord, persistStorage } from "./persist";
 export interface AppliedCouponTerms extends CouponTerms {
   /** "10% de descuento". */
   label: string;
+  /** Sent back with the re-checks (src/lib/coupons/recheck.ts); null without one. */
+  recheckToken?: string | null;
 }
 
 interface CouponState {
@@ -51,10 +53,10 @@ const COUPON_TYPES = new Set(["PERCENT", "FIXED"]);
 /** A persisted coupon, or null when the stored value is not one (an older or hand-edited shape). */
 function couponFrom(value: unknown): AppliedCouponTerms | null {
   if (!isRecord(value)) return null;
-  const { code, type, value: amount, minSubtotal, label } = value;
+  const { code, type, value: amount, minSubtotal, label, recheckToken } = value;
   if (typeof code !== "string" || typeof type !== "string" || !COUPON_TYPES.has(type)) return null;
   if (typeof amount !== "number" || typeof minSubtotal !== "number" || typeof label !== "string") return null;
-  return { code, type: type as CouponTerms["type"], value: amount, minSubtotal, label };
+  return { code, type: type as CouponTerms["type"], value: amount, minSubtotal, label, recheckToken: typeof recheckToken === "string" ? recheckToken : null };
 }
 
 export const useCouponStore = create<CouponState>()(
