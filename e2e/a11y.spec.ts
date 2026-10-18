@@ -1,9 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
+import { logIn } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
+import { createE2eAccount } from "./helpers/db";
 
 /**
  * Automated WCAG 2.1 AA checks (axe) across the app, once per theme. The
- * checkout steps have their own axe checks in checkout.spec.ts.
+ * checkout steps have their own axe checks in checkout.spec.ts; login,
+ * register, /account and /admin's dashboard are in auth.spec.ts, and the
+ * signed-in pages below (account orders, every admin section) run here.
  *
  * Content below the fold reveals as it scrolls into view, so each page is
  * scrolled through before axe runs, and axe is polled until entrance fades
@@ -85,6 +89,29 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.getByRole("button", { name: "Filtros" }).click();
       await expect(page.getByRole("dialog", { name: "Filtros" })).toBeVisible();
       await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
+    });
+
+    test("account and admin pages, signed in", async ({ page }) => {
+      test.slow(); // one login, then ~8 pages that may compile on first hit
+      // An admin of its own (an admin's logout revokes its sessions: no other spec signs this one out).
+      // It also has an /account, which every signed-in user shares.
+      await page.goto("/login?callbackUrl=%2Fadmin");
+      await logIn(page, await createE2eAccount("axe-admin", "Admin Axe", "ADMIN"));
+      await expect(page.getByRole("heading", { level: 1, name: "Panel de administración" })).toBeVisible({ timeout: 30_000 });
+
+      for (const path of ["/account/orders", "/admin/orders", "/admin/products", "/admin/products/new", "/admin/products/1", "/admin/reviews"]) {
+        await page.goto(path);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
+        await expectNoSeriousViolations(page);
+      }
+      // An order's page, when the database has one (the checkout specs place them).
+      await page.goto("/admin/orders");
+      const firstOrder = page.getByTestId("admin-order-row").first().getByRole("link").first();
+      if (await firstOrder.count()) {
+        await firstOrder.click();
+        await expect(page.getByRole("heading", { level: 1, name: /^Pedido/ })).toBeVisible({ timeout: 30_000 });
+        await expectNoSeriousViolations(page);
+      }
     });
 
     test("cart drawer", async ({ page }) => {

@@ -148,13 +148,13 @@ export function countHelpfulVotes(reviewId: string): Promise<number> {
  * register form's per-IP limit (20 an hour, and every local request shares
  * one bucket) is spent by the specs that are.
  */
-export async function createE2eAccount(label: string, name: string): Promise<string> {
+export async function createE2eAccount(label: string, name: string, role: "USER" | "ADMIN" = "USER"): Promise<string> {
   const email = uniqueEmail(label);
   const hash = await bcrypt.hash(PASSWORD, 4);
   await withClient((client) =>
     client.query(
-      `INSERT INTO "User" ("id", "email", "name", "passwordHash", "role", "updatedAt") VALUES ($1, $2, $3, $4, 'USER', now())`,
-      [`e2e-${randomBytes(8).toString("hex")}`, email, name, hash]
+      `INSERT INTO "User" ("id", "email", "name", "passwordHash", "role", "updatedAt") VALUES ($1, $2, $3, $4, $5, now())`,
+      [`e2e-${randomBytes(8).toString("hex")}`, email, name, hash, role]
     )
   );
   return email;

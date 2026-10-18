@@ -30,6 +30,11 @@ const nextConfig = {
   // see playwright.config.ts) so `next build` never rewrites the .next folder
   // the dev server is reading at the same time.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // That e2e build only serves the browser tests. A `next dev` already running
+  // rewrites .next/dev/types and next-env.d.ts while it builds, which once failed
+  // its type check with half-written files; `tsc --noEmit` (CI's lint job, and
+  // every other build) checks the types.
+  typescript: { ignoreBuildErrors: process.env.NEXT_DIST_DIR === ".next-e2e" },
   // Pin the workspace root: a stray package-lock.json in the user's home
   // directory otherwise makes Turbopack guess the wrong root.
   turbopack: {

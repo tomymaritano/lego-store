@@ -34,7 +34,24 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], baseURL: PROD_URL },
     },
   ],
+  // Playwright starts these one after another, in this order: the production
+  // build runs before `next dev` starts writing .next/dev/types and
+  // next-env.d.ts, which the build would otherwise read half-written.
   webServer: [
+    {
+      command: `npm run build && npx next start -p ${PROD_PORT}`,
+      url: PROD_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 300_000,
+      // The build's output (a type or compile error included) shows in the run's log.
+      stdout: "pipe",
+      // Separate build folder: building into .next while `next dev` reads it
+      // broke dev requests mid-run ("Unexpected end of JSON input"). That build
+      // skips the type check too (next.config.mjs): `tsc --noEmit` gates the types.
+      // AUTH_TRUST_HOST: Auth.js only trusts the Host header in production when told to
+      // (Vercel sets it implicitly; a local `next start` does not).
+      env: { NEXT_DIST_DIR: ".next-e2e", AUTH_TRUST_HOST: "true" },
+    },
     {
       command: "npm run dev",
       url: DEV_URL,
@@ -42,17 +59,6 @@ export default defineConfig({
       // Payments through the mock gateway, webhooks signed by the specs (e2e/helpers/stripe.ts).
       // A reused dev server must have been started with these too: the global setup checks.
       env: E2E_SERVER_ENV,
-    },
-    {
-      command: `npm run build && npx next start -p ${PROD_PORT}`,
-      url: PROD_URL,
-      reuseExistingServer: !process.env.CI,
-      timeout: 300_000,
-      // Separate build folder: building into .next while `next dev` reads it
-      // broke dev requests mid-run ("Unexpected end of JSON input").
-      // AUTH_TRUST_HOST: Auth.js only trusts the Host header in production when told to
-      // (Vercel sets it implicitly; a local `next start` does not).
-      env: { NEXT_DIST_DIR: ".next-e2e", AUTH_TRUST_HOST: "true" },
     },
   ],
 });

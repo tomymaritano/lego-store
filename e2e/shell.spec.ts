@@ -144,6 +144,9 @@ test.describe("Mobile shell", () => {
 
 test.describe("Footer and info pages", () => {
   test("every footer link resolves (no dead links)", async ({ page, request }) => {
+    // Some 17 pages one after another (in parallel they would race a cold `next dev`
+    // compiling them): about 6 s warm, much longer while other workers load the server.
+    test.slow();
     await page.goto("/");
     const hrefs = await page
       .getByRole("contentinfo")
