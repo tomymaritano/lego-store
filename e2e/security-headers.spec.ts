@@ -19,6 +19,8 @@ test("the signed-in admin panel refuses to be framed", async ({ page }) => {
     const headers = response.headers();
     expect(headers["x-frame-options"], path).toBe("DENY");
     expect(headers["content-security-policy"], path).toContain("frame-ancestors 'none'");
+    expect(headers["content-security-policy"], path).toContain("object-src 'none'");
+    expect(headers["content-security-policy"], path).toContain("base-uri 'self'");
     expect(headers["x-content-type-options"], path).toBe("nosniff");
     expect(headers["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
     expect(headers["x-powered-by"], path).toBeUndefined();

@@ -4,10 +4,15 @@
  * framing is denied everywhere: this blocks clickjacking of /admin and
  * /account. HSTS only in production: `next dev` and the e2e server run on
  * plain http://localhost.
+ *
+ * The CSP also turns off plugins (object-src) and <base> hijacking of relative
+ * URLs (base-uri), which nothing here uses. A script-src allow-list needs
+ * per-request nonces (proxy.ts) for Next's inline scripts, Stripe and Google
+ * sign-in: not done yet (README, "Headers de seguridad").
  */
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   ...(process.env.NODE_ENV === "production"
