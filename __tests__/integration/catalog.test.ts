@@ -260,7 +260,8 @@ describe("lib/api", () => {
       const options = await getFilterOptions();
       const all = await getProducts();
       expect(options.total).toBe(all.length);
-      const starWars = options.themes.find((o) => o.value === "Star Wars");
+      const starWars = options.themes.find((o) => o.value === "star-wars");
+      expect(starWars?.label).toBe("Star Wars");
       expect(starWars?.count).toBe(all.filter((p) => p.theme === "Star Wars").length);
       expect(options.categories.find((o) => o.value === "cars")?.label).toBe("Vehículos");
       expect(options.ages.map((o) => o.value)).toEqual(["12+", "16+", "18+"]);
@@ -275,7 +276,7 @@ describe("lib/api", () => {
     it("counts inside a scope and drops empty values", async () => {
       const helmets = await getFilterOptions({ category: "helmet" });
       expect(helmets.total).toBe(5);
-      expect(helmets.themes.map((o) => o.value)).toEqual(["Star Wars"]);
+      expect(helmets.themes.map((o) => o.value)).toEqual(["star-wars"]);
 
       const none = await getFilterOptions({ q: "zzzz" });
       expect(none).toMatchObject({ total: 0, themes: [], price: { min: 0, max: 0 } });

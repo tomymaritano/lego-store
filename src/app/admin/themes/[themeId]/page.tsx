@@ -52,7 +52,7 @@ export default async function AdminThemePage({ params, searchParams }: ThemePage
           </span>
         }
         actions={
-          <Button render={<Link href={themeHref(theme.name)} target="_blank" rel="noopener" />} variant="secondary" size="sm">
+          <Button render={<Link href={themeHref(theme.slug)} target="_blank" rel="noopener" />} variant="secondary" size="sm">
             <ExternalLink aria-hidden="true" />
             Ver en la tienda<span className="sr-only"> (se abre en otra pestaña)</span>
           </Button>

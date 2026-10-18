@@ -218,7 +218,7 @@ describe("themes", () => {
     expect(await createTheme(testDb, admin, themeFormSchema.parse({ name: "Otro", slug: "ninjago", visible: true }))).toEqual({ ok: false, reason: "slug_taken" });
     expect((await getThemes()).at(-1)?.name).toBe("Ninjago");
     // In use by no product: not a filter option yet, and it can go.
-    expect((await getFilterOptions()).themes.map((option) => option.value)).not.toContain("Ninjago");
+    expect((await getFilterOptions()).themes.map((option) => option.value)).not.toContain("ninjago");
     expect(created.ok && (await deleteTheme(testDb, admin, created.themeId))).toEqual({ ok: true });
   });
 
@@ -241,7 +241,7 @@ describe("themes", () => {
     const marvel = await testDb.theme.findUniqueOrThrow({ where: { name: "Marvel" } });
     await updateTheme(testDb, admin, marvel.id, themeFormSchema.parse({ name: "Marvel", slug: "marvel", visible: false }));
     expect((await getThemes()).map((theme) => theme.name)).not.toContain("Marvel");
-    expect((await getFilterOptions()).themes.map((option) => option.value)).not.toContain("Marvel");
+    expect((await getFilterOptions()).themes.map((option) => option.value)).not.toContain("marvel");
     expect((await getPaginatedProducts({ themes: ["Marvel"] })).total).toBeGreaterThan(0);
     await updateTheme(testDb, admin, marvel.id, themeFormSchema.parse({ name: "Marvel", slug: "marvel", visible: true }));
 

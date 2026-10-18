@@ -112,7 +112,7 @@ async function NoResults({ q }: { q: string }) {
                   variant="secondary"
                   size="sm"
                   className="rounded-full"
-                  render={<Link href={`/search?q=${encodeURIComponent(theme.value)}`} />}
+                  render={<Link href={`/search?q=${encodeURIComponent(theme.label)}`} />}
                 >
                   {theme.label}
                 </Button>

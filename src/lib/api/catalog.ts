@@ -133,9 +133,9 @@ type ThemeRef = { id: string; name: string; slug: string };
 const loadThemes = (db: Db): Promise<ThemeRef[]> => db.theme.findMany({ select: { id: true, name: true, slug: true } });
 
 /**
- * The themes a ?theme= filter names: by name ignoring case and accents
- * ("star wars" -> "Star Wars", the values the filters and the menu use) or by
- * slug ("star-wars"). Hidden themes still filter: only the menus leave them out.
+ * The themes a ?theme= filter names: by slug ("star-wars", what the menus
+ * and the filter checkboxes link to) or, for older links, by name ignoring
+ * case and accents ("star wars" -> "Star Wars"). Hidden themes still filter: only the menus leave them out.
  */
 export function matchThemes(themes: ThemeRef[], requested: string[]): string[] {
   const wanted = new Set(requested.map(normalizeText));
@@ -340,11 +340,11 @@ async function countByColumn(db: Db, field: ScalarFacet, where: Prisma.ProductWh
   return Object.fromEntries(groups.map((group) => [group[field], group._count._all]));
 }
 
-/** Products per theme name, inside `where` (the facets are keyed by name, like the URL values). */
+/** Products per theme slug, inside `where` (the facets are keyed by slug, like the filter's values). */
 async function countThemes(db: Db, where: Prisma.ProductWhereInput, themes: Promise<ThemeRef[]>): Promise<Record<string, number>> {
   const [byId, list] = await Promise.all([countByColumn(db, "themeId", where), themes]);
-  const names = new Map(list.map((theme) => [theme.id, theme.name]));
-  return Object.fromEntries(Object.entries(byId).flatMap(([id, count]) => (names.has(id) ? [[names.get(id)!, count]] : [])));
+  const slugs = new Map(list.map((theme) => [theme.id, theme.slug]));
+  return Object.fromEntries(Object.entries(byId).flatMap(([id, count]) => (slugs.has(id) ? [[slugs.get(id)!, count]] : [])));
 }
 
 /** Products per interest (multi-valued: a product counts once per interest it has). */
@@ -387,7 +387,7 @@ export async function getFilterOptions(
       countByColumn(db, "categoryId", where),
       db.category.findMany({ where: { visible: true }, select: { id: true, name: true } }),
       countByColumn(db, "themeId", where),
-      db.theme.findMany({ where: { visible: true }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true } }),
+      db.theme.findMany({ where: { visible: true }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true, slug: true } }),
       countByColumn(db, "type", where),
       countByColumn(db, "age", where),
       countInterests(db, where),
@@ -406,8 +406,8 @@ export async function getFilterOptions(
 
   return {
     categories: options(visibleCategories, "alpha", (slug) => categoryName.get(slug) ?? slug),
-    // Themes in the admin's order (the "Temas" menu's), not A-Z.
-    themes: themeList.filter((theme) => (themes[theme.id] ?? 0) > 0).map((theme) => ({ value: theme.name, label: theme.name, count: themes[theme.id]! })),
+    // Themes in the admin's order (the "Temas" menu's), not A-Z. The value is the slug (stable across renames).
+    themes: themeList.filter((theme) => (themes[theme.id] ?? 0) > 0).map((theme) => ({ value: theme.slug, label: theme.name, count: themes[theme.id]! })),
     types: options(types),
     ages: options(ages, "numeric"),
     interests: options(interests),

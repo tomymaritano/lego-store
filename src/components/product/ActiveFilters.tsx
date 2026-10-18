@@ -25,7 +25,7 @@ const GROUP_NAMES: Record<ActiveFilter["field"], string> = {
 };
 
 /** Short visible text of a chip. */
-export function describeFilter(filter: ActiveFilter, options?: Pick<FilterOptions, "categories">): string {
+export function describeFilter(filter: ActiveFilter, options?: Partial<Pick<FilterOptions, "categories" | "themes">>): string {
   switch (filter.field) {
     case "onSale":
       return "En oferta";
@@ -34,7 +34,10 @@ export function describeFilter(filter: ActiveFilter, options?: Pick<FilterOption
     case "inStock":
       return "En stock";
     case "category":
-      return options?.categories.find((c) => c.value === filter.value)?.label ?? filter.value;
+      return options?.categories?.find((c) => c.value === filter.value)?.label ?? filter.value;
+    case "themes":
+      // A slug ("star-wars") shows as the theme's name; an older name-based link shows as it is.
+      return options?.themes?.find((t) => t.value === filter.value)?.label ?? filter.value;
     case "price":
       if (filter.min !== undefined && filter.max !== undefined) return `${formatPrice(filter.min)} – ${formatPrice(filter.max)}`;
       return filter.min !== undefined ? `Desde ${formatPrice(filter.min)}` : `Hasta ${formatPrice(filter.max ?? 0)}`;

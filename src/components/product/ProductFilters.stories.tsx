@@ -12,12 +12,12 @@ const options: FilterOptions = {
     { value: "cars", label: "Vehículos", count: 5 },
   ],
   themes: [
-    { value: "Architecture", label: "Architecture", count: 3 },
-    { value: "Disney", label: "Disney", count: 1 },
-    { value: "Harry Potter", label: "Harry Potter", count: 2 },
-    { value: "Marvel", label: "Marvel", count: 3 },
-    { value: "Star Wars", label: "Star Wars", count: 9 },
-    { value: "Technic", label: "Technic", count: 4 },
+    { value: "architecture", label: "Architecture", count: 3 },
+    { value: "disney", label: "Disney", count: 1 },
+    { value: "harry-potter", label: "Harry Potter", count: 2 },
+    { value: "marvel", label: "Marvel", count: 3 },
+    { value: "star-wars", label: "Star Wars", count: 9 },
+    { value: "technic", label: "Technic", count: 4 },
   ],
   types: [
     { value: "Decoración del hogar", label: "Decoración del hogar", count: 5 },
@@ -73,7 +73,7 @@ type Story = StoryObj<typeof Interactive>;
 export const Empty: Story = { args: { initial: {}, showCategories: true } };
 
 export const WithActiveFilters: Story = {
-  args: { initial: { onSale: true, themes: ["Star Wars", "Marvel"], minPrice: 500, minRating: 4.5 } },
+  args: { initial: { onSale: true, themes: ["star-wars", "marvel"], minPrice: 500, minRating: 4.5 } },
 };
 
 export const Dark: Story = {

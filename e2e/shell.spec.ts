@@ -35,7 +35,7 @@ test.describe("App shell", () => {
     const trigger = page.getByRole("button", { name: "Temas" });
     await trigger.click();
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("link", { name: "Marvel" }).first()).toHaveAttribute("href", "/search?theme=Marvel");
+    await expect(page.getByRole("link", { name: "Marvel" }).first()).toHaveAttribute("href", "/search?theme=marvel");
     await page.keyboard.press("Escape");
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await expect(trigger).toBeFocused();

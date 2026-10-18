@@ -35,7 +35,7 @@ describe("navigation config", () => {
   it("has no dead internal links", async () => {
     const routes = staticRoutes();
     const categoryIds = fixtureCategoryIds;
-    const hrefs = [{ href: themeHref("Star Wars") }, ...helpLinks, ...companyLinks, ...legalLinks, ...infoNav.flatMap((g) => g.items)].map(
+    const hrefs = [{ href: themeHref("star-wars") }, ...helpLinks, ...companyLinks, ...legalLinks, ...infoNav.flatMap((g) => g.items)].map(
       (l) => l.href
     );
     const dead: string[] = [];

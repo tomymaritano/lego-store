@@ -9,14 +9,20 @@ export interface NavItem {
   href: string;
 }
 
-/** Where a theme of the "Temas" menu goes: the catalogue filtered by it (/search?theme=Star%20Wars). */
-export const themeHref = (name: string) => `/search?theme=${encodeURIComponent(name)}`;
+/**
+ * Where a theme of the "Temas" menu goes: the catalogue filtered by it, by
+ * slug (/search?theme=star-wars), the key an admin edits on purpose, so
+ * renaming a theme keeps its links. The filter still accepts a theme's name
+ * (?theme=Star%20Wars, older links and the filter checkboxes).
+ */
+export const themeHref = (slug: string) => `/search?theme=${encodeURIComponent(slug)}`;
 
 /**
  * The "Temas" menu (navbar, mobile menu, footer): the themes an admin left
  * visible, in their order (read from the database by the root layout).
  */
-export const themeNavItems = (themes: { name: string }[]): NavItem[] => themes.map((theme) => ({ name: theme.name, href: themeHref(theme.name) }));
+export const themeNavItems = (themes: { name: string; slug: string }[]): NavItem[] =>
+  themes.map((theme) => ({ name: theme.name, href: themeHref(theme.slug) }));
 
 export const helpLinks: NavItem[] = [
   { name: "Preguntas frecuentes", href: "/faq" },
