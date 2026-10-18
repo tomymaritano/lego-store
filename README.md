@@ -12,7 +12,7 @@ pagados con Stripe (modo test) con email de confirmación (Resend) y "Mis
 pedidos", y un panel de admin (productos, stock, pedidos con envío, entrega y
 cancelación con reembolso, moderación de reseñas). El diseño está en
 `docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
-necesita Postgres para correr: ver [Backend local setup](#backend-local-setup).
+necesita Postgres para correr: ver [Puesta en marcha local del backend](#puesta-en-marcha-local-del-backend).
 
 <table>
   <tr>
@@ -452,6 +452,12 @@ muestran en la consola del servidor.
   localhost:3200/api/stripe/webhook`, ese llega primero y el reenvío da
   `duplicate`). Sin claves se saltea. En CI corre el job opcional
   `e2e-stripe-live` solo si el repo tiene esos tres secrets.
+- **Pagar contra un build de producción** no lo cubre ningún test automático hoy:
+  un `next build` nunca usa la pasarela simulada, y sin claves de test el paso Pago
+  dice "Pagos no configurados". Antes de dar por verificado el cobro en modo
+  producción: claves de test en `.env.local`, `npm run test:e2e:stripe` y una compra
+  a mano sobre `npm run build && npm start` (con `stripe listen` reenviando el
+  webhook).
 
 ## Panel de admin
 
@@ -514,7 +520,13 @@ cae en "sin filtro").
   no responde queda retenido hasta que el admin reintente la cancelación;
   (3) bajo el bloqueo, devuelve el stock y pasa a CANCELLED con el reembolso.
   Cada cambio queda en `OrderStatusChange` (quién, cuándo, de qué a qué, id del
-  reembolso).
+  reembolso). El motivo de una cancelación se lee como admin ("Cancelado por un
+  admin; se reembolsó el pago"), no con el texto del cliente. Sin Stripe
+  configurado, cancelar un pedido que pasa por Stripe (pagado, o pendiente con
+  PaymentIntent) se muestra deshabilitado con el motivo; enviar y entregar siguen
+  disponibles. Las fechas del admin son numéricas con año (`18/10/2026, 04:51`,
+  también en la línea de tiempo del pedido) a propósito: se leen en columnas y
+  abarcan años; las de la tienda van en palabras. Ambas usan reloj de 24 h.
 - **Reseñas**: todas, filtrables por producto, estrellas o texto; eliminar
   recalcula el rating en la misma transacción y expira el producto. Sin el
   límite de ediciones por usuario (ese es para los clientes).
@@ -539,14 +551,14 @@ cae en "sin filtro").
 - El checkout vive en memoria y nunca ve datos de tarjeta: solo el id del
   ConfirmationToken de Stripe, la marca y los últimos 4 dígitos.
 
-## Backend local setup
+## Puesta en marcha local del backend
 
 Requisitos: Node `^22.13` o `>=24` y Docker (Docker Desktop en Windows/macOS).
 
 ```bash
 npm install                 # también genera el cliente de Prisma (postinstall)
 cp .env.example .env.local  # los valores por defecto ya apuntan al Postgres de Docker;
-                            # completá AUTH_SECRET (obligatoria), por ejemplo con:
+                            # completa AUTH_SECRET (obligatoria), por ejemplo con:
                             # node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
                             # (u openssl rand -base64 32)
 npm run db:up               # Postgres 17 en localhost:5433, bases lego_store y lego_store_test
@@ -559,9 +571,13 @@ npm run dev
 - **Puerto**: Docker publica Postgres en el **5433**, solo en `127.0.0.1` (nadie
   de tu red llega a la base con las credenciales de ejemplo), para no chocar con un
   Postgres instalado en el 5432. Para otro puerto: `POSTGRES_PORT=5434 npm run db:up` y
-  ajustá las URLs de `.env.local`.
+  ajusta las URLs de `.env.local`.
+- **Varias copias del repo** (otro clon, un `git worktree`): compose nombra el
+  contenedor y el volumen según la carpeta (`<carpeta>-db-1`), así que cada copia
+  puede tener su propia base a la vez, cada una con su `POSTGRES_PORT`. Para entrar
+  a la base: `docker compose exec db psql -U lego -d lego_store`.
 - **Admin**: el seed crea el admin de `ADMIN_EMAIL` / `ADMIN_PASSWORD` (van juntas:
-  si definís solo una, falla). Sin ellas no crea ninguno, salvo que actives el
+  si defines solo una, falla). Sin ellas no crea ninguno, salvo que actives el
   **admin de desarrollo** descomentando `SEED_DEV_ADMIN=1` en `.env.local`:
   `admin@lego-store.local` / `admin-dev-1234`, contraseña pública, solo para tu
   máquina. Con `NODE_ENV=production` nunca se crea, y cuando el seed escribe otro
@@ -583,11 +599,11 @@ npm run dev
 - **El build necesita la base** (lee las categorías y los ids de las rutas). En CI
   hay un servicio Postgres que se migra y siembra antes del build, los tests y los
   E2E.
-- **Cambiar el modelo**: editá `prisma/schema.prisma` y corré
+- **Cambiar el modelo**: edita `prisma/schema.prisma` y corre
   `npm run db:migrate -- --name <cambio>` y `npm run db:generate`. Las restricciones
   CHECK (stock ≥ 0, cantidades > 0, rating 1..5, totales que cierran, emails en
   minúsculas…) están escritas a mano al final de cada migración: si una migración
-  nueva recrea una tabla, copiá las suyas.
+  nueva recrea una tabla, copia las suyas.
 - **Producción** (Vercel + Neon u otro Postgres): `DATABASE_URL` y `AUTH_SECRET` en
   las variables del proyecto y `npm run db:deploy` + `npm run db:seed` contra esa
   base antes del primer deploy. Para cobrar: las tres variables de Stripe, un
@@ -600,7 +616,14 @@ npm run dev
   `TRUSTED_PROXY_HOPS` con la cantidad de proxies delante (sin eso todos los
   visitantes comparten los límites por IP y una sola persona puede bloquear login,
   registro y checkout de invitado para todos; el servidor lo avisa al arrancar:
-  revisá el log del primer arranque). Nunca `STRIPE_MOCK` en un servidor público.
+  revisa el log del primer arranque; arranca igual, para no tirar un deploy por
+  una variable). Nunca `STRIPE_MOCK` en un servidor público. **Varias instancias
+  fuera de Vercel**: el catálogo sale del data cache de Next y las ediciones del
+  admin, las compras y los reembolsos lo invalidan con `revalidateTag`, que en un
+  servidor propio solo llega a la instancia que lo ejecutó. Las demás mostrarían
+  precio, stock y ficha viejos hasta 1 h (`REVALIDATE_SECONDS`): hace falta un
+  `cacheHandler` compartido (por ejemplo Redis) o una sola instancia. El checkout
+  no se ve afectado: siempre vuelve a calcular precios y stock desde Postgres.
 - **Headers de seguridad** (`next.config.mjs`, todas las rutas):
   `X-Frame-Options: DENY` y `Content-Security-Policy: frame-ancestors 'none';
   object-src 'none'; base-uri 'self'` (nadie puede meter `/admin` o `/account` en
@@ -748,7 +771,15 @@ npm run dev
   el stock que tomaron. Playwright arranca primero el servidor de producción
   (`next build` en `.next-e2e`, sin chequeo de tipos: eso lo hace `tsc --noEmit`)
   y después `next dev`, para que el build no lea los tipos que el dev server está
-  escribiendo; la salida del build aparece en el log de la corrida.
+  escribiendo; la salida del build aparece en el log de la corrida. **Fuera de CI
+  Playwright reutiliza lo que ya escuche en el 3000 y el 3100**, lo haya levantado
+  quien sea: el setup global comprueba que el servidor de dev corre con el mock y
+  que el de producción sirve el build de esta copia (`.next-e2e/BUILD_ID`), pero un
+  `next dev` de otra copia con las mismas variables pasaría. Para correr al lado de
+  otros servidores, mueve los puertos: `E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx
+  playwright test`. El proyecto `prod` también comprueba que, sin claves de Stripe,
+  el admin ve "Cancelar y reembolsar" deshabilitado y el motivo, antes de abrir el
+  diálogo.
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de

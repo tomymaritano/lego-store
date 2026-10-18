@@ -46,6 +46,19 @@ emails, Mis pedidos and the admin panel.
   the a11y matrix covers Mis pedidos and every admin section in light and dark;
   the footer-links and cart navigation specs allow for a loaded dev server.
 - Admin products table and section nav fit phones better.
+- Admin order page: cancel reasons in the admin's words (refunded or cancelled
+  before payment) instead of the customer's; "Subtotal (n productos)" like the
+  store; the timeline uses the admin's numeric dates. Store timelines use a
+  24-hour clock.
+- Without Stripe configured, cancelling an order that goes through Stripe is
+  shown disabled with the reason instead of failing after the dialog.
+- The checkout review no longer shows the shipping name under the card (the
+  Payment Element asks no cardholder name).
+- `docker-compose.yml` has no fixed `container_name` (`<folder>-db-1`), so
+  several checkouts can run their own Postgres at once.
+- Playwright ports are configurable (`E2E_DEV_PORT`, `E2E_PROD_PORT`) and the
+  global setup refuses a reused production server that does not serve this
+  checkout's e2e build.
 
 ### Fixed
 
@@ -54,6 +67,10 @@ emails, Mis pedidos and the admin panel.
 - E2E: unique webhook event ids across workers; the order page is warmed up.
 - Setup docs: `AUTH_SECRET` is generated with Node/OpenSSL (`npx auth secret`
   now runs another project's CLI); Playwright Chromium install step.
+- Server messages and setup docs in tuteo; the README setup section is
+  "Puesta en marcha local del backend"; documented that a multi-instance
+  self-hosted deploy needs a shared `cacheHandler`, and how to verify payments
+  against a production build.
 
 ## [2.0.0] - 2026-10-17
 
