@@ -166,6 +166,7 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     ".next-e2e/**",
+    ".next-stripe-live/**",
     "out/**",
     "build/**",
     "dist/**",

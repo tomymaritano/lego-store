@@ -23,7 +23,8 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: "prod/**",
+      // stripe-live/ runs only with real test keys, from playwright.stripe-live.config.ts.
+      testIgnore: ["prod/**", "stripe-live/**"],
       use: { ...devices["Desktop Chrome"], baseURL: DEV_URL },
     },
     {
