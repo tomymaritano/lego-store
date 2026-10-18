@@ -190,6 +190,34 @@ export interface Review {
   verified: boolean;
 }
 
+/** A product's star histogram and average, over all its reviews. */
+export interface ReviewSummary {
+  /** One decimal; 0 without reviews. */
+  average: number;
+  count: number;
+  /** Reviews per star rating, 5 stars first. */
+  distribution: { rating: number; count: number }[];
+}
+
+/** One page of a product's reviews, in the requested order (GET /api/products/<id>/reviews). */
+export interface ReviewPage {
+  items: Review[];
+  summary: ReviewSummary;
+  sort: "recent" | "helpful" | "highest" | "lowest";
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+/** The signed-in user's side of a product's reviews (GET /api/products/<id>/reviews/mine). */
+export interface ViewerReviews {
+  /** Their own review of the product, if they wrote one. */
+  review: Review | null;
+  /** Ids of this product's reviews they marked "útil". */
+  helpful: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Checkout
 // ---------------------------------------------------------------------------

@@ -1,6 +1,3 @@
-"use client";
-
-import { useReviewStore } from "@/stores/reviewStore";
 import { pluralize } from "@/lib/utils";
 import { REVIEWS_HASH, WRITE_REVIEW_HASH } from "./anchors";
 
@@ -17,13 +14,11 @@ export function reviewsLinkTarget(count: number): { label: string; hash: string 
 
 /**
  * Link under the product title to the Reseñas tab. It counts what the tab
- * lists: the published reviews (publishedCount, from the database: the same
- * reviews behind the rating next to it) plus the ones this visitor wrote in
- * this browser. ProductDetailsTabs reacts to the fragment and moves focus.
+ * lists: the product's reviews in the database (the same ones behind the
+ * rating next to it; a review write re-renders the page with the new count).
+ * ProductDetailsTabs reacts to the fragment and moves focus.
  */
-export function ReviewsLink({ productId, publishedCount }: { productId: string; publishedCount: number }) {
-  const ownCount = useReviewStore((state) => state.reviews.filter((r) => r.productId === productId).length);
-  const count = publishedCount + ownCount;
+export function ReviewsLink({ count }: { count: number }) {
   const { label, hash } = reviewsLinkTarget(count);
   return (
     <a

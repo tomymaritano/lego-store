@@ -8,7 +8,7 @@ import { postgresStore } from "./postgres";
  * The app's rate limiters, all backed by Postgres (shared by every server
  * instance; see ./limiter.ts for the model and ./postgres.ts for the store).
  *
- * To limit something new (reviews, contact form, newsletter), add an entry
+ * To limit something new (contact form, newsletter), add an entry
  * here and call `consume(subject)` before doing the work, with the user id
  * when there is one and the client IP otherwise.
  */
@@ -43,6 +43,10 @@ export const rateLimits = {
   registerIp: limiter("register-ip", 20, HOUR),
   /** Current-password checks on /account (per user). Cleared by a correct one. */
   passwordChange: limiter("password-change", 5, 15 * MINUTE),
+  /** New reviews per user (one per product anyway; this slows down a spree across products). */
+  reviewCreate: limiter("review-create", 10, HOUR),
+  /** "Útil" votes per user: each one refreshes the product page's cache. */
+  reviewHelpful: limiter("review-helpful", 60, 15 * MINUTE),
 } as const;
 
 export { clientIp } from "./client-ip";

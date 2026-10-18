@@ -4,7 +4,6 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useCartStore } from "./cartStore";
 import { useCompareStore } from "./compareStore";
 import { useRecentlyViewedStore } from "./recentlyViewedStore";
-import { useReviewStore } from "./reviewStore";
 import { useThemeStore } from "./themeStore";
 import { useWishlistStore } from "./wishlistStore";
 
@@ -23,7 +22,12 @@ const persistedStores = [
   useCompareStore,
   useRecentlyViewedStore,
   useThemeStore,
-  useReviewStore,
+];
+
+/** Keys of stores that no longer exist; their leftovers are removed from localStorage. */
+const RETIRED_KEYS = [
+  // Reviews and "útil" votes live in the database since the reviews stage.
+  "lego-reviews-storage",
 ];
 
 function rehydrateAll() {
@@ -60,6 +64,11 @@ export function useStoreHydrated(store: PersistedStore): boolean {
 export function StoreHydrator() {
   useEffect(() => {
     rehydrateAll();
+    try {
+      for (const key of RETIRED_KEYS) window.localStorage.removeItem(key);
+    } catch {
+      // Storage blocked (private mode, settings): nothing to clean up.
+    }
 
     const onStorage = (event: StorageEvent) => {
       const store = persistedStores.find((s) => s.persist.getOptions().name === event.key);

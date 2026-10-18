@@ -1,5 +1,13 @@
 import { serializeProductQuery } from "@/lib/productQuery";
-import type { FacetCounts, PaginatedResponse, Product, ProductQuery, SearchSuggestion } from "@/types";
+import type {
+  FacetCounts,
+  PaginatedResponse,
+  Product,
+  ProductQuery,
+  ReviewPage,
+  SearchSuggestion,
+  ViewerReviews,
+} from "@/types";
 
 /**
  * Browser-side calls to the Route Handlers in src/app/api. Client islands use
@@ -29,4 +37,14 @@ export async function fetchProductsByIds(ids: string[], signal?: AbortSignal): P
   if (ids.length === 0) return [];
   const params = new URLSearchParams({ ids: ids.join(",") });
   return (await getJson<{ items: Product[] }>(`/api/products/by-ids?${params}`, signal)).items;
+}
+
+export function fetchReviewPage(productId: string, sort: string, page: number, signal?: AbortSignal) {
+  const params = new URLSearchParams({ sort, page: String(page) });
+  return getJson<ReviewPage>(`/api/products/${encodeURIComponent(productId)}/reviews?${params}`, signal);
+}
+
+/** The signed-in user's review of the product and their "útil" votes (401 → throws). */
+export function fetchViewerReviews(productId: string, signal?: AbortSignal) {
+  return getJson<ViewerReviews>(`/api/products/${encodeURIComponent(productId)}/reviews/mine`, signal);
 }

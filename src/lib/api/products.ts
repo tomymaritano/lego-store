@@ -2,7 +2,8 @@ import "server-only";
 
 import { getDb } from "@/lib/db";
 import { DEFAULT_PAGE_SIZE, MAX_IDS_PER_REQUEST, MAX_PAGE_SIZE, SORT_OPTIONS } from "@/lib/productQuery";
-import type { Category, Product, Review } from "@/types";
+import { MAX_REVIEW_PAGE, REVIEW_PAGE_SIZE, type ReviewSort } from "@/lib/reviews/sorts";
+import type { Category, Product, Review, ReviewPage } from "@/types";
 import * as catalog from "./catalog";
 import * as reviews from "./reviews";
 import { CATALOG_TAGS, cached } from "./cache";
@@ -173,4 +174,22 @@ const getCachedProductReviews = cached(
 export async function getProductReviews(productId: string): Promise<Review[]> {
   if (!(await isKnownProduct(productId))) return [];
   return getCachedProductReviews(productId);
+}
+
+const getCachedReviewPage = cached(
+  "getReviewPage",
+  (productId: string, sort: ReviewSort, page: number) =>
+    reviews.getReviewPage(getDb(), productId, { sort, page, limit: REVIEW_PAGE_SIZE }),
+  (...[productId]: [string, ReviewSort, number]) => [products, product(productId)]
+);
+
+/**
+ * One page of a product's reviews in the given order, with the summary (null
+ * for an unknown product). Cached per product, sort and page (all bounded:
+ * known ids, four sorts, pages up to MAX_REVIEW_PAGE), under the product's
+ * tags, so a review write or a "útil" vote refreshes it.
+ */
+export async function getReviewPage(productId: string, sort: ReviewSort, page = 1): Promise<ReviewPage | null> {
+  if (!(await isKnownProduct(productId))) return null;
+  return getCachedReviewPage(productId, sort, Math.min(Math.max(1, Math.trunc(page)), MAX_REVIEW_PAGE));
 }

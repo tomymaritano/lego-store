@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { productReviewList, useReviewStore } from "@/stores/reviewStore";
-import type { Review } from "@/types";
+import type { ReviewPage } from "@/types";
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { REVIEWS_HASH, WRITE_REVIEW_HASH } from "./anchors";
 import type { ReviewsFocusRequest } from "./ProductReviews";
@@ -19,8 +18,8 @@ type DetailsTab = "description" | "specs" | "reviews";
 
 interface ProductDetailsTabsProps {
   productId: string;
-  /** The product's published reviews (database), newest first. */
-  reviews: Review[];
+  /** First page of the product's reviews (database), newest first, with the summary. */
+  reviews: ReviewPage;
   /** Server-rendered panels: they stay in the HTML even while their tab is not selected. */
   description: ReactNode;
   specs: ReactNode;
@@ -36,11 +35,7 @@ interface ProductDetailsTabsProps {
 export function ProductDetailsTabs({ productId, reviews, description, specs }: ProductDetailsTabsProps) {
   const [tab, setTab] = useState<DetailsTab>("description");
   const [focusRequest, setFocusRequest] = useState<ReviewsFocusRequest | null>(null);
-  const ownReviews = useReviewStore((state) => state.reviews);
-  const reviewCount = useMemo(
-    () => productReviewList(reviews, ownReviews, [], productId).length,
-    [reviews, ownReviews, productId]
-  );
+  const reviewCount = reviews.summary.count;
 
   useEffect(() => {
     const openFromHash = () => {
@@ -77,7 +72,7 @@ export function ProductDetailsTabs({ productId, reviews, description, specs }: P
           {specs}
         </TabsContent>
         <TabsContent value="reviews" keepMounted className="pt-4">
-          <ProductReviews productId={productId} publishedReviews={reviews} focusRequest={focusRequest} />
+          <ProductReviews productId={productId} initialPage={reviews} focusRequest={focusRequest} />
         </TabsContent>
       </Tabs>
     </section>

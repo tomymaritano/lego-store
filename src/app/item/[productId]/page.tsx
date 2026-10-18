@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Award, Blocks, RotateCcw, Shield, Sparkles, Truck, Users } from "lucide-react";
-import { getCategoryById, getProductById, getProductReviews, getProducts, getRelatedProducts } from "@/lib/api";
+import { getCategoryById, getProductById, getProducts, getRelatedProducts, getReviewPage } from "@/lib/api";
+import { DEFAULT_REVIEW_SORT, REVIEW_PAGE_SIZE } from "@/lib/reviews/sorts";
+import type { ReviewPage } from "@/types";
 import { formatPrice } from "@/lib/utils";
 import { defaultOgImage, pageMetadata } from "@/lib/metadata";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
@@ -37,6 +39,16 @@ export async function generateMetadata({ params }: ItemPageProps): Promise<Metad
   });
 }
 
+const emptyReviewPage: ReviewPage = {
+  items: [],
+  summary: { average: 0, count: 0, distribution: [5, 4, 3, 2, 1].map((rating) => ({ rating, count: 0 })) },
+  sort: DEFAULT_REVIEW_SORT,
+  page: 1,
+  limit: REVIEW_PAGE_SIZE,
+  totalPages: 0,
+  hasMore: false,
+};
+
 const perks = [
   { icon: Truck, title: "Envío gratis", detail: `Desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}` },
   { icon: Shield, title: "Garantía", detail: "Producto original" },
@@ -56,11 +68,12 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const product = await getProductById(productId);
   if (!product) notFound();
 
-  const [category, related, reviews] = await Promise.all([
+  const [category, related, reviewPage] = await Promise.all([
     getCategoryById(product.category),
     getRelatedProducts(product.id, 4),
-    getProductReviews(product.id),
+    getReviewPage(product.id, DEFAULT_REVIEW_SORT),
   ]);
+  const reviews = reviewPage ?? emptyReviewPage;
   const categoryName = category?.name ?? product.category;
 
   const facts = [
@@ -105,14 +118,14 @@ export default async function ItemPage({ params }: ItemPageProps) {
                   <Badge variant="neutral">{product.highlight}</Badge>
                 </div>
                 <h1 className="text-headline text-balance">{product.name}</h1>
-                {/* Rating, link and tab all come from the same reviews in the database (plus the visitor's own, in the link and tab). */}
+                {/* Rating, link and tab all come from the same reviews in the database (one cache tag: a review write refreshes them together). */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label font-normal">
                   <Rating value={product.rating} unrated={product.reviewCount === 0} showValue />
                   {product.reviewCount > 0 ? <span className="text-fg-muted">valoración general</span> : null}
                   <span aria-hidden="true" className="text-fg-muted">
                     ·
                   </span>
-                  <ReviewsLink productId={product.id} publishedCount={reviews.length} />
+                  <ReviewsLink count={reviews.summary.count} />
                 </div>
               </div>
 

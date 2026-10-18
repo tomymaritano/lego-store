@@ -1,4 +1,4 @@
-import { revalidateTag, unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache, updateTag } from "next/cache";
 
 /*
  * Next data cache for catalogue reads (the pre-Cache-Components model:
@@ -56,4 +56,21 @@ export function invalidateCatalog({ productIds = [], categories = false }: { pro
   for (const id of productIds) revalidateTag(CATALOG_TAGS.product(id), { expire: 0 });
   // Category counts change when products are created, deleted or moved.
   if (categories) revalidateTag(CATALOG_TAGS.categories, { expire: 0 });
+}
+
+/**
+ * invalidateCatalog for a Server Action whose user must see their own write
+ * at once (a review they just posted): updateTag expires the tags and Next
+ * re-renders the current page with fresh data in the action's own response.
+ * Server Actions only. `listings: false` leaves the shared product lists
+ * alone when only the product's own page changed (a "útil" vote).
+ */
+export function updateCatalog({
+  productIds = [],
+  categories = false,
+  listings = true,
+}: { productIds?: string[]; categories?: boolean; listings?: boolean } = {}) {
+  if (listings) updateTag(CATALOG_TAGS.products);
+  for (const id of productIds) updateTag(CATALOG_TAGS.product(id));
+  if (categories) updateTag(CATALOG_TAGS.categories);
 }

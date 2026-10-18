@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { m } from "motion/react";
-import { CheckCircle, ThumbsUp } from "lucide-react";
+import { CheckCircle, PenLine, ThumbsUp, Trash2 } from "lucide-react";
 import { fadeInUp, transitions } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Review } from "@/types";
@@ -23,16 +22,34 @@ const initials = (name: string) =>
     .map((part) => part[0]!.toUpperCase())
     .join("");
 
-/** One review in the list, with a one-time "Útil" vote. Glides when the list is re-sorted. */
-export function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHelpful: (id: string) => void }) {
-  const [hasMarked, setHasMarked] = useState(false);
+interface ReviewItemProps {
+  review: Review;
+  /** The signed-in user marked it "útil" (shown pressed). */
+  voted?: boolean;
+  /** The signed-in user wrote it: no vote, edit and delete instead. */
+  mine?: boolean;
+  /** The vote cannot be changed yet (the user's votes are still loading). */
+  voteDisabled?: boolean;
+  /** Asks to mark (true) or unmark the review as "útil". */
+  onHelpfulChange: (review: Review, helpful: boolean) => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
 
-  const handleHelpful = () => {
-    if (hasMarked) return;
-    onMarkHelpful(review.id);
-    setHasMarked(true);
-  };
-
+/**
+ * One review in the list, with its "Útil" vote (a toggle: one vote per user,
+ * pressed again to take it back). The author's own review offers edit and
+ * delete instead. Glides when the list is re-sorted.
+ */
+export function ReviewItem({
+  review,
+  voted = false,
+  mine = false,
+  voteDisabled = false,
+  onHelpfulChange,
+  onEdit,
+  onDelete,
+}: ReviewItemProps) {
   return (
     <m.li
       layout="position"
@@ -43,6 +60,7 @@ export function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHe
       transition={transitions.spring}
       className="py-6"
       data-testid="review"
+      data-review-id={review.id}
     >
       <article className="flex items-start gap-4">
         <span
@@ -54,6 +72,11 @@ export function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHe
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold">{review.userName}</span>
+            {mine && (
+              <Badge variant="neutral" className="normal-case">
+                Tu reseña
+              </Badge>
+            )}
             {review.verified && (
               <Badge variant="success" className="normal-case">
                 <CheckCircle aria-hidden="true" />
@@ -68,27 +91,41 @@ export function ReviewItem({ review, onMarkHelpful }: { review: Review; onMarkHe
             </time>
           </div>
           <h3 className="text-body font-semibold">{review.title}</h3>
-          <p className="text-fg-secondary">{review.comment}</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn("-ml-3", hasMarked && "text-info")}
-            onClick={handleHelpful}
-            disabled={hasMarked}
-            focusableWhenDisabled
-            aria-pressed={hasMarked}
-          >
-            <m.span
-              key={hasMarked ? "voted" : "idle"}
-              initial={hasMarked ? { scale: 0.6, rotate: -12 } : false}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={transitions.spring}
-              className="inline-flex"
+          <p className="break-words whitespace-pre-line text-fg-secondary">{review.comment}</p>
+          {mine ? (
+            <div className="-ml-3 flex flex-wrap items-center gap-1">
+              <p className="px-3 text-label font-normal text-fg-muted">Útil ({review.helpful})</p>
+              <Button variant="ghost" size="sm" onClick={onEdit}>
+                <PenLine aria-hidden="true" />
+                Editar
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onDelete} className="hover:text-danger">
+                <Trash2 aria-hidden="true" />
+                Eliminar
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("-ml-3", voted && "text-info")}
+              onClick={() => onHelpfulChange(review, !voted)}
+              aria-pressed={voted}
+              disabled={voteDisabled}
+              focusableWhenDisabled
             >
-              <ThumbsUp aria-hidden="true" className={cn(hasMarked && "fill-current")} />
-            </m.span>
-            Útil ({review.helpful})
-          </Button>
+              <m.span
+                key={voted ? "voted" : "idle"}
+                initial={voted ? { scale: 0.6, rotate: -12 } : false}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={transitions.spring}
+                className="inline-flex"
+              >
+                <ThumbsUp aria-hidden="true" className={cn(voted && "fill-current")} />
+              </m.span>
+              Útil ({review.helpful})
+            </Button>
+          )}
         </div>
       </article>
     </m.li>

@@ -1,55 +1,102 @@
 "use client";
 
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { REVIEW_COMMENT_MAX, REVIEW_TITLE_MAX, reviewSchema, type ReviewInput } from "@/lib/validations/review";
-import { useReviewStore } from "@/stores/reviewStore";
+import type { ReviewActionResult } from "@/lib/reviews/actions";
+import type { Review } from "@/types";
 import { Button, Field, Input, RatingInput, Textarea, showToast } from "@/components/ui";
+import { FormAlert } from "@/components/auth/FormAlert";
 
-const defaultValues: ReviewInput = { rating: 0, name: "", title: "", comment: "" };
+const emptyValues: ReviewInput = { rating: 0, title: "", comment: "" };
 /** Fields in on-screen order. react-hook-form would focus by registration order, where the Controller-driven rating comes last. */
-const FIELD_ORDER = ["rating", "name", "title", "comment"] as const satisfies readonly (keyof ReviewInput)[];
+const FIELD_ORDER = ["rating", "title", "comment"] as const satisfies readonly (keyof ReviewInput)[];
+
+/**
+ * The Server Actions the form calls (src/lib/reviews/actions.ts), passed in by
+ * ProductReviews; stories pass stand-ins that answer like the server.
+ */
+export interface ReviewFormActions {
+  create: (productId: string, input: ReviewInput) => Promise<ReviewActionResult>;
+  update: (reviewId: string, input: ReviewInput) => Promise<ReviewActionResult>;
+}
 
 interface ReviewFormProps {
   productId: string;
+  /** Who the review is published as (the account's name). */
+  authorName: string;
+  /** The user's existing review: the form edits it instead of creating one. */
+  review?: Review | null;
+  /** Saved on the server. */
+  onSaved: () => void;
+  /** Cancelled. */
   onDone: () => void;
   /** Called once the form is in the DOM (it loads on demand, so the parent waits for it to move focus). */
   onReady?: () => void;
+  actions: ReviewFormActions;
 }
 
 /**
- * New review form (react-hook-form + zod). Validates on submit, then as the
- * visitor fixes each field; focus moves to the first invalid field.
- * Loaded on demand by ProductReviews, so zod and react-hook-form only ship
- * when someone writes a review.
+ * Review form (react-hook-form + zod, the same schema the Server Action
+ * validates with). Validates on submit, then as each field is fixed; focus
+ * moves to the first invalid field. Creates the signed-in user's review, or
+ * edits it when `review` is given. Loaded on demand by ProductReviews, so zod
+ * and react-hook-form only ship when someone writes a review.
  */
-export function ReviewForm({ productId, onDone, onReady }: ReviewFormProps) {
-  const addReview = useReviewStore((state) => state.addReview);
+export function ReviewForm({ productId, authorName, review, onSaved, onDone, onReady, actions }: ReviewFormProps) {
+  const editing = !!review;
+  const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
     control,
     handleSubmit,
     setFocus,
+    setError,
     formState: { errors, isSubmitting },
-  } = useForm<ReviewInput>({ resolver: zodResolver(reviewSchema), defaultValues, mode: "onTouched", shouldFocusError: false });
+  } = useForm<ReviewInput>({
+    resolver: zodResolver(reviewSchema),
+    defaultValues: review ? { rating: review.rating, title: review.title, comment: review.comment } : emptyValues,
+    mode: "onTouched",
+    shouldFocusError: false,
+  });
   const commentLength = useWatch({ control, name: "comment" })?.length ?? 0;
 
   const announceReady = useEffectEvent(() => onReady?.());
   useEffect(() => announceReady(), []);
 
-  const onSubmit = (data: ReviewInput) => {
-    addReview({
-      productId,
-      userId: "guest",
-      userName: data.name,
-      rating: data.rating,
-      title: data.title,
-      comment: data.comment,
-      verified: false,
+  /** Focuses `name` and centres its whole group (legend, stars, error) below the sticky header. */
+  const focusField = (name: keyof ReviewInput) => {
+    setFocus(name);
+    // setFocus focuses in a timeout, so this one is queued right after it.
+    setTimeout(() => {
+      const focused = document.activeElement;
+      const group = focused instanceof HTMLElement ? focused.closest("fieldset, [data-slot='field']") : null;
+      group?.scrollIntoView?.({ block: "center" });
     });
-    showToast.success("¡Gracias! Tu reseña fue publicada.");
-    onDone();
+  };
+
+  const onSubmit = async (data: ReviewInput) => {
+    setFormError(null);
+    let result: ReviewActionResult;
+    try {
+      result = review ? await actions.update(review.id, data) : await actions.create(productId, data);
+    } catch {
+      result = { ok: false, error: "No pudimos guardar tu reseña. Revisa tu conexión e inténtalo de nuevo." };
+    }
+    if (!result.ok) {
+      const fieldErrors = result.fieldErrors ?? {};
+      for (const name of FIELD_ORDER) {
+        const message = fieldErrors[name];
+        if (message) setError(name, { message });
+      }
+      const first = FIELD_ORDER.find((name) => fieldErrors[name]);
+      if (first) focusField(first);
+      else setFormError(result.error);
+      return;
+    }
+    showToast.success(editing ? "Guardamos los cambios de tu reseña." : "¡Gracias! Tu reseña fue publicada.");
+    onSaved();
   };
 
   return (
@@ -58,23 +105,20 @@ export function ReviewForm({ productId, onDone, onReady }: ReviewFormProps) {
       noValidate
       onSubmit={handleSubmit(onSubmit, (invalid) => {
         const first = FIELD_ORDER.find((name) => invalid[name]);
-        if (!first) return;
-        setFocus(first);
-        // focus() only scrolls the control itself into view; bring its whole group (legend,
-        // stars, error) to the middle of the viewport so the sticky header never covers it.
-        // setFocus focuses in a timeout, so this one is queued right after it.
-        setTimeout(() => {
-          const focused = document.activeElement;
-          const group = focused instanceof HTMLElement ? focused.closest("fieldset, [data-slot='field']") : null;
-          group?.scrollIntoView?.({ block: "center" });
-        });
+        if (first) focusField(first);
       })}
       aria-labelledby="review-form-title"
       className="space-y-5 rounded-2xl border border-border bg-surface p-6 shadow-card"
     >
-      <h3 id="review-form-title" className="text-title">
-        Escribir una reseña
-      </h3>
+      <div className="space-y-1">
+        <h3 id="review-form-title" className="text-title">
+          {editing ? "Editar tu reseña" : "Escribir una reseña"}
+        </h3>
+        <p className="text-label font-normal text-fg-muted">
+          Se publica como <span className="font-semibold text-fg-secondary">{authorName}</span>.
+        </p>
+      </div>
+      {formError ? <FormAlert>{formError}</FormAlert> : null}
       <Controller
         control={control}
         name="rating"
@@ -90,14 +134,9 @@ export function ReviewForm({ productId, onDone, onReady }: ReviewFormProps) {
           />
         )}
       />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Tu nombre" required error={errors.name?.message}>
-          <Input autoComplete="name" {...register("name")} />
-        </Field>
-        <Field label="Título" required error={errors.title?.message}>
-          <Input placeholder="Resume tu experiencia" maxLength={REVIEW_TITLE_MAX} {...register("title")} />
-        </Field>
-      </div>
+      <Field label="Título" required error={errors.title?.message}>
+        <Input placeholder="Resume tu experiencia" maxLength={REVIEW_TITLE_MAX} {...register("title")} />
+      </Field>
       <Field
         label="Tu reseña"
         required
@@ -113,7 +152,7 @@ export function ReviewForm({ productId, onDone, onReady }: ReviewFormProps) {
       </Field>
       <div className="flex flex-wrap gap-3">
         <Button type="submit" loading={isSubmitting}>
-          Publicar reseña
+          {editing ? "Guardar cambios" : "Publicar reseña"}
         </Button>
         <Button type="button" variant="secondary" onClick={onDone}>
           Cancelar
