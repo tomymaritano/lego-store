@@ -422,8 +422,14 @@ cae en "sin filtro").
   pendientes, stock bajo (≤ 5, con edición en línea), últimos pedidos y un aviso
   si hay pedidos cancelados por `amount_mismatch`.
 - **Productos**: lista con búsqueda (la misma de la tienda, o el id exacto),
-  categoría, estado (en la tienda / archivados) y stock bajo o agotado, 20 por
-  página; stock editable en la fila. Crear y editar con todos los campos de la
+  categoría, estado (en la tienda / archivados) y stock bajo (≤ 5, agotados
+  incluidos, lo mismo que cuenta la tarjeta del resumen) o agotado, 20 por
+  página; stock editable en la fila. El stock solo se escribe con
+  compare-and-set: el formulario y la edición en línea mandan el stock que
+  cargaron, y si una venta o un reembolso lo movió mientras tanto no se pisa
+  (el formulario sin tocar Stock guarda el resto y deja el stock como está; un
+  número nuevo sobre uno viejo se rechaza con "el stock cambió mientras
+  editabas"). Crear y editar con todos los campos de la
   ficha; las imágenes son URLs (un archivo del sitio, `/images/…`, o
   `https://www.lego.com/cdn/…`: lo mismo que `images.remotePatterns` de
   `next.config.mjs` deja cargar a next/image, `src/lib/images.ts`) con vista

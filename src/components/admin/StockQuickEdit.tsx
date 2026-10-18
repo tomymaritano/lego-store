@@ -10,15 +10,16 @@ interface StockQuickEditProps {
   productName: string;
   stock: number;
   /** updateStockAction (src/lib/admin/actions.ts). */
-  action: (productId: string, stock: string) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+  action: (productId: string, stock: string, seen: number) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
   className?: string;
 }
 
 /**
  * The stock of one product, editable in place (products list, dashboard):
  * type the new number and press Enter or the check button. The server
- * validates it again; a toast reports the result, and the page re-renders
- * with the saved value.
+ * validates it again and only writes it while the stock is still the one
+ * shown (a sale in between is reported, never undone); a toast reports the
+ * result, and the page re-renders with the saved value.
  */
 export function StockQuickEdit({ productId, productName, stock, action, className }: StockQuickEditProps) {
   const [value, setValue] = useState(String(stock));
@@ -37,7 +38,7 @@ export function StockQuickEdit({ productId, productName, stock, action, classNam
     if (!dirty || pending) return;
     startTransition(async () => {
       try {
-        const result = await action(productId, value.trim());
+        const result = await action(productId, value.trim(), saved);
         if (result.ok) showToast.success(`${productName}: ${result.message.toLowerCase()}`);
         else {
           showToast.error(result.error);

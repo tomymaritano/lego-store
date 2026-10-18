@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import type { AdminOrderFilters, AdminProductFilters, AdminReviewFilters } from "@/lib/validations/admin";
 import { getDashboard } from "./dashboard";
 import { getAdminOrder, listAdminOrders } from "./orders";
-import { getAdminProduct, listAdminProducts, productFormOptions } from "./products";
+import { adminCategories, getAdminProduct, listAdminProducts, productFormOptions } from "./products";
 import { listAdminReviews, reviewedProducts } from "./reviews";
 
 /*
@@ -30,6 +30,13 @@ export async function getAdminProductForEdit(id: string) {
   return getAdminProduct(getDb(), id);
 }
 
+/** The categories alone (the products list's filter). */
+export async function getAdminCategories() {
+  await requireAdmin({ callbackUrl: "/admin/products" });
+  return adminCategories(getDb());
+}
+
+/** Categories and the suggestions of the create / edit form (reads every product: only for the form). */
 export async function getProductFormOptions() {
   await requireAdmin({ callbackUrl: "/admin/products" });
   return productFormOptions(getDb());

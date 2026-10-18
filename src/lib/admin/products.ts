@@ -66,7 +66,8 @@ function productWhere(filters: AdminProductFilters): Prisma.ProductWhereInput {
   if (filters.status === "archived") and.push({ archivedAt: { not: null } });
   if (filters.category) and.push({ categoryId: filters.category });
   if (filters.stock === "out") and.push({ stock: 0 });
-  if (filters.stock === "low") and.push({ stock: { gt: 0, lte: LOW_STOCK } });
+  // Low includes sold out, as the dashboard's "Stock bajo" counts and lists them.
+  if (filters.stock === "low") and.push({ stock: { lte: LOW_STOCK } });
   const terms = tokenize(filters.q);
   if (terms.length > 0) {
     // The storefront's search (name, theme, category, description), or the exact id.
@@ -147,10 +148,15 @@ export async function getAdminProduct(db: Db, id: string) {
 
 export type AdminProduct = NonNullable<Awaited<ReturnType<typeof getAdminProduct>>>;
 
-/** Values already in use, offered as suggestions in the form (datalists). */
+/** Every category, in the store's order (the list's filter, the form's select). */
+export function adminCategories(db: Db): Promise<{ id: string; name: string }[]> {
+  return db.category.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true } });
+}
+
+/** The categories plus the values already in use, offered as suggestions in the form (datalists). */
 export async function productFormOptions(db: Db) {
   const [categories, rows] = await Promise.all([
-    db.category.findMany({ orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true } }),
+    adminCategories(db),
     db.product.findMany({ select: { type: true, age: true, theme: true, pieces: true, highlight: true, interests: true } }),
   ]);
   const distinct = (values: string[]) => Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, "es"));
@@ -171,6 +177,8 @@ export type ProductFormOptions = Awaited<ReturnType<typeof productFormOptions>>;
 
 export type ProductWriteResult =
   | { ok: true; productId: string }
+  /** The stock moved (a sale, a refund, another admin) since the form loaded `stockSeen`: nothing was saved. */
+  | { ok: false; reason: "stock_changed"; stock: number }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "invalid"; fieldErrors: Partial<Record<ProductField, string>> };
 
@@ -193,7 +201,6 @@ async function productData(db: Db, input: ProductInput) {
     img: input.img,
     imageSecondary: input.imageSecondary,
     images: input.images,
-    stock: input.stock,
     shortDescription: input.shortDescription,
     description: input.description,
     // What the storefront search matches (src/lib/api/search.ts): recomputed on every write.
@@ -213,24 +220,60 @@ const NO_CATEGORY = { ok: false, reason: "invalid", fieldErrors: { categoryId: "
 export async function createProduct(db: Db, input: ProductInput): Promise<ProductWriteResult> {
   const data = await productData(db, input);
   if (!data) return NO_CATEGORY;
-  const product = await db.product.create({ data, select: { id: true } });
+  const product = await db.product.create({ data: { ...data, stock: input.stock }, select: { id: true } });
   return { ok: true, productId: product.id };
 }
 
-/** Rewrites every field of the form (rating, reviews and archive state are not form fields). */
-export async function updateProduct(db: PrismaClient, id: string, input: ProductInput): Promise<ProductWriteResult> {
-  return db.$transaction(async (tx) => {
+/**
+ * Stock is only ever moved by conditional writes (design doc): a purchase
+ * takes units with `stock >= n`, a refund adds them back. The admin sets an
+ * absolute number they typed over the one they saw (`seen`), so the write
+ * only lands while the stock is still that number; if a sale or a restock
+ * happened in between, nothing is written and the caller gets the current
+ * stock to show (never silently undoing the sale).
+ */
+export type StockWriteResult = { ok: true } | { ok: false; reason: "not_found" } | { ok: false; reason: "stock_changed"; stock: number };
+
+async function compareAndSetStock(db: Db, id: string, seen: number, stock: number): Promise<StockWriteResult> {
+  const { count } = await db.product.updateMany({ where: { id, stock: seen }, data: { stock } });
+  if (count === 1) return { ok: true };
+  const current = await db.product.findUnique({ where: { id }, select: { stock: true } });
+  return current ? { ok: false, reason: "stock_changed", stock: current.stock } : { ok: false, reason: "not_found" };
+}
+
+/**
+ * Rewrites every field of the form (rating, reviews and archive state are not
+ * form fields). The stock only when the admin changed it from `stockSeen`, the
+ * value the form loaded, and only if it is still that (compareAndSetStock):
+ * otherwise nothing is saved.
+ */
+export async function updateProduct(db: PrismaClient, id: string, input: ProductInput, stockSeen: number): Promise<ProductWriteResult> {
+  return db.$transaction(async (tx): Promise<ProductWriteResult> => {
     const data = await productData(tx, input);
     if (!data) return NO_CATEGORY;
     const { count } = await tx.product.updateMany({ where: { id }, data });
-    return count === 1 ? { ok: true, productId: id } : { ok: false, reason: "not_found" };
+    if (count !== 1) return { ok: false, reason: "not_found" };
+    if (input.stock !== stockSeen) {
+      const stock = await compareAndSetStock(tx, id, stockSeen, input.stock);
+      if (!stock.ok) throw new StockChanged(stock.reason === "stock_changed" ? stock.stock : null);
+    }
+    return { ok: true, productId: id };
+  }).catch((error: unknown): ProductWriteResult => {
+    if (!(error instanceof StockChanged)) throw error;
+    return error.stock === null ? { ok: false, reason: "not_found" } : { ok: false, reason: "stock_changed", stock: error.stock };
   });
 }
 
-/** Sets the stock (quick edit). False for an unknown product. */
-export async function setProductStock(db: Db, id: string, stock: number): Promise<boolean> {
-  const { count } = await db.product.updateMany({ where: { id }, data: { stock } });
-  return count === 1;
+/** Rolls back the rest of the edit when the stock compare-and-set fails. */
+class StockChanged extends Error {
+  constructor(readonly stock: number | null) {
+    super("stock_changed");
+  }
+}
+
+/** Sets the stock (quick edit) from `seen`, the value the admin saw, if it still is that one. */
+export function setProductStock(db: Db, id: string, seen: number, stock: number): Promise<StockWriteResult> {
+  return compareAndSetStock(db, id, seen, stock);
 }
 
 /**

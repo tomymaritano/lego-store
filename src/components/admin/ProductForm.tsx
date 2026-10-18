@@ -199,8 +199,14 @@ export function ProductForm({ action, initial, categories, suggestions, mode }: 
             <Input name="originalPrice" type="number" inputMode="numeric" min={1} step={1} defaultValue={initial.originalPrice ?? ""} />
           </Field>
           <Field label="Stock" error={errors.stock} required>
-            <Input name="stock" type="number" inputMode="numeric" min={0} step={1} defaultValue={initial.stock} />
+            {/*
+             * Keyed on the saved stock: when the page re-renders with another
+             * value (a sale while editing), the field shows it again. The
+             * server only writes a changed stock while it is still stockSeen.
+             */}
+            <Input key={initial.stock} name="stock" type="number" inputMode="numeric" min={0} step={1} defaultValue={initial.stock} />
           </Field>
+          <input type="hidden" name="stockSeen" value={initial.stock} />
           <div className="flex flex-col gap-3 sm:col-span-3 sm:flex-row sm:gap-8">
             <Checkbox label="En oferta" description="Muestra el descuento y entra en «Ofertas»." checked={isOnSale} onCheckedChange={setIsOnSale} />
             <Checkbox label="Nuevo" description="Insignia «Nuevo» y la sección de novedades." checked={isNew} onCheckedChange={setIsNew} />

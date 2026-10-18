@@ -125,29 +125,72 @@ describe("creating and editing", () => {
   });
 
   it("an edit rewrites every field and the search columns", async () => {
+    const seen = (await getAdminProduct(testDb, "14"))!.stock;
     const result = await updateProduct(
       testDb,
       "14",
-      parse({ name: "Taj Mahal Edición Admin", price: "3799", isOnSale: true, originalPrice: "3999", categoryId: "buildings", stock: "7" })
+      parse({ name: "Taj Mahal Edición Admin", price: "3799", isOnSale: true, originalPrice: "3999", categoryId: "buildings", stock: "7" }),
+      seen
     );
     expect(result).toEqual({ ok: true, productId: "14" });
     expect(await getProductById("14")).toMatchObject({ name: "Taj Mahal Edición Admin", price: 3799, originalPrice: 3999, isOnSale: true, stock: 7 });
     expect((await searchProducts("edicion admin")).map((product) => product.id)).toEqual(["14"]);
     // Rating and reviews are not form fields: untouched.
     expect((await getAdminProduct(testDb, "14"))!.reviewCount).toBeGreaterThan(0);
-    expect(await updateProduct(testDb, "no-such-product", parse())).toEqual({ ok: false, reason: "not_found" });
+    expect(await updateProduct(testDb, "no-such-product", parse(), 12)).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("quick stock edit; filters for low and sold-out stock", async () => {
-    expect(await setProductStock(testDb, "13", 0)).toBe(true);
-    expect(await setProductStock(testDb, "12", 3)).toBe(true);
-    expect(await setProductStock(testDb, "nope", 3)).toBe(false);
+  it("a sale between loading the form and saving it is never undone", async () => {
+    const stockOf = async () => (await testDb.product.findUniqueOrThrow({ where: { id: "15" }, select: { stock: true } })).stock;
+    await testDb.product.update({ where: { id: "15" }, data: { stock: 8 } });
+    const loaded = (await getAdminProduct(testDb, "15"))!;
+    const values = {
+      name: loaded.name,
+      price: String(loaded.price),
+      categoryId: loaded.categoryId,
+      stock: String(loaded.stock),
+    };
+    // Someone buys 6 while the admin edits (the webhook's conditional decrement).
+    await testDb.product.update({ where: { id: "15" }, data: { stock: { decrement: 6 } } });
+
+    // Saving the price without touching Stock leaves the stock to the sale.
+    expect(await updateProduct(testDb, "15", parse({ ...values, price: "999" }), loaded.stock)).toEqual({ ok: true, productId: "15" });
+    expect(await stockOf()).toBe(2);
+    expect((await getAdminProduct(testDb, "15"))!.price).toBe(999);
+
+    // Typing a new stock over the stale one: refused with the current number, and nothing else saved.
+    expect(await updateProduct(testDb, "15", parse({ ...values, price: "555", stock: "20" }), loaded.stock)).toEqual({
+      ok: false,
+      reason: "stock_changed",
+      stock: 2,
+    });
+    expect(await stockOf()).toBe(2);
+    expect((await getAdminProduct(testDb, "15"))!.price).toBe(999);
+
+    // From the current stock it goes through.
+    expect(await updateProduct(testDb, "15", parse({ ...values, price: "555", stock: "20" }), 2)).toEqual({ ok: true, productId: "15" });
+    expect(await stockOf()).toBe(20);
+
+    // The quick edit: the same compare-and-set.
+    await testDb.product.update({ where: { id: "15" }, data: { stock: { decrement: 1 } } });
+    expect(await setProductStock(testDb, "15", 20, 30)).toEqual({ ok: false, reason: "stock_changed", stock: 19 });
+    expect(await stockOf()).toBe(19);
+    expect(await setProductStock(testDb, "15", 19, 30)).toEqual({ ok: true });
+    expect(await stockOf()).toBe(30);
+  });
+
+  it("quick stock edit; filters for low (sold out included) and sold-out stock", async () => {
+    const stockOf = async (id: string) => (await testDb.product.findUniqueOrThrow({ where: { id }, select: { stock: true } })).stock;
+    expect(await setProductStock(testDb, "13", await stockOf("13"), 0)).toEqual({ ok: true });
+    expect(await setProductStock(testDb, "12", await stockOf("12"), 3)).toEqual({ ok: true });
+    expect(await setProductStock(testDb, "nope", 0, 3)).toEqual({ ok: false, reason: "not_found" });
     const out = await listAdminProducts(testDb, { q: "", category: "", status: "active", stock: "out", page: 1 });
     expect(out.items.map((product) => product.id)).toContain("13");
     expect(out.items.every((product) => product.stock === 0)).toBe(true);
+    // "Low" is what the dashboard's "Stock bajo" card counts: 5 or fewer, sold out included.
     const low = await listAdminProducts(testDb, { q: "", category: "", status: "active", stock: "low", page: 1 });
-    expect(low.items.map((product) => product.id)).toContain("12");
-    expect(low.items.every((product) => product.stock > 0 && product.stock <= 5)).toBe(true);
+    expect(low.items.map((product) => product.id)).toEqual(expect.arrayContaining(["12", "13"]));
+    expect(low.items.every((product) => product.stock <= 5)).toBe(true);
   });
 
   it("pages of 20, the page clamped to the last one", async () => {

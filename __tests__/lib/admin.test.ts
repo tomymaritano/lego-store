@@ -68,9 +68,13 @@ describe("admin list filters from the URL", () => {
   });
 
   it("stock edits are whole, non-negative numbers", () => {
-    expect(stockUpdateSchema.safeParse({ productId: "1", stock: "12" })).toMatchObject({ success: true, data: { stock: 12 } });
+    expect(stockUpdateSchema.safeParse({ productId: "1", stock: "12", seen: "3" })).toMatchObject({ success: true, data: { stock: 12, seen: 3 } });
     for (const stock of ["-1", "1.5", "", "1e3", "abc", "2000000"]) {
-      expect(stockUpdateSchema.safeParse({ productId: "1", stock }).success, stock).toBe(false);
+      expect(stockUpdateSchema.safeParse({ productId: "1", stock, seen: "3" }).success, stock).toBe(false);
+    }
+    // The stock the admin saw is required: without it the write could undo a sale.
+    for (const seen of [undefined, "", "-1", "x"]) {
+      expect(stockUpdateSchema.safeParse({ productId: "1", stock: "12", seen }).success, String(seen)).toBe(false);
     }
   });
 });

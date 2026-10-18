@@ -119,10 +119,21 @@ export type ProductFormInput = z.input<typeof productFormSchema>;
 export type ProductInput = z.output<typeof productFormSchema>;
 export type ProductField = keyof ProductFormInput;
 
+/**
+ * The stock a form or the quick edit loaded (a hidden value, not typed): the
+ * write only lands while the product still has it (src/lib/admin/products.ts).
+ */
+export const stockSeenSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{1,9}$/)
+  .transform(Number);
+
 /** Quick stock edit from the products list or the dashboard. */
 export const stockUpdateSchema = z.object({
   productId: idSchema,
   stock: wholeNumber("el stock", 0, MAX_ADMIN_STOCK),
+  seen: stockSeenSchema,
 });
 
 // ---------------------------------------------------------------------------

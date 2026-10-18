@@ -9,7 +9,7 @@ import { getDb } from "@/lib/db";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { getPaymentGateway } from "@/lib/payments/config";
 import { deleteReview } from "@/lib/reviews/mutations";
-import { orderTransitionSchema, productFormSchema, stockUpdateSchema, type ProductField } from "@/lib/validations/admin";
+import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateSchema, type ProductField } from "@/lib/validations/admin";
 import { idSchema } from "@/lib/validations/ids";
 import { changeOrderStatus } from "./orders";
 import { archiveProduct, createProduct, removeProduct, restoreProduct, setProductStock, updateProduct } from "./products";
@@ -30,6 +30,9 @@ import { archiveProduct, createProduct, removeProduct, restoreProduct, setProduc
 export type AdminActionResult = { ok: true; message: string } | { ok: false; error: string };
 
 const NOT_FOUND_PRODUCT = "Ese producto ya no existe. Recarga la lista.";
+
+const stockChanged = (stock: number) =>
+  `El stock cambió mientras editabas (una venta, un reembolso u otro admin): ahora hay ${stock}. Revisa el número y vuelve a guardar.`;
 
 // ---------------------------------------------------------------------------
 // Products
@@ -96,8 +99,15 @@ export async function saveProductAction(
   }
 
   const id = idSchema.safeParse(productId);
-  const saved = id.success ? await updateProduct(db, id.data, parsed.data) : ({ ok: false, reason: "not_found" } as const);
+  const stockSeen = stockSeenSchema.safeParse(formText(formData, "stockSeen"));
+  if (!stockSeen.success) return { status: "error", message: "Recarga la página y vuelve a intentarlo.", fieldErrors: {} };
+  const saved = id.success ? await updateProduct(db, id.data, parsed.data, stockSeen.data) : ({ ok: false, reason: "not_found" } as const);
   if (!saved.ok) {
+    if (saved.reason === "stock_changed") {
+      // The page re-renders with the current stock (and the form's stock field with it).
+      refresh();
+      return { status: "error", message: "Revisa los campos marcados.", fieldErrors: { stock: stockChanged(saved.stock) } };
+    }
     return saved.reason === "invalid"
       ? { status: "error", message: "Revisa los campos marcados.", fieldErrors: saved.fieldErrors }
       : { status: "error", message: NOT_FOUND_PRODUCT };
@@ -108,12 +118,18 @@ export async function saveProductAction(
   return { status: "success", message: "Guardamos los cambios. Ya se ven en la tienda." };
 }
 
-/** Quick stock edit (products list, dashboard). */
-export async function updateStockAction(productId: unknown, stock: unknown): Promise<AdminActionResult> {
+/** Quick stock edit (products list, dashboard), from the stock the admin saw (`seen`). */
+export async function updateStockAction(productId: unknown, stock: unknown, seen: unknown): Promise<AdminActionResult> {
   await requireAdmin({ callbackUrl: "/admin/products" });
-  const parsed = stockUpdateSchema.safeParse({ productId, stock: typeof stock === "number" ? String(stock) : stock });
+  const asText = (value: unknown) => (typeof value === "number" ? String(value) : value);
+  const parsed = stockUpdateSchema.safeParse({ productId, stock: asText(stock), seen: asText(seen) });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Stock no válido." };
-  if (!(await setProductStock(getDb(), parsed.data.productId, parsed.data.stock))) return { ok: false, error: NOT_FOUND_PRODUCT };
+  const result = await setProductStock(getDb(), parsed.data.productId, parsed.data.seen, parsed.data.stock);
+  if (!result.ok) {
+    if (result.reason === "not_found") return { ok: false, error: NOT_FOUND_PRODUCT };
+    refresh();
+    return { ok: false, error: `El stock cambió mientras tanto: ahora hay ${result.stock}. Revisa el número y vuelve a guardar.` };
+  }
   // "In stock" filters and counts change with it.
   updateCatalog({ productIds: [parsed.data.productId] });
   refresh();

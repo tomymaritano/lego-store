@@ -82,7 +82,7 @@ beforeEach(() => {
 describe("who can use the admin panel", () => {
   const calls = {
     saveProductAction: () => actions.saveProductAction(null, {}, productForm()),
-    updateStockAction: () => actions.updateStockAction("7", "1"),
+    updateStockAction: () => actions.updateStockAction("7", "1", 0),
     archiveProductAction: () => actions.archiveProductAction("7"),
     restoreProductAction: () => actions.restoreProductAction("7"),
     removeProductAction: () => actions.removeProductAction("7"),
@@ -132,20 +132,44 @@ describe("product actions", () => {
   });
 
   it("saving an edit refreshes the product's tags and the admin page", async () => {
-    const state = await actions.saveProductAction("8", {}, productForm({ name: "Zombie Brickheadz", price: "120", categoryId: "brickheadz" }));
+    const seen = String((await testDb.product.findUniqueOrThrow({ where: { id: "8" } })).stock);
+    const state = await actions.saveProductAction(
+      "8",
+      {},
+      productForm({ name: "Zombie Brickheadz", price: "120", categoryId: "brickheadz", stock: seen, stockSeen: seen })
+    );
     expect(state).toMatchObject({ status: "success" });
     expect((await testDb.product.findUniqueOrThrow({ where: { id: "8" } })).price).toBe(120);
     expect(vi.mocked(updateTag).mock.calls.flat()).toEqual(expect.arrayContaining(["products", "product:8"]));
     expect(refresh).toHaveBeenCalled();
-    expect(await actions.saveProductAction("no-such", {}, productForm())).toMatchObject({ status: "error" });
+    expect(await actions.saveProductAction("no-such", {}, productForm({ stockSeen: "4" }))).toMatchObject({ status: "error" });
   });
 
   it("stock: validated (whole, not negative) and the product's tags expired", async () => {
-    expect(await actions.updateStockAction("9", "-3")).toMatchObject({ ok: false });
-    expect(await actions.updateStockAction("9", "2.5")).toMatchObject({ ok: false });
-    expect(await actions.updateStockAction("9", "17")).toEqual({ ok: true, message: "Stock actualizado: 17." });
+    const seen = (await testDb.product.findUniqueOrThrow({ where: { id: "9" } })).stock;
+    expect(await actions.updateStockAction("9", "-3", seen)).toMatchObject({ ok: false });
+    expect(await actions.updateStockAction("9", "2.5", seen)).toMatchObject({ ok: false });
+    expect(await actions.updateStockAction("9", "17", seen)).toEqual({ ok: true, message: "Stock actualizado: 17." });
     expect((await testDb.product.findUniqueOrThrow({ where: { id: "9" } })).stock).toBe(17);
     expect(vi.mocked(updateTag).mock.calls.flat()).toEqual(expect.arrayContaining(["products", "product:9"]));
+  });
+
+  it("stock that moved since the admin loaded it (a sale) is reported, not overwritten", async () => {
+    await testDb.product.update({ where: { id: "10" }, data: { stock: 8 } });
+    await testDb.product.update({ where: { id: "10" }, data: { stock: { decrement: 6 } } });
+    expect(await actions.updateStockAction("10", "8", 8)).toEqual({ ok: false, error: expect.stringContaining("ahora hay 2") });
+    expect((await testDb.product.findUniqueOrThrow({ where: { id: "10" } })).stock).toBe(2);
+    expect(refresh).toHaveBeenCalled();
+
+    // The full form: a changed stock over a stale one is a field error, and nothing is saved.
+    const before = await testDb.product.findUniqueOrThrow({ where: { id: "10" } });
+    const edit = (stock: string) =>
+      actions.saveProductAction("10", {}, productForm({ name: before.name, categoryId: before.categoryId, price: "777", stock, stockSeen: "8" }));
+    expect(await edit("9")).toMatchObject({ status: "error", fieldErrors: { stock: expect.stringContaining("ahora hay 2") } });
+    expect(await testDb.product.findUniqueOrThrow({ where: { id: "10" } })).toMatchObject({ stock: 2, price: before.price });
+    // Untouched stock: the sale stays and the rest is saved.
+    expect(await edit("8")).toMatchObject({ status: "success" });
+    expect(await testDb.product.findUniqueOrThrow({ where: { id: "10" } })).toMatchObject({ stock: 2, price: 777 });
   });
 
   it("archive, restore and remove", async () => {

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Archive, Pencil, Plus, Search } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { archiveProductAction, restoreProductAction, updateStockAction } from "@/lib/admin/actions";
-import { getAdminProducts, getProductFormOptions } from "@/lib/admin/data";
+import { getAdminCategories, getAdminProducts } from "@/lib/admin/data";
 import { LOW_STOCK } from "@/lib/admin/format";
 import { parseProductFilters } from "@/lib/validations/admin";
 import { formatPrice } from "@/lib/utils";
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 export default async function AdminProductsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdmin({ callbackUrl: "/admin/products" });
   const filters = parseProductFilters(await searchParams);
-  const [page, options] = await Promise.all([getAdminProducts(filters), getProductFormOptions()]);
+  const [page, categories] = await Promise.all([getAdminProducts(filters), getAdminCategories()]);
   const filtered = Boolean(filters.q || filters.category || filters.stock || filters.status !== "active");
 
   return (
@@ -54,7 +54,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             name="category"
             label="Categoría"
             defaultValue={filters.category}
-            options={[{ value: "", label: "Todas" }, ...options.categories.map((category) => ({ value: category.id, label: category.name }))]}
+            options={[{ value: "", label: "Todas" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
           />
           <FilterSelect
             name="status"
@@ -72,7 +72,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             defaultValue={filters.stock}
             options={[
               { value: "", label: "Cualquiera" },
-              { value: "low", label: `Bajo (1 a ${LOW_STOCK})` },
+              { value: "low", label: `Bajo (${LOW_STOCK} o menos)` },
               { value: "out", label: "Sin stock" },
             ]}
           />

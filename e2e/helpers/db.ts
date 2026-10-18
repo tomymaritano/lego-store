@@ -121,6 +121,20 @@ export function countReviews(productId: string): Promise<number> {
   });
 }
 
+/**
+ * Moves a product's stock by `delta` straight in the database (a stand-in for
+ * a sale while an admin has the form open) and returns the new stock.
+ */
+export function addStock(productId: string, delta: number): Promise<number> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ stock: number }>(
+      `UPDATE "Product" SET "stock" = "stock" + $2 WHERE "id" = $1 RETURNING "stock"`,
+      [productId, delta]
+    );
+    return rows[0]!.stock;
+  });
+}
+
 export function countHelpfulVotes(reviewId: string): Promise<number> {
   return withClient(async (client) => {
     const { rows } = await client.query<{ count: string }>(`SELECT count(*) FROM "ReviewHelpful" WHERE "reviewId" = $1`, [reviewId]);
