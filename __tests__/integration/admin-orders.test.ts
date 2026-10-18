@@ -172,8 +172,14 @@ describe("changeOrderStatus: cancelling", () => {
     ]);
     expect([await stockOf("7"), await stockOf("5")]).toEqual([38, 5]);
 
+    emails.mockClear();
     const result = await move(order.id, "CANCELLED", "PAID");
     expect(result).toMatchObject({ ok: true, changed: true, status: "CANCELLED", restockedProductIds: ["5", "7"] });
+    // The customer hears about the refund (a guest has no other way to).
+    const [email] = sentEmails();
+    expect(sentEmails()).toHaveLength(1);
+    expect(email).toMatch(/Asunto: Cancelamos tu pedido LEGO-\d{6}/);
+    expect(email).toContain("Te reembolsamos");
     const refundId = (result as { refundId: string }).refundId;
     expect(refundId).toMatch(/^re_mock_/);
     expect([...state.refunds.values()]).toEqual([{ id: refundId, intentId: order.stripePaymentIntentId }]);
@@ -456,5 +462,15 @@ describe("listAdminOrders and the dashboard", () => {
 
     await move(order.id, "CANCELLED", "PAID");
     expect(await getDashboard(testDb)).toMatchObject({ revenue: 0, toShip: 0 });
+
+    // The amount-mismatch warning looks at the last week only: an old incident does not keep it up.
+    const mismatch = await placeOrder([{ productId: "7", quantity: 1 }]);
+    await testDb.order.update({
+      where: { id: mismatch.id },
+      data: { status: "CANCELLED", cancelReason: "amount_mismatch", cancelledAt: new Date() },
+    });
+    expect((await getDashboard(testDb)).amountMismatches).toBe(1);
+    const inEightDays = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
+    expect((await getDashboard(testDb, inEightDays)).amountMismatches).toBe(0);
   });
 });

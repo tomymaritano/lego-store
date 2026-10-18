@@ -5,8 +5,9 @@ import { formatPrice } from "@/lib/utils";
 import type { EmailMessage } from "./send";
 
 /*
- * Order emails (Spanish, tuteo): confirmation when an order is paid, and
- * "on its way" when the store ships it. Plain HTML with inline styles and
+ * Order emails (Spanish, tuteo): confirmation when an order is paid, "on its
+ * way" when the store ships it, and the refund notice when a paid order is
+ * cancelled. Plain HTML with inline styles and
  * tables, which is what email clients render reliably; the colours are the
  * store's light theme written out (emails cannot read CSS variables).
  */
@@ -195,5 +196,37 @@ export function orderShippedEmail(order: OrderView): EmailMessage {
       link ? `\nTu pedido: ${link}` : "",
     ].join("\n"),
     idempotencyKey: `order-shipped/${order.id}`,
+  };
+}
+
+/**
+ * "Cancelamos tu pedido": sent when a paid order is cancelled and its payment
+ * refunded (the admin cancels it, a refund made in Stripe, or a charge that did
+ * not match the total). A guest has no other way to hear about the refund.
+ */
+export function orderCancelledEmail(order: OrderView): EmailMessage {
+  const number = formatOrderNumber(order.number);
+  const link = orderLink(order);
+  const card = paymentLabel(order.paymentBrand, order.paymentLast4);
+  const refund = `Te reembolsamos ${formatPrice(order.total)} al mismo medio de pago (${card}). Según tu banco, puede tardar de 5 a 10 días hábiles en verse en tu resumen.`;
+  const intro = `Hola ${escapeHtml(order.shippingAddress.firstName)}, cancelamos tu pedido <strong>${number}</strong>. ${escapeHtml(refund)}`;
+  return {
+    to: order.email,
+    subject: `Cancelamos tu pedido ${number}`,
+    html: layout({
+      preheader: `Te reembolsamos ${formatPrice(order.total)}.`,
+      title: "Cancelamos tu pedido",
+      intro,
+      body: linesTable(order),
+      cta: link ? { label: "Ver mi pedido", href: link } : null,
+    }),
+    text: [
+      `Hola ${order.shippingAddress.firstName}, cancelamos tu pedido ${number}.`,
+      refund,
+      "",
+      textLines(order),
+      link ? `\nTu pedido: ${link}` : "",
+    ].join("\n"),
+    idempotencyKey: `order-cancelled/${order.id}`,
   };
 }

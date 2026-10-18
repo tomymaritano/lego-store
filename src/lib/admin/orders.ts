@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { escapeLike } from "@/lib/api/search";
 import type { Db } from "@/lib/lists/product";
-import { sendOrderShipped } from "@/lib/orders/notify";
+import { sendOrderCancelled, sendOrderShipped } from "@/lib/orders/notify";
 import { orderViewSelect, toOrderView } from "@/lib/orders/queries";
 import type { CancelReason, OrderStatus, OrderView } from "@/lib/orders/types";
 import { restock } from "@/lib/orders/webhook";
@@ -396,7 +396,8 @@ async function cancelPaid(db: PrismaClient, gateway: PaymentGateway | null, inpu
 
 /**
  * Moves an order to `input.to` if the admin may (see the top of the file),
- * records who did it, and emails the customer when it ships. Safe to repeat.
+ * records who did it, and emails the customer when it ships or when a paid
+ * order is cancelled (refunded). Safe to repeat.
  */
 export async function changeOrderStatus(
   db: PrismaClient,
@@ -412,5 +413,8 @@ export async function changeOrderStatus(
 
   // After the commit: the email never undoes the change (sendEmail logs its own failures).
   if (result.ok && result.changed && result.status === "SHIPPED") await sendOrderShipped(db, input.orderId);
+  if (result.ok && result.changed && result.status === "CANCELLED" && input.expected === "PAID") {
+    await sendOrderCancelled(db, input.orderId);
+  }
   return result;
 }

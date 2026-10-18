@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { orderConfirmationEmail, orderShippedEmail } from "@/lib/email/orders";
+import { orderCancelledEmail, orderConfirmationEmail, orderShippedEmail } from "@/lib/email/orders";
 import { isEmailConfigured, sendEmail } from "@/lib/email/send";
 import { ORDER_STATUS_LABELS, formatOrderNumber, orderTimeline, paymentLabel } from "@/lib/orders/format";
 import { makeOrder } from "../helpers/orders";
@@ -23,6 +23,15 @@ describe("order emails", () => {
     expect(email.subject).toBe("Tu pedido LEGO-001001 está en camino");
     expect(email.html).toContain("/account/orders/order_1");
     expect(email.text).toContain("/account/orders/order_1");
+  });
+
+  it("cancellation: says the order was cancelled and how much is refunded, to which card", () => {
+    const email = orderCancelledEmail(makeOrder({ status: "CANCELLED" }));
+    expect(email.subject).toBe("Cancelamos tu pedido LEGO-001001");
+    expect(email.idempotencyKey).toBe("order-cancelled/order_1");
+    expect(email.html).toContain("Cancelamos tu pedido");
+    expect(email.text).toMatch(/Te reembolsamos \$\s?2\.746/);
+    expect(email.text).toContain("Visa •••• 4242");
   });
 
   it("escapes what customers typed", () => {

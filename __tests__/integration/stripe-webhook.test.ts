@@ -147,6 +147,9 @@ describe("POST /api/stripe/webhook", () => {
     expect(refund).toHaveBeenCalledTimes(1);
     expect(refund).toHaveBeenCalledWith(cancelled[0]!.stripePaymentIntentId, `order/${cancelled[0]!.id}/refund`);
     expect(await stockOf("15")).toBe(0);
+    // One confirmation, one cancellation with the refund.
+    expect(sentEmails().filter((email) => email.includes("Asunto: Cancelamos tu pedido"))).toHaveLength(1);
+    expect(sentEmails().filter((email) => email.includes("Asunto: Confirmamos tu pedido"))).toHaveLength(1);
     refund.mockRestore();
   });
 
@@ -180,7 +183,9 @@ describe("POST /api/stripe/webhook", () => {
     expect(row).toMatchObject({ status: "CANCELLED", cancelReason: "amount_mismatch", paidAt: null });
     expect(row.stripeRefundId).toMatch(/^re_mock_/);
     expect(await stockOf("7")).toBe(40);
-    expect(sentEmails()).toHaveLength(0);
+    // No confirmation; the cancellation with its refund.
+    expect(sentEmails()).toHaveLength(1);
+    expect(sentEmails()[0]).toMatch(/Asunto: Cancelamos tu pedido LEGO-\d{6}/);
 
     // The right amount in another currency is no better.
     const other = await paidOrder([{ productId: "7", quantity: 1 }]);
