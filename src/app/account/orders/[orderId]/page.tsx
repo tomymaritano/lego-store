@@ -18,6 +18,7 @@ import { formatPrice } from "@/lib/utils";
 import { orderIdSchema } from "@/lib/validations/orders";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { OrderTimeline } from "@/components/account/OrderTimeline";
+import { PendingPaymentNotice } from "@/components/orders/PendingPaymentNotice";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Badge, Card, CardContent, CardHeader } from "@/components/ui";
 
@@ -39,8 +40,9 @@ function SectionTitle({ id, icon, children }: { id: string; icon: React.ReactNod
 
 /**
  * /account/orders/<id>: one of the signed-in user's orders, with its status
- * timeline, the lines as they were bought (snapshots: name, price and picture
- * at order time), totals, address and card. Anyone else's order, or an
+ * timeline (with the cash ticket to pay while a Mercado Pago payment is
+ * pending), the lines as they were bought (snapshots: name, price and picture
+ * at order time), totals, address and payment. Anyone else's order, or an
  * unknown id, is a 404. Per user, so rendered on every request.
  */
 export default async function OrderPage({ params }: { params: Promise<{ orderId: string }> }) {
@@ -78,6 +80,8 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
                 <p className="rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary">
                   Estamos esperando la confirmación del pago. Te avisaremos por email.
                 </p>
+              ) : order.status === "PAYMENT_PENDING" ? (
+                <PendingPaymentNotice order={order} />
               ) : null}
             </CardContent>
           </Card>

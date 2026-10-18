@@ -90,12 +90,13 @@ export const accessSelect = {
 /**
  * May this requester see and pay the order? An account's order: only that
  * account's session. A guest's order: the browser holding its token, while
- * it is pending and for a short while after it settled.
+ * it is pending (or its payment is) and for a short while after it settled.
  */
 export function canAccessOrder(order: AccessCheckedOrder, requester: Requester, now: Date = new Date()): boolean {
   if (order.userId) return order.userId === requester.userId;
   if (requester.access?.orderId !== order.id || !tokenMatches(requester.access.token, order.checkoutTokenHash)) return false;
-  if (order.status === "PENDING") return true;
+  // Still waiting for its payment (PAYMENT_PENDING: a cash ticket, a card under review) counts as pending.
+  if (order.status === "PENDING" || order.status === "PAYMENT_PENDING") return true;
   const settledAt = order.cancelledAt ?? order.paidAt;
   return settledAt !== null && now.getTime() - settledAt.getTime() < SETTLED_TOKEN_ACCESS_MS;
 }

@@ -3,12 +3,13 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { m } from "motion/react";
-import { ArrowRight, CircleX, Mail, PackageSearch, Truck } from "lucide-react";
+import { ArrowRight, CircleX, Clock, Mail, PackageSearch, Truck } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { STAGGER, STAGGER_DELAY, drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
 import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, cancelReasonLabel, formatOrderNumber, orderPaymentLabel } from "@/lib/orders/format";
 import type { OrderView } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
+import { PendingPaymentNotice } from "@/components/orders/PendingPaymentNotice";
 import { Badge, Button, Spinner } from "@/components/ui";
 import { OrderLines, orderLinesOf } from "./OrderLines";
 
@@ -18,28 +19,34 @@ interface ConfirmationStepProps {
   canViewInAccount: boolean;
   /** The status could not be refreshed for a while (shown as a hint, the polling goes on). */
   stale?: boolean;
+  /** What to say while the order waits for its payment (default: the bank accepted it, the confirmation is on its way). */
+  waitingMessage?: string;
 }
 
 const { deliveryDays } = siteConfig.commerce;
 
 const HEADINGS = {
   waiting: "Estamos confirmando tu pago",
+  pending: "Recibimos tu pedido",
   paid: "¡Gracias por tu compra!",
   cancelled: "No pudimos completar tu pedido",
 } as const;
 
 /**
- * After "Realizar pedido": the real order number and its status. The bank
- * accepted the payment, but the order is only confirmed (PAID) when Stripe's
- * webhook arrives; CheckoutFlow polls the order and this re-renders. Its
+ * After "Realizar pedido": the real order number and its status. Stripe's
+ * bank accepted the payment, but the order is only confirmed (PAID) when its
+ * webhook arrives; Mercado Pago answers at once (PAID), or leaves the payment
+ * pending (PAYMENT_PENDING: a cash ticket to pay, with its instructions, or a
+ * card under review). CheckoutFlow polls the order and this re-renders. Its
  * heading is the page's h1 (the checkout header is gone by then); focus moves
  * to it so the outcome is announced, and status changes are announced too.
  */
-export function ConfirmationStep({ order, canViewInAccount, stale = false }: ConfirmationStepProps) {
+export function ConfirmationStep({ order, canViewInAccount, stale = false, waitingMessage }: ConfirmationStepProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
 
-  const phase = order.status === "PENDING" ? "waiting" : order.status === "CANCELLED" ? "cancelled" : "paid";
+  const phase =
+    order.status === "PENDING" ? "waiting" : order.status === "PAYMENT_PENDING" ? "pending" : order.status === "CANCELLED" ? "cancelled" : "paid";
   const number = formatOrderNumber(order.number);
 
   return (
@@ -71,6 +78,10 @@ export function ConfirmationStep({ order, canViewInAccount, stale = false }: Con
             <span className="flex size-20 items-center justify-center rounded-full bg-bg-muted text-danger">
               <CircleX className="size-10" />
             </span>
+          ) : phase === "pending" ? (
+            <span className="flex size-20 items-center justify-center rounded-full bg-bg-muted text-info">
+              <Clock className="size-10" />
+            </span>
           ) : (
             <span className="flex size-20 items-center justify-center rounded-full bg-bg-muted text-fg">
               <Spinner className="size-9" />
@@ -92,9 +103,14 @@ export function ConfirmationStep({ order, canViewInAccount, stale = false }: Con
             ? "Tu pedido está confirmado y ya lo estamos preparando."
             : phase === "cancelled"
               ? cancelReasonLabel(order.cancelReason)
-              : stale
-                ? "Tu banco aceptó el pago, pero la confirmación está tardando más de lo normal. Te avisaremos por email."
-                : "Tu banco aceptó el pago. Esto suele tardar unos segundos."}
+              : phase === "pending"
+                ? order.payment.methodType === "ticket"
+                  ? "Lo confirmamos en cuanto pagues el ticket."
+                  : "Lo confirmamos en cuanto se acredite el pago."
+                : (waitingMessage ??
+                  (stale
+                    ? "Tu banco aceptó el pago, pero la confirmación está tardando más de lo normal. Te avisaremos por email."
+                    : "Tu banco aceptó el pago. Esto suele tardar unos segundos."))}
         </m.p>
 
         <m.dl variants={staggerItem} className="mb-6 grid w-full gap-3 rounded-xl bg-bg-subtle p-4 text-left sm:grid-cols-2">
@@ -123,6 +139,12 @@ export function ConfirmationStep({ order, canViewInAccount, stale = false }: Con
             <dd className="text-label text-fg">{orderPaymentLabel(order)}</dd>
           </div>
         </m.dl>
+
+        {phase === "pending" ? (
+          <m.div variants={staggerItem} className="mb-6 w-full">
+            <PendingPaymentNotice order={order} />
+          </m.div>
+        ) : null}
 
         <m.div variants={staggerItem} className="mb-6 w-full rounded-xl border border-border p-4">
           <OrderLines lines={orderLinesOf(order)} label="Productos del pedido" />

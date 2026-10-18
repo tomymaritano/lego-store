@@ -112,6 +112,8 @@ export interface OrderSummary {
   /** Up to three line pictures, for the row's thumbnails. */
   images: string[];
   firstItemName: string | null;
+  /** A Mercado Pago payment still pending: a cash ticket (with until when it can be paid) or a card under review. */
+  pendingPayment: { ticket: boolean; expiresAt: string | null } | null;
 }
 
 /**
@@ -130,6 +132,8 @@ export async function listUserOrders(db: Db, userId: string, { take = 50 }: { ta
       status: true,
       total: true,
       submittedAt: true,
+      paymentMethodType: true,
+      ticketExpiresAt: true,
       items: { select: { name: true, image: true, quantity: true }, orderBy: { id: "asc" } },
     },
   });
@@ -144,6 +148,8 @@ export async function listUserOrders(db: Db, userId: string, { take = 50 }: { ta
     itemCount: row.items.reduce((sum, item) => sum + item.quantity, 0),
     images: row.items.slice(0, 3).map((item) => item.image),
     firstItemName: row.items[0]?.name ?? null,
+    pendingPayment:
+      row.status === "PAYMENT_PENDING" ? { ticket: row.paymentMethodType === "ticket", expiresAt: iso(row.ticketExpiresAt) } : null,
   }));
 }
 

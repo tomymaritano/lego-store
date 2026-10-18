@@ -2,24 +2,26 @@
 
 import { useState } from "react";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { ArrowRight, ChevronLeft, CreditCard, FlaskConical, Lock, PlugZap } from "lucide-react";
-import type { PaymentsClientConfig } from "@/lib/payments/config";
+import { CreditCard, FlaskConical } from "lucide-react";
+import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
 import { MOCK_CARDS, mockTokenId, type MockCardId } from "@/lib/payments/mock-cards";
 import { paymentLabel } from "@/lib/orders/format";
 import { FormAlert } from "@/components/auth/FormAlert";
-import { Button, Field, RadioGroup, RadioGroupItem, Skeleton } from "@/components/ui";
-import type { PaymentSummary } from "@/stores/checkoutStore";
+import { Field, RadioGroup, RadioGroupItem, Skeleton } from "@/components/ui";
+import { isMercadoPagoPayment, type PaymentSummary } from "@/stores/checkoutStore";
 import type { ShippingInfo } from "@/types";
+import { MercadoPagoPayment } from "./mercadopago/MercadoPagoPayment";
+import { PaymentFooter, PaymentsNotConfigured, SecureNote } from "./PaymentParts";
 import { StepCount, StepPanel } from "./StepPanel";
 import { STRIPE_FONTS, getStripe, useStripeAppearance } from "./stripeClient";
 
 interface PaymentStepProps {
-  payments: PaymentsClientConfig;
+  payments: CheckoutPaymentsConfig;
   /** The billing details (the card holder is the person on the shipping form). */
   shipping: ShippingInfo;
   /** Amount of the order in pesos (the Payment Element shows payment methods for it). */
   amount: number;
-  /** The card chosen before (going back from "Revisar"): it has to be entered again. */
+  /** The payment chosen before (going back from "Revisar"): a card has to be entered again. */
   previous: PaymentSummary | null;
   /** Why the last payment failed. */
   error: string | null;
@@ -29,12 +31,16 @@ interface PaymentStepProps {
 }
 
 /**
- * Step 2: the card. Stripe's Payment Element only collects it here
- * (elements.submit + stripe.createConfirmationToken): nothing is charged
- * until "Realizar pedido" on the review step, and the card never touches our
- * server. With STRIPE_MOCK=1 (tests, never production) a list of test cards
- * stands in for Stripe; without Stripe keys the step says payments are not
- * configured.
+ * Step 2: how to pay, with the store's provider (PAYMENT_PROVIDER). This step
+ * only collects: nothing is charged until "Realizar pedido" on the review
+ * step, and card data never touches our server.
+ * - Mercado Pago (./mercadopago): its Payment Brick (cards with installments,
+ *   cash) or "Cuenta de Mercado Pago".
+ * - Stripe: its Payment Element (elements.submit +
+ *   stripe.createConfirmationToken).
+ * With PAYMENTS_MOCK=1 (tests, never production) a list of test options
+ * stands in for each provider; without credentials the step says payments are
+ * not configured.
  */
 export function PaymentStep({ payments, shipping, amount, previous, error, focusHeading, onSubmit, onBack }: PaymentStepProps) {
   return (
@@ -45,46 +51,24 @@ export function PaymentStep({ payments, shipping, amount, previous, error, focus
       focusHeading={focusHeading}
       aside={<StepCount index={1} total={3} />}
     >
-      <div className="space-y-5" data-payments-mode={payments.mode}>
+      <div className="space-y-5" data-payments-mode={payments.mode} data-payments-provider={payments.provider}>
         {error ? <FormAlert>{error}</FormAlert> : null}
-        {previous && !error ? (
+        {previous && !error && (!isMercadoPagoPayment(previous) || previous.method === "card") && previous.last4 ? (
           <p className="text-label font-normal text-fg-secondary">
             Por seguridad, vuelve a ingresar la tarjeta ({paymentLabel(previous.brand, previous.last4)}).
           </p>
         ) : null}
-        {payments.mode === "stripe" && payments.publishableKey ? (
-          <StripePayment publishableKey={payments.publishableKey} shipping={shipping} amount={amount} onSubmit={onSubmit} onBack={onBack} />
-        ) : payments.mode === "mock" ? (
+        {payments.provider === "MERCADOPAGO" ? (
+          <MercadoPagoPayment config={payments.mercadopago} shipping={shipping} amount={amount} onSubmit={onSubmit} onBack={onBack} />
+        ) : payments.stripe.mode === "stripe" && payments.stripe.publishableKey ? (
+          <StripePayment publishableKey={payments.stripe.publishableKey} shipping={shipping} amount={amount} onSubmit={onSubmit} onBack={onBack} />
+        ) : payments.stripe.mode === "mock" ? (
           <MockPayment onSubmit={onSubmit} onBack={onBack} />
         ) : (
-          <PaymentsNotConfigured missing={payments.missing} onBack={onBack} />
+          <PaymentsNotConfigured provider="Stripe" missing={payments.stripe.missing} onBack={onBack} />
         )}
       </div>
     </StepPanel>
-  );
-}
-
-function PaymentFooter({ onBack, disabled = false, busy = false }: { onBack: () => void; disabled?: boolean; busy?: boolean }) {
-  return (
-    <div className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-      <Button variant="ghost" type="button" onClick={onBack}>
-        <ChevronLeft aria-hidden="true" />
-        Volver a envío
-      </Button>
-      <Button type="submit" size="lg" disabled={disabled} loading={busy} focusableWhenDisabled className="w-full sm:w-auto">
-        Revisar pedido
-        {busy ? null : <ArrowRight aria-hidden="true" />}
-      </Button>
-    </div>
-  );
-}
-
-function SecureNote({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="flex items-start gap-3 rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary">
-      <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
-      <span>{children}</span>
-    </p>
   );
 }
 
@@ -230,7 +214,7 @@ function MockPayment({ onSubmit, onBack }: { onSubmit: (payment: PaymentSummary)
       <p className="flex items-start gap-3 rounded-xl border border-warning bg-bg-subtle p-4 text-label font-normal text-fg-secondary">
         <FlaskConical aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-fg" />
         <span>
-          <strong className="font-semibold text-fg">Modo de prueba.</strong> Los pagos son simulados (STRIPE_MOCK): no se
+          <strong className="font-semibold text-fg">Modo de prueba.</strong> Los pagos son simulados (PAYMENTS_MOCK): no se
           contacta a Stripe ni se cobra nada.
         </span>
       </p>
@@ -247,34 +231,6 @@ function MockPayment({ onSubmit, onBack }: { onSubmit: (payment: PaymentSummary)
         </RadioGroup>
       </Field>
       <PaymentFooter onBack={onBack} />
-    </form>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Not configured
-// ---------------------------------------------------------------------------
-
-function PaymentsNotConfigured({ missing, onBack }: { missing: string[]; onBack: () => void }) {
-  return (
-    <form onSubmit={(event) => event.preventDefault()} aria-labelledby="payment-title" className="space-y-5">
-      <div role="status" className="rounded-xl border border-border bg-bg-subtle p-5" data-testid="payments-not-configured">
-        <p className="flex items-center gap-2 font-semibold text-fg">
-          <PlugZap aria-hidden="true" className="size-5 text-fg-muted" />
-          Pagos no configurados
-        </p>
-        {missing.length > 0 ? (
-          <p className="mt-2 text-label font-normal text-fg-secondary">
-            Este servidor no tiene Stripe configurado. Define <span className="font-mono text-fg">{missing.join(", ")}</span> en{" "}
-            <span className="font-mono text-fg">.env.local</span> (ver README, «Checkout, pagos y pedidos») y reinicia el servidor.
-          </p>
-        ) : (
-          <p className="mt-2 text-label font-normal text-fg-secondary">
-            Los pagos no están disponibles en este momento. Inténtalo más tarde.
-          </p>
-        )}
-      </div>
-      <PaymentFooter onBack={onBack} disabled />
     </form>
   );
 }

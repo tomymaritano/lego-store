@@ -4,18 +4,41 @@ import type { CheckoutStep, ShippingInfo } from "@/types";
 
 /**
  * Checkout wizard state. In memory only (never persisted). It never holds
- * card data: Stripe's Payment Element keeps the card inside its iframe and
- * hands back a ConfirmationToken, of which only the id, the brand and the
- * last 4 digits are kept here. Prices and totals come from the server
- * (`order`), not from the cart.
+ * card data: Stripe's Payment Element and Mercado Pago's Payment Brick keep
+ * the card inside their iframes and hand back a token (a Stripe
+ * ConfirmationToken, a single-use Mercado Pago card token), which is all that
+ * is kept here, with what "Revisar" shows (brand, last 4 digits, installments).
+ * Prices and totals come from the server (`order`), not from the cart.
  */
 
-/** The card chosen on the payment step, as a ConfirmationToken. */
-export interface PaymentSummary {
+/** Stripe: the card chosen on the payment step, as a ConfirmationToken. */
+export interface StripePaymentSummary {
+  provider?: "STRIPE";
   confirmationTokenId: string;
   brand: string;
   last4: string;
 }
+
+/**
+ * Mercado Pago: what the Payment Brick collected (sent to the server only on
+ * "Realizar pedido") or "Cuenta de Mercado Pago". `attemptId` identifies this
+ * attempt: a retried "Realizar pedido" is the same payment, never a second one.
+ */
+export interface MercadoPagoPaymentSummary {
+  provider: "MERCADOPAGO";
+  attemptId: string;
+  method: "card" | "ticket" | "wallet";
+  /** The Brick's formData (card token, method, installments, payer); none for "wallet". */
+  formData?: Record<string, unknown>;
+  /** payment_method_id ("visa", "master", "rapipago"…) for the label. */
+  brand: string;
+  last4: string | null;
+  installments: number | null;
+}
+
+export type PaymentSummary = StripePaymentSummary | MercadoPagoPaymentSummary;
+
+export const isMercadoPagoPayment = (payment: PaymentSummary): payment is MercadoPagoPaymentSummary => payment.provider === "MERCADOPAGO";
 
 interface CheckoutState {
   currentStep: CheckoutStep;

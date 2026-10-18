@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderDate, formatOrderNumber } from "@/lib/orders/format";
+import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderDate, formatOrderNumber, formatTicketExpiry } from "@/lib/orders/format";
 import type { OrderSummary } from "@/lib/orders/queries";
 import { formatPrice, pluralize } from "@/lib/utils";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Badge } from "@/components/ui";
 
 /**
- * One row of "Mis pedidos": number, date, status, a few line pictures and the
- * total. The whole card is the link to the order (named by its number).
+ * One row of "Mis pedidos": number, date, status (and what to do while a
+ * payment is pending), a few line pictures and the total. The whole card is the link to the order (named by its number).
  */
 export function OrderCard({ order }: { order: OrderSummary }) {
   const number = formatOrderNumber(order.number);
@@ -40,6 +40,15 @@ export function OrderCard({ order }: { order: OrderSummary }) {
           {others}
         </span>
         <span className="text-caption text-fg-muted">{formatOrderDate(order.placedAt)}</span>
+        {order.pendingPayment ? (
+          <span className="text-caption font-medium text-fg" data-testid="order-card-pending">
+            {order.pendingPayment.ticket
+              ? order.pendingPayment.expiresAt
+                ? `Paga el ticket en efectivo antes del ${formatTicketExpiry(order.pendingPayment.expiresAt)}.`
+                : "Paga el ticket en efectivo para confirmar el pedido."
+              : "Estamos procesando el pago."}
+          </span>
+        ) : null}
       </span>
       <span className="flex shrink-0 items-center gap-2">
         <span className="text-body font-semibold text-fg tabular-nums">{formatPrice(order.total)}</span>

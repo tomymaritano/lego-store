@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "motion/react";
 import { fadeIn } from "@/lib/motion";
 import type { OrderView, UnavailableLine } from "@/lib/orders/types";
-import type { PaymentsClientConfig } from "@/lib/payments/config";
+import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
 import { orderTotals } from "@/lib/pricing";
 import { useViewer } from "@/providers/ViewerProvider";
 import { useCartItems, useCartStore, useCheckoutStore, useStoreHydrated } from "@/stores";
-import type { PaymentSummary } from "@/stores/checkoutStore";
+import { isMercadoPagoPayment, type MercadoPagoPaymentSummary, type PaymentSummary } from "@/stores/checkoutStore";
 import { Breadcrumbs, Skeleton, showToast } from "@/components/ui";
 import type { CartItem, CheckoutStep, ShippingInfo } from "@/types";
-import { fetchCheckoutOrder, payOrder, prepareOrder, type ApiResult } from "./checkoutApi";
+import { fetchCheckoutOrder, payMercadoPagoOrder, payOrder, prepareOrder, type ApiResult, type PrepareRequest } from "./checkoutApi";
 import { ConfirmationStep } from "./ConfirmationStep";
 import { MobileSummaryBar, orderLinesOf } from "./OrderLines";
 import { OrderSummary } from "./OrderSummary";
@@ -24,7 +24,8 @@ import { Stepper } from "./Stepper";
 import { stepIndex } from "./steps";
 
 /*
- * The payment step (Stripe Elements, the mock cards) is the second step: it
+ * The payment step (Mercado Pago's Brick or Stripe's Elements, or the mock
+ * options) is the second step: it
  * loads on demand, kept out of /checkout's first load, and is preloaded as
  * soon as the shipping step shows so the step change does not wait on it.
  */
@@ -56,10 +57,17 @@ function CheckoutHeader() {
   );
 }
 
-/** What changes the server's order: the lines, the address and the card. */
+/**
+ * What changes the server's order: the lines, the address and (Stripe) the
+ * card. A Mercado Pago order knows nothing of the payment until it is paid.
+ */
 function prepareKeyOf(cart: CartItem[], shipping: ShippingInfo, payment: PaymentSummary) {
-  return JSON.stringify([cart.map((line) => [line.id, line.quantity]), shipping, payment.confirmationTokenId]);
+  return JSON.stringify([cart.map((line) => [line.id, line.quantity]), shipping, isMercadoPagoPayment(payment) ? "MERCADOPAGO" : payment.confirmationTokenId]);
 }
+
+/** Whether the confirmation keeps asking for the order's status: until it is settled (a cash ticket can take days: not that). */
+const awaitingSettlement = (order: OrderView) =>
+  order.status === "PENDING" || (order.status === "PAYMENT_PENDING" && order.payment.methodType !== "ticket");
 
 /**
  * Caps or drops the cart lines the server could not sell as asked, and says
@@ -105,15 +113,17 @@ type Prepared = { key: string; order: OrderView } | { key: string; error: string
  * each new step's heading.
  *
  * Money and stock are the server's: entering "Revisar" prepares the order
- * there (POST /api/checkout/orders), "Realizar pedido" confirms its payment
- * (…/pay, finishing 3D Secure with Stripe.js when the bank asks), and the
- * confirmation polls the order until Stripe's webhook marks it paid.
+ * there (POST /api/checkout/orders), "Realizar pedido" is the only step that
+ * charges (…/pay: Stripe confirms its PaymentIntent, finishing 3D Secure with
+ * Stripe.js when the bank asks; Mercado Pago creates the payment from what the
+ * Brick collected, or sends the browser to pay with its account), and the
+ * confirmation polls the order until the provider settles it.
  *
  * Placing the order swaps the whole checkout layout (header, stepper, step
  * and summary) for the confirmation as one unit, so nothing reflows while the
  * review fades out.
  */
-export function CheckoutFlow({ payments, account = null }: { payments: PaymentsClientConfig; account?: CheckoutAccount | null }) {
+export function CheckoutFlow({ payments, account = null }: { payments: CheckoutPaymentsConfig; account?: CheckoutAccount | null }) {
   const router = useRouter();
   const viewer = useViewer();
   const hydrated = useStoreHydrated(useCartStore);
@@ -185,10 +195,13 @@ export function CheckoutFlow({ payments, account = null }: { payments: PaymentsC
     if (!shipping || !card) return;
     const controller = new AbortController();
     const lines = cartStore().cart.map((line) => ({ productId: line.id, quantity: line.quantity }));
+    const request: PrepareRequest = isMercadoPagoPayment(card)
+      ? { shipping, lines, provider: "MERCADOPAGO" }
+      : { shipping, lines, confirmationTokenId: card.confirmationTokenId };
     void (async () => {
       let result: ApiResult<OrderView>;
       try {
-        result = await prepareOrder({ shipping, lines, confirmationTokenId: card.confirmationTokenId }, controller.signal);
+        result = await prepareOrder(request, controller.signal);
       } catch {
         return; // Aborted: the inputs changed and a newer request is on its way.
       }
@@ -226,9 +239,9 @@ export function CheckoutFlow({ payments, account = null }: { payments: PaymentsC
 
   const placed = step === "confirmation" && placedOrder && placedOrder.id !== staleOrderId ? placedOrder : null;
 
-  // The confirmation follows the order until Stripe's webhook settles it.
+  // The confirmation follows the order until the provider settles it.
   const placedId = placed?.id;
-  const placedPending = placed?.status === "PENDING";
+  const placedPending = placed ? awaitingSettlement(placed) : false;
   useEffect(() => {
     if (!placedId || !placedPending) return;
     let polls = 0;
@@ -238,10 +251,8 @@ export function CheckoutFlow({ payments, account = null }: { payments: PaymentsC
       polls += 1;
       const result = await fetchCheckoutOrder(placedId, controller.signal).catch(() => null);
       if (controller.signal.aborted) return;
-      if (result?.ok && result.data.status !== "PENDING") {
-        checkout().orderPlaced(result.data);
-        return;
-      }
+      if (result?.ok && result.data.status !== checkout().order?.status) checkout().orderPlaced(result.data);
+      if (result?.ok && !awaitingSettlement(result.data)) return;
       if (polls === QUICK_POLLS) setStatusStale(true);
       timer = setTimeout(poll, polls < QUICK_POLLS ? POLL_MS : SLOW_POLL_MS);
     };
@@ -281,20 +292,62 @@ export function CheckoutFlow({ payments, account = null }: { payments: PaymentsC
     );
   };
 
+  /** A refusal (or a step to redo) sends the customer back to the payment step with the reason. */
+  const backToPayment = (message: string) => {
+    setDirection(-1);
+    setMoved(true);
+    checkout().paymentFailed(message);
+  };
+
+  const placeMercadoPagoOrder = async (order: OrderView, payment: MercadoPagoPaymentSummary) => {
+    const result = await payMercadoPagoOrder(order.id, { attemptId: payment.attemptId, method: payment.method, formData: payment.formData });
+    if (!result.ok) {
+      switch (result.code) {
+        case "declined":
+        case "payment_method":
+          backToPayment(result.error);
+          return;
+        case "unavailable": {
+          const before = cartStore().cart;
+          pendingNotice.current = applyUnavailable(result.unavailable ?? []);
+          if (cartStore().cart === before) setPayError(result.error);
+          return;
+        }
+        case "not_pending": {
+          const latest = await fetchCheckoutOrder(order.id);
+          if (latest.ok && latest.data.status !== "PENDING") finishPurchase(latest.data);
+          else setPayError(result.error);
+          return;
+        }
+        default:
+          setPayError(result.error);
+          return;
+      }
+    }
+    if (result.data.next === "redirect") {
+      // "Cuenta de Mercado Pago": the customer pays on Mercado Pago's site and comes back to /checkout/pedido/<id>.
+      window.location.assign(result.data.url);
+      return;
+    }
+    finishPurchase(result.data.order);
+  };
+
   const handlePlaceOrder = async () => {
     const card = checkout().payment;
     if (!preparedOrder || !card || checkout().isProcessing) return;
     setPayError(null);
     checkout().setProcessing(true);
     try {
+      if (isMercadoPagoPayment(card)) {
+        await placeMercadoPagoOrder(preparedOrder, card);
+        return;
+      }
       const result = await payOrder(preparedOrder.id, card.confirmationTokenId);
       if (!result.ok) {
         switch (result.code) {
           case "declined":
           case "payment_method":
-            setDirection(-1);
-            setMoved(true);
-            checkout().paymentFailed(result.error);
+            backToPayment(result.error);
             return;
           case "unavailable": {
             const before = cartStore().cart;
@@ -315,13 +368,11 @@ export function CheckoutFlow({ payments, account = null }: { payments: PaymentsC
         }
       }
       if (result.data.next === "action") {
-        const key = payments.publishableKey;
+        const key = payments.provider === "STRIPE" ? payments.stripe.publishableKey : null;
         const stripe = key ? await import("./stripeClient").then((mod) => mod.getStripe(key)) : null;
         const outcome = stripe ? await stripe.handleNextAction({ clientSecret: result.data.clientSecret }) : null;
         if (!outcome || outcome.error) {
-          setDirection(-1);
-          setMoved(true);
-          checkout().paymentFailed(outcome?.error?.message ?? "No pudimos verificar la tarjeta con tu banco. Inténtalo de nuevo.");
+          backToPayment(outcome?.error?.message ?? "No pudimos verificar la tarjeta con tu banco. Inténtalo de nuevo.");
           return;
         }
       }

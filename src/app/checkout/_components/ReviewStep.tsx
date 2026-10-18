@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { ChevronLeft, ClipboardCheck, CreditCard, Lock, MapPin, Pencil, RotateCcw } from "lucide-react";
 import { siteConfig } from "@/config/site";
-import { cardBrandLabel } from "@/lib/orders/format";
+import { cardBrandLabel, installmentsLabel } from "@/lib/orders/format";
 import { formatPrice } from "@/lib/utils";
 import { FormAlert } from "@/components/auth/FormAlert";
 import { Button, Skeleton } from "@/components/ui";
-import type { PaymentSummary } from "@/stores/checkoutStore";
+import { isMercadoPagoPayment, type PaymentSummary } from "@/stores/checkoutStore";
 import type { ShippingInfo } from "@/types";
 import { StepCount, StepPanel } from "./StepPanel";
 
@@ -64,6 +64,42 @@ function ReviewBlock({
       </div>
       {children}
     </div>
+  );
+}
+
+/** How the order will be paid, as the payment step collected it. */
+function PaymentLines({ payment }: { payment: PaymentSummary }) {
+  if (!isMercadoPagoPayment(payment)) {
+    return (
+      <p className="font-medium text-fg">
+        {cardBrandLabel(payment.brand)} <span className="font-mono">•••• {payment.last4}</span>
+      </p>
+    );
+  }
+  if (payment.method === "wallet") {
+    return (
+      <>
+        <p className="font-medium text-fg">Cuenta de Mercado Pago</p>
+        <p>Al confirmar te llevamos a Mercado Pago para pagar.</p>
+      </>
+    );
+  }
+  if (payment.method === "ticket") {
+    return (
+      <>
+        <p className="font-medium text-fg">{cardBrandLabel(payment.brand)} (efectivo)</p>
+        <p>Al confirmar generamos el ticket para que pagues en efectivo.</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="font-medium text-fg">
+        {cardBrandLabel(payment.brand)}
+        {payment.last4 ? <span className="font-mono"> •••• {payment.last4}</span> : null}
+      </p>
+      {payment.installments ? <p>{installmentsLabel(payment.installments)}</p> : null}
+    </>
   );
 }
 
@@ -127,11 +163,9 @@ export function ReviewStep({
           onEdit={onEditPayment}
           disabled={isProcessing}
         >
-          {/* Only what the card told us: the Payment Element asks no cardholder name, so the shipping name is not shown here. */}
+          {/* Only what the card told us: the payment forms ask no cardholder name here, so the shipping name is not shown. */}
           <div className="space-y-0.5 text-label font-normal text-fg-secondary" data-testid="review-payment">
-            <p className="font-medium text-fg">
-              {cardBrandLabel(payment.brand)} <span className="font-mono">•••• {payment.last4}</span>
-            </p>
+            <PaymentLines payment={payment} />
           </div>
         </ReviewBlock>
       </div>

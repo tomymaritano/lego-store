@@ -122,6 +122,19 @@ const dateTimeFormat = new Intl.DateTimeFormat("es-AR", {
   timeZone: STORE_TIME_ZONE,
 });
 
+const ticketExpiryFormat = new Intl.DateTimeFormat("es-AR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: STORE_TIME_ZONE,
+});
+
+/** "martes 21 de octubre, 23:59" (store time zone): until when a cash ticket can be paid. */
+export const formatTicketExpiry = (iso: string) => ticketExpiryFormat.format(new Date(iso));
+
 /** "17 de octubre de 2026" (store time zone). */
 export const formatOrderDate = (iso: string) => dateFormat.format(new Date(iso));
 /** "17 oct, 14:05" (store time zone). */

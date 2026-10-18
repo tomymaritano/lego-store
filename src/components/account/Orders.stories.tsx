@@ -16,6 +16,7 @@ const summary = (overrides: Partial<OrderSummary> = {}): OrderSummary => ({
   itemCount: 3,
   images: ["/images/lego.png", "/images/lego.png"],
   firstItemName: "Batmobile",
+  pendingPayment: null,
   ...overrides,
 });
 
@@ -80,6 +81,20 @@ export const OrderRows: Story = {
 };
 
 export const OrderRowsDark: Story = { ...OrderRows, globals: { theme: "dark" } };
+
+/** Mercado Pago: a cash ticket still to pay, and a card under review. */
+export const OrderRowsPendingPayment: Story = {
+  render: () => (
+    <ul className="space-y-3" aria-label="Pedidos">
+      <li>
+        <OrderCard order={summary({ status: "PAYMENT_PENDING", pendingPayment: { ticket: true, expiresAt: "2026-10-21T02:59:00.000Z" } })} />
+      </li>
+      <li>
+        <OrderCard order={summary({ id: "order_2", number: 1002, status: "PAYMENT_PENDING", pendingPayment: { ticket: false, expiresAt: null } })} />
+      </li>
+    </ul>
+  ),
+};
 
 export const TimelinePaid: Story = { render: () => <OrderTimeline order={order()} /> };
 

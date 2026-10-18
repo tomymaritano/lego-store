@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { CheckoutFlow } from "@/app/checkout/_components/CheckoutFlow";
 import { Stepper } from "@/app/checkout/_components/Stepper";
 import type { OrderView } from "@/lib/orders/types";
-import type { PaymentsClientConfig } from "@/lib/payments/config";
+import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
 import { useCartStore, useCheckoutStore } from "@/stores";
 import { formatPrice as format } from "@/lib/utils";
 import { makeOrder } from "../helpers/orders";
@@ -41,9 +41,10 @@ vi.mock("@/app/checkout/_components/stripeClient", () => ({
   STRIPE_FONTS: [],
 }));
 
-const STRIPE: PaymentsClientConfig = { mode: "stripe", publishableKey: "pk_test_123", missing: [] };
+// The Stripe checkout (PAYMENT_PROVIDER=stripe); the Mercado Pago one is in checkoutMercadoPago.test.tsx.
+const STRIPE: CheckoutPaymentsConfig = { provider: "STRIPE", mode: "stripe", stripe: { mode: "stripe", publishableKey: "pk_test_123", missing: [] } };
 
-const MOCK: PaymentsClientConfig = { mode: "mock", publishableKey: null, missing: [] };
+const MOCK: CheckoutPaymentsConfig = { provider: "STRIPE", mode: "mock", stripe: { mode: "mock", publishableKey: null, missing: [] } };
 
 const line = (id: string, price: number, quantity = 1) => ({
   id,
@@ -317,7 +318,7 @@ describe("Checkout", { timeout: 20_000 }, () => {
   it("without Stripe keys the payment step says payments are not configured", () => {
     useCheckoutStore.setState({ currentStep: "payment", shippingInfo: shipping });
     render(
-      <CheckoutFlow payments={{ mode: "unconfigured", publishableKey: null, missing: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] }} />
+      <CheckoutFlow payments={{ provider: "STRIPE", mode: "unconfigured", stripe: { mode: "unconfigured", publishableKey: null, missing: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] } }} />
     );
     expect(screen.getByTestId("payments-not-configured")).toHaveTextContent("Pagos no configurados");
     expect(screen.getByTestId("payments-not-configured")).toHaveTextContent("STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET");

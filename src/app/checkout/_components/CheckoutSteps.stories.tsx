@@ -1,3 +1,4 @@
+import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, waitFor } from "storybook/test";
 import type { OrderView } from "@/lib/orders/types";
@@ -92,10 +93,27 @@ export const ShippingSignedIn: Story = {
   },
 };
 
+const MP_MOCK: CheckoutPaymentsConfig = { provider: "MERCADOPAGO", mode: "mock", mercadopago: { mode: "mock", publicKey: null, missing: [] } };
+
 export const PaymentTestMode: Story = {
   render: () => (
     <PaymentStep
-      payments={{ mode: "mock", publishableKey: null, missing: [] }}
+      payments={MP_MOCK}
+      shipping={shipping}
+      amount={3167}
+      previous={null}
+      error={null}
+      focusHeading={false}
+      onSubmit={noop}
+      onBack={noop}
+    />
+  ),
+};
+
+export const PaymentTestModeStripe: Story = {
+  render: () => (
+    <PaymentStep
+      payments={{ provider: "STRIPE", mode: "mock", stripe: { mode: "mock", publishableKey: null, missing: [] } }}
       shipping={shipping}
       amount={3167}
       previous={null}
@@ -110,11 +128,11 @@ export const PaymentTestMode: Story = {
 export const PaymentDeclined: Story = {
   render: () => (
     <PaymentStep
-      payments={{ mode: "mock", publishableKey: null, missing: [] }}
+      payments={MP_MOCK}
       shipping={shipping}
       amount={3167}
       previous={null}
-      error="Tu banco rechazó el pago. Prueba con otra tarjeta."
+      error="La tarjeta no tiene fondos suficientes. Prueba con otra."
       focusHeading={false}
       onSubmit={noop}
       onBack={noop}
@@ -125,7 +143,15 @@ export const PaymentDeclined: Story = {
 export const PaymentsNotConfigured: Story = {
   render: () => (
     <PaymentStep
-      payments={{ mode: "unconfigured", publishableKey: null, missing: ["STRIPE_SECRET_KEY", "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET"] }}
+      payments={{
+        provider: "MERCADOPAGO",
+        mode: "unconfigured",
+        mercadopago: {
+          mode: "unconfigured",
+          publicKey: null,
+          missing: ["MERCADOPAGO_ACCESS_TOKEN", "NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY", "MERCADOPAGO_WEBHOOK_SECRET"],
+        },
+      }}
       shipping={shipping}
       amount={3167}
       previous={null}
@@ -146,6 +172,29 @@ export const Paid: Story = {
 };
 
 export const PaidDark: Story = { ...Paid, globals: { theme: "dark" } };
+
+/** Mercado Pago: the order is placed and waits for a cash ticket to be paid. */
+export const WaitingForCashPayment: Story = {
+  render: () => (
+    <ConfirmationStep
+      order={order({
+        status: "PAYMENT_PENDING",
+        paymentBrand: "rapipago",
+        paymentLast4: null,
+        payment: {
+          provider: "MERCADOPAGO",
+          methodType: "ticket",
+          installments: 1,
+          ticketUrl: "https://www.mercadopago.com.ar/payments/123/ticket",
+          ticketExpiresAt: "2026-10-21T02:59:00.000Z",
+        },
+      })}
+      canViewInAccount={false}
+    />
+  ),
+};
+
+export const WaitingForCashPaymentDark: Story = { ...WaitingForCashPayment, globals: { theme: "dark" } };
 
 export const CancelledOutOfStock: Story = {
   render: () => (
