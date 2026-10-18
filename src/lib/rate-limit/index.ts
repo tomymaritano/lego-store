@@ -90,6 +90,8 @@ export const rateLimits = {
   newsletterIp: limiter("newsletter-ip", 10, HOUR),
   /** Unsubscribe attempts per client IP: slows down guessing tokens (they are 256-bit anyway). */
   newsletterUnsubscribe: limiter("newsletter-unsubscribe", 30, HOUR),
+  /** "Confirm your subscription" button presses per client IP (same reasoning). */
+  newsletterConfirm: limiter("newsletter-confirm", 30, HOUR),
 } as const;
 
 export { clientIp } from "./client-ip";

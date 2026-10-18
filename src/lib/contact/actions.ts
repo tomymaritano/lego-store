@@ -4,9 +4,9 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { contactNotificationEmail, newsletterWelcomeEmail } from "@/lib/email/contact";
+import { contactNotificationEmail, newsletterConfirmEmail, newsletterWelcomeEmail } from "@/lib/email/contact";
 import { sendEmail } from "@/lib/email/send";
-import { subscribe, unsubscribeByToken, type UnsubscribeOutcome } from "@/lib/newsletter";
+import { confirmResubscribe, subscribe, unsubscribeByToken, type UnsubscribeOutcome } from "@/lib/newsletter";
 import { clientIp, rateLimits, waitMessage } from "@/lib/rate-limit";
 import { readStoreSettings } from "@/lib/settings";
 import { contactSchema, type ContactInput } from "@/lib/validations/contact";
@@ -16,8 +16,9 @@ import { createContactMessage } from "./messages";
 /*
  * The public forms' Server Actions: the contact form (stored for the
  * admin's inbox, /admin/mensajes, and announced to the store by email), the
- * newsletter sign-up (welcome email with the unsubscribe link) and the
- * unsubscribe page's button. Each one validates with zod and is rate
+ * newsletter sign-up (welcome email with the unsubscribe link, or a
+ * confirmation email for an address that unsubscribed before), and the
+ * buttons of the unsubscribe and confirmation pages. Each one validates with zod and is rate
  * limited by client IP (and the contact form also by sender email).
  * Emails go out after the row is written and never fail the action
  * (src/lib/email/send.ts logs them to the console without Resend).
@@ -84,8 +85,9 @@ export type NewsletterResult = { ok: true; email: string; message: string } | { 
 
 /**
  * The footer's sign-up. The answer is the same whether the address was
- * already subscribed or not (nobody learns who is); only a new (or
- * returning) subscriber gets the welcome email.
+ * already subscribed or not (nobody learns who is). A new address gets the
+ * welcome email; one that unsubscribed gets a confirmation email and stays
+ * unsubscribed until its owner confirms (lib/newsletter).
  */
 export async function subscribeNewsletterAction(email: unknown, source: unknown = "footer"): Promise<NewsletterResult> {
   const parsed = newsletterSignupSchema.safeParse({ email, source });
@@ -95,20 +97,41 @@ export async function subscribeNewsletterAction(email: unknown, source: unknown 
   if (!limit.ok) return { ok: false, error: `Demasiados intentos seguidos. Espera ${waitMessage(limit.retryAfterSeconds)} y vuelve a intentarlo.` };
 
   const outcome = await subscribe(getDb(), { email: parsed.data.email, source: parsed.data.source, ip: ip === "unknown" ? null : ip });
-  if (outcome.status !== "already") {
+  if (outcome.status === "subscribed") {
     revalidatePath("/admin/newsletter");
     await sendEmail(newsletterWelcomeEmail(parsed.data.email, outcome.token));
+  } else if (outcome.status === "confirm") {
+    await sendEmail(newsletterConfirmEmail(parsed.data.email, outcome.token));
   }
   return { ok: true, email: parsed.data.email, message: "¡Listo! Te sumamos al newsletter." };
 }
 
-/** The unsubscribe page's button (a GET never unsubscribes: mail scanners open links). */
+/*
+ * The buttons of /newsletter/baja and /newsletter/confirmar (a GET never
+ * changes anything: mail scanners open links). Neither revalidates a path:
+ * inside a Server Action that re-renders the page the button is on, which
+ * would swap the button's result for the page's own "already done" state.
+ * The admin's list is dynamic and reads the database on every request.
+ */
+
 export async function unsubscribeNewsletterAction(token: unknown): Promise<UnsubscribeOutcome | "rate_limited"> {
   const parsed = unsubscribeTokenSchema.safeParse(token);
   if (!parsed.success) return "invalid";
   const limit = await rateLimits.newsletterUnsubscribe.consume(`ip:${await requestIp()}`);
   if (!limit.ok) return "rate_limited";
-  const outcome = await unsubscribeByToken(getDb(), parsed.data);
-  if (outcome === "unsubscribed") revalidatePath("/admin/newsletter");
-  return outcome;
+  return unsubscribeByToken(getDb(), parsed.data);
+}
+
+export type ConfirmSubscriptionResult = "confirmed" | "invalid" | "rate_limited";
+
+export async function confirmNewsletterAction(token: unknown): Promise<ConfirmSubscriptionResult> {
+  const parsed = unsubscribeTokenSchema.safeParse(token);
+  if (!parsed.success) return "invalid";
+  const ip = await requestIp();
+  const limit = await rateLimits.newsletterConfirm.consume(`ip:${ip}`);
+  if (!limit.ok) return "rate_limited";
+  const outcome = await confirmResubscribe(getDb(), parsed.data, { ip: ip === "unknown" ? null : ip });
+  if (outcome.status !== "confirmed") return "invalid";
+  await sendEmail(newsletterWelcomeEmail(outcome.email, outcome.token));
+  return "confirmed";
 }

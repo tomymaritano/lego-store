@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { Client } from "pg";
 import { loadEnv } from "../../prisma/env";
@@ -75,6 +75,37 @@ async function deleteE2eInbox(client: Client) {
   await client.query(`DELETE FROM "AuditLog" WHERE "entityType" = 'message' AND "entityId" IN (SELECT "id" FROM "ContactMessage" WHERE "email" LIKE $1)`, [pattern]);
   await client.query(`DELETE FROM "ContactMessage" WHERE "email" LIKE $1`, [pattern]);
   await client.query(`DELETE FROM "NewsletterSubscriber" WHERE "email" LIKE $1`, [pattern]);
+}
+
+/** sha256 (base64url) of a newsletter link's token, as src/lib/newsletter stores it. */
+const hashNewsletterToken = (token: string) => createHash("sha256").update(token).digest("base64url");
+
+/**
+ * A newsletter subscriber straight in the dev database, with the tokens of
+ * its links (the real ones only travel by email). `unsubscribed` makes it one
+ * that opted out and was signed up again: it gets a pending confirmation
+ * link instead.
+ */
+export async function createE2eSubscriber({ unsubscribed = false }: { unsubscribed?: boolean } = {}): Promise<{ email: string; unsubscribeToken: string; confirmToken: string | null }> {
+  const email = uniqueEmail("boletin");
+  const unsubscribeToken = randomBytes(32).toString("base64url");
+  const confirmToken = unsubscribed ? randomBytes(32).toString("base64url") : null;
+  await withClient((client) =>
+    client.query(
+      `INSERT INTO "NewsletterSubscriber" ("id", "email", "source", "unsubscribeTokenHash", "unsubscribedAt", "resubscribeTokenHash", "resubscribeRequestedAt", "updatedAt")
+       VALUES ($1, $2, 'footer', $3, $4, $5, $4, now())`,
+      [`e2e_${randomBytes(8).toString("hex")}`, email, hashNewsletterToken(unsubscribeToken), unsubscribed ? new Date() : null, confirmToken ? hashNewsletterToken(confirmToken) : null]
+    )
+  );
+  return { email, unsubscribeToken, confirmToken };
+}
+
+/** Whether the address gets the newsletter (subscribed and not unsubscribed). */
+export function isE2eSubscriberActive(email: string): Promise<boolean> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ active: boolean }>(`SELECT "unsubscribedAt" IS NULL AS active FROM "NewsletterSubscriber" WHERE "email" = $1`, [email]);
+    return rows[0]?.active ?? false;
+  });
 }
 
 /** Coupons the specs created (codes start with E2E_COUPON_PREFIX), with their uses and audit entries. */

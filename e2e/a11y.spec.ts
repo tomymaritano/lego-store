@@ -67,6 +67,7 @@ const pages: Array<{ name: string; path: string; setup?: (page: Page) => Promise
   { name: "privacy", path: "/privacidad" },
   { name: "terms", path: "/terminos" },
   { name: "newsletter unsubscribe, bad link", path: "/newsletter/baja?token=no-es-un-token" },
+  { name: "newsletter confirmation, bad link", path: "/newsletter/confirmar?token=no-es-un-token" },
   { name: "not found", path: "/item/no-existe" },
 ];
 

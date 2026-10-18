@@ -533,9 +533,13 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» y
 - *Contacto y newsletter*: rate limit por IP (y por email el contacto), campo
   trampa, aviso a `STORE_NOTIFY_EMAIL` o al email de contacto. Token de baja de
   256 bits guardado como sha256; baja solo por POST (botón), nunca por GET.
-  Suscribirse otra vez contesta igual y no manda nada. No hay doble opt-in:
-  cualquiera puede suscribir un email ajeno (recibe la bienvenida con el enlace
-  de baja); queda como pendiente.
+  Suscribirse otra vez contesta igual y no manda nada. Un email dado de baja no
+  se reactiva desde el formulario público: recibe un email de confirmación
+  (token propio, sha256 en `resubscribeTokenHash`, 7 días, uno por día) y
+  vuelve solo con el botón de `/newsletter/confirmar`. Un email nuevo no tiene
+  doble opt-in: cualquiera puede suscribir uno ajeno (recibe la bienvenida con
+  el enlace de baja); queda como pendiente. Sin Resend, en producción los
+  emails no se vuelcan a la consola (solo asunto y destinatario enmascarado).
 - *Dashboard*: ingresos = PAID + SHIPPED + DELIVERED por día de pago en hora de
   Argentina; conversión = checkouts iniciados (pedidos creados) que terminaron
   cobrados, porque no hay analítica de visitas. Gráficos en HTML sobre tokens con

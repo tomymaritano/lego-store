@@ -3,8 +3,9 @@ import { CONTACT_TOPICS } from "@/lib/validations/contact-options";
 import type { EmailMessage } from "./send";
 
 /*
- * The contact form's notice to the store (a new message in the inbox) and
- * the newsletter's welcome with its unsubscribe link. Plain HTML with inline
+ * The contact form's notice to the store (a new message in the inbox), the
+ * newsletter's welcome with its unsubscribe link, and the confirmation an
+ * address that unsubscribed gets when someone signs it up again. Plain HTML with inline
  * styles (the store's light theme written out, as in ./orders.ts); every
  * value from a visitor is escaped.
  */
@@ -89,6 +90,28 @@ export function newsletterWelcomeEmail(to: string, token: string): EmailMessage 
     "Te vamos a escribir con lanzamientos, ofertas y novedades de la tienda.",
     "",
     `Para darte de baja: ${unsubscribeUrl}`,
+  ].join("\n");
+  return { to, subject, html, text };
+}
+
+/** To an address that unsubscribed and was signed up again: nothing changes unless its owner confirms. */
+export function newsletterConfirmEmail(to: string, token: string): EmailMessage {
+  const confirmUrl = siteUrl(`/newsletter/confirmar?token=${encodeURIComponent(token)}`);
+  const subject = `Confirma tu suscripción al newsletter de ${siteConfig.name}`;
+  const html = layout(
+    "¿Vuelves al newsletter?",
+    `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${COLORS.muted}">Alguien pidió suscribir este email al newsletter. Como te habías dado de baja, no te vamos a escribir hasta que lo confirmes.</p>
+     <p style="margin:0 0 8px"><a href="${escapeHtml(confirmUrl)}" style="display:inline-block;background:${COLORS.brand};color:${COLORS.text};font-weight:700;text-decoration:none;padding:12px 20px;border-radius:10px">Confirmar la suscripción</a></p>`,
+    "¿No fuiste tú? Ignora este email: sigues dado de baja y el enlace vence en 7 días."
+  );
+  const text = [
+    "¿Vuelves al newsletter?",
+    "",
+    "Alguien pidió suscribir este email al newsletter. Como te habías dado de baja, no te vamos a escribir hasta que lo confirmes.",
+    "",
+    `Para confirmar: ${confirmUrl}`,
+    "",
+    "¿No fuiste tú? Ignora este email: sigues dado de baja y el enlace vence en 7 días.",
   ].join("\n");
   return { to, subject, html, text };
 }

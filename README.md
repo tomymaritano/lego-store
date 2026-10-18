@@ -530,7 +530,10 @@ pagado, un reembolso hecho en Stripe, sin stock al pagar o `amount_mismatch`):
 un invitado no tiene otra forma de enterarse del reembolso. HTML simple con estilos en línea y
 versión en texto. Con `RESEND_API_KEY` y `EMAIL_FROM` se envían por Resend (sin
 dominio verificado, Resend solo entrega al dueño de la cuenta); sin ellas se
-muestran en la consola del servidor.
+muestran en la consola del servidor. En producción (`NODE_ENV=production`) sin
+Resend no se muestra el contenido: solo el asunto y el destinatario
+enmascarado, porque los emails llevan tokens de baja y mensajes de clientes que
+no deben quedar en los logs del hosting.
 
 **Configuración** (`src/lib/payments/config.ts`):
 
@@ -823,6 +826,10 @@ pedido viejo puede seguir usándolas.
   mismo y no manda nada (no revela quién está). `/newsletter/baja?token=…`
   muestra a qué dirección corresponde (enmascarada) y da de baja con un botón:
   un GET nunca da de baja, porque los filtros de correo abren los enlaces.
+  Una baja no se deshace desde el pie: suscribir de nuevo un email dado de baja
+  solo le manda un email de confirmación (`/newsletter/confirmar?token=…`,
+  vence en 7 días, como mucho uno por día por dirección) y sigue de baja hasta
+  que su dueño aprieta "Confirmar la suscripción".
   `/admin/newsletter` lista, busca y exporta.
 
 ## Cupones

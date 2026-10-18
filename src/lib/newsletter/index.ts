@@ -16,29 +16,47 @@ import type { AdminSubscriberFilters } from "@/lib/validations/inbox";
  * new one. Signing up an address that is already subscribed changes
  * nothing and sends nothing (the form says the same either way, so it does
  * not tell who is subscribed).
+ *
+ * An address that unsubscribed stays unsubscribed until its owner says
+ * otherwise: signing it up again only sends a "confirm" email with its own
+ * token (/newsletter/confirmar?token=..., valid RESUBSCRIBE_TTL_MS, at most
+ * one email per address per RESUBSCRIBE_RESEND_MS), and the button on that
+ * page is what subscribes it again. Anyone can type someone else's address
+ * in the footer; that must not undo their opt-out.
  */
 
 export const hashUnsubscribeToken = (token: string) => createHash("sha256").update(token).digest("base64url");
 
 const newToken = () => randomBytes(32).toString("base64url");
 
+/** How long a "confirm your subscription" link works. */
+export const RESUBSCRIBE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** A new confirmation email for the same address goes out at most this often. */
+export const RESUBSCRIBE_RESEND_MS = 24 * 60 * 60 * 1000;
+
 export type SubscribeOutcome =
-  /** New, or back after unsubscribing: `token` goes in the welcome email's unsubscribe link. */
-  | { status: "subscribed" | "resubscribed"; token: string }
+  /** New: `token` goes in the welcome email's unsubscribe link. */
+  | { status: "subscribed"; token: string }
+  /** Unsubscribed before: `token` goes in the confirmation email; the row stays unsubscribed. */
+  | { status: "confirm"; token: string }
+  /** Already subscribed, or a confirmation already sent recently: nothing to send. */
   | { status: "already" };
 
-export async function subscribe(db: Db, { email, source, ip = null }: { email: string; source: string; ip?: string | null }): Promise<SubscribeOutcome> {
+export async function subscribe(
+  db: Db,
+  { email, source, ip = null, now = new Date() }: { email: string; source: string; ip?: string | null; now?: Date }
+): Promise<SubscribeOutcome> {
   const address = email.trim().toLowerCase();
   const token = newToken();
   const tokenHash = hashUnsubscribeToken(token);
-  const existing = await db.newsletterSubscriber.findUnique({ where: { email: address }, select: { unsubscribedAt: true } });
+  const existing = await db.newsletterSubscriber.findUnique({ where: { email: address }, select: { unsubscribedAt: true, resubscribeRequestedAt: true } });
   if (existing && !existing.unsubscribedAt) return { status: "already" };
   if (existing) {
-    await db.newsletterSubscriber.update({
-      where: { email: address },
-      data: { unsubscribedAt: null, subscribedAt: new Date(), source, ip, unsubscribeTokenHash: tokenHash },
-    });
-    return { status: "resubscribed", token };
+    const recent = existing.resubscribeRequestedAt && now.getTime() - existing.resubscribeRequestedAt.getTime() < RESUBSCRIBE_RESEND_MS;
+    if (recent) return { status: "already" };
+    // Only the pending confirmation changes; source and ip are the confirmer's to set.
+    await db.newsletterSubscriber.update({ where: { email: address }, data: { resubscribeTokenHash: tokenHash, resubscribeRequestedAt: now } });
+    return { status: "confirm", token };
   }
   try {
     await db.newsletterSubscriber.create({ data: { email: address, source, ip, unsubscribeTokenHash: tokenHash } });
@@ -48,6 +66,42 @@ export async function subscribe(db: Db, { email, source, ip = null }: { email: s
     throw error;
   }
   return { status: "subscribed", token };
+}
+
+export type ResubscribeLookup = { found: false } | { found: true; email: string };
+
+/** The confirmation page: whose link it is, if it is pending and not expired. */
+export async function findByResubscribeToken(db: Db, token: string, now = new Date()): Promise<ResubscribeLookup> {
+  const row = await db.newsletterSubscriber.findUnique({
+    where: { resubscribeTokenHash: hashUnsubscribeToken(token) },
+    select: { email: true, unsubscribedAt: true, resubscribeRequestedAt: true },
+  });
+  if (!row?.unsubscribedAt || !row.resubscribeRequestedAt || now.getTime() - row.resubscribeRequestedAt.getTime() > RESUBSCRIBE_TTL_MS) return { found: false };
+  return { found: true, email: maskEmail(row.email) };
+}
+
+export type ConfirmOutcome =
+  /** Subscribed again: `email` and the new unsubscribe `token` go in the welcome email. */
+  { status: "confirmed"; email: string; token: string } | { status: "invalid" };
+
+/** The confirmation page's button: subscribes the address again, once, with a new unsubscribe token. */
+export async function confirmResubscribe(db: Db, token: string, { ip = null, now = new Date() }: { ip?: string | null; now?: Date } = {}): Promise<ConfirmOutcome> {
+  const resubscribeTokenHash = hashUnsubscribeToken(token);
+  const row = await db.newsletterSubscriber.findUnique({ where: { resubscribeTokenHash }, select: { email: true } });
+  if (!row) return { status: "invalid" };
+  const unsubscribeToken = newToken();
+  const { count } = await db.newsletterSubscriber.updateMany({
+    where: { resubscribeTokenHash, unsubscribedAt: { not: null }, resubscribeRequestedAt: { gte: new Date(now.getTime() - RESUBSCRIBE_TTL_MS) } },
+    data: {
+      unsubscribedAt: null,
+      subscribedAt: now,
+      ip,
+      unsubscribeTokenHash: hashUnsubscribeToken(unsubscribeToken),
+      resubscribeTokenHash: null,
+      resubscribeRequestedAt: null,
+    },
+  });
+  return count > 0 ? { status: "confirmed", email: row.email, token: unsubscribeToken } : { status: "invalid" };
 }
 
 export { maskEmail };

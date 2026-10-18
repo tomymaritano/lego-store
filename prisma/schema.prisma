@@ -199,7 +199,7 @@ model Product {
   imageSecondary   String?
   images           String[]
   /// Alt text of each gallery image, in the same order as `images`.
-  imageAlts        String[] @default([])
+  imageAlts        String[]  @default([])
   stock            Int       @default(0)
   /// Set when an admin archives the product: it leaves the storefront (catalogue,
   /// search, product page, carts, wishlists, checkout) but stays in the database,
@@ -215,8 +215,8 @@ model Product {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  category      Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  theme         Theme          @relation(fields: [themeId], references: [id], onDelete: Restrict)
+  category      Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  theme         Theme            @relation(fields: [themeId], references: [id], onDelete: Restrict)
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
   reviews       Review[]
@@ -728,18 +728,23 @@ model ContactMessage {
 /// A newsletter subscription. Unsubscribing keeps the row (unsubscribedAt),
 /// so the admin's list and its export say who left and when.
 model NewsletterSubscriber {
-  id                    String    @id @default(cuid())
+  id                     String    @id @default(cuid())
   /// Lowercased.
-  email                 String    @unique
+  email                  String    @unique
   /// Where the form was: "footer", "home"...
-  source                String
-  subscribedAt          DateTime  @default(now())
-  unsubscribedAt        DateTime?
+  source                 String
+  subscribedAt           DateTime  @default(now())
+  unsubscribedAt         DateTime?
   /// sha256 of the token in the unsubscribe link (/newsletter/baja?token=...); a new
   /// one is issued on every (re)subscription. Never the token itself.
-  unsubscribeTokenHash  String    @unique
-  ip                    String?
-  updatedAt             DateTime  @updatedAt
+  unsubscribeTokenHash   String    @unique
+  /// Signing up again after unsubscribing needs the owner's confirmation: sha256 of
+  /// the token in the "confirm" email (/newsletter/confirmar?token=...), and when
+  /// it was sent (the link expires; one email per address per day).
+  resubscribeTokenHash   String?   @unique
+  resubscribeRequestedAt DateTime?
+  ip                     String?
+  updatedAt              DateTime  @updatedAt
 
   @@index([subscribedAt])
   @@index([unsubscribedAt])
