@@ -4,11 +4,15 @@
  * next.config.mjs does not list in images.remotePatterns, so the admin form
  * only accepts what that config allows:
  *
- * - a file of the site itself: "/images/lego.png" (public/);
+ * - a file of the site itself: "/images/lego.png" (public/), with no query
+ *   string or fragment: next.config.mjs sets no images.localPatterns, and
+ *   Next's default ({ pathname: "**", search: "" }) makes next/image throw
+ *   during render on "/images/lego.png?v=2";
  * - an https URL matching one of REMOTE_IMAGE_PATTERNS.
  *
- * Keep REMOTE_IMAGE_PATTERNS equal to next.config.mjs's remotePatterns
- * (__tests__/lib/images.test.ts checks it). Client-safe.
+ * Keep REMOTE_IMAGE_PATTERNS equal to next.config.mjs's remotePatterns, and
+ * the site-file rule in step with its (absent) localPatterns
+ * (__tests__/lib/images.test.ts checks both). Client-safe.
  */
 
 export interface RemoteImagePattern {
@@ -35,9 +39,9 @@ function matchesPattern(url: URL, pattern: RemoteImagePattern): boolean {
 export function isAllowedImageUrl(value: string): boolean {
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.length > 2048 || /\s/.test(trimmed)) return false;
-  // A file of this site: one leading slash (not "//host", not "/\host"), no "..".
+  // A file of this site: one leading slash (not "//host", not "/\host"), no "..", no query string or fragment.
   if (trimmed.startsWith("/")) {
-    return !trimmed.startsWith("//") && !trimmed.includes("\\") && !trimmed.split(/[?#]/)[0]!.split("/").includes("..");
+    return !trimmed.startsWith("//") && !/[\\?#]/.test(trimmed) && !trimmed.split("/").includes("..");
   }
   let url: URL;
   try {
