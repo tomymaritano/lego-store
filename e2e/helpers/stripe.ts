@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, type APIRequestContext } from "@playwright/test";
 import Stripe from "stripe";
 import { latestOrder } from "./db";
@@ -17,8 +18,6 @@ export const E2E_WEBHOOK_SECRET = "whsec_e2e_lego_store_mock_only";
 /** Environment of the dev server the e2e suite starts. */
 export const E2E_SERVER_ENV = { STRIPE_MOCK: "1", STRIPE_WEBHOOK_SECRET: E2E_WEBHOOK_SECRET };
 
-let delivered = 0;
-
 /**
  * Sends the signed payment_intent.succeeded event for the newest order of
  * `email` (placed by the spec, its payment confirmed) and returns the
@@ -28,7 +27,8 @@ export async function deliverPaymentSucceeded(request: APIRequestContext, email:
   const order = await latestOrder(email);
   expect(order?.paymentIntentId, `no order with a PaymentIntent for ${email}`).toBeTruthy();
   const payload = JSON.stringify({
-    id: `evt_e2e_${Date.now()}_${++delivered}`,
+    // Unique across workers: the webhook answers "duplicate" to an id it has seen.
+    id: `evt_e2e_${randomUUID()}`,
     object: "event",
     type: "payment_intent.succeeded",
     created: Math.floor(Date.now() / 1000),

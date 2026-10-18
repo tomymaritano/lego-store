@@ -34,6 +34,8 @@ const ROUTES = [
   "/register",
   "/account",
   "/account/orders",
+  // A dynamic route compiles on its first hit, whatever the id: a 404 or redirect still warms it.
+  "/account/orders/warmup",
   "/admin",
 ];
 
