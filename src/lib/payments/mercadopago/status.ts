@@ -65,3 +65,18 @@ export function pendingMessage(methodType: string | null, detail: string | null)
   }
   return "Estamos procesando tu pago. Te avisamos por email apenas se acredite (suele tardar menos de 2 días hábiles).";
 }
+
+/** Mercado Pago's statuses as the admin reads them. */
+const STATUS_LABELS: Record<string, string> = {
+  approved: "Aprobado",
+  pending: "Pendiente",
+  in_process: "En revisión",
+  authorized: "Autorizado",
+  in_mediation: "En disputa",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  refunded: "Reembolsado",
+  charged_back: "Contracargo",
+};
+
+export const mercadoPagoStatusLabel = (status: string) => STATUS_LABELS[status] ?? status;

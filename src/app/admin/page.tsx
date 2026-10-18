@@ -9,6 +9,7 @@ import { updateStockAction } from "@/lib/admin/actions";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
 import { formatPrice, pluralize } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { PaymentsProviderBadge } from "@/components/admin/PaymentsProviderBadge";
 import { AdminStat } from "@/components/admin/AdminStat";
 import { OrdersTable } from "@/components/admin/OrdersTable";
 import { StockQuickEdit } from "@/components/admin/StockQuickEdit";
@@ -37,6 +38,7 @@ export default async function AdminPage() {
         title="Panel de administración"
         breadcrumbs={[{ label: "Administración" }]}
         description="Resumen de la tienda: hoy es el día calendario de Argentina."
+        actions={<PaymentsProviderBadge />}
       />
 
       {dashboard.amountMismatches > 0 ? (
@@ -44,7 +46,7 @@ export default async function AdminPage() {
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-danger" />
           <p>
             En los últimos {MISMATCH_WINDOW_DAYS} días,{" "}
-            {pluralize(dashboard.amountMismatches, "pedido se canceló", "pedidos se cancelaron")} porque Stripe cobró un monto distinto
+            {pluralize(dashboard.amountMismatches, "pedido se canceló", "pedidos se cancelaron")} porque el proveedor de pagos cobró un monto distinto
             del total (y se reembolsó). No debería pasar: revísalos.{" "}
             <Link href="/admin/orders?status=amount_mismatch" prefetch={false} className="font-semibold underline underline-offset-4">
               Ver pedidos

@@ -1,12 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CreditCard, History, MapPin, Package, ReceiptText, UserRound } from "lucide-react";
+import { CreditCard, ExternalLink, History, MapPin, Package, ReceiptText, UserRound, Wallet } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminCancelReasonLabel, formatAdminDateTime } from "@/lib/admin/format";
 import { getAdminOrderDetail } from "@/lib/admin/data";
-import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderNumber, paymentLabel } from "@/lib/orders/format";
-import { paymentsMode } from "@/lib/payments/config";
+import {
+  ORDER_STATUS_BADGE,
+  ORDER_STATUS_LABELS,
+  formatOrderNumber,
+  formatTicketExpiry,
+  installmentsLabel,
+  orderPaymentLabel,
+  paymentMethodTypeLabel,
+} from "@/lib/orders/format";
+import { providerConfigured } from "@/lib/payments/config";
+import { mercadoPagoStatusLabel } from "@/lib/payments/mercadopago/status";
+import { PROVIDER_LABELS } from "@/lib/payments/provider";
 import { formatPrice, pluralize } from "@/lib/utils";
 import { orderIdSchema } from "@/lib/validations/orders";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -45,10 +55,20 @@ function Detail({ term, children, mono = false }: { term: string; children: Reac
   );
 }
 
+const EVENT_SOURCES: Record<string, string> = {
+  checkout: "al pagar",
+  webhook: "notificación",
+  return: "vuelta de Mercado Pago",
+  expire: "limpieza de pendientes",
+  admin: "panel",
+};
+
 /**
  * /admin/orders/<id>: one order with its lines (as bought), customer and
- * shipping address, payment (card and Stripe ids), the status timeline, who
- * changed what (OrderStatusChange), and the status changes it allows.
+ * shipping address, payment (provider, method, installments, the provider's
+ * ids and status, a cash ticket), the status timeline, what the provider said
+ * about each payment (PaymentEvent), who changed what (OrderStatusChange), and
+ * the status changes it allows.
  */
 export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const { orderId } = await params;
@@ -83,10 +103,10 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               {order.status === "CANCELLED" ? (
                 <p className="rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary">
                   <span className="font-semibold text-fg">Motivo: </span>
-                  {adminCancelReasonLabel(order.cancelReason, order.stripeRefundId)}
+                  {adminCancelReasonLabel(order.cancelReason, order.refundId)}
                 </p>
               ) : null}
-              <OrderStatusActions order={order} paymentsConfigured={paymentsMode() !== "unconfigured"} />
+              <OrderStatusActions order={order} paymentsConfigured={providerConfigured(order.payment.provider)} />
             </CardContent>
           </Card>
 
@@ -129,6 +149,30 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                 ))}
               </TableBody>
             </Table>
+          </section>
+
+          <section aria-labelledby="admin-order-payment-history-title" className="space-y-3">
+            <SectionTitle id="admin-order-payment-history-title" icon={<Wallet />}>
+              Historial del pago
+            </SectionTitle>
+            {order.paymentEvents.length === 0 ? (
+              <p className="text-label font-normal text-fg-secondary">
+                {order.payment.provider === "STRIPE"
+                  ? "Los pagos de Stripe se siguen por las fechas del pedido (pagado, cancelado) y el PaymentIntent."
+                  : "Mercado Pago todavía no informó ningún pago de este pedido."}
+              </p>
+            ) : (
+              <ol className="space-y-2" data-testid="admin-payment-history">
+                {order.paymentEvents.map((event) => (
+                  <li key={event.id} className="rounded-xl border border-border bg-surface px-4 py-3 text-label font-normal text-fg-secondary">
+                    <span className="font-semibold text-fg">{mercadoPagoStatusLabel(event.status)}</span>
+                    {event.statusDetail ? <span className="font-mono text-caption"> ({event.statusDetail})</span> : null}{" "}
+                    el {formatAdminDateTime(event.at)} ({EVENT_SOURCES[event.source] ?? event.source})
+                    <span className="block font-mono text-caption text-fg-muted">Pago {event.paymentId}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
 
           <section aria-labelledby="admin-order-history-title" className="space-y-3">
@@ -224,14 +268,35 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               </SectionTitle>
             </CardHeader>
             <CardContent>
-              <dl className="space-y-3">
-                <Detail term="Tarjeta">{order.paymentLast4 ? paymentLabel(order.paymentBrand, order.paymentLast4) : "Sin datos"}</Detail>
-                <Detail term="PaymentIntent de Stripe" mono>
-                  {order.stripePaymentIntentId ?? "—"}
+              <dl className="space-y-3" data-testid="admin-order-payment">
+                <Detail term="Proveedor">{PROVIDER_LABELS[order.payment.provider]}</Detail>
+                <Detail term="Medio">
+                  {order.paymentBrand || order.paymentLast4 || order.payment.methodType ? orderPaymentLabel(order) : "Sin datos"}
                 </Detail>
-                {order.stripeRefundId ? (
+                {paymentMethodTypeLabel(order.payment.methodType) ? <Detail term="Tipo">{paymentMethodTypeLabel(order.payment.methodType)}</Detail> : null}
+                {order.payment.installments ? <Detail term="Cuotas">{installmentsLabel(order.payment.installments)}</Detail> : null}
+                <Detail term={order.payment.provider === "STRIPE" ? "PaymentIntent de Stripe" : "Pago de Mercado Pago"} mono>
+                  {order.paymentId ?? "—"}
+                </Detail>
+                {order.paymentStatus ? (
+                  <Detail term="Estado en el proveedor">
+                    {mercadoPagoStatusLabel(order.paymentStatus)}
+                    {order.paymentStatusDetail ? <span className="block font-mono text-caption text-fg-muted">{order.paymentStatusDetail}</span> : null}
+                  </Detail>
+                ) : null}
+                {order.payment.ticketUrl ? (
+                  <Detail term="Ticket">
+                    <a href={order.payment.ticketUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium underline underline-offset-4">
+                      Ver ticket
+                      <span className="sr-only"> (se abre en otra pestaña)</span>
+                      <ExternalLink aria-hidden="true" className="size-3.5" />
+                    </a>
+                    {order.payment.ticketExpiresAt ? <span className="block text-caption text-fg-muted">Vence el {formatTicketExpiry(order.payment.ticketExpiresAt)}</span> : null}
+                  </Detail>
+                ) : null}
+                {order.refundId ? (
                   <Detail term="Reembolso" mono>
-                    {order.stripeRefundId}
+                    {order.refundId}
                   </Detail>
                 ) : null}
                 {order.paidAt ? <Detail term="Pagado">{formatAdminDateTime(order.paidAt)}</Detail> : null}

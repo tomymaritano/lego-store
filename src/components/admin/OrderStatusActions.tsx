@@ -2,7 +2,8 @@ import { Ban, PackageCheck, Truck } from "lucide-react";
 import { changeOrderStatusAction } from "@/lib/admin/actions";
 import { ADMIN_TRANSITIONS } from "@/lib/admin/format";
 import { formatOrderNumber } from "@/lib/orders/format";
-import type { OrderStatus } from "@/lib/orders/types";
+import type { OrderStatus, PaymentProviderId } from "@/lib/orders/types";
+import { PROVIDER_LABELS } from "@/lib/payments/provider";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui";
 import { ConfirmAction } from "./ConfirmAction";
@@ -16,13 +17,15 @@ interface OrderStatusActionsProps {
     email: string;
     /** A cancellation's refund has an unknown outcome: no shipping until it is cancelled again. */
     refundPending?: boolean;
-    /** A pending order with a PaymentIntent: cancelling it cancels that payment in Stripe. */
-    stripePaymentIntentId?: string | null;
+    /** Who took (or takes) its payment. */
+    payment?: { provider: PaymentProviderId; methodType?: string | null };
+    /** The provider's payment: cancelling a pending order cancels it there (a PaymentIntent, a cash ticket). */
+    paymentId?: string | null;
   };
   /**
-   * False when the server has no payment provider (paymentsMode "unconfigured"):
-   * a cancellation that has to refund or cancel a payment in Stripe is then
-   * shown disabled, with the reason, instead of failing after the dialog.
+   * False when the order's provider is not configured on this server: a
+   * cancellation that has to refund or cancel its payment is then shown
+   * disabled, with the reason, instead of failing after the dialog.
    */
   paymentsConfigured?: boolean;
 }
@@ -40,8 +43,10 @@ export function OrderStatusActions({ order, paymentsConfigured = true }: OrderSt
   const held = order.status === "PAID" && order.refundPending === true;
   const next = ADMIN_TRANSITIONS[order.status].filter((to) => !(held && to === "SHIPPED"));
   if (next.length === 0) return null;
-  // Cancelling refunds a paid order or cancels the pending payment: both go through Stripe.
-  const cancelBlocked = !paymentsConfigured && (order.status === "PAID" || Boolean(order.stripePaymentIntentId));
+  const provider = PROVIDER_LABELS[order.payment?.provider ?? "STRIPE"];
+  const ticket = order.payment?.methodType === "ticket";
+  // Cancelling refunds a paid order or cancels the pending payment: both go through the order's provider.
+  const cancelBlocked = !paymentsConfigured && (order.status === "PAID" || Boolean(order.paymentId));
   const cancelLabel = held ? "Reintentar la cancelación" : order.status === "PAID" ? "Cancelar y reembolsar" : "Cancelar pedido";
   const run = (to: (typeof next)[number]) => changeOrderStatusAction.bind(null, { orderId: order.id, to, expected: order.status });
 
@@ -50,7 +55,7 @@ export function OrderStatusActions({ order, paymentsConfigured = true }: OrderSt
       {held ? (
         <p className="rounded-xl bg-bg-subtle p-4 text-label font-normal text-fg-secondary" data-testid="order-refund-pending">
           <span className="font-semibold text-fg">Reembolso sin confirmar: </span>
-          pedimos el reembolso a Stripe pero no pudimos confirmar si se hizo. El pedido queda retenido y no se puede enviar: reintenta la
+          pedimos el reembolso a {provider} pero no pudimos confirmar si se hizo. El pedido queda retenido y no se puede enviar: reintenta la
           cancelación para cerrarlo (nunca se reembolsa dos veces).
         </p>
       ) : null}
@@ -95,11 +100,16 @@ export function OrderStatusActions({ order, paymentsConfigured = true }: OrderSt
             description={
               order.status === "PAID" ? (
                 <p>
-                  Reembolsamos {formatPrice(order.total)} en Stripe a la tarjeta del cliente y devolvemos el stock de sus productos. No se puede
-                  deshacer.
+                  Reembolsamos {formatPrice(order.total)} en {provider} al medio de pago del cliente y devolvemos el stock de sus productos. No
+                  se puede deshacer.
+                </p>
+              ) : order.paymentId ? (
+                <p>
+                  Todavía no se cobró: cancelamos el {ticket ? "ticket de pago" : "pago pendiente"} en {provider}, así ya no se puede pagar. No se
+                  puede deshacer.
                 </p>
               ) : (
-                <p>Todavía no se cobró: cancelamos el pago pendiente en Stripe, así ya no se puede pagar. No se puede deshacer.</p>
+                <p>Todavía no se cobró nada: el pedido se cancela y ya no se puede pagar. No se puede deshacer.</p>
               )
             }
             confirmLabel={order.status === "PAID" ? "Cancelar y reembolsar" : "Cancelar pedido"}
@@ -110,7 +120,7 @@ export function OrderStatusActions({ order, paymentsConfigured = true }: OrderSt
       </div>
       {next.includes("CANCELLED") && cancelBlocked ? (
         <p id="order-cancel-blocked" className="text-caption text-fg-muted" data-testid="order-cancel-blocked">
-          Los pagos no están configurados en este servidor: cancelar este pedido necesita Stripe para{" "}
+          Los pagos no están configurados en este servidor: cancelar este pedido necesita {provider} para{" "}
           {order.status === "PAID" ? "reembolsar el pago" : "cancelar el pago pendiente"}.
         </p>
       ) : null}
