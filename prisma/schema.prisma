@@ -292,6 +292,10 @@ model Order {
 
   stripePaymentIntentId String? @unique
   stripeRefundId        String? @unique
+  /// Set (and committed) before an admin's cancellation asks Stripe for the
+  /// refund; while it is set and the order is still PAID the refund's outcome
+  /// is unknown, so the order cannot be shipped (src/lib/admin/orders.ts).
+  refundRequestedAt     DateTime?
   /// sha256 of the checkout access token kept in the browser's HttpOnly cookie
   /// (src/lib/orders/access.ts): lets a guest's browser read and pay its own order.
   checkoutTokenHash     String?

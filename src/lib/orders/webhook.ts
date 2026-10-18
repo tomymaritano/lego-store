@@ -11,6 +11,13 @@ import { toCentavos, type PaymentGateway } from "@/lib/payments/gateway";
  *   payment_intent.payment_failed  stays PENDING (the customer can try another
  *                                  card), out of "Mis pedidos" again
  *   payment_intent.canceled        PENDING -> CANCELLED
+ *   charge.refunded                a full refund, from anywhere (the Stripe
+ *                                  Dashboard, say): PAID -> CANCELLED with
+ *                                  the stock back, PENDING -> CANCELLED; a
+ *                                  shipped or delivered order only records
+ *                                  it, and one an admin is cancelling
+ *                                  (refundRequestedAt) is left to that
+ *                                  cancellation (src/lib/admin/orders.ts)
  *
  * Each event is handled at most once: its id goes into ProcessedStripeEvent
  * in the same transaction as its changes, so a replay (Stripe retries, or
@@ -43,9 +50,11 @@ export type WebhookOutcome =
   | { result: "out_of_stock"; orderId: string }
   | { result: "amount_mismatch"; orderId: string }
   | { result: "refunded"; orderId: string }
-  | { result: "cancelled"; orderId: string };
+  | { result: "cancelled"; orderId: string }
+  /** charge.refunded cancelled the order; `productIds` got their stock back (empty when it was not paid yet). */
+  | { result: "refund_cancelled"; orderId: string; productIds: string[] };
 
-const HANDLED = new Set(["payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled"]);
+const HANDLED = new Set(["payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled", "charge.refunded"]);
 
 interface IntentObject {
   id: string;
@@ -58,6 +67,21 @@ interface IntentObject {
 function intentOf(event: WebhookEvent): IntentObject | null {
   const object = event.data.object as Partial<IntentObject> | null;
   return object && typeof object.id === "string" ? (object as IntentObject) : null;
+}
+
+interface ChargeObject {
+  id: string;
+  payment_intent?: string | { id: string } | null;
+  /** True once the whole charge was refunded (partial refunds leave it false). */
+  refunded?: boolean | null;
+}
+
+/** The PaymentIntent a charge.refunded event is about. */
+function refundedIntentOf(event: WebhookEvent): { intentId: string; full: boolean } | null {
+  const object = event.data.object as Partial<ChargeObject> | null;
+  const intent = object?.payment_intent;
+  const intentId = typeof intent === "string" ? intent : typeof intent?.id === "string" ? intent.id : null;
+  return intentId ? { intentId, full: object?.refunded === true } : null;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -73,9 +97,9 @@ async function claimEvent(tx: Tx, event: WebhookEvent): Promise<boolean> {
 }
 
 /** The order of a PaymentIntent, locked for this transaction. */
-async function lockOrder(tx: Tx, intent: IntentObject) {
+async function lockOrder(tx: Tx, intentId: string) {
   const ids = await tx.$queryRaw<{ id: string }[]>`
-    SELECT "id" FROM "Order" WHERE "stripePaymentIntentId" = ${intent.id} FOR UPDATE
+    SELECT "id" FROM "Order" WHERE "stripePaymentIntentId" = ${intentId} FOR UPDATE
   `;
   const id = ids[0]?.id;
   if (!id) return null;
@@ -88,6 +112,7 @@ async function lockOrder(tx: Tx, intent: IntentObject) {
       total: true,
       currency: true,
       stripeRefundId: true,
+      refundRequestedAt: true,
       items: { select: { productId: true, quantity: true } },
     },
   });
@@ -116,6 +141,24 @@ async function takeStock(tx: Tx, order: LockedOrder): Promise<boolean> {
   return true;
 }
 
+/**
+ * Puts back the stock a paid order took (the reverse of takeStock), in the
+ * same lock order, so a payment and a cancellation never deadlock. Lines of
+ * deleted products have nothing to go back to. Returns the restocked ids.
+ */
+export async function restock(tx: Tx, items: { productId: string | null; quantity: number }[]): Promise<string[]> {
+  // The same product never repeats in an order.
+  const lines = items.filter((item): item is { productId: string; quantity: number } => item.productId !== null);
+  const ids = lines.map((line) => line.productId).sort();
+  if (ids.length === 0) return [];
+  await tx.$queryRaw`SELECT "id" FROM "Product" WHERE "id" = ANY(${ids}::text[]) ORDER BY "id" FOR UPDATE`;
+  const quantity = new Map(lines.map((line) => [line.productId, line.quantity]));
+  for (const id of ids) {
+    await tx.$executeRaw`UPDATE "Product" SET "stock" = "stock" + ${quantity.get(id)!}, "updatedAt" = now() WHERE "id" = ${id}`;
+  }
+  return ids;
+}
+
 async function refundInto(tx: Tx, gateway: PaymentGateway, orderId: string, intentId: string) {
   const refund = await gateway.refund(intentId, `order/${orderId}/refund`);
   await tx.order.update({ where: { id: orderId }, data: { stripeRefundId: refund.id } });
@@ -127,7 +170,7 @@ export function chargedInFull(intent: IntentObject, order: { total: number; curr
 }
 
 async function onSucceeded(tx: Tx, gateway: PaymentGateway, intent: IntentObject): Promise<WebhookOutcome> {
-  const order = await lockOrder(tx, intent);
+  const order = await lockOrder(tx, intent.id);
   if (!order) return { result: "ignored" };
 
   if (order.status === "PENDING" && !chargedInFull(intent, order)) {
@@ -171,7 +214,7 @@ async function onSucceeded(tx: Tx, gateway: PaymentGateway, intent: IntentObject
 }
 
 async function onCanceled(tx: Tx, intent: IntentObject): Promise<WebhookOutcome> {
-  const order = await lockOrder(tx, intent);
+  const order = await lockOrder(tx, intent.id);
   if (!order) return { result: "ignored" };
   if (order.status !== "PENDING") return { result: "unchanged", orderId: order.id };
   await tx.order.update({
@@ -181,27 +224,68 @@ async function onCanceled(tx: Tx, intent: IntentObject): Promise<WebhookOutcome>
   return { result: "cancelled", orderId: order.id };
 }
 
+/** A full refund made outside the order flow: the order follows the money. */
+async function onRefunded(tx: Tx, gateway: PaymentGateway, charge: { intentId: string; full: boolean }): Promise<WebhookOutcome> {
+  const order = await lockOrder(tx, charge.intentId);
+  if (!order) return { result: "ignored" };
+  const refundId = async () => order.stripeRefundId ?? (await gateway.findRefund(charge.intentId))?.id ?? null;
+
+  if (order.status === "CANCELLED") {
+    if (!order.stripeRefundId) {
+      const id = await refundId();
+      if (id) await tx.order.update({ where: { id: order.id }, data: { stripeRefundId: id } });
+    }
+    return { result: "unchanged", orderId: order.id };
+  }
+  if (!charge.full) {
+    console.warn(`[stripe] Reembolso parcial de ${charge.intentId} (pedido ${order.id}): el pedido no cambia.`);
+    return { result: "unchanged", orderId: order.id };
+  }
+  if (order.status === "SHIPPED" || order.status === "DELIVERED") {
+    // Already sent: the order keeps its status; the refund is on record.
+    console.warn(`[stripe] Se reembolsó ${charge.intentId}, pero el pedido ${order.id} ya está ${order.status}.`);
+    if (!order.stripeRefundId) await tx.order.update({ where: { id: order.id }, data: { stripeRefundId: await refundId() } });
+    return { result: "unchanged", orderId: order.id };
+  }
+  if (order.status === "PAID" && order.refundRequestedAt) {
+    // An admin's cancellation asked for this refund: it finishes the order (and records who), or the
+    // admin's retry does. Until then the order is held and cannot ship.
+    return { result: "unchanged", orderId: order.id };
+  }
+  // PAID took the stock: it goes back. PENDING (the refund arrived first) took none.
+  const productIds = order.status === "PAID" ? await restock(tx, order.items) : [];
+  await tx.order.update({
+    where: { id: order.id },
+    data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "refunded", stripeRefundId: await refundId() },
+  });
+  return { result: "refund_cancelled", orderId: order.id, productIds };
+}
+
 /**
  * Applies one verified event. Throws (and changes nothing) when the work
  * could not be done, e.g. a refund request failed: the route answers 500 and
  * Stripe retries.
  */
 export async function handleStripeEvent(db: PrismaClient, gateway: PaymentGateway, event: WebhookEvent): Promise<WebhookOutcome> {
-  const intent = intentOf(event);
-  if (!HANDLED.has(event.type) || !intent) return { result: "ignored" };
+  if (!HANDLED.has(event.type)) return { result: "ignored" };
+  const charge = event.type === "charge.refunded" ? refundedIntentOf(event) : null;
+  const intent = event.type === "charge.refunded" ? null : intentOf(event);
+  if (!intent && !charge) return { result: "ignored" };
 
   return db.$transaction(
     async (tx) => {
       if (!(await claimEvent(tx, event))) return { result: "duplicate" } as const;
       switch (event.type) {
+        case "charge.refunded":
+          return onRefunded(tx, gateway, charge!);
         case "payment_intent.succeeded":
-          return onSucceeded(tx, gateway, intent);
+          return onSucceeded(tx, gateway, intent!);
         case "payment_intent.canceled":
-          return onCanceled(tx, intent);
+          return onCanceled(tx, intent!);
         default: {
           // payment_failed (e.g. 3D Secure refused): the order waits for another card (or the cleanup),
           // and is not a purchase until one goes through.
-          const order = await lockOrder(tx, intent);
+          const order = await lockOrder(tx, intent!.id);
           if (!order) return { result: "ignored" } as const;
           if (order.status === "PENDING") await tx.order.update({ where: { id: order.id }, data: { submittedAt: null } });
           return { result: "unchanged", orderId: order.id } as const;

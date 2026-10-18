@@ -20,7 +20,10 @@ function fakeStripe() {
       confirm: vi.fn(async () => ({ ...intent, status: "succeeded" })),
       cancel: vi.fn(async () => ({ ...intent, status: "canceled" })),
     },
-    refunds: { create: vi.fn(async () => ({ id: "re_123" })) },
+    refunds: {
+      create: vi.fn(async () => ({ id: "re_123" })),
+      list: vi.fn(async (): Promise<{ data: { id: string; status: string }[] }> => ({ data: [] })),
+    },
     confirmationTokens: {
       retrieve: vi.fn(async () => ({ id: "ctoken_123", payment_method_preview: { type: "card", card: { brand: "mastercard", last4: "4444" } } })),
     },
@@ -93,6 +96,17 @@ describe("stripeGateway", () => {
     const stripe = fakeStripe();
     expect(await gatewayOn(stripe).refund("pi_123", "order/1/refund")).toEqual({ id: "re_123" });
     expect(stripe.refunds.create).toHaveBeenCalledWith({ payment_intent: "pi_123" }, { idempotencyKey: "order/1/refund" });
+  });
+
+  it("finds a PaymentIntent's refund that went through, skipping failed and canceled ones", async () => {
+    const stripe = fakeStripe();
+    const gateway = gatewayOn(stripe);
+    expect(await gateway.findRefund("pi_123")).toBeNull();
+    expect(stripe.refunds.list).toHaveBeenCalledWith({ payment_intent: "pi_123", limit: 10 });
+    stripe.refunds.list.mockResolvedValueOnce({ data: [{ id: "re_failed", status: "failed" }, { id: "re_ok", status: "pending" }] });
+    expect(await gateway.findRefund("pi_123")).toEqual({ id: "re_ok" });
+    stripe.refunds.list.mockResolvedValueOnce({ data: [{ id: "re_canceled", status: "canceled" }] });
+    expect(await gateway.findRefund("pi_123")).toBeNull();
   });
 });
 

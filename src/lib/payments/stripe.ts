@@ -105,6 +105,13 @@ export function stripeGateway(stripe: StripeClient): PaymentGateway {
       return { id: refund.id };
     },
 
+    async findRefund(intentId) {
+      const refunds = await stripe.refunds.list({ payment_intent: intentId, limit: 10 });
+      // "failed" and "canceled" refunds gave nothing back.
+      const refund = refunds.data.find((item) => item.status !== "failed" && item.status !== "canceled");
+      return refund ? { id: refund.id } : null;
+    },
+
     async readConfirmationToken(id): Promise<CardPreview | null> {
       try {
         const token = await stripe.confirmationTokens.retrieve(id);

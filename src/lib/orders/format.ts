@@ -34,6 +34,7 @@ export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
   expired: "El pago no se completó a tiempo, así que cancelamos el pedido. No se cobró nada.",
   superseded: "Lo reemplazó un pedido más nuevo hecho desde el mismo navegador. No se cobró nada.",
   payment_setup_failed: "No pudimos iniciar el pago. No se cobró nada.",
+  refunded: "Se reembolsó el pago, así que cancelamos el pedido: el dinero puede tardar unos días en verse en tu tarjeta.",
   admin: "La tienda canceló el pedido. Si ya estaba pago, te devolvimos el dinero.",
 };
 

@@ -195,35 +195,85 @@ describe("changeOrderStatus: cancelling", () => {
     expect(row).toMatchObject({ status: "PAID", stripeRefundId: null, cancelledAt: null });
     expect(row.statusChanges).toEqual([]);
     expect(await stockOf("15")).toBe(1);
+    // Stripe has no refund for it: the order is not held, it can still ship.
+    expect(row.refundRequestedAt).toBeNull();
+    expect((await getAdminOrder(testDb, order.id))!.refundPending).toBe(false);
 
     // Trying again once Stripe is back works.
     expect(await move(order.id, "CANCELLED", "PAID")).toMatchObject({ ok: true, changed: true });
     expect(await stockOf("15")).toBe(3);
   });
 
-  it("a refund that went through while the save failed is not repeated on retry (same idempotency key, one refund)", async () => {
+  /** Stripe makes the refund, but its answer never arrives. */
+  const losingAnswers = (keys: string[] = []): PaymentGateway => ({
+    ...gateway,
+    refund: async (intentId, key) => {
+      keys.push(key);
+      await gateway.refund(intentId, key);
+      throw new Error("socket hang up");
+    },
+  });
+
+  it("a refund whose answer got lost is found in Stripe and the cancellation completes with it", async () => {
     const order = await placeOrder([{ productId: "7", quantity: 1 }]);
     const keys: string[] = [];
-    // Stripe makes the refund, but the answer never arrives (the transaction rolls back).
-    const lost: PaymentGateway = {
-      ...gateway,
-      refund: async (intentId, key) => {
-        keys.push(key);
-        await gateway.refund(intentId, key);
-        throw new Error("socket hang up");
-      },
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await move(order.id, "CANCELLED", "PAID", losingAnswers(keys));
+    errors.mockRestore();
+
+    expect(result).toMatchObject({ ok: true, changed: true, status: "CANCELLED", restockedProductIds: ["7"] });
+    expect(keys).toEqual([refundKey(order.id)]);
+    // One refund in Stripe, the one the order and its audit row record.
+    expect(state.refunds.size).toBe(1);
+    const refundId = [...state.refunds.keys()][0];
+    const row = await orderRow(order.id);
+    expect(row).toMatchObject({ status: "CANCELLED", stripeRefundId: refundId });
+    expect(row.statusChanges).toEqual([expect.objectContaining({ fromStatus: "PAID", toStatus: "CANCELLED", refundId })]);
+    expect(await stockOf("7")).toBe(40);
+  });
+
+  it("when Stripe cannot even say whether it refunded, the order is held: it cannot ship until a retry settles it", async () => {
+    const order = await placeOrder([{ productId: "7", quantity: 1 }]);
+    const keys: string[] = [];
+    const unreachable: PaymentGateway = {
+      ...losingAnswers(keys),
+      findRefund: async () => Promise.reject(new Error("ETIMEDOUT")),
     };
-    vi.spyOn(console, "error").mockImplementationOnce(() => {});
-    expect(await move(order.id, "CANCELLED", "PAID", lost)).toEqual({ ok: false, reason: "refund_failed" });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await move(order.id, "CANCELLED", "PAID", unreachable)).toEqual({ ok: false, reason: "refund_unknown" });
+    errors.mockRestore();
+
+    // The money is back with the customer; the order is still PAID but held, its stock not back yet.
+    expect(state.refunds.size).toBe(1);
+    const held = await orderRow(order.id);
+    expect(held).toMatchObject({ status: "PAID", stripeRefundId: null });
+    expect(held.refundRequestedAt).not.toBeNull();
+    expect((await getAdminOrder(testDb, order.id))!.refundPending).toBe(true);
     expect(await stockOf("7")).toBe(39);
 
+    // Shipping it is refused (with or without Stripe reachable), and no email goes out.
+    emails.mockClear();
+    expect(await move(order.id, "SHIPPED", "PAID")).toEqual({ ok: false, reason: "refund_pending" });
+    expect(await move(order.id, "SHIPPED", "PAID", null)).toEqual({ ok: false, reason: "refund_pending" });
+    expect(sentEmails()).toEqual([]);
+
+    // Stripe's charge.refunded for that refund leaves the order to the admin's cancellation (who did it is recorded there).
+    expect(
+      await handleStripeEvent(testDb, gateway, {
+        id: `evt_admin_${++events}`,
+        type: "charge.refunded",
+        data: { object: { id: "ch_mock", payment_intent: order.stripePaymentIntentId, refunded: true } },
+      })
+    ).toEqual({ result: "unchanged", orderId: order.id });
+
+    // The retry gets the same refund (same idempotency key) and finishes the cancellation.
     const retried = await move(order.id, "CANCELLED", "PAID");
-    expect(retried).toMatchObject({ ok: true, changed: true });
+    expect(retried).toMatchObject({ ok: true, changed: true, status: "CANCELLED" });
     expect(keys).toEqual([refundKey(order.id)]);
-    // One refund in Stripe, the one the order now records.
     expect(state.refunds.size).toBe(1);
     expect((await orderRow(order.id)).stripeRefundId).toBe([...state.refunds.keys()][0]);
     expect(await stockOf("7")).toBe(40);
+    expect((await getAdminOrder(testDb, order.id))!.refundPending).toBe(false);
   });
 
   it("two admins cancelling at the same moment: one refund, the stock back once", async () => {
@@ -270,6 +320,43 @@ describe("changeOrderStatus: cancelling", () => {
     const order = await placeOrder([{ productId: "7", quantity: 1 }]);
     expect(await move(order.id, "CANCELLED", "PAID", null)).toEqual({ ok: false, reason: "payments_unconfigured" });
     expect((await orderRow(order.id)).status).toBe("PAID");
+    expect(await stockOf("7")).toBe(39);
+  });
+});
+
+describe("Stripe's charge.refunded", () => {
+  const refunded = (intentId: string, full = true) =>
+    handleStripeEvent(testDb, gateway, {
+      id: `evt_admin_${++events}`,
+      type: "charge.refunded",
+      data: { object: { id: "ch_mock", payment_intent: intentId, refunded: full } },
+    });
+
+  it("a full refund made in the Stripe Dashboard cancels a paid order and puts its stock back, once", async () => {
+    const order = await placeOrder([{ productId: "7", quantity: 2 }]);
+    const refund = await gateway.refund(order.stripePaymentIntentId!, "dashboard-refund");
+
+    expect(await refunded(order.stripePaymentIntentId!)).toEqual({ result: "refund_cancelled", orderId: order.id, productIds: ["7"] });
+    expect(await orderRow(order.id)).toMatchObject({ status: "CANCELLED", cancelReason: "refunded", stripeRefundId: refund.id });
+    expect(await stockOf("7")).toBe(40);
+    // Another delivery of the news changes nothing, and the admin's cancel finds it done.
+    expect(await refunded(order.stripePaymentIntentId!)).toEqual({ result: "unchanged", orderId: order.id });
+    expect(await move(order.id, "CANCELLED", "PAID")).toMatchObject({ ok: true, changed: false, status: "CANCELLED" });
+    expect(await stockOf("7")).toBe(40);
+    expect(state.refunds.size).toBe(1);
+  });
+
+  it("a partial refund changes nothing; a shipped order only records the refund", async () => {
+    const order = await placeOrder([{ productId: "7", quantity: 1 }]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await refunded(order.stripePaymentIntentId!, false)).toEqual({ result: "unchanged", orderId: order.id });
+    expect((await orderRow(order.id)).status).toBe("PAID");
+
+    await move(order.id, "SHIPPED", "PAID");
+    const refund = await gateway.refund(order.stripePaymentIntentId!, "dashboard-refund");
+    expect(await refunded(order.stripePaymentIntentId!)).toEqual({ result: "unchanged", orderId: order.id });
+    warn.mockRestore();
+    expect(await orderRow(order.id)).toMatchObject({ status: "SHIPPED", stripeRefundId: refund.id });
     expect(await stockOf("7")).toBe(39);
   });
 });
@@ -334,6 +421,13 @@ describe("listAdminOrders and the dashboard", () => {
     expect(await ids({ q: "@lista.test", from: "2026-10-14" })).toEqual([]);
     // A LIKE wildcard in the search is a literal character.
     expect((await list({ q: "%" })).items).toEqual([]);
+    expect((await list({ q: "_" })).items).toEqual([]);
+    const underscore = await testDb.order.create({ data: { ...base, email: "ana_b@lista.test", status: "PAID", ...at("2026-10-14T15:00:00Z") } });
+    expect(await ids({ q: "a_b@" })).toEqual([underscore.id]);
+    expect(await ids({ q: "_" })).toEqual([underscore.id]);
+    // "a_b" must not match "anab" or "a-b" (the "_" is not "any character").
+    await testDb.order.create({ data: { ...base, email: "a-b@lista.test", status: "PAID", ...at("2026-10-14T15:00:00Z") } });
+    expect(await ids({ q: "a_b@" })).toEqual([underscore.id]);
   });
 
   it("dashboard: today's orders and revenue, orders to ship, low stock and mismatches", async () => {

@@ -212,7 +212,16 @@ export async function changeOrderStatusAction(input: unknown): Promise<AdminActi
     case "payments_unconfigured":
       return { ok: false, error: "Los pagos no están configurados en este servidor: no se puede tocar el pago en Stripe." };
     case "refund_failed":
-      return { ok: false, error: "Stripe no pudo hacer el reembolso, así que no cambiamos nada. Inténtalo de nuevo en un rato." };
+      return { ok: false, error: "Stripe no hizo el reembolso: el pedido sigue pagado, sin cambios. Inténtalo de nuevo en un rato." };
+    case "refund_unknown":
+      refresh();
+      return {
+        ok: false,
+        error: "No pudimos confirmar el reembolso con Stripe. Retuvimos el pedido para que no se envíe: reintenta la cancelación en un rato.",
+      };
+    case "refund_pending":
+      refresh();
+      return { ok: false, error: "Este pedido tiene un reembolso sin confirmar, así que no se puede enviar. Reintenta la cancelación para cerrarlo." };
     case "no_payment":
       return { ok: false, error: "Este pedido no tiene un pago de Stripe asociado para reembolsar." };
   }

@@ -366,7 +366,11 @@ catálogo de esos productos y sale el email de confirmación. Si el reembolso fa
 no se guarda nada y la respuesta es 500 para que Stripe reintente.
 `payment_intent.payment_failed` deja el pedido PENDING (se puede pagar con otra
 tarjeta) y lo saca de Mis pedidos hasta un nuevo intento; `payment_intent.canceled` lo cancela. Un pago que llega para un pedido ya
-cancelado se reembolsa.
+cancelado se reembolsa. `charge.refunded` (un reembolso total hecho fuera del
+flujo, p. ej. desde el dashboard de Stripe) cancela un pedido PAID devolviendo el
+stock (motivo `refunded`) o uno PENDING; en uno enviado o entregado solo anota el
+reembolso; uno que un admin está cancelando lo deja a esa cancelación; un
+reembolso parcial no cambia nada.
 
 **Pedidos pendientes viejos**: un nuevo intento desde el mismo navegador actualiza
 su pedido pendiente (y el monto del PaymentIntent) o, si ya no se puede pagar, lo
@@ -457,11 +461,17 @@ cae en "sin filtro").
   (reembolso + stock devuelto), SHIPPED → DELIVERED. Cada cambio corre en una
   transacción que bloquea la fila del pedido y verifica el estado que vio el
   admin: un doble clic o un segundo admin no hacen nada dos veces. Cancelar un
-  pagado devuelve el stock y pide el reembolso **dentro** de esa transacción: si
-  Stripe falla no se guarda nada; si el reembolso salió pero el commit no, el
-  reintento usa la misma idempotency key (`order/<id>/refund`, la del webhook) y
-  Stripe devuelve el mismo reembolso. Cada cambio queda en `OrderStatusChange`
-  (quién, cuándo, de qué a qué, id del reembolso).
+  pagado va en tres pasos para que ningún resultado de la llamada a Stripe deje
+  enviar un pedido ya reembolsado: (1) retiene el pedido (`refundRequestedAt`,
+  confirmado antes de llamar a Stripe; un pedido retenido no se puede enviar);
+  (2) pide el reembolso con la idempotency key del pedido (`order/<id>/refund`,
+  la del webhook: nunca dos reembolsos); si la llamada falla, le pregunta a
+  Stripe si el pago tiene un reembolso igual (la respuesta se perdió): si lo
+  tiene sigue con ese, si no lo tiene libera el pedido sin cambios, y si Stripe
+  no responde queda retenido hasta que el admin reintente la cancelación;
+  (3) bajo el bloqueo, devuelve el stock y pasa a CANCELLED con el reembolso.
+  Cada cambio queda en `OrderStatusChange` (quién, cuándo, de qué a qué, id del
+  reembolso).
 - **Reseñas**: todas, filtrables por producto, estrellas o texto; eliminar
   recalcula el rating en la misma transacción y expira el producto. Sin el
   límite de ediciones por usuario (ese es para los clientes).
@@ -537,7 +547,7 @@ npm run dev
   base antes del primer deploy. Para cobrar: las tres variables de Stripe, un
   endpoint de webhook en el dashboard de Stripe apuntando a
   `https://<dominio>/api/stripe/webhook` con los eventos `payment_intent.succeeded`,
-  `payment_intent.payment_failed` y `payment_intent.canceled` (su signing secret es
+  `payment_intent.payment_failed`, `payment_intent.canceled` y `charge.refunded` (su signing secret es
   `STRIPE_WEBHOOK_SECRET`), `CRON_SECRET` + el Cron Job de la limpieza (ver
   [Checkout, pagos y pedidos](#checkout-pagos-y-pedidos)), y opcionalmente
   `RESEND_API_KEY` / `EMAIL_FROM`.
@@ -615,7 +625,9 @@ npm run dev
   reenvíos idempotentes, reembolso que falla → 500 y reintento, email), y el
   panel de admin (`admin-*.test.ts`: crear / editar / archivar / eliminar
   productos y lo que la tienda ve después, transiciones de pedidos, reembolso +
-  stock atómico e idempotente, dos cancelaciones a la vez, email al enviar,
+  stock atómico e idempotente, reembolso sin respuesta (se encuentra en Stripe
+  o el pedido queda retenido y no se envía), `charge.refunded`, dos
+  cancelaciones a la vez, email al enviar,
   auditoría, filtros, resumen, moderación de reseñas y permisos de cada acción y
   lectura).
 - `__tests__/lib`: parser de queries, búsqueda normalizada, caché del catálogo

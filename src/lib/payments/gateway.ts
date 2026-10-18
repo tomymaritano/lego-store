@@ -60,6 +60,12 @@ export interface PaymentGateway {
   confirmIntent(id: string, confirmationTokenId: string, idempotencyKey: string): Promise<GatewayIntent>;
   cancelIntent(id: string): Promise<GatewayIntent>;
   refund(intentId: string, idempotencyKey: string): Promise<{ id: string }>;
+  /**
+   * A refund of the PaymentIntent that went (or is going) through, whoever
+   * made it; null when it has none. For finding out what happened after a
+   * refund call that got no answer.
+   */
+  findRefund(intentId: string): Promise<{ id: string } | null>;
   /** The card behind a ConfirmationToken; null when it does not exist, expired or is not a card. */
   readConfirmationToken(id: string): Promise<CardPreview | null>;
 }

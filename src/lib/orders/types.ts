@@ -16,6 +16,7 @@ export type CancelReason =
   | "expired"
   | "superseded"
   | "payment_setup_failed"
+  | "refunded"
   | "admin";
 
 export interface OrderLineView {

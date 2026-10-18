@@ -114,6 +114,12 @@ export function mockGateway(state: MockGatewayState = createMockState()): Paymen
       return { id };
     },
 
+    async findRefund(intentId) {
+      intent(intentId);
+      const found = [...state.refunds.values()].find((refund) => refund.intentId === intentId);
+      return found ? { id: found.id } : null;
+    },
+
     async readConfirmationToken(id): Promise<CardPreview | null> {
       const card = cardOf(id);
       return card ? { brand: card.brand, last4: card.last4 } : null;

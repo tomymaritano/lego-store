@@ -13,7 +13,8 @@ import { constructWebhookEvent } from "@/lib/payments/stripe";
  * against STRIPE_WEBHOOK_SECRET before anything else; then
  * lib/orders/webhook.ts applies it at most once. After a payment is taken,
  * the catalogue cache of the products whose stock changed is expired and the
- * confirmation email goes out.
+ * confirmation email goes out; after a refund cancels a paid order, the
+ * stock that came back is shown again.
  *
  * 200 handled (or ignored / already handled) · 400 bad signature ·
  * 500 the work failed: Stripe retries it · 503 not configured.
@@ -49,5 +50,7 @@ export async function POST(request: NextRequest) {
     invalidateCatalog({ productIds: outcome.productIds });
     await sendOrderConfirmation(db, outcome.orderId);
   }
+  // A refund cancelled a paid order: its stock is back on sale.
+  if (outcome.result === "refund_cancelled" && outcome.productIds.length > 0) invalidateCatalog({ productIds: outcome.productIds });
   return Response.json({ received: true, result: outcome.result });
 }
