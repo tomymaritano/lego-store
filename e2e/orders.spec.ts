@@ -109,4 +109,12 @@ test("a signed-in customer buys, and follows the order in Mis pedidos (only thei
   await anonymous.goto(`/account/orders/${order.id}`);
   await expect(anonymous).toHaveURL(/\/login\?callbackUrl=/);
   await visitor.close();
+
+  // Signing out locks the order in this browser too: the checkout cookie goes with the session.
+  expect((await page.request.get(`/api/checkout/orders/${order.id}`)).status()).toBe(200);
+  // /account has its own "Cerrar sesión".
+  await page.locator("#main-content").getByRole("button", { name: "Cerrar sesión" }).click();
+  await expect(page.getByTestId("login-link")).toBeVisible({ timeout: 15_000 });
+  expect((await page.context().cookies()).map((cookie) => cookie.name)).not.toContain("lego-checkout");
+  expect((await page.request.get(`/api/checkout/orders/${order.id}`)).status()).toBe(404);
 });

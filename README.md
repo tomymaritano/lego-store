@@ -330,11 +330,17 @@ cuesta plata lo decide el servidor (`src/lib/orders/checkout.ts`):
    revisión se prepara de nuevo avisando qué cambió. Si los precios cambiaron, el
    carrito adopta los del servidor. Ese navegador recibe una cookie HttpOnly con un
    token de acceso al pedido (la base guarda su sha256): un invitado solo puede ver
-   y pagar el pedido que creó; con sesión, el pedido queda en la cuenta.
+   y pagar el pedido que creó, mientras está pendiente y hasta una hora después de
+   pagarse o cancelarse; con sesión, el pedido queda en la cuenta y solo esa sesión
+   lo abre (la cookie no alcanza). Cerrar sesión borra también esa cookie.
 3. **Realizar pedido** (`POST /api/checkout/orders/<id>/pay`) confirma el
    PaymentIntent en el servidor con el ConfirmationToken. Si el banco pide 3D
    Secure, el navegador lo resuelve con `stripe.handleNextAction`. Un rechazo
-   vuelve al paso Pago con el motivo en español.
+   vuelve al paso Pago con el motivo en español (y el pedido no aparece en Mis
+   pedidos: no hay pago que esperar). Pagar y volver a preparar el mismo pedido
+   bloquean su fila mientras hablan con Stripe, así que no se intercalan: se cobra
+   el total de las líneas que el pedido tiene, y una nueva revisión cambia el monto
+   en Stripe antes de cambiar las líneas (si el pago ya salió, abre otro pedido).
 4. La **confirmación** muestra el número real (`LEGO-001001`) y el estado, y
    consulta `GET /api/checkout/orders/<id>` cada 1,5 s hasta que el webhook lo marca
    pagado (o cancelado). Las líneas compradas salen del carrito del navegador.
@@ -342,14 +348,17 @@ cuesta plata lo decide el servidor (`src/lib/orders/checkout.ts`):
 **Webhook** (`/api/stripe/webhook`, `src/lib/orders/webhook.ts`): cuerpo crudo y
 firma verificada con `STRIPE_WEBHOOK_SECRET`; cada evento se procesa una sola vez
 (tabla `ProcessedStripeEvent`, en la misma transacción que sus cambios).
-`payment_intent.succeeded` bloquea las filas de los productos (en orden de id) y
+`payment_intent.succeeded` primero compara lo cobrado (`amount_received` y
+`currency` del evento) con el total del pedido: si no coinciden, reembolsa y lo
+cancela (`amount_mismatch`) sin tocar el stock. Después bloquea las filas de los
+productos (en orden de id) y
 descuenta el stock de todas las líneas o de ninguna: si a alguna le falta, el pedido
 pasa a **CANCELLED** y se reembolsa (idempotency key por pedido); si no, pasa a
 **PAID**, se quitan esas líneas del carrito de la cuenta, se invalida la caché del
 catálogo de esos productos y sale el email de confirmación. Si el reembolso falla,
 no se guarda nada y la respuesta es 500 para que Stripe reintente.
 `payment_intent.payment_failed` deja el pedido PENDING (se puede pagar con otra
-tarjeta); `payment_intent.canceled` lo cancela. Un pago que llega para un pedido ya
+tarjeta) y lo saca de Mis pedidos hasta un nuevo intento; `payment_intent.canceled` lo cancela. Un pago que llega para un pedido ya
 cancelado se reembolsa.
 
 **Pedidos pendientes viejos**: un nuevo intento desde el mismo navegador actualiza
@@ -363,7 +372,8 @@ haga ese GET. Sin `CRON_SECRET` la ruta responde 503.
 
 **Mis pedidos** (`/account/orders`, `/account/orders/[id]`): solo los pedidos de la
 cuenta que llegaron a "Realizar pedido" (un checkout abandonado no es una compra),
-con línea de tiempo de estado, las líneas como se compraron (nombre, precio e imagen
+ordenados y fechados por el momento de "Realizar pedido", con línea de tiempo de
+estado, las líneas como se compraron (nombre, precio e imagen
 de ese momento), totales, dirección y tarjeta. El pedido de otra persona es un 404.
 Los pedidos de invitado no se vinculan a una cuenta creada después.
 

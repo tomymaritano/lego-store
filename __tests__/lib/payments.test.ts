@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getPaymentGateway, paymentsClientConfig, paymentsMode } from "@/lib/payments/config";
 import { PaymentDeclinedError, toCentavos } from "@/lib/payments/gateway";
 import { stripeGateway } from "@/lib/payments/stripe";
-import { canAccessOrder, hashAccessToken, parseCheckoutCookie, serializeCheckoutCookie, tokenMatches } from "@/lib/orders/access";
+import { SETTLED_TOKEN_ACCESS_MS, canAccessOrder, hashAccessToken, parseCheckoutCookie, serializeCheckoutCookie, tokenMatches } from "@/lib/orders/access";
 
 /*
  * The Stripe boundary with the SDK mocked: what our gateway sends to Stripe
@@ -130,14 +130,29 @@ describe("checkout access", () => {
     expect(parseCheckoutCookie(undefined)).toBeNull();
   });
 
-  it("grants access to the owner or the browser with the matching token, nobody else", () => {
-    const order = { id: "order_1", userId: "ana", checkoutTokenHash: hashAccessToken(token) };
+  it("an account's order opens with that account's session only; a guest's with its token", () => {
+    const pending = { status: "PENDING", paidAt: null, cancelledAt: null };
+    const order = { id: "order_1", userId: "ana", checkoutTokenHash: hashAccessToken(token), ...pending };
     expect(tokenMatches(token, order.checkoutTokenHash)).toBe(true);
     expect(canAccessOrder(order, { userId: "ana", access: null })).toBe(true);
-    expect(canAccessOrder(order, { userId: null, access: { orderId: "order_1", token } })).toBe(true);
-    expect(canAccessOrder(order, { userId: "bruno", access: null })).toBe(false);
-    expect(canAccessOrder(order, { userId: null, access: { orderId: "order_2", token } })).toBe(false);
-    expect(canAccessOrder(order, { userId: null, access: { orderId: "order_1", token: "b".repeat(43) } })).toBe(false);
-    expect(canAccessOrder({ ...order, userId: null }, { userId: null, access: null })).toBe(false);
+    // Signed out (or someone else signed in) on the same browser: the cookie no longer opens it.
+    expect(canAccessOrder(order, { userId: null, access: { orderId: "order_1", token } })).toBe(false);
+    expect(canAccessOrder(order, { userId: "bruno", access: { orderId: "order_1", token } })).toBe(false);
+
+    const guest = { ...order, userId: null };
+    expect(canAccessOrder(guest, { userId: null, access: { orderId: "order_1", token } })).toBe(true);
+    expect(canAccessOrder(guest, { userId: "bruno", access: { orderId: "order_1", token } })).toBe(true);
+    expect(canAccessOrder(guest, { userId: null, access: { orderId: "order_2", token } })).toBe(false);
+    expect(canAccessOrder(guest, { userId: null, access: { orderId: "order_1", token: "b".repeat(43) } })).toBe(false);
+    expect(canAccessOrder(guest, { userId: null, access: null })).toBe(false);
+  });
+
+  it("a guest's token outlives its settled order only briefly", () => {
+    const paidAt = new Date("2026-10-17T12:00:00Z");
+    const guest = { id: "order_1", userId: null, checkoutTokenHash: hashAccessToken(token), status: "PAID", paidAt, cancelledAt: null };
+    const browser = { userId: null, access: { orderId: "order_1", token } };
+    expect(canAccessOrder(guest, browser, new Date(paidAt.getTime() + SETTLED_TOKEN_ACCESS_MS - 1000))).toBe(true);
+    expect(canAccessOrder(guest, browser, new Date(paidAt.getTime() + SETTLED_TOKEN_ACCESS_MS + 1000))).toBe(false);
+    expect(canAccessOrder({ ...guest, status: "SHIPPED" }, browser, new Date(paidAt.getTime() + 2 * SETTLED_TOKEN_ACCESS_MS))).toBe(false);
   });
 });

@@ -1,6 +1,8 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { CHECKOUT_COOKIE } from "@/lib/orders/access";
 import { isGoogleEnabled, signIn, signOut } from "./index";
 import { safeCallbackUrl } from "./callback-url";
 import { formText } from "./form-state";
@@ -17,10 +19,12 @@ export async function googleSignInAction(formData: FormData): Promise<void> {
 }
 
 /**
- * Signs this browser out (deletes its session cookie). Other devices stay
- * signed in; changing the password is what ends every session (README,
- * "Sesiones").
+ * Signs this browser out (deletes its session cookie, and the checkout's:
+ * the next person at this browser does not inherit the last checkout).
+ * Other devices stay signed in; changing the password is what ends every
+ * session (README, "Sesiones").
  */
 export async function logoutAction(): Promise<void> {
+  (await cookies()).delete(CHECKOUT_COOKIE);
   await signOut({ redirectTo: "/" });
 }

@@ -5,7 +5,7 @@ import { expireStaleOrders } from "@/lib/orders/expire";
 import { getUserOrder, listUserOrders } from "@/lib/orders/queries";
 import { mockGateway } from "@/lib/payments/mock";
 import { getPaymentGateway } from "@/lib/payments/config";
-import type { PaymentGateway } from "@/lib/payments/gateway";
+import { toCentavos, type PaymentGateway } from "@/lib/payments/gateway";
 import { prepareOrderSchema, type PrepareOrderInput } from "@/lib/validations/orders";
 import { resetAndSeed, testDb } from "./setup/db";
 import { cookieOf, getRequest, jsonRequest, shipping, enableMockPayments } from "./setup/checkout";
@@ -51,6 +51,30 @@ function spiedGateway() {
   for (const key of Object.keys(gateway) as (keyof PaymentGateway)[]) vi.spyOn(gateway, key);
   return gateway;
 }
+
+/**
+ * Holds the gateway's next call to `method` until released: lets a test
+ * start a second request while the first one is inside Stripe's round trip.
+ */
+function pauseNext(gateway: PaymentGateway, method: "retrieveIntent" | "updateIntentAmount") {
+  const original = gateway[method].bind(gateway) as (...args: unknown[]) => Promise<unknown>;
+  let reached!: () => void;
+  let release!: () => void;
+  const reachedPromise = new Promise<void>((resolve) => (reached = resolve));
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let paused = false;
+  (gateway as unknown as Record<string, unknown>)[method] = async (...args: unknown[]) => {
+    if (!paused) {
+      paused = true;
+      reached();
+      await released;
+    }
+    return original(...args);
+  };
+  return { reached: reachedPromise, release };
+}
+
+const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function prepared(gateway: PaymentGateway, lines: PrepareOrderInput["lines"], requester = guest) {
   const outcome = await prepareOrder(testDb, gateway, input(lines), requester);
@@ -190,19 +214,23 @@ describe("payOrder", () => {
     expect(gateway.confirmIntent).toHaveBeenCalledTimes(1);
   });
 
-  it("a declined card leaves the order pending, payable with another card", async () => {
+  it("a declined card leaves the order pending, payable with another card, and out of Mis pedidos meanwhile", async () => {
     const gateway = mockGateway();
-    const { order, access } = await prepared(gateway, [{ productId: "7", quantity: 1 }]);
-    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_declined", as(null, access))).toMatchObject({
+    const { order } = await prepared(gateway, [{ productId: "7", quantity: 1 }], as(ana.id));
+    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_declined", as(ana.id))).toMatchObject({
       ok: false,
       code: "declined",
       message: expect.stringContaining("rechazó"),
     });
-    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_insufficient", as(null, access))).toMatchObject({
+    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_insufficient", as(ana.id))).toMatchObject({
       code: "declined",
       message: expect.stringContaining("fondos"),
     });
-    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", as(null, access))).toMatchObject({ ok: true });
+    // Refused cards are no purchase: nothing to wait for in Mis pedidos.
+    expect((await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).submittedAt).toBeNull();
+    expect((await listUserOrders(testDb, ana.id)).map((listed) => listed.id)).not.toContain(order.id);
+    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", as(ana.id))).toMatchObject({ ok: true });
+    expect((await listUserOrders(testDb, ana.id)).map((listed) => listed.id)).toContain(order.id);
   });
 
   it("does not charge when the stock is already gone", async () => {
@@ -223,6 +251,65 @@ describe("payOrder", () => {
     expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", as(bruno.id))).toEqual({ ok: false, code: "not_found" });
     expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", guest)).toEqual({ ok: false, code: "not_found" });
     expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", as(ana.id))).toMatchObject({ ok: true });
+  });
+});
+
+describe("paying and re-preparing the same order at once", () => {
+  /** What Stripe charged and what the order holds must agree, whoever wins. */
+  async function chargedMatchesOrder(gateway: PaymentGateway, orderId: string) {
+    const row = await testDb.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } });
+    const intent = await gateway.retrieveIntent(row.stripePaymentIntentId!);
+    return { row, intent, matches: intent.amount === toCentavos(row.total) };
+  }
+
+  it("a re-prepare that arrives while the payment is with Stripe waits, and opens a new order", async () => {
+    const gateway = mockGateway();
+    const first = await prepared(gateway, [{ productId: "5", quantity: 1 }]);
+    const pause = pauseNext(gateway, "retrieveIntent");
+    const paying = payOrder(testDb, gateway, first.order.id, "ctoken_mock_visa", as(null, first.access));
+    await pause.reached; // payOrder holds the order, mid round trip.
+    const reprepare = prepareOrder(testDb, gateway, input([{ productId: "7", quantity: 20 }]), as(null, first.access));
+    await settle(300);
+    pause.release();
+    const [paid, again] = await Promise.all([paying, reprepare]);
+
+    expect(paid).toMatchObject({ ok: true, next: "done" });
+    expect(again.ok && again.order.id).not.toBe(first.order.id);
+    const { row, intent, matches } = await chargedMatchesOrder(gateway, first.order.id);
+    expect(intent.status).toBe("succeeded");
+    expect(matches).toBe(true);
+    expect(row.total).toBe(488);
+    expect(row.items.map((item) => [item.productId, item.quantity])).toEqual([["5", 1]]);
+  });
+
+  it("a payment that arrives while a re-prepare is with Stripe waits, and pays the new total", async () => {
+    const gateway = mockGateway();
+    const first = await prepared(gateway, [{ productId: "5", quantity: 1 }]);
+    const pause = pauseNext(gateway, "updateIntentAmount");
+    const reprepare = prepareOrder(testDb, gateway, input([{ productId: "7", quantity: 20 }]), as(null, first.access));
+    await pause.reached; // prepareOrder holds the order, changing the amount at Stripe.
+    const paying = payOrder(testDb, gateway, first.order.id, "ctoken_mock_visa", as(null, first.access));
+    await settle(300);
+    pause.release();
+    const [again, paid] = await Promise.all([reprepare, paying]);
+
+    expect(again).toMatchObject({ ok: true, order: { id: first.order.id, total: 49_800 } });
+    expect(paid).toMatchObject({ ok: true, next: "done" });
+    const { row, intent, matches } = await chargedMatchesOrder(gateway, first.order.id);
+    expect(intent.status).toBe("succeeded");
+    expect(matches).toBe(true);
+    expect(row.items.map((item) => [item.productId, item.quantity])).toEqual([["7", 20]]);
+  });
+
+  it("a re-prepare after the payment went through leaves the paid order as it was", async () => {
+    const gateway = mockGateway();
+    const first = await prepared(gateway, [{ productId: "5", quantity: 1 }]);
+    await payOrder(testDb, gateway, first.order.id, "ctoken_mock_visa", as(null, first.access));
+    const again = await prepareOrder(testDb, gateway, input([{ productId: "7", quantity: 20 }]), as(null, first.access));
+    expect(again.ok && again.order.id).not.toBe(first.order.id);
+    const { row, matches } = await chargedMatchesOrder(gateway, first.order.id);
+    expect(matches).toBe(true);
+    expect(row).toMatchObject({ status: "PENDING", total: 488 });
   });
 });
 
@@ -274,7 +361,23 @@ describe("checkout Route Handlers", () => {
     expect((await read({ cookie: serializeCheckoutCookie({ orderId: order.id, token: "y".repeat(43) }) })).status).toBe(404);
     signInAs(null);
     expect((await read({})).status).toBe(404);
-    expect((await read({ cookie })).status).toBe(200); // Signed out in the same browser.
+    // Signed out in the same browser: an account's order needs the account; the dead cookie is deleted.
+    const signedOut = await read({ cookie });
+    expect(signedOut.status).toBe(404);
+    expect(signedOut.headers.get("set-cookie")).toMatch(/lego-checkout=;.*Expires=Thu, 01 Jan 1970/i);
+  });
+
+  it("a guest's cookie opens its order while it is pending and briefly after it is paid", async () => {
+    const response = await prepareRoute(jsonRequest("/api/checkout/orders", body()));
+    const { order } = await response.json();
+    const cookie = cookieOf(response)!;
+    const read = () => orderRoute(getRequest(`/api/checkout/orders/${order.id}`, { cookie }), { params: Promise.resolve({ orderId: order.id }) });
+
+    expect((await read()).status).toBe(200);
+    await testDb.order.update({ where: { id: order.id }, data: { status: "PAID", paidAt: new Date() } });
+    expect((await read()).status).toBe(200); // The confirmation polling it.
+    await testDb.order.update({ where: { id: order.id }, data: { paidAt: new Date(Date.now() - 2 * 60 * 60 * 1000) } });
+    expect((await read()).status).toBe(404); // Hours later, at a shared computer.
   });
 
   it("POST …/pay confirms the payment for the order's browser only", async () => {

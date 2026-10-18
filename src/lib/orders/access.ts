@@ -7,7 +7,14 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  * cookie (the database keeps only its sha256). A guest's browser proves with
  * it that the order is its own, so the confirmation can poll the order's
  * status and a retried payment reaches the same order. A signed-in owner
- * qualifies by their account too. The order's id alone grants nothing.
+ * qualifies by their account. The order's id alone grants nothing.
+ *
+ * The token is a guest's key and only for the checkout: an order on an
+ * account is reached with that account's session alone (signing out locks
+ * it, whatever cookie the browser still holds), and once a guest's order
+ * is settled (paid or cancelled) the token keeps working only long enough
+ * for the confirmation to show it. Signing out also deletes the cookie
+ * (src/lib/auth/actions.ts).
  */
 
 export const CHECKOUT_COOKIE = "lego-checkout";
@@ -58,8 +65,37 @@ export interface Requester {
   access: CheckoutAccess | null;
 }
 
-/** May this requester see and pay the order? Its owner, or the browser holding its token. */
-export function canAccessOrder(order: { id: string; userId: string | null; checkoutTokenHash: string | null }, requester: Requester): boolean {
-  if (order.userId && order.userId === requester.userId) return true;
-  return requester.access?.orderId === order.id && tokenMatches(requester.access.token, order.checkoutTokenHash);
+/** How long a guest's token still opens its order after it was paid or cancelled (the confirmation's polling and a reload). */
+export const SETTLED_TOKEN_ACCESS_MS = 60 * 60 * 1000;
+
+export interface AccessCheckedOrder {
+  id: string;
+  userId: string | null;
+  checkoutTokenHash: string | null;
+  status: string;
+  paidAt: Date | null;
+  cancelledAt: Date | null;
+}
+
+/** What canAccessOrder needs of an Order row (a Prisma select). */
+export const accessSelect = {
+  id: true,
+  userId: true,
+  checkoutTokenHash: true,
+  status: true,
+  paidAt: true,
+  cancelledAt: true,
+} as const;
+
+/**
+ * May this requester see and pay the order? An account's order: only that
+ * account's session. A guest's order: the browser holding its token, while
+ * it is pending and for a short while after it settled.
+ */
+export function canAccessOrder(order: AccessCheckedOrder, requester: Requester, now: Date = new Date()): boolean {
+  if (order.userId) return order.userId === requester.userId;
+  if (requester.access?.orderId !== order.id || !tokenMatches(requester.access.token, order.checkoutTokenHash)) return false;
+  if (order.status === "PENDING") return true;
+  const settledAt = order.cancelledAt ?? order.paidAt;
+  return settledAt !== null && now.getTime() - settledAt.getTime() < SETTLED_TOKEN_ACCESS_MS;
 }

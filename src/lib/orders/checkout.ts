@@ -1,8 +1,9 @@
-import type { PrismaClient } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import type { Db } from "@/lib/lists/product";
 import { orderTotals } from "@/lib/pricing";
 import { PaymentDeclinedError, REUSABLE_INTENT_STATUSES, toCentavos, type IntentStatus, type PaymentGateway } from "@/lib/payments/gateway";
 import type { PrepareOrderInput } from "@/lib/validations/orders";
-import { canAccessOrder, hashAccessToken, newAccessToken, type CheckoutAccess, type Requester } from "./access";
+import { accessSelect, canAccessOrder, hashAccessToken, newAccessToken, type CheckoutAccess, type Requester } from "./access";
 import { getOrderView } from "./queries";
 import type { CancelReason, OrderView, UnavailableLine } from "./types";
 
@@ -22,7 +23,27 @@ import type { CancelReason, OrderView, UnavailableLine } from "./types";
  *
  * Both take the database and the payment gateway first, so the Route
  * Handlers pass the app's and the integration tests their own.
+ *
+ * One writer per order at a time: whatever changes an order's amount or
+ * pays it (re-preparing, paying, retiring) runs in a transaction that first
+ * locks the order's row, and talks to Stripe while holding it. So "Realizar
+ * pedido" and a new "Revisar" from the same browser cannot interleave: the
+ * intent is confirmed for the total of the lines the order holds, and a
+ * re-prepare changes Stripe's amount before it commits new lines (and not
+ * at all once the intent cannot take it). The webhook still compares what
+ * was charged with the order's total before it takes any stock (./webhook.ts).
  */
+
+type Tx = Prisma.TransactionClient;
+
+/** Room for Stripe's round trips inside a transaction that holds an order's lock. */
+const LOCKED_TX = { timeout: 30_000, maxWait: 10_000 } as const;
+
+/** Locks the order's row until the transaction ends; false when there is no such order. */
+async function lockOrderRow(tx: Tx, orderId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+  return rows.length > 0;
+}
 
 const PAYMENT_IN_FLIGHT: readonly IntentStatus[] = ["processing", "succeeded", "requires_capture"];
 
@@ -37,7 +58,7 @@ interface PricedLine {
 type Priced = { ok: true; lines: PricedLine[] } | { ok: false; unavailable: UnavailableLine[] };
 
 /** The lines at today's prices, or what cannot be sold as asked. */
-async function priceLines(db: PrismaClient, wanted: { productId: string; quantity: number }[]): Promise<Priced> {
+async function priceLines(db: Db, wanted: { productId: string; quantity: number }[]): Promise<Priced> {
   const products = await db.product.findMany({
     where: { id: { in: wanted.map((line) => line.productId) } },
     select: { id: true, name: true, price: true, img: true, stock: true },
@@ -65,24 +86,27 @@ export async function retireOrder(
   order: { id: string; stripePaymentIntentId: string | null },
   reason: CancelReason
 ): Promise<boolean> {
-  if (order.stripePaymentIntentId) {
-    const intent = await gateway.retrieveIntent(order.stripePaymentIntentId);
-    if (PAYMENT_IN_FLIGHT.includes(intent.status)) return false;
-    if (intent.status !== "canceled") {
-      try {
-        await gateway.cancelIntent(intent.id);
-      } catch (error) {
-        // It moved on meanwhile (a payment went through): the webhook settles the order.
-        console.warn(`[orders] No se pudo cancelar el pago de ${order.id}:`, error);
-        return false;
+  return db.$transaction(async (tx) => {
+    if (!(await lockOrderRow(tx, order.id))) return false;
+    if (order.stripePaymentIntentId) {
+      const intent = await gateway.retrieveIntent(order.stripePaymentIntentId);
+      if (PAYMENT_IN_FLIGHT.includes(intent.status)) return false;
+      if (intent.status !== "canceled") {
+        try {
+          await gateway.cancelIntent(intent.id);
+        } catch (error) {
+          // It moved on meanwhile (a payment went through): the webhook settles the order.
+          console.warn(`[orders] No se pudo cancelar el pago de ${order.id}:`, error);
+          return false;
+        }
       }
     }
-  }
-  const { count } = await db.order.updateMany({
-    where: { id: order.id, status: "PENDING" },
-    data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason },
-  });
-  return count > 0;
+    const { count } = await tx.order.updateMany({
+      where: { id: order.id, status: "PENDING" },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason },
+    });
+    return count > 0;
+  }, LOCKED_TX);
 }
 
 export type PrepareOutcome =
@@ -126,28 +150,31 @@ export async function prepareOrder(
 
   // This browser's pending order: update it when it can still be paid, retire it otherwise.
   const current = requester.access
-    ? await db.order.findUnique({
-        where: { id: requester.access.orderId },
-        select: { id: true, userId: true, status: true, checkoutTokenHash: true, stripePaymentIntentId: true },
-      })
+    ? await db.order.findUnique({ where: { id: requester.access.orderId }, select: { ...accessSelect, stripePaymentIntentId: true } })
     : null;
   if (current && current.status === "PENDING" && canAccessOrder(current, requester)) {
-    const intent = current.stripePaymentIntentId ? await gateway.retrieveIntent(current.stripePaymentIntentId) : null;
-    if (intent && current.userId === requester.userId && REUSABLE_INTENT_STATUSES.includes(intent.status)) {
-      const updated = await db.$transaction(async (tx) => {
-        const { count } = await tx.order.updateMany({ where: { id: current.id, status: "PENDING" }, data });
-        if (count === 0) return false;
+    const intentId = current.stripePaymentIntentId;
+    const reused =
+      intentId !== null &&
+      current.userId === requester.userId &&
+      (await db.$transaction(async (tx) => {
+        // Locked: a payment of this order already finished, or waits until this one does.
+        if (!(await lockOrderRow(tx, current.id))) return false;
+        const locked = await tx.order.findUnique({ where: { id: current.id }, select: { status: true } });
+        if (locked?.status !== "PENDING") return false;
+        const intent = await gateway.retrieveIntent(intentId);
+        if (!REUSABLE_INTENT_STATUSES.includes(intent.status)) return false;
+        // Stripe first: when it refuses the new amount this throws, and the order keeps its lines and total.
+        if (intent.amount !== amount) await gateway.updateIntentAmount(intent.id, amount);
+        await tx.order.update({ where: { id: current.id }, data });
         await tx.orderItem.deleteMany({ where: { orderId: current.id } });
         await tx.orderItem.createMany({ data: lines.map((line) => ({ ...line, orderId: current.id })) });
         return true;
-      });
-      if (updated) {
-        if (intent.amount !== amount) await gateway.updateIntentAmount(intent.id, amount);
-        return { ok: true, order: (await getOrderView(db, current.id))!, access: null };
-      }
-    } else if (!intent || !PAYMENT_IN_FLIGHT.includes(intent.status)) {
-      await retireOrder(db, gateway, current, "superseded");
-    }
+      }, LOCKED_TX));
+    if (reused) return { ok: true, order: (await getOrderView(db, current.id))!, access: null };
+    // A new order replaces it (another account, or its intent moved on); retireOrder
+    // leaves an order whose payment is under way to the webhook.
+    await retireOrder(db, gateway, current, "superseded");
   }
 
   const token = newAccessToken();
@@ -189,67 +216,64 @@ export async function payOrder(
   confirmationTokenId: string,
   requester: Requester
 ): Promise<PayOutcome> {
-  const order = await db.order.findUnique({
-    where: { id: orderId },
-    select: {
-      id: true,
-      userId: true,
-      status: true,
-      total: true,
-      checkoutTokenHash: true,
-      stripePaymentIntentId: true,
-      items: { select: { productId: true, quantity: true } },
-    },
-  });
-  if (!order || !canAccessOrder(order, requester)) return { ok: false, code: "not_found" };
-  const view = async () => (await getOrderView(db, order.id))!;
-  if (order.status !== "PENDING" || !order.stripePaymentIntentId) return { ok: false, code: "not_pending", order: await view() };
-
-  let intent = await gateway.retrieveIntent(order.stripePaymentIntentId);
-  // Paid already (a double click, a retried request): nothing to do but wait for the webhook.
-  if (PAYMENT_IN_FLIGHT.includes(intent.status)) return { ok: true, next: "done", order: await view() };
-  if (intent.status === "canceled") {
-    await db.order.updateMany({
-      where: { id: order.id, status: "PENDING" },
-      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "payment_canceled" },
+  // The order stays locked for the whole payment: the amount confirmed is the total of the lines it holds.
+  return db.$transaction(async (tx): Promise<PayOutcome> => {
+    if (!(await lockOrderRow(tx, orderId))) return { ok: false, code: "not_found" };
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: { ...accessSelect, total: true, stripePaymentIntentId: true, items: { select: { productId: true, quantity: true } } },
     });
-    return { ok: false, code: "not_pending", order: await view() };
-  }
+    if (!order || !canAccessOrder(order, requester)) return { ok: false, code: "not_found" };
+    const view = async () => (await getOrderView(tx, order.id))!;
+    if (order.status !== "PENDING" || !order.stripePaymentIntentId) return { ok: false, code: "not_pending", order: await view() };
 
-  // Fail before charging when the stock is already gone (the webhook re-checks atomically).
-  const wanted = order.items.flatMap((item) => (item.productId ? [{ productId: item.productId, quantity: item.quantity }] : []));
-  const priced = wanted.length === order.items.length ? await priceLines(db, wanted) : null;
-  if (!priced || !priced.ok) {
-    return { ok: false, code: "unavailable", unavailable: priced && !priced.ok ? priced.unavailable : [] };
-  }
-
-  const amount = toCentavos(order.total);
-  if (intent.amount !== amount) intent = await gateway.updateIntentAmount(intent.id, amount);
-
-  await db.order.updateMany({ where: { id: order.id, submittedAt: null }, data: { submittedAt: new Date() } });
-  try {
-    intent = await gateway.confirmIntent(intent.id, confirmationTokenId, `order/${order.id}/confirm/${confirmationTokenId}`);
-  } catch (error) {
-    if (error instanceof PaymentDeclinedError) {
-      return { ok: false, code: error.code === "declined" ? "declined" : "payment_method", message: error.message };
+    let intent = await gateway.retrieveIntent(order.stripePaymentIntentId);
+    // Paid already (a double click, a retried request): nothing to do but wait for the webhook.
+    if (PAYMENT_IN_FLIGHT.includes(intent.status)) return { ok: true, next: "done", order: await view() };
+    if (intent.status === "canceled") {
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "payment_canceled" },
+      });
+      return { ok: false, code: "not_pending", order: await view() };
     }
-    throw error;
-  }
 
-  switch (intent.status) {
-    case "requires_action":
+    // Fail before charging when the stock is already gone (the webhook re-checks atomically).
+    const wanted = order.items.flatMap((item) => (item.productId ? [{ productId: item.productId, quantity: item.quantity }] : []));
+    const priced = wanted.length === order.items.length ? await priceLines(tx, wanted) : null;
+    if (!priced || !priced.ok) {
+      return { ok: false, code: "unavailable", unavailable: priced && !priced.ok ? priced.unavailable : [] };
+    }
+
+    const amount = toCentavos(order.total);
+    if (intent.amount !== amount) intent = await gateway.updateIntentAmount(intent.id, amount);
+
+    // A refused card is not a purchase: the order leaves "Mis pedidos" (an earlier 3D Secure attempt may have listed it).
+    const declined = async (code: "declined" | "payment_method", message: string): Promise<PayOutcome> => {
+      await tx.order.update({ where: { id: order.id }, data: { submittedAt: null } });
+      return { ok: false, code, message };
+    };
+    try {
+      intent = await gateway.confirmIntent(intent.id, confirmationTokenId, `order/${order.id}/confirm/${confirmationTokenId}`);
+    } catch (error) {
+      if (error instanceof PaymentDeclinedError) return declined(error.code === "declined" ? "declined" : "payment_method", error.message);
+      throw error;
+    }
+    if (intent.status === "requires_payment_method") return declined("declined", "Tu banco rechazó el pago. Prueba con otra tarjeta.");
+
+    // Paid, processing or waiting on the bank (3D Secure): the order is placed.
+    await tx.order.updateMany({ where: { id: order.id, submittedAt: null }, data: { submittedAt: new Date() } });
+    if (intent.status === "requires_action") {
       if (!intent.clientSecret) throw new Error(`PaymentIntent ${intent.id} needs an action but has no client secret`);
       return { ok: true, next: "action", clientSecret: intent.clientSecret, order: await view() };
-    case "requires_payment_method":
-      return { ok: false, code: "declined", message: "Tu banco rechazó el pago. Prueba con otra tarjeta." };
-    default:
-      return { ok: true, next: "done", order: await view() };
-  }
+    }
+    return { ok: true, next: "done", order: await view() };
+  }, LOCKED_TX);
 }
 
 /** The order the checkout shows (its confirmation polls this), when the requester may see it. */
 export async function getCheckoutOrder(db: PrismaClient, orderId: string, requester: Requester): Promise<OrderView | null> {
-  const order = await db.order.findUnique({ where: { id: orderId }, select: { id: true, userId: true, checkoutTokenHash: true } });
+  const order = await db.order.findUnique({ where: { id: orderId }, select: accessSelect });
   if (!order || !canAccessOrder(order, requester)) return null;
   return getOrderView(db, order.id);
 }
