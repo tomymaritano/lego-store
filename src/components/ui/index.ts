@@ -54,4 +54,5 @@ export { Skeleton, ProductCardSkeleton, ProductListSkeleton } from "./Skeleton";
 export { QuantitySelector, type QuantitySelectorProps } from "./QuantitySelector";
 export { Toaster, showToast, toast } from "./Toast";
 export { Breadcrumbs, type BreadcrumbItem } from "./Breadcrumbs";
+export { Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell, TableCaption } from "./Table";
 export { ThemeToggle } from "./ThemeToggle";
