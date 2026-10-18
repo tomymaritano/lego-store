@@ -248,3 +248,96 @@ tiene el detalle):
   los clientes.
 - Las tablas `ListMerge` (etapa de listas) y el token de fusión no estaban
   mencionados acá: ver README, «Carrito, favoritos y reseñas».
+
+## Ampliación: decisiones de Tomy (2026-10-17)
+
+Decidido por Tomy el 2026-10-17, después de terminar la base. Donde estas
+decisiones contradicen secciones anteriores (por ejemplo, los no-objetivos
+"subida de imágenes: solo URLs" y "cupones"), **mandan estas**. Las demás
+reglas siguen igual: el servidor es la fuente de verdad de precios, descuentos,
+totales, stock y permisos; toda entrada se valida con Zod; nada depende de
+cuentas externas reales para desarrollar o testear.
+
+### Pagos: Mercado Pago principal, Stripe alternativa
+
+- **Mercado Pago es el medio de pago principal**, con Checkout Bricks embebido
+  en el paso "Pago": tarjetas (con cuotas), dinero en cuenta y efectivo
+  (tickets). Moneda ARS, montos en pesos (MP usa importes decimales, no
+  centavos).
+- **Stripe queda como alternativa** detrás de una capa `PaymentProvider`
+  (`src/lib/payments/`) elegible por configuración: `PAYMENT_PROVIDER`
+  (`mercadopago` por defecto | `stripe`), con un indicador visible en el admin.
+  El pedido guarda el proveedor y los ids de pago del proveedor. El código de
+  Stripe existente se mueve detrás de la interfaz sin cambiar su comportamiento
+  ni sus tests.
+- La interfaz cubre: crear/actualizar el intento de pago de un pedido, procesar
+  el pago, parsear y verificar el webhook en eventos normalizados (pagado,
+  pendiente, fallido, reembolsado, contracargo), reembolsar (total o parcial) y
+  mapear estados del proveedor a `OrderStatus`, más el componente cliente del
+  paso Pago de cada proveedor.
+- Se mantiene el flujo visible Envío → Pago → Revisar y **solo se cobra con
+  "Realizar pedido"**. El servidor crea el pago de MP desde el `formData` del
+  Brick con `X-Idempotency-Key`, el monto recalculado del pedido PENDING,
+  `external_reference` = id del pedido y `notification_url` a nuestro webhook.
+- Estados: `approved` → mismo camino de éxito que Stripe (stock atómico, PAID,
+  carrito, email; sin stock → reembolso + CANCELLED). `in_process`/`pending`
+  (incluye tickets en efectivo) → nuevo estado `PAYMENT_PENDING`, con
+  instrucciones/enlace del ticket y vencimiento en la confirmación, en "Mis
+  pedidos" y por email. `rejected` → el cliente sigue en el paso de pago con el
+  motivo en castellano. `cancelled`/vencido → CANCELLED liberando reservas
+  (stock/cupón). `refunded`/`charged_back` → se reflejan en el pedido.
+- Webhook `/api/webhooks/mercadopago`: verifica `x-signature` (HMAC SHA256 con
+  `MERCADOPAGO_WEBHOOK_SECRET` sobre el manifest
+  `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`), **consulta el pago a la
+  API** (nunca confía en el cuerpo) y es idempotente y seguro ante reintentos y
+  eventos fuera de orden.
+- Admin: los reembolsos van por el proveedor del pedido (cancelar un PAID
+  reembolsa todo, como hoy); el detalle muestra proveedor, id de pago, medio,
+  cuotas e historial de estados.
+- Env: `MERCADOPAGO_ACCESS_TOKEN`, `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY`,
+  `MERCADOPAGO_WEBHOOK_SECRET`, `PAYMENT_PROVIDER`. Sin credenciales, en dev se
+  muestra "Pagos no configurados"; los tests usan un proveedor simulado en el
+  borde del proveedor (nunca activo en un build de producción) con
+  notificaciones firmadas de test. Credenciales de prueba de MP opcionales.
+
+### Cupones
+
+- Porcentaje o monto fijo; compra mínima; vencimiento; límite de usos total y
+  por usuario; activo/inactivo; contador de usos.
+- Campo de cupón en el carrito y en el checkout, **validado en el servidor**; el
+  descuento se guarda en el pedido (código y monto) y el uso se libera al
+  cancelar el pedido.
+
+### Admin completo
+
+- **Usuarios**: lista, detalle con sus pedidos, cambio de rol y bloqueo.
+- **Categorías y temas en la base** (imagen, orden), editables.
+- **Subida de imágenes**: Vercel Blob en producción (`BLOB_READ_WRITE_TOKEN`),
+  carpeta local (`public/uploads`, fuera de git) en dev/test.
+- **Mensajes de contacto y suscriptores del newsletter** persistidos, con
+  bandeja en el admin y export CSV.
+- **Configuración de la tienda**: costo de envío, umbral de envío gratis, barra
+  de anuncio, destacados de la home.
+- **Contenido editable** de las páginas informativas (FAQ, envíos,
+  devoluciones…).
+- **Dashboard con gráficos** (ventas por día, productos más vendidos) y export
+  CSV de pedidos.
+- **Audit log** general: quién hizo qué y cuándo, para toda mutación del admin.
+  Cada mutación del admin: `requireAdmin` + entrada de auditoría + revalidar los
+  tags/rutas de caché afectados.
+
+### Pendientes del frontend que entran en esta etapa
+
+- `sitemap.ts` + `robots.ts`.
+- `CONTACT_TOPICS` / `CONTACT_MESSAGE_MAX` duplicados: una sola fuente.
+- Mensajes de los guardrails de ESLint en tuteo.
+- `.env.example` completo.
+- CI también en push a ramas feature si conviene.
+
+### Documentación y cierre
+
+- Documentación del backend al final: modelo de datos, auth/roles,
+  checkout/pagos (MP + Stripe, webhooks), admin, deploy (Vercel + Neon + MP/Stripe
+  + Resend + Blob) y referencia de variables de entorno.
+- Después: verificación propia, push de `feat/backend` y PR #2 con base
+  `feat/ui-overhaul`.
