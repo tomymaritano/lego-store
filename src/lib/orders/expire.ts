@@ -16,7 +16,10 @@ import { asOrderPayments, type OrderPayments } from "./payments";
  *   · PAYMENT_PENDING (Mercado Pago) orders whose cash ticket expired a while
  *     ago, or whose payment has been pending for a week, are looked up in
  *     Mercado Pago: a payment that went through is applied (the webhook was
- *     lost), one still pending is cancelled there and the order with it.
+ *     lost), one that already ended (an expired ticket, a card rejected
+ *     after review) is applied too, so the order records why and the
+ *     customer is told; one still pending is cancelled there and the order
+ *     with it.
  *   Orders whose payment is under way are left for the webhook.
  */
 

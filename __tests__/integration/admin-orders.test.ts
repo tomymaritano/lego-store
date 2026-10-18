@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, afterEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { changeOrderStatus, getAdminOrder, listAdminOrders, refundKey } from "@/lib/admin/orders";
+import { changeOrderStatus, getAdminOrder, listAdminOrders } from "@/lib/admin/orders";
+import { orderRefundKey } from "@/lib/payments/provider";
 import { getDashboard } from "@/lib/admin/dashboard";
 import { payOrder, prepareOrder } from "@/lib/orders/checkout";
 import { handleStripeEvent } from "@/lib/orders/webhook";
@@ -228,7 +229,7 @@ describe("changeOrderStatus: cancelling", () => {
     errors.mockRestore();
 
     expect(result).toMatchObject({ ok: true, changed: true, status: "CANCELLED", restockedProductIds: ["7"] });
-    expect(keys).toEqual([refundKey(order.id)]);
+    expect(keys).toEqual([orderRefundKey(order.id)]);
     // One refund in Stripe, the one the order and its audit row record.
     expect(state.refunds.size).toBe(1);
     const refundId = [...state.refunds.keys()][0];
@@ -275,7 +276,7 @@ describe("changeOrderStatus: cancelling", () => {
     // The retry gets the same refund (same idempotency key) and finishes the cancellation.
     const retried = await move(order.id, "CANCELLED", "PAID");
     expect(retried).toMatchObject({ ok: true, changed: true, status: "CANCELLED" });
-    expect(keys).toEqual([refundKey(order.id)]);
+    expect(keys).toEqual([orderRefundKey(order.id)]);
     expect(state.refunds.size).toBe(1);
     expect((await orderRow(order.id)).stripeRefundId).toBe([...state.refunds.keys()][0]);
     expect(await stockOf("7")).toBe(40);

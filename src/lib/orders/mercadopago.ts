@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { orderTotals } from "@/lib/pricing";
 import { mercadoPagoEvent } from "@/lib/payments/mercadopago/provider";
 import { mapMercadoPagoStatus, rejectionMessage } from "@/lib/payments/mercadopago/status";
+import { orderRefundKey, type NormalizedPaymentEvent } from "@/lib/payments/provider";
 import { MercadoPagoRequestError, type MercadoPagoClient, type MpPayment, type MpPaymentRequest } from "@/lib/payments/mercadopago/types";
 import type { PrepareMercadoPagoOrderInput, PayMercadoPagoOrderInput } from "@/lib/validations/orders";
 import { accessSelect, canAccessOrder, hashAccessToken, newAccessToken, type Requester } from "./access";
@@ -45,6 +46,10 @@ import { restock, takeStock } from "./webhook";
  *                 Mercado Pago); shipped orders only record it; an admin's
  *                 cancellation in progress finishes it itself
  *   charged_back  PAID -> CANCELLED with the stock back; shipped: recorded
+ *   charged_back  / reimbursed (the store won the dispute): only recorded, for
+ *                 the admin. Never refunded (Mercado Pago refuses to refund a
+ *                 charged-back payment, and the money is the store's again);
+ *                 a cancelled order stays cancelled
  *
  * Each (payment, status, detail) is applied once: PaymentEvent's unique key
  * is claimed in the same transaction, so retried and repeated notifications,
@@ -60,12 +65,15 @@ import { restock, takeStock } from "./webhook";
  */
 
 type Tx = Prisma.TransactionClient;
+/** A Mercado Pago payment as the provider reports it (src/lib/payments/mercadopago/provider.ts). */
+type MpEvent = NormalizedPaymentEvent<MpPayment>;
 type Source = "checkout" | "webhook" | "return" | "expire" | "admin";
 
+/** Payments that went through (or are disputed): retiring their order applies them instead. */
 const MP_RETIRE: readonly string[] = ["approved", "refunded", "charged_back", "in_mediation"];
+/** Payments that ended unpaid: retiring their order applies them first (the order learns why, the customer is told). */
+const MP_ENDED: readonly string[] = ["cancelled", "rejected"];
 
-/** The refund of the order's payment: one per order, whoever asks (the admin, a short line here). */
-export const mercadoPagoRefundKey = (orderId: string) => `order/${orderId}/refund`;
 /** The refund of a payment that is not the order's (a second payment, one after the order was cancelled). */
 const strayRefundKey = (orderId: string, paymentId: string) => `order/${orderId}/refund/${paymentId}`;
 
@@ -226,7 +234,7 @@ export async function payMercadoPagoOrder(
       throw error;
     }
 
-    const applied = await applyLocked(tx, mp, order.id, payment, "checkout");
+    const applied = await applyLocked(tx, mp, order.id, mercadoPagoEvent(payment), "checkout");
     // A retried request gets the same payment back (the idempotency key): "duplicate", but still a rejection.
     const failed = applied.result === "declined" || (applied.result === "duplicate" && mapMercadoPagoStatus(payment.status) === "failed");
     if (failed) return { ok: false, code: "declined", message: rejectionMessage(payment.statusDetail) };
@@ -279,8 +287,9 @@ async function lockForPayment(tx: Tx, orderId: string) {
 }
 
 /** Records the news about a payment; false when it was already applied. */
-async function claimPaymentEvent(tx: Tx, orderId: string, payment: MpPayment, source: Source): Promise<boolean> {
-  const key = `MERCADOPAGO:${mercadoPagoEvent(payment).eventId}`;
+async function claimPaymentEvent(tx: Tx, orderId: string, event: MpEvent, source: Source): Promise<boolean> {
+  const payment = event.raw;
+  const key = `MERCADOPAGO:${event.eventId}`;
   const rows = await tx.$queryRaw<{ id: string }[]>`
     INSERT INTO "PaymentEvent" ("id", "key", "orderId", "provider", "paymentId", "status", "statusDetail", "source")
     VALUES (${`pe_${randomUUID()}`}, ${key}, ${orderId}, 'MERCADOPAGO', ${payment.id}, ${payment.status}, ${payment.statusDetail}, ${source})
@@ -309,15 +318,15 @@ const cancelled = (reason: CancelReason) => ({ status: "CANCELLED" as const, can
 export const chargedOrderTotal = (payment: MpPayment, order: { total: number; currency: string }) =>
   payment.amount === order.total && payment.currency.toLowerCase() === order.currency.toLowerCase();
 
-async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, payment: MpPayment, source: Source): Promise<ApplyOutcome> {
+async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, event: MpEvent, source: Source): Promise<ApplyOutcome> {
+  const payment = event.raw;
   const order = await lockForPayment(tx, orderId);
   if (!order || order.paymentProvider !== "MERCADOPAGO") return { result: "ignored" };
-  if (!(await claimPaymentEvent(tx, order.id, payment, source))) return { result: "duplicate", orderId: order.id };
+  if (!(await claimPaymentEvent(tx, order.id, event, source))) return { result: "duplicate", orderId: order.id };
 
   const update = (data: Prisma.OrderUpdateInput) => tx.order.update({ where: { id: order.id }, data });
   const isCurrent = order.providerPaymentId === null || order.providerPaymentId === payment.id;
   const waiting = order.status === "PENDING" || order.status === "PAYMENT_PENDING";
-  const event = mercadoPagoEvent(payment);
 
   const refund = async (key: string) => (await mp.refundPayment(payment.id, { idempotencyKey: key })).id;
 
@@ -328,7 +337,7 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, payme
           console.error(
             `[mercadopago] El pago ${payment.id} cobró ${payment.amount} ${payment.currency}; el pedido ${order.id} es de ${order.total} ${order.currency}. Se reembolsa y se cancela.`
           );
-          const refundId = await refund(mercadoPagoRefundKey(order.id));
+          const refundId = await refund(orderRefundKey(order.id));
           await update({ ...paymentFields(payment), ...cancelled("amount_mismatch"), providerRefundId: refundId });
           return { result: "amount_mismatch", orderId: order.id };
         }
@@ -341,7 +350,7 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, payme
           return { result: "paid", orderId: order.id, productIds };
         }
         // Someone else got the last units first: the money goes back.
-        const refundId = await refund(mercadoPagoRefundKey(order.id));
+        const refundId = await refund(orderRefundKey(order.id));
         await update({ ...paymentFields(payment), ...cancelled("out_of_stock"), providerRefundId: refundId, submittedAt: order.submittedAt ?? new Date() });
         return { result: "out_of_stock", orderId: order.id };
       }
@@ -352,7 +361,7 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, payme
       }
       if (order.status === "CANCELLED" && isCurrent && order.providerRefundId) return { result: "unchanged", orderId: order.id };
       // Money the order does not need: paid after it was cancelled (a ticket paid late), or a second payment of a paid order.
-      const refundId = await refund(order.status === "CANCELLED" && isCurrent ? mercadoPagoRefundKey(order.id) : strayRefundKey(order.id, payment.id));
+      const refundId = await refund(order.status === "CANCELLED" && isCurrent ? orderRefundKey(order.id) : strayRefundKey(order.id, payment.id));
       if (order.status === "CANCELLED") {
         await update({ ...paymentFields(payment), providerRefundId: refundId, cancelReason: "refunded" });
         return { result: "refunded", orderId: order.id, notify: true };
@@ -415,6 +424,19 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, payme
         ? { result: "refund_cancelled", orderId: order.id, productIds }
         : { result: "chargeback", orderId: order.id, productIds };
     }
+
+    case "chargeback_reversed": {
+      // The store won the dispute: the money is the store's again. Nothing is
+      // refunded or restocked; the order keeps its status (a chargeback
+      // already cancelled it and returned the stock) and the admin sees the
+      // outcome in the payment's status and history.
+      if (!isCurrent) return { result: "unchanged", orderId: order.id };
+      await update({ paymentStatus: payment.status, paymentStatusDetail: payment.statusDetail });
+      console.warn(
+        `[mercadopago] Disputa ganada en el pago ${payment.id}: el pedido ${order.id} sigue ${order.status}${order.status === "CANCELLED" ? " (revisa si corresponde enviarlo)" : ""}.`
+      );
+      return { result: "unchanged", orderId: order.id };
+    }
   }
 }
 
@@ -424,10 +446,10 @@ async function applyLocked(tx: Tx, mp: MercadoPagoClient, orderId: string, payme
  * nothing) when the work could not be done, e.g. a needed refund failed: the
  * webhook answers 500 and Mercado Pago retries.
  */
-export async function applyMercadoPagoPayment(db: PrismaClient, mp: MercadoPagoClient, payment: MpPayment, source: Source): Promise<ApplyOutcome> {
-  const orderId = payment.externalReference;
+export async function applyMercadoPagoPayment(db: PrismaClient, mp: MercadoPagoClient, event: MpEvent, source: Source): Promise<ApplyOutcome> {
+  const orderId = event.orderId;
   if (!orderId) return { result: "ignored" };
-  return db.$transaction((tx) => applyLocked(tx, mp, orderId, payment, source), LOCKED_TX);
+  return db.$transaction((tx) => applyLocked(tx, mp, orderId, event, source), LOCKED_TX);
 }
 
 /**
@@ -448,7 +470,7 @@ export async function syncMercadoPagoOrder(
   if (!id) return { result: "unchanged", orderId };
   const payment = await mp.getPayment(id);
   if (!payment || payment.externalReference !== orderId) return { result: "ignored" };
-  return applyMercadoPagoPayment(db, mp, payment, "return");
+  return applyMercadoPagoPayment(db, mp, mercadoPagoEvent(payment), "return");
 }
 
 // ---------------------------------------------------------------------------
@@ -475,8 +497,18 @@ export async function retireMercadoPagoOrder(
     const payment = await mp.getPayment(order.providerPaymentId);
     if (payment && MP_RETIRE.includes(payment.status)) {
       // It went through after all: settle it like a notification would.
-      await onApplied?.(await applyMercadoPagoPayment(db, mp, payment, "expire"));
+      await onApplied?.(await applyMercadoPagoPayment(db, mp, mercadoPagoEvent(payment), "expire"));
       return false;
+    }
+    if (payment && MP_ENDED.includes(payment.status)) {
+      // It already ended (an expired ticket, a card rejected after review) and
+      // its notification never arrived: apply it like one would, so the order
+      // records the payment's status and the customer gets the email. A
+      // rejection while the order was still at the checkout leaves it
+      // PENDING: it is cancelled below.
+      const applied = await applyMercadoPagoPayment(db, mp, mercadoPagoEvent(payment), "expire");
+      await onApplied?.(applied);
+      if (applied.result === "cancelled") return true;
     }
     if (payment && ["pending", "in_process", "authorized"].includes(payment.status)) {
       let latest: MpPayment;
@@ -486,7 +518,7 @@ export async function retireMercadoPagoOrder(
         console.warn(`[mercadopago] No se pudo cancelar el pago ${payment.id} del pedido ${order.id}:`, error);
         return false;
       }
-      const applied = await applyMercadoPagoPayment(db, mp, latest, "expire");
+      const applied = await applyMercadoPagoPayment(db, mp, mercadoPagoEvent(latest), "expire");
       await onApplied?.(applied);
       return applied.result === "cancelled";
     }

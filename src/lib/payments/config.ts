@@ -5,11 +5,8 @@ import type { PaymentGateway } from "./gateway";
 import { createMockState, mockGateway, type MockGatewayState } from "./mock";
 import { createMercadoPagoClient } from "./mercadopago/api";
 import { createMockMercadoPagoState, mockMercadoPago, mockMercadoPagoControls, type MockMercadoPagoState } from "./mercadopago/mock";
-import { mercadoPagoProvider } from "./mercadopago/provider";
 import type { MercadoPagoClient } from "./mercadopago/types";
-import type { PaymentProvider } from "./provider";
 import { createStripeClient, stripeGateway } from "./stripe";
-import { stripeProvider } from "./stripe-provider";
 
 /*
  * Which payment providers the app can use, from the environment.
@@ -246,14 +243,4 @@ export function getMercadoPagoMockControls(env: Env = process.env) {
   if (mercadoPagoMode(env) !== "mock") return null;
   getMercadoPago(env);
   return mockMercadoPagoControls(globalForPayments.mockMercadoPago!.state);
-}
-
-/** A provider's PaymentProvider (cancel, refund, webhooks), or null when it is not configured here. */
-export function getPaymentProvider(provider: PaymentProviderId, env: Env = process.env): PaymentProvider | null {
-  if (provider === "STRIPE") {
-    const gateway = getPaymentGateway(env);
-    return gateway ? stripeProvider(gateway, webhookSecret(env)) : null;
-  }
-  const client = getMercadoPago(env);
-  return client ? mercadoPagoProvider(client, mercadoPagoWebhookSecret(env)) : null;
 }

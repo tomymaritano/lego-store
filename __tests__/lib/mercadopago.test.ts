@@ -22,9 +22,9 @@ import {
   signatureManifest,
   verifyMercadoPagoSignature,
 } from "@/lib/payments/mercadopago/signature";
-import { DEFAULT_REJECTION_MESSAGE, mapMercadoPagoStatus, pendingMessage, rejectionMessage } from "@/lib/payments/mercadopago/status";
+import { DEFAULT_REJECTION_MESSAGE, mapMercadoPagoStatus, mercadoPagoStatusLabel, pendingMessage, rejectionMessage } from "@/lib/payments/mercadopago/status";
 import { MercadoPagoRequestError, type MpPayment } from "@/lib/payments/mercadopago/types";
-import { ORDER_STATUS_FOR_PAYMENT } from "@/lib/payments/provider";
+import { orderRefundKey } from "@/lib/payments/provider";
 import { mapStripeStatus, normalizeStripeEvent } from "@/lib/payments/stripe-provider";
 import { makeOrder } from "../helpers/orders";
 import { mercadoPagoFormDataSchema, payMercadoPagoOrderSchema } from "@/lib/validations/orders";
@@ -95,23 +95,21 @@ describe("statuses", () => {
     expect(mapMercadoPagoStatus("cancelled", "expired")).toBe("cancelled");
     expect(mapMercadoPagoStatus("refunded", "refunded")).toBe("refunded");
     expect(mapMercadoPagoStatus("charged_back", "settled")).toBe("chargeback");
-    // A chargeback the seller won: the money stays.
-    expect(mapMercadoPagoStatus("charged_back", "reimbursed")).toBe("succeeded");
+    // A chargeback the seller won: the money is back, but it is no new approval (nothing to refund).
+    expect(mapMercadoPagoStatus("charged_back", "reimbursed")).toBe("chargeback_reversed");
+    expect(mercadoPagoStatusLabel("charged_back", "reimbursed")).toBe("Contracargo: disputa ganada");
+    expect(mercadoPagoStatusLabel("charged_back", "settled")).toBe("Contracargo");
   });
 
-  it("and Stripe's, through the same words, which lead to the same order statuses", () => {
+  it("and Stripe's, through the same words", () => {
     expect(mapStripeStatus("succeeded")).toBe("succeeded");
     expect(mapStripeStatus("processing")).toBe("pending");
     expect(mapStripeStatus("requires_payment_method")).toBe("failed");
     expect(mapStripeStatus("canceled")).toBe("cancelled");
-    expect(ORDER_STATUS_FOR_PAYMENT).toEqual({
-      succeeded: "PAID",
-      pending: "PAYMENT_PENDING",
-      failed: "PENDING",
-      cancelled: "CANCELLED",
-      refunded: "CANCELLED",
-      chargeback: "CANCELLED",
-    });
+  });
+
+  it("refund an order with one idempotency key, whoever asks", () => {
+    expect(orderRefundKey("ord_1")).toBe("order/ord_1/refund");
   });
 
   it("say why a payment was rejected, in Spanish, with a default for unknown reasons", () => {

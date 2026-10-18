@@ -165,7 +165,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               <ol className="space-y-2" data-testid="admin-payment-history">
                 {order.paymentEvents.map((event) => (
                   <li key={event.id} className="rounded-xl border border-border bg-surface px-4 py-3 text-label font-normal text-fg-secondary">
-                    <span className="font-semibold text-fg">{mercadoPagoStatusLabel(event.status)}</span>
+                    <span className="font-semibold text-fg">{mercadoPagoStatusLabel(event.status, event.statusDetail)}</span>
                     {event.statusDetail ? <span className="font-mono text-caption"> ({event.statusDetail})</span> : null}{" "}
                     el {formatAdminDateTime(event.at)} ({EVENT_SOURCES[event.source] ?? event.source})
                     <span className="block font-mono text-caption text-fg-muted">Pago {event.paymentId}</span>
@@ -280,8 +280,14 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                 </Detail>
                 {order.paymentStatus ? (
                   <Detail term="Estado en el proveedor">
-                    {mercadoPagoStatusLabel(order.paymentStatus)}
+                    {mercadoPagoStatusLabel(order.paymentStatus, order.paymentStatusDetail)}
                     {order.paymentStatusDetail ? <span className="block font-mono text-caption text-fg-muted">{order.paymentStatusDetail}</span> : null}
+                    {order.paymentStatus === "charged_back" && order.paymentStatusDetail === "reimbursed" ? (
+                      <span className="block text-caption text-fg-secondary" data-testid="admin-dispute-won">
+                        Ganaste la disputa: Mercado Pago te devolvió el dinero.
+                        {order.status === "CANCELLED" ? " El pedido sigue cancelado y su stock ya volvió: si corresponde enviarlo, contacta al cliente." : null}
+                      </span>
+                    ) : null}
                   </Detail>
                 ) : null}
                 {order.payment.ticketUrl ? (

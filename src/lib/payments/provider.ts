@@ -1,4 +1,4 @@
-import type { OrderStatus, PaymentProviderId } from "@/lib/orders/types";
+import type { PaymentProviderId } from "@/lib/orders/types";
 
 /*
  * What the order code needs from whoever takes the money, whatever the
@@ -11,11 +11,19 @@ import type { OrderStatus, PaymentProviderId } from "@/lib/orders/types";
  * Collecting the payment is different per provider (Stripe confirms a
  * PaymentIntent with a ConfirmationToken; Mercado Pago creates a payment from
  * the Payment Brick's formData), so each has its own checkout flow on the
- * server (src/lib/orders/checkout.ts, src/lib/orders/mercadopago.ts, joined
- * in src/lib/orders/flows.ts) and its own payment step in the browser. After
- * that everything goes through this interface: providers report what happened
- * to a payment as a NormalizedPaymentEvent, and cancelling or refunding is
- * the same call for both.
+ * server (src/lib/orders/checkout.ts, src/lib/orders/mercadopago.ts; the
+ * checkout route handlers under src/app/api/checkout pick one with
+ * providerFor in src/lib/orders/http.ts) and its own payment step in the
+ * browser. After that everything goes through this interface: providers
+ * report what happened to a payment as a NormalizedPaymentEvent, and
+ * cancelling or refunding is the same call for both.
+ *
+ * What a payment status does to an order is not a table here: it depends on
+ * where the order is (a refund of a shipped order only records it, a late
+ * failure of a paid order changes nothing, approved money for a cancelled
+ * order goes back...), so each provider's flow owns its transitions, under
+ * the order's row lock: applyLocked in src/lib/orders/mercadopago.ts and the
+ * handlers in src/lib/orders/webhook.ts.
  */
 
 export type { PaymentProviderId };
@@ -33,22 +41,9 @@ export type NormalizedPaymentStatus =
   /** The whole payment went back to the customer. */
   | "refunded"
   /** The customer disputed it with their bank and the money was taken back. */
-  | "chargeback";
-
-/**
- * The order status a payment status leads to, from an order that is waiting
- * for it. The flows apply it with guards (a refund of an order already
- * shipped only records it, a late failure of a paid order changes nothing...).
- */
-export const ORDER_STATUS_FOR_PAYMENT: Record<NormalizedPaymentStatus, OrderStatus> = {
-  succeeded: "PAID",
-  pending: "PAYMENT_PENDING",
-  // Nothing was charged: the order waits for another attempt (the checkout shows why).
-  failed: "PENDING",
-  cancelled: "CANCELLED",
-  refunded: "CANCELLED",
-  chargeback: "CANCELLED",
-};
+  | "chargeback"
+  /** A chargeback the store won: the money came back to the store (Mercado Pago's charged_back / reimbursed). */
+  | "chargeback_reversed";
 
 /** One piece of news about a payment, from a verified webhook (or the provider's API). */
 export interface NormalizedPaymentEvent<Raw = unknown> {
@@ -95,6 +90,13 @@ export interface PaymentProvider<Raw = unknown> {
   /** The provider's status in our words. */
   mapStatus(providerStatus: string, providerStatusDetail?: string | null): NormalizedPaymentStatus;
 }
+
+/**
+ * The idempotency key of the refund of an order's payment: one per order,
+ * whoever asks (an admin's cancellation, a webhook that finds a line short,
+ * either provider), so the same order is never refunded twice.
+ */
+export const orderRefundKey = (orderId: string) => `order/${orderId}/refund`;
 
 /** The order's payment id with its provider (Stripe's PaymentIntent, Mercado Pago's latest payment). */
 export function paymentRefOf(order: {

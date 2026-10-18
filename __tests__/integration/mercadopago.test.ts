@@ -4,8 +4,10 @@ import { changeOrderStatus, getAdminOrder } from "@/lib/admin/orders";
 import { serializeCheckoutCookie, type Requester } from "@/lib/orders/access";
 import { expireStaleOrders } from "@/lib/orders/expire";
 import { applyMercadoPagoPayment, payMercadoPagoOrder, prepareMercadoPagoOrder } from "@/lib/orders/mercadopago";
+import { afterMercadoPagoPayment } from "@/lib/orders/payment-effects";
 import { getMercadoPago, getMercadoPagoMockControls } from "@/lib/payments/config";
 import { mpMockToken, type MpMockCardId } from "@/lib/payments/mercadopago/mock-options";
+import { mercadoPagoEvent } from "@/lib/payments/mercadopago/provider";
 import type { MercadoPagoClient } from "@/lib/payments/mercadopago/types";
 import { prepareMercadoPagoOrderSchema, type PayMercadoPagoOrderInput } from "@/lib/validations/orders";
 import { resetAndSeed, testDb } from "./setup/db";
@@ -325,6 +327,62 @@ describe("the webhook", () => {
     expect(await stockOf("7")).toBe(40);
   });
 
+  it("a chargeback the store wins is only recorded: no refund, the order stays cancelled, retries answer 200", async () => {
+    for (const first of ["in_process", "settled"]) {
+      const disputed = await ticketOrder([{ productId: "7", quantity: 1 }]);
+      controls().setStatus(disputed.paymentId, "approved", "accredited");
+      await notify(disputed.paymentId);
+      controls().setStatus(disputed.paymentId, "charged_back", first);
+      expect(await notify(disputed.paymentId)).toEqual({ status: 200, body: { received: true, result: "chargeback" } });
+      expect(await stockOf("7")).toBe(40);
+
+      const refund = vi.spyOn(mp, "refundPayment");
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        controls().setStatus(disputed.paymentId, "charged_back", "reimbursed");
+        expect(await notify(disputed.paymentId)).toEqual({ status: 200, body: { received: true, result: "unchanged" } });
+        expect(await notify(disputed.paymentId)).toEqual({ status: 200, body: { received: true, result: "duplicate" } });
+        expect(refund).not.toHaveBeenCalled();
+      } finally {
+        refund.mockRestore();
+        warn.mockRestore();
+      }
+      const row = await orderRow(disputed.id);
+      expect(row).toMatchObject({
+        status: "CANCELLED",
+        cancelReason: "chargeback",
+        providerRefundId: null,
+        paymentStatus: "charged_back",
+        paymentStatusDetail: "reimbursed",
+      });
+      expect(row.paymentEvents.map((event) => `${event.status}/${event.statusDetail}`)).toEqual([
+        "pending/pending_waiting_payment",
+        "approved/accredited",
+        `charged_back/${first}`,
+        "charged_back/reimbursed",
+      ]);
+      expect(await stockOf("7")).toBe(40);
+    }
+  });
+
+  it("a won chargeback whose first notice was lost leaves a paid order paid", async () => {
+    const disputed = await ticketOrder([{ productId: "7", quantity: 1 }]);
+    controls().setStatus(disputed.paymentId, "approved", "accredited");
+    await notify(disputed.paymentId);
+    const refund = vi.spyOn(mp, "refundPayment");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      controls().setStatus(disputed.paymentId, "charged_back", "reimbursed");
+      expect((await notify(disputed.paymentId)).body.result).toBe("unchanged");
+      expect(refund).not.toHaveBeenCalled();
+    } finally {
+      refund.mockRestore();
+      warn.mockRestore();
+    }
+    expect(await orderRow(disputed.id)).toMatchObject({ status: "PAID", paymentStatus: "charged_back", paymentStatusDetail: "reimbursed" });
+    expect(await stockOf("7")).toBe(39);
+  });
+
   it("a payment approved after its order was cancelled goes back to the customer", async () => {
     const { order } = await prepared([{ productId: "11", quantity: 1 }]);
     await testDb.order.update({ where: { id: order.id }, data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "expired" } });
@@ -343,7 +401,7 @@ describe("the webhook", () => {
       expiresAt: null,
       refunds: [],
     });
-    expect(await applyMercadoPagoPayment(testDb, mp, late, "webhook")).toEqual({ result: "refunded", orderId: order.id, notify: true });
+    expect(await applyMercadoPagoPayment(testDb, mp, mercadoPagoEvent(late), "webhook")).toEqual({ result: "refunded", orderId: order.id, notify: true });
     expect(controls().get(late.id)?.status).toBe("refunded");
     expect(await orderRow(order.id)).toMatchObject({ status: "CANCELLED", cancelReason: "refunded" });
     expect(await stockOf("11")).toBe(15);
@@ -452,5 +510,43 @@ describe("cleanup", () => {
     expect((await orderRow(paid.id)).status).toBe("PAID");
     expect((await orderRow(fresh.id)).status).toBe("PAYMENT_PENDING");
     expect(applied.sort()).toEqual(["cancelled", "paid"]);
+  });
+
+  it("applies a payment that ended without its notification: the order records it and the customer is told", async () => {
+    const expiredTicket = await ticketOrder([{ productId: "5", quantity: 1 }]);
+    const { order, requester } = await prepared([{ productId: "11", quantity: 1 }]);
+    expect(await pay(order.id, card("review"), requester)).toMatchObject({ ok: true, order: { status: "PAYMENT_PENDING" } });
+    const reviewed = (await orderRow(order.id)).providerPaymentId!;
+    const longAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await testDb.order.update({ where: { id: expiredTicket.id }, data: { ticketExpiresAt: longAgo } });
+    await testDb.order.update({ where: { id: order.id }, data: { updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) } });
+    // Mercado Pago ended both; neither notification arrived.
+    controls().setStatus(expiredTicket.paymentId, "cancelled", "expired");
+    controls().setStatus(reviewed, "rejected", "cc_rejected_high_risk");
+    const cancel = vi.spyOn(mp, "cancelPayment");
+    const lapsedEmails = () => sentEmails().filter((text) => text.includes("No se acreditó el pago")).length;
+    const before = lapsedEmails();
+
+    const applied: string[] = [];
+    try {
+      const result = await expireStaleOrders(testDb, { stripe: null, mercadopago: mp }, {
+        // What the cron route does: the emails that follow.
+        onApplied: async (outcome) => {
+          applied.push(outcome.result);
+          await afterMercadoPagoPayment(testDb, outcome);
+        },
+      });
+      expect(result).toEqual({ expired: 2, skipped: 0 });
+      expect(cancel).not.toHaveBeenCalled();
+    } finally {
+      cancel.mockRestore();
+    }
+    expect(applied).toEqual(["cancelled", "cancelled"]);
+    expect(lapsedEmails() - before).toBe(2);
+    expect(await orderRow(expiredTicket.id)).toMatchObject({ status: "CANCELLED", cancelReason: "expired", paymentStatus: "cancelled", paymentStatusDetail: "expired" });
+    expect(await orderRow(order.id)).toMatchObject({ status: "CANCELLED", cancelReason: "payment_rejected", paymentStatus: "rejected" });
+    expect((await orderRow(order.id)).paymentEvents.at(-1)).toMatchObject({ status: "rejected", source: "expire" });
+    expect(await stockOf("5")).toBe(8);
+    expect(await stockOf("11")).toBe(15);
   });
 });

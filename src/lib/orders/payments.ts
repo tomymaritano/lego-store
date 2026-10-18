@@ -25,7 +25,12 @@ export function asOrderPayments(value: PaymentGateway | OrderPayments | null): O
   return isGateway(value) ? { stripe: value, mercadopago: null } : value;
 }
 
-/** The provider-neutral view (cancel, refund) of the order's provider, or null when it is not configured. */
+/**
+ * The provider-neutral view (cancel, refund) of the order's provider, or null
+ * when it is not configured: the one place that builds a PaymentProvider for
+ * order code. Webhook routes build theirs with the webhook secret (only they
+ * verify signatures).
+ */
 export function providerOf(payments: OrderPayments, provider: PaymentProviderId): PaymentProvider | null {
   if (provider === "STRIPE") return payments.stripe ? stripeProvider(payments.stripe, null) : null;
   return payments.mercadopago ? mercadoPagoProvider(payments.mercadopago, null) : null;

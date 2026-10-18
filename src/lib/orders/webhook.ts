@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { toCentavos, type PaymentGateway } from "@/lib/payments/gateway";
+import { orderRefundKey } from "@/lib/payments/provider";
 
 /*
  * What Stripe's webhook does to orders (the route verifies the signature
@@ -158,7 +159,7 @@ export async function restock(tx: Tx, items: { productId: string | null; quantit
 }
 
 async function refundInto(tx: Tx, gateway: PaymentGateway, orderId: string, intentId: string) {
-  const refund = await gateway.refund(intentId, `order/${orderId}/refund`);
+  const refund = await gateway.refund(intentId, orderRefundKey(orderId));
   await tx.order.update({ where: { id: orderId }, data: { stripeRefundId: refund.id } });
 }
 

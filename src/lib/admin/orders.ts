@@ -7,7 +7,7 @@ import type { CancelReason, OrderStatus, OrderView } from "@/lib/orders/types";
 import { asOrderPayments, providerOf, type OrderPayments } from "@/lib/orders/payments";
 import { restock } from "@/lib/orders/webhook";
 import type { PaymentGateway } from "@/lib/payments/gateway";
-import { paymentRefOf, refundColumnOf, refundRefOf } from "@/lib/payments/provider";
+import { orderRefundKey, paymentRefOf, refundColumnOf, refundRefOf } from "@/lib/payments/provider";
 import { ADMIN_PAGE_SIZE, type AdminOrderFilters, type OrderTransitionInput } from "@/lib/validations/admin";
 import { canTransition, pageCount, storeDayEnd, storeDayStart, type Page } from "./format";
 
@@ -48,8 +48,6 @@ type Tx = Prisma.TransactionClient;
 /** Room for the provider's round trips inside a transaction that holds an order's lock (as in checkout.ts). */
 const LOCKED_TX = { timeout: 30_000, maxWait: 10_000 } as const;
 
-/** The refund's idempotency key: the same one the webhook would use, so an order is refunded at most once. */
-export const refundKey = (orderId: string) => `order/${orderId}/refund`;
 
 // ---------------------------------------------------------------------------
 // List and detail
@@ -418,7 +416,7 @@ async function cancelPaid(db: PrismaClient, payments: OrderPayments, input: Orde
   let refundId = held.refundId;
   if (!refundId) {
     try {
-      refundId = (await provider.refund(held.paymentId, { idempotencyKey: refundKey(input.orderId) })).id;
+      refundId = (await provider.refund(held.paymentId, { idempotencyKey: orderRefundKey(input.orderId) })).id;
     } catch (error) {
       console.error(`[admin] Falló el reembolso del pedido ${input.orderId}:`, error);
       let found: { id: string } | null;

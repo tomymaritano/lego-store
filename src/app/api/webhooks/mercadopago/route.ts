@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   let outcome: ApplyOutcome = { result: "ignored" };
   for (const event of events) {
     try {
-      outcome = await applyMercadoPagoPayment(db, mp, event.raw, "webhook");
+      outcome = await applyMercadoPagoPayment(db, mp, event, "webhook");
     } catch (error) {
       console.error(`[mercadopago] No se pudo aplicar el pago ${event.paymentId} (${event.providerStatus}):`, error);
       return Response.json({ error: "No se pudo procesar la notificación." }, { status: 500 });

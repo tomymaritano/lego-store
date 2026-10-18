@@ -24,7 +24,10 @@ export function mapMercadoPagoStatus(status: string, detail?: string | null): No
     case "refunded":
       return "refunded";
     case "charged_back":
-      return detail === "reimbursed" ? "succeeded" : "chargeback";
+      // "reimbursed": the store won the dispute and got the money back. It is
+      // not a new approval (the order was cancelled by the chargeback, and a
+      // charged-back payment cannot be refunded): only recorded.
+      return detail === "reimbursed" ? "chargeback_reversed" : "chargeback";
     default:
       return "pending";
   }
@@ -79,4 +82,6 @@ const STATUS_LABELS: Record<string, string> = {
   charged_back: "Contracargo",
 };
 
-export const mercadoPagoStatusLabel = (status: string) => STATUS_LABELS[status] ?? status;
+/** Mercado Pago's status as the admin reads it; a chargeback the store won says so. */
+export const mercadoPagoStatusLabel = (status: string, detail?: string | null) =>
+  status === "charged_back" && detail === "reimbursed" ? "Contracargo: disputa ganada" : (STATUS_LABELS[status] ?? status);

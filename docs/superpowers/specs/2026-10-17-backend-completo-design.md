@@ -370,7 +370,18 @@ Decisiones tomadas al construir la etapa de pagos de la ampliación (el README,
   reserva stock (se toma al acreditarse, como con Stripe; si falta, se reembolsa).
   Rechazado con el cliente en el checkout → sigue PENDING; rechazado después de
   una revisión → CANCELLED (`payment_rejected`). Contracargo → CANCELLED
-  (`chargeback`) con el stock devuelto.
+  (`chargeback`) con el stock devuelto. Contracargo que la tienda gana
+  (`charged_back`/`reimbursed`, estado normalizado `chargeback_reversed`) → solo
+  se registra (estado del pago e historial, aviso en el admin): no se reembolsa
+  (Mercado Pago no reembolsa un pago con contracargo) y el pedido no cambia.
+  La limpieza diaria también aplica los pagos que terminaron sin aviso
+  (ticket vencido, tarjeta rechazada tras revisión): el pedido registra el
+  estado y el cliente recibe el email.
+- *Transiciones*: no hay una tabla estado de pago → estado de pedido; cada flujo
+  las decide bajo el lock del pedido según dónde está (`applyLocked` en
+  `src/lib/orders/mercadopago.ts`, `src/lib/orders/webhook.ts` para Stripe). La
+  clave de idempotencia del reembolso de un pedido es una sola
+  (`orderRefundKey`), la usen el admin, el webhook o el proveedor que sea.
 - *Idempotencia*: `PaymentEvent` (clave única proveedor:pago:estado:detalle) es a
   la vez el historial del pago que ve el admin y el registro de qué noticias ya
   se aplicaron. El webhook siempre lee el pago de la API, así que aplica el estado
