@@ -61,7 +61,6 @@ export default async function AdminPage({ searchParams }: DashboardPageProps) {
   const pendingPayments = dashboard.ordersByStatus.PAYMENT_PENDING;
   const placedInRange = STATUS_ORDER.reduce((sum, status) => sum + report.placedByStatus[status], 0);
   const best = report.sales.reduce((top, day) => (day.revenue > top.revenue ? day : top), report.sales[0]!);
-  const labelEvery = Math.ceil(report.sales.length / 8);
 
   return (
     <>
@@ -209,7 +208,6 @@ export default async function AdminPage({ searchParams }: DashboardPageProps) {
               tooltip: `${dayLabel(day.day)}: ${formatPrice(day.revenue)} · ${pluralize(day.orders, "pedido")}`,
             }))}
             formatTick={compactPrice}
-            showLabel={(index, count) => index % labelEvery === 0 || index === count - 1}
           />
         </ChartFrame>
 

@@ -94,13 +94,35 @@ interface ColumnChartProps {
   points: { key: string; label: string; value: number; tooltip: string }[];
   /** Axis tick text ("$ 10 mil"). */
   formatTick: (value: number) => string;
-  /** Which x labels to print (every one does not fit on 30+ days). */
-  showLabel: (index: number, count: number) => boolean;
 }
 
-/** Vertical bars over a time axis (one per day): 2px gaps, 4px rounded tops on the baseline, recessive grid. */
-export function ColumnChart({ points, formatTick, showLabel }: ColumnChartProps) {
+/** How many x labels fit: a phone's chart, and one from `sm` up ("17 oct" is about 40px). */
+export const AXIS_LABELS_NARROW = 4;
+export const AXIS_LABELS_WIDE = 8;
+
+/**
+ * Which of `count` x labels to print, at most about `max`: every n-th from
+ * the first, and the last one too unless it would sit closer than 3/4 of a
+ * step to the one before it (where two labels run into each other).
+ */
+export function axisLabelIndexes(count: number, max: number): Set<number> {
+  const shown = new Set<number>();
+  if (count <= 0) return shown;
+  const every = Math.max(1, Math.ceil(count / Math.max(1, max)));
+  for (let index = 0; index < count; index += every) shown.add(index);
+  const last = count - 1;
+  if (last % every >= (every * 3) / 4) shown.add(last);
+  return shown;
+}
+
+/**
+ * Vertical bars over a time axis (one per day): 2px gaps, 4px rounded tops on
+ * the baseline, recessive grid. The x labels thin out on a phone.
+ */
+export function ColumnChart({ points, formatTick }: ColumnChartProps) {
   const axis = niceAxis(points.map((point) => point.value));
+  const wide = axisLabelIndexes(points.length, AXIS_LABELS_WIDE);
+  const narrow = axisLabelIndexes(points.length, AXIS_LABELS_NARROW);
   return (
     // Room above the top tick, whose label is centred on the line.
     <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 pt-3">
@@ -132,7 +154,7 @@ export function ColumnChart({ points, formatTick, showLabel }: ColumnChartProps)
       <div className="mt-1 flex gap-0.5 border-t border-border-strong pt-1 text-caption text-fg-muted">
         {points.map((point, index) => (
           <span key={point.key} className="min-w-0 flex-1 overflow-visible text-center whitespace-nowrap">
-            {showLabel(index, points.length) ? point.label : ""}
+            {narrow.has(index) ? point.label : wide.has(index) ? <span className="hidden sm:inline">{point.label}</span> : null}
           </span>
         ))}
       </div>
