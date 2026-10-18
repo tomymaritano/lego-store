@@ -15,6 +15,14 @@ import { countHelpfulVotes, countReviews } from "./helpers/db";
 const reviewsRegion = (page: Page) => page.getByRole("region", { name: "Reseñas de clientes" });
 const reviewsLink = (page: Page) => page.getByRole("link", { name: /^Ver \d+ reseñas?$/ });
 
+/**
+ * The product the publish/edit/delete flow writes to. No other spec opens its
+ * page: a render of it running in parallel (another worker) could read the
+ * reviews just before a write and store them in the data cache just after,
+ * and this test would see that copy.
+ */
+const PRODUCT = "8";
+
 const reviewCountLabel = (n: number) => (n === 1 ? "Ver 1 reseña" : `Ver ${n} reseñas`);
 
 /** The radios are visually hidden; the visible star is their label. */
@@ -28,19 +36,19 @@ test.describe("Reviews", () => {
   test("a visitor logs in to review, then publishes, edits and deletes their review", async ({ page }) => {
     // A sign-up (bcrypt, slow on purpose) and a dozen round trips.
     test.slow();
-    const published = await countReviews("2");
-    await page.goto("/item/2");
+    const published = await countReviews(PRODUCT);
+    await page.goto(`/item/${PRODUCT}`);
     await page.waitForLoadState("networkidle");
     await reviewsLink(page).click();
 
     // Signed out: "Escribir reseña" leads to login, and back to the form afterwards.
     await expect(reviewsRegion(page).getByText("Inicia sesión para opinar")).toBeVisible();
     await reviewsRegion(page).getByRole("link", { name: "Escribir reseña" }).click();
-    await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fitem%2F2%23escribir-resena$/);
+    await expect(page).toHaveURL(new RegExp(`/login\\?callbackUrl=%2Fitem%2F${PRODUCT}%23escribir-resena$`));
     await page.getByRole("link", { name: "Crea una" }).click();
     await register(page, { name: "Reseñista E2E", email: uniqueEmail("review") });
     await expect(page.getByTestId("account-menu")).toBeVisible({ timeout: 15_000 });
-    await expect(page).toHaveURL(/\/item\/2/);
+    await expect(page).toHaveURL(new RegExp(`/item/${PRODUCT}`));
 
     // The form opens (from the link's fragment) and validates in Spanish.
     const toggle = reviewsRegion(page).getByRole("button", { name: /^(Escribir reseña|Cancelar)$/ });
@@ -83,6 +91,9 @@ test.describe("Reviews", () => {
     await expect(dialog).toBeVisible();
     await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
     await dialog.getByRole("button", { name: "Eliminar reseña" }).click();
+    // The dialog stays open (the rest of the page hidden from the accessibility tree) until
+    // the Server Action answers, which can take seconds while every worker hits the dev server.
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
     await expect(saved).toHaveCount(0);
     await expect(reviewsLink(page)).toHaveText(reviewCountLabel(published));
   });

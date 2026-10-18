@@ -84,7 +84,8 @@ test.describe("Cart and wishlist with an account", () => {
     // Logout clears this browser's copy of the account's lists.
     await page.getByTestId("account-menu").click();
     await page.getByRole("button", { name: "Cerrar sesión" }).click();
-    await expect(page.getByTestId("login-link")).toBeVisible();
+    // Logout redirects home, a full server render: slow while every worker hits the dev server.
+    await expect(page.getByTestId("login-link")).toBeVisible({ timeout: 15_000 });
     await expect.poll(() => stored(page)).toEqual({ cart: [], prices: [], wishlist: [], owner: null });
     await expect(page.getByTestId("cart-count")).toHaveCount(0);
   });
