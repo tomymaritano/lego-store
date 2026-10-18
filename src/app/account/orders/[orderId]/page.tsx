@@ -10,6 +10,7 @@ import {
   cancelReasonLabel,
   formatOrderDate,
   formatOrderNumber,
+  orderPlacedAt,
   paymentLabel,
 } from "@/lib/orders/format";
 import { getUserOrder } from "@/lib/orders/queries";
@@ -58,7 +59,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
       <PageHeader
         title={`Pedido ${number}`}
         breadcrumbs={[{ label: "Mi cuenta", href: "/account" }, { label: "Mis pedidos", href: "/account/orders" }, { label: number }]}
-        description={`Realizado el ${formatOrderDate(order.createdAt)}`}
+        description={`Realizado el ${formatOrderDate(orderPlacedAt(order))}`}
         actions={
           <Badge variant={ORDER_STATUS_BADGE[order.status]} data-testid="order-status">
             {ORDER_STATUS_LABELS[order.status]}

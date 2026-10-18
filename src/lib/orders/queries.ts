@@ -91,7 +91,11 @@ export interface OrderSummary {
   number: number;
   status: OrderStatus;
   total: number;
-  createdAt: string;
+  /** When it was placed ("Realizar pedido"). */
+  placedAt: string;
+  /** Products (lines) in the order. */
+  lineCount: number;
+  /** Units across its lines. */
   itemCount: number;
   /** Up to three line pictures, for the row's thumbnails. */
   images: string[];
@@ -106,14 +110,14 @@ export interface OrderSummary {
 export async function listUserOrders(db: Db, userId: string, { take = 50 }: { take?: number } = {}): Promise<OrderSummary[]> {
   const rows = await db.order.findMany({
     where: { userId, submittedAt: { not: null } },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
     take,
     select: {
       id: true,
       number: true,
       status: true,
       total: true,
-      createdAt: true,
+      submittedAt: true,
       items: { select: { name: true, image: true, quantity: true }, orderBy: { id: "asc" } },
     },
   });
@@ -122,7 +126,9 @@ export async function listUserOrders(db: Db, userId: string, { take = 50 }: { ta
     number: row.number,
     status: row.status as OrderStatus,
     total: row.total,
-    createdAt: row.createdAt.toISOString(),
+    // Listed orders are submitted (the where above).
+    placedAt: row.submittedAt!.toISOString(),
+    lineCount: row.items.length,
     itemCount: row.items.reduce((sum, item) => sum + item.quantity, 0),
     images: row.items.slice(0, 3).map((item) => item.image),
     firstItemName: row.items[0]?.name ?? null,

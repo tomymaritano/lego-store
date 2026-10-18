@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui";
  */
 export function OrderCard({ order }: { order: OrderSummary }) {
   const number = formatOrderNumber(order.number);
-  const others = order.itemCount > 1 ? ` y ${pluralize(order.itemCount - 1, "producto")} más` : "";
+  // Other products (lines), not units: 3 × the same set is one product.
+  const others = order.lineCount > 1 ? ` y ${pluralize(order.lineCount - 1, "producto")} más` : "";
   return (
     <Link
       href={`/account/orders/${order.id}`}
@@ -38,7 +39,7 @@ export function OrderCard({ order }: { order: OrderSummary }) {
           {order.firstItemName}
           {others}
         </span>
-        <span className="text-caption text-fg-muted">{formatOrderDate(order.createdAt)}</span>
+        <span className="text-caption text-fg-muted">{formatOrderDate(order.placedAt)}</span>
       </span>
       <span className="flex shrink-0 items-center gap-2">
         <span className="text-body font-semibold text-fg tabular-nums">{formatPrice(order.total)}</span>

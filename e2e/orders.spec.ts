@@ -86,6 +86,8 @@ test("a signed-in customer buys, and follows the order in Mis pedidos (only thei
   const card = page.getByTestId("order-card").filter({ hasText: number });
   await expect(card).toContainText("Pagado");
   await expect(card).toContainText("Groot Guardians");
+  // One product, two units: no "y 1 producto más".
+  await expect(card).not.toContainText("más");
   await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
   await page.goto("/account");
   await expect(page.getByTestId("order-card").filter({ hasText: number })).toBeVisible();

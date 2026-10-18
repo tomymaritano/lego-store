@@ -303,13 +303,33 @@ describe("account order queries", () => {
     const gateway = mockGateway();
     const abandoned = await prepared(gateway, [{ productId: "7", quantity: 1 }], as(bruno.id));
     // Another browser (no cookie of the first): a second order.
-    const placed = await prepared(gateway, [{ productId: "5", quantity: 1 }], as(bruno.id));
+    const placed = await prepared(
+      gateway,
+      [
+        { productId: "5", quantity: 1 },
+        { productId: "7", quantity: 3 },
+      ],
+      as(bruno.id)
+    );
     await payOrder(testDb, gateway, placed.order.id, "ctoken_mock_visa", as(bruno.id));
+    const single = await prepared(gateway, [{ productId: "11", quantity: 3 }], as(bruno.id));
+    await payOrder(testDb, gateway, single.order.id, "ctoken_mock_visa", as(bruno.id));
+    // "Revisar" an hour before "Realizar pedido": the order dates from the latter.
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    await testDb.order.update({ where: { id: single.order.id }, data: { createdAt: hourAgo } });
 
     const listed = await listUserOrders(testDb, bruno.id);
     expect(listed.map((order) => order.id)).toContain(placed.order.id);
     expect(listed.map((order) => order.id)).not.toContain(abandoned.order.id);
-    expect(listed.find((order) => order.id === placed.order.id)).toMatchObject({ itemCount: 1, total: 488, firstItemName: "Tusken Raider" });
+    // Newest placed first.
+    expect(listed.map((order) => order.id).slice(0, 2)).toEqual([single.order.id, placed.order.id]);
+    expect(listed.find((order) => order.id === placed.order.id)).toMatchObject({ lineCount: 2, itemCount: 4, firstItemName: "Tusken Raider" });
+    // Three units of one product are one product.
+    const singleRow = listed.find((order) => order.id === single.order.id)!;
+    expect(singleRow).toMatchObject({ lineCount: 1, itemCount: 3 });
+    const submittedAt = (await testDb.order.findUniqueOrThrow({ where: { id: single.order.id } })).submittedAt!;
+    expect(singleRow.placedAt).toBe(submittedAt.toISOString());
+    expect(new Date(singleRow.placedAt).getTime()).toBeGreaterThan(hourAgo.getTime());
 
     expect(await getUserOrder(testDb, bruno.id, placed.order.id)).toMatchObject({ id: placed.order.id });
     expect(await getUserOrder(testDb, ana.id, placed.order.id)).toBeNull();

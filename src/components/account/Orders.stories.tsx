@@ -11,7 +11,8 @@ const summary = (overrides: Partial<OrderSummary> = {}): OrderSummary => ({
   number: 1001,
   status: "PAID",
   total: 3167,
-  createdAt: "2026-10-17T15:00:00.000Z",
+  placedAt: "2026-10-17T15:01:00.000Z",
+  lineCount: 2,
   itemCount: 3,
   images: ["/images/lego.png", "/images/lego.png"],
   firstItemName: "Batmobile",
@@ -70,7 +71,7 @@ export const OrderRows: Story = {
     <ul className="space-y-3" aria-label="Pedidos">
       {(["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const).map((status, index) => (
         <li key={status}>
-          <OrderCard order={summary({ id: `order_${index}`, number: 1001 + index, status, itemCount: index + 1 })} />
+          <OrderCard order={summary({ id: `order_${index}`, number: 1001 + index, status, lineCount: index + 1, itemCount: index + 2 })} />
         </li>
       ))}
     </ul>

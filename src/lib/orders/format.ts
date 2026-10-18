@@ -74,6 +74,12 @@ export const formatOrderDate = (iso: string) => dateFormat.format(new Date(iso))
 /** "17 oct, 14:05" (store time zone). */
 export const formatOrderDateTime = (iso: string) => dateTimeFormat.format(new Date(iso));
 
+/**
+ * When the customer placed the order ("Realizar pedido"); its creation time
+ * ("Revisar", possibly hours earlier) only for one never submitted.
+ */
+export const orderPlacedAt = (order: Pick<OrderView, "createdAt" | "submittedAt">) => order.submittedAt ?? order.createdAt;
+
 export interface TimelineStep {
   key: "placed" | "paid" | "shipped" | "delivered" | "cancelled";
   label: string;
@@ -86,9 +92,11 @@ export interface TimelineStep {
  * The order's progress: placed → paid → shipped → delivered. A cancelled
  * order shows the steps it reached and then "Cancelado" instead of the rest.
  */
-export function orderTimeline(order: Pick<OrderView, "status" | "createdAt" | "paidAt" | "shippedAt" | "deliveredAt" | "cancelledAt">): TimelineStep[] {
+export function orderTimeline(
+  order: Pick<OrderView, "status" | "createdAt" | "submittedAt" | "paidAt" | "shippedAt" | "deliveredAt" | "cancelledAt">
+): TimelineStep[] {
   const steps: Omit<TimelineStep, "state">[] = [
-    { key: "placed", label: "Pedido realizado", at: order.createdAt },
+    { key: "placed", label: "Pedido realizado", at: orderPlacedAt(order) },
     { key: "paid", label: "Pago confirmado", at: order.paidAt },
     { key: "shipped", label: "Enviado", at: order.shippedAt },
     { key: "delivered", label: "Entregado", at: order.deliveredAt },
