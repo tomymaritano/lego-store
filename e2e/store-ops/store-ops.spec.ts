@@ -46,8 +46,12 @@ const seedCart = (page: Page) =>
     sessionStorage.setItem("seeded:cart", "1");
   });
 
+/** The editor's fields fill reliably once React has hydrated them (a fill before can land in front of the old text). */
+const hydratedEditor = (page: Page) => expect(page.getByRole("button", { name: "Pasos o tarjetas", exact: true })).toBeEnabled(COLD);
+
 async function saveShipping(page: Page, cost: string, freeFrom: string) {
   await page.goto("/admin/configuracion");
+  await expect(page.getByTestId("settings-shipping-save")).toBeEnabled(COLD);
   const form = page.getByRole("form", { name: "Envío" });
   await form.getByLabel(/^Costo del envío/).fill(cost);
   await form.getByLabel(/^Envío gratis desde/).fill(freeFrom);
@@ -58,6 +62,7 @@ async function saveShipping(page: Page, cost: string, freeFrom: string) {
 test("an admin changes the shipping cost and the cart charges it", async ({ browser }) => {
   test.slow();
   const page = await adminPage(browser, "/admin/configuracion");
+  await expect(page.getByTestId("settings-shipping-save")).toBeEnabled(COLD);
   const form = page.getByRole("form", { name: "Envío" });
   await expect(form.getByLabel(/^Costo del envío/)).toBeVisible(COLD);
   const cost = await form.getByLabel(/^Costo del envío/).inputValue();
@@ -97,13 +102,16 @@ test("an admin edits a FAQ answer, previews it and the page shows it once publis
   test.slow();
   const marker = `Respuesta de prueba ${Date.now()}`;
   const page = await adminPage(browser, "/admin/contenido/faq");
+  await hydratedEditor(page);
   const answer = page.getByLabel("Respuesta 1", { exact: true }).first();
   await expect(answer).toBeVisible(COLD);
   const original = await answer.inputValue();
   await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
   try {
-    await answer.fill(`${marker}: con **negrita** y un [enlace](/envios). <script>alert(1)</script>`);
+    const edited = `${marker}: con **negrita** y un [enlace](/envios). <script>alert(1)</script>`;
+    await answer.fill(edited);
+    await expect(answer).toHaveValue(edited);
     await expect(page.getByTestId("content-state")).toHaveText("Cambios sin guardar");
 
     // The preview is the page's own rendering: Markdown, no raw HTML.
@@ -122,6 +130,7 @@ test("an admin edits a FAQ answer, previews it and the page shows it once publis
     await expect(page.getByRole("main")).not.toContainText(marker);
 
     await page.goto("/admin/contenido/faq");
+    await hydratedEditor(page);
     await expect(page.getByTestId("content-state")).toHaveText("Borrador sin publicar", COLD);
     await page.getByTestId("content-publish").click();
     await expect(page.getByText("Publicamos la página. Ya se ve en la tienda.")).toBeVisible(COLD);
@@ -133,9 +142,10 @@ test("an admin edits a FAQ answer, previews it and the page shows it once publis
     await expect(page.getByRole("main").getByRole("link", { name: "enlace" })).toHaveAttribute("href", "/envios");
   } finally {
     await page.goto("/admin/contenido/faq");
+    await hydratedEditor(page);
     const field = page.getByLabel("Respuesta 1", { exact: true }).first();
-    await expect(field).toBeVisible(COLD);
     await field.fill(original);
+    await expect(field).toHaveValue(original);
     await page.getByTestId("content-publish").click();
     await expect(page.getByText(/^(Publicamos la página|La página ya mostraba)/)).toBeVisible(COLD);
   }
