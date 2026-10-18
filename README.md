@@ -259,7 +259,14 @@ scripts/               Presupuesto de JS y capturas del README
   - al **ingresar**, el carrito y los favoritos del visitante se fusionan con los de
     la cuenta (`mergeListsAction`): cantidades sumadas y topeadas por el stock,
     favoritos unidos, productos inexistentes o agotados descartados. Pasa una sola
-    vez: después la copia es de la cuenta y no se vuelve a sumar;
+    vez: después la copia es de la cuenta y no se vuelve a sumar. La fusión es
+    **idempotente**: el navegador guarda lo que manda con un token aleatorio
+    (`src/lib/lists/pending-merge.ts`) hasta adoptar la respuesta, un reintento
+    reenvía lo mismo con el mismo token y el servidor lo registra por usuario en la
+    misma transacción (tabla `ListMerge`, `src/lib/lists/merge.ts`), así que nunca
+    suma dos veces. Las sincronizaciones de la cuenta corren de a una (la que pide
+    la pestaña al volver espera a la fusión) y lo que el usuario cambió mientras la
+    fusión estaba en curso se reaplica encima del resultado;
   - en cada carga y al volver a la pestaña recarga las listas de la cuenta
     (`GET /api/lists`, sin caché): precios, nombres y stock actuales, nunca un
     snapshot. Una recarga que se cruzó con un cambio en curso se descarta;
@@ -280,7 +287,12 @@ scripts/               Presupuesto de JS y capturas del README
   El nombre publicado es el de la cuenta. Cada escritura recalcula `Product.rating` y
   `reviewCount` en la misma transacción y después llama a `updateCatalog()`, así que
   la página del producto (rating, cantidad, lista) se actualiza en la misma respuesta
-  y los listados en el próximo pedido. "Útil" es un voto por usuario que se puede
+  y los listados en el próximo pedido (una edición que no cambia las estrellas solo
+  invalida el tag del producto). Límites por usuario: 10 reseñas nuevas por hora,
+  20 ediciones o borrados por hora, 60 votos "útil" cada 15 minutos. Cambiar el
+  nombre en `/account` invalida los productos que reseñaste (el nombre se muestra en
+  la lista cacheada). Las listas públicas no incluyen el id de cuenta del autor; la
+  fecha es la de Argentina. "Útil" es un voto por usuario que se puede
   retirar (no sobre la reseña propia). **Compra verificada** = el autor tiene un
   pedido de su cuenta en PAID, SHIPPED o DELIVERED con ese producto (los pedidos de
   invitado no cuentan).
