@@ -102,7 +102,10 @@ sin intento de pago, con el filtro "Sin intento de pago"), filtros por estado
 (más "Cancelados: monto distinto"), email o número (`LEGO-001001` / `1001`) y
 fechas. El detalle muestra líneas, cliente, envío, medio de pago (proveedor,
 tarjeta o medio, cuotas, id de pago, estado en el proveedor, ticket, reembolso),
-la línea de tiempo, el historial del pago (`PaymentEvent`) y el de la auditoría.
+la línea de tiempo, el historial del pago (`PaymentEvent`) y un solo "Historial"
+de cambios del admin (`OrderStatusChange`: quién, cuándo y el reembolso; las
+entradas de auditoría del pedido son esos mismos cambios de estado, así que no
+se repiten en otro panel), con "Ver todo" en la auditoría.
 
 Transiciones permitidas (`ADMIN_TRANSITIONS` en `src/lib/admin/format.ts`; la lógica en `src/lib/admin/orders.ts`):
 
@@ -240,8 +243,9 @@ Auditoría `upload.create`. Las subidas no se borran.
 ## Auditoría
 
 `/admin/audit` lista `AuditLog` con filtros por admin, tipo de registro, un
-registro y fechas. Productos, pedidos, cupones, usuarios, categorías y temas
-muestran su propio historial con "Ver todo". Cada entrada guarda el admin, su IP
+registro y fechas. Productos, pedidos, cupones, usuarios, categorías, temas,
+configuración, contenido y mensajes muestran su propio "Historial" (los 8 cambios
+más recientes; el resto, con "Ver todo" en la auditoría filtrada por el registro). Cada entrada guarda el admin, su IP
 (solo la que `client-ip.ts` confía; si no, vacía), la acción, la entidad y
 `{campo: [antes, después]}`.
 

@@ -270,7 +270,7 @@ export default async function AdminUserPage({ params }: UserPageProps) {
               </dl>
             </CardContent>
           </Card>
-          <AuditHistory entries={user.history} entity={{ type: "user", id: user.id }} title="Cambios en la cuenta" />
+          <AuditHistory entries={user.history} entity={{ type: "user", id: user.id }} />
           {user.role === "ADMIN" ? (
             <AuditHistory
               entries={user.adminActions}

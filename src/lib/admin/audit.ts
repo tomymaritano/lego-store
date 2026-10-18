@@ -109,8 +109,14 @@ const toView = ({ createdAt, changes, ...row }: EntryRow): AuditEntryView => ({
   at: createdAt.toISOString(),
 });
 
-/** A record's entries, newest first (the history panels of the detail pages). */
-export async function listAuditEntries(db: Db, entityType: AuditEntityType, entityId: string, take = 50): Promise<AuditEntryView[]> {
+/** How many entries a detail page's history panel shows (src/components/admin/AuditHistory.tsx); the rest are in /admin/audit. */
+export const AUDIT_PANEL_SIZE = 8;
+
+/**
+ * A record's entries, newest first (the history panels of the detail pages):
+ * one more than the panel shows, so it can tell there are older ones.
+ */
+export async function listAuditEntries(db: Db, entityType: AuditEntityType, entityId: string, take = AUDIT_PANEL_SIZE + 1): Promise<AuditEntryView[]> {
   const rows = await db.auditLog.findMany({
     where: { entityType, entityId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -121,7 +127,7 @@ export async function listAuditEntries(db: Db, entityType: AuditEntityType, enti
 }
 
 /** What an admin did (the user page's "Acciones como admin"), newest first. */
-export async function listActorEntries(db: Db, actorId: string, take = 20): Promise<AuditEntryView[]> {
+export async function listActorEntries(db: Db, actorId: string, take = AUDIT_PANEL_SIZE + 1): Promise<AuditEntryView[]> {
   const rows = await db.auditLog.findMany({
     where: { actorId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

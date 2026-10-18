@@ -67,7 +67,7 @@ export interface AdminContentPage extends AdminContentRow {
 }
 
 export async function getAdminContentPage(db: Db, slug: ContentSlug): Promise<AdminContentPage> {
-  const [row, history] = await Promise.all([db.contentPage.findUnique({ where: { slug } }), listAuditEntries(db, "content", slug, 20)]);
+  const [row, history] = await Promise.all([db.contentPage.findUnique({ where: { slug } }), listAuditEntries(db, "content", slug)]);
   const draft = row ? parseContentDocument(row.draft) : null;
   const published = row ? parseContentDocument(row.published) : null;
   const { label, path } = CONTENT_PAGES[slug];

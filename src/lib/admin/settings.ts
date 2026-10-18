@@ -67,7 +67,7 @@ export async function getAdminSettings(db: Db): Promise<AdminSettings> {
       select: { product: { select: { id: true, name: true, img: true, stock: true, archivedAt: true } } },
     }),
     db.product.findMany({ where: { archivedAt: null }, orderBy: [{ searchName: "asc" }, { id: "asc" }], select: { id: true, name: true, img: true } }),
-    listAuditEntries(db, "settings", SETTINGS_ENTITY_ID, 20),
+    listAuditEntries(db, "settings", SETTINGS_ENTITY_ID),
   ]);
   return {
     settings: settingsFromRow(row),

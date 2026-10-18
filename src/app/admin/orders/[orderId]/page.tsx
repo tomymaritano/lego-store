@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CreditCard, ExternalLink, History, MapPin, Package, ReceiptText, UserRound, Wallet } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminCancelReasonLabel, formatAdminDateTime } from "@/lib/admin/format";
-import { getAdminAuditHistory, getAdminOrderDetail } from "@/lib/admin/data";
+import { getAdminOrderDetail } from "@/lib/admin/data";
 import {
   ORDER_STATUS_BADGE,
   ADMIN_ORDER_STATUS_LABELS,
@@ -22,7 +22,8 @@ import { formatPrice, pluralize } from "@/lib/utils";
 import { orderIdSchema } from "@/lib/validations/orders";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { OrderTimeline } from "@/components/account/OrderTimeline";
-import { AuditHistory } from "@/components/admin/AuditHistory";
+import { AUDIT_HISTORY_EMPTY, AUDIT_HISTORY_TITLE } from "@/components/admin/AuditHistory";
+import { pageHref } from "@/components/admin/Pagination";
 import { OrderStatusActions } from "@/components/admin/OrderStatusActions";
 import { ProductImage } from "@/components/product/ProductImage";
 import { Badge, Card, CardContent, CardHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
@@ -76,10 +77,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const { orderId } = await params;
   await requireAdmin({ callbackUrl: `/admin/orders/${encodeURIComponent(orderId)}` });
   const id = orderIdSchema.safeParse(orderId);
-  const [order, history] = await Promise.all([
-    id.success ? getAdminOrderDetail(id.data) : null,
-    id.success ? getAdminAuditHistory("order", id.data) : [],
-  ]);
+  const order = id.success ? await getAdminOrderDetail(id.data) : null;
   if (!order) notFound();
 
   const number = formatOrderNumber(order.number);
@@ -180,12 +178,24 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             )}
           </section>
 
+          {/* The order's admin changes are all status changes (its audit entries repeat them): one timeline. */}
           <section aria-labelledby="admin-order-history-title" className="space-y-3">
-            <SectionTitle id="admin-order-history-title" icon={<History />}>
-              Cambios de estado
-            </SectionTitle>
+            <div className="flex items-baseline justify-between gap-3">
+              <SectionTitle id="admin-order-history-title" icon={<History />}>
+                {AUDIT_HISTORY_TITLE}
+              </SectionTitle>
+              {order.history.length > 0 ? (
+                <Link
+                  href={pageHref("/admin/audit", { entity: "order", entityId: order.id }, 1)}
+                  prefetch={false}
+                  className="text-label font-medium text-fg-secondary underline-offset-4 hover:text-fg hover:underline"
+                >
+                  Ver todo<span className="sr-only"> en la auditoría</span>
+                </Link>
+              ) : null}
+            </div>
             {order.history.length === 0 ? (
-              <p className="text-label font-normal text-fg-secondary">Ningún administrador cambió este pedido todavía.</p>
+              <p className="text-label font-normal text-fg-muted">{AUDIT_HISTORY_EMPTY}</p>
             ) : (
               <ol className="space-y-2" data-testid="admin-order-history">
                 {order.history.map((change) => (
@@ -335,7 +345,6 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               </dl>
             </CardContent>
           </Card>
-          <AuditHistory entries={history} entity={{ type: "order", id: order.id }} title="Cambios del admin" empty="Ningún admin lo tocó todavía." />
         </div>
       </div>
     </>

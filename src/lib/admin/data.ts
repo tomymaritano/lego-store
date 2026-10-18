@@ -169,7 +169,7 @@ export const getAdminMessageDetail = cache(async (id: string) => {
   const db = getDb();
   const message = await getAdminMessage(db, id);
   if (!message) return null;
-  return { ...message, history: await listAuditEntries(db, "message", id, 10) };
+  return { ...message, history: await listAuditEntries(db, "message", id) };
 });
 
 /** /admin/newsletter: the subscribers, filtered. */
