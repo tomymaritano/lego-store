@@ -1,6 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
-import { E2E_ADMIN_EMAIL, logIn, uniqueEmail } from "../helpers/accounts";
+import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { logIn, uniqueEmail } from "../helpers/accounts";
 import { seriousAxeViolations } from "../helpers/axe";
+import { createE2eAccount } from "../helpers/db";
 
 /*
  * The admin's store settings, content and inbox against the dev server and
@@ -8,14 +9,32 @@ import { seriousAxeViolations } from "../helpers/axe";
  * (playwright.config.ts, dependencies): it changes what every other spec's
  * pages show (the shipping cost, the FAQ), so nothing runs beside it, and
  * each spec puts the store back the way it found it, through the admin.
+ * One admin of its own, logged in once: after the whole suite the shared
+ * client address is close to the login rate limits.
  */
 
 const COLD = { timeout: 30_000 };
 
-async function logInAsAdmin(page: Page, callbackUrl: string) {
-  await page.goto(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
-  await logIn(page, E2E_ADMIN_EMAIL, process.env.E2E_ADMIN_PASSWORD);
-  await expect(page).toHaveURL((url) => url.pathname === callbackUrl, COLD);
+type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+let adminState: StorageState;
+
+test.beforeAll(async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto("/login?callbackUrl=%2Fadmin");
+  await logIn(page, await createE2eAccount("store-ops", "Admin Tienda", "ADMIN"));
+  await expect(page).toHaveURL((url) => url.pathname === "/admin", COLD);
+  adminState = await context.storageState();
+  await context.close();
+});
+
+/** A page signed in as the specs' admin, on `path`. */
+async function adminPage(browser: Browser, path: string): Promise<Page> {
+  const context = await browser.newContext({ storageState: adminState });
+  const page = await context.newPage();
+  await page.goto(path);
+  await expect(page).toHaveURL((url) => url.pathname === path.split("?")[0], COLD);
+  return page;
 }
 
 /** Groot Guardians (#20, $799): under any free-shipping threshold the specs use. */
@@ -36,9 +55,9 @@ async function saveShipping(page: Page, cost: string, freeFrom: string) {
   await expect(page.getByText(/^(Guardamos el envío|No había cambios)/).first()).toBeVisible(COLD);
 }
 
-test("an admin changes the shipping cost and the cart charges it", async ({ page, browser }) => {
+test("an admin changes the shipping cost and the cart charges it", async ({ browser }) => {
   test.slow();
-  await logInAsAdmin(page, "/admin/configuracion");
+  const page = await adminPage(browser, "/admin/configuracion");
   const form = page.getByRole("form", { name: "Envío" });
   await expect(form.getByLabel(/^Costo del envío/)).toBeVisible(COLD);
   const cost = await form.getByLabel(/^Costo del envío/).inputValue();
@@ -74,10 +93,10 @@ test("an admin changes the shipping cost and the cart charges it", async ({ page
   }
 });
 
-test("an admin edits a FAQ answer, previews it and the page shows it once published", async ({ page }) => {
+test("an admin edits a FAQ answer, previews it and the page shows it once published", async ({ browser }) => {
   test.slow();
   const marker = `Respuesta de prueba ${Date.now()}`;
-  await logInAsAdmin(page, "/admin/contenido/faq");
+  const page = await adminPage(browser, "/admin/contenido/faq");
   const answer = page.getByLabel("Respuesta 1", { exact: true }).first();
   await expect(answer).toBeVisible(COLD);
   const original = await answer.inputValue();
@@ -122,7 +141,7 @@ test("an admin edits a FAQ answer, previews it and the page shows it once publis
   }
 });
 
-test("a visitor's contact message reaches the admin's inbox", async ({ page, browser }) => {
+test("a visitor's contact message reaches the admin's inbox", async ({ browser }) => {
   test.slow();
   const email = uniqueEmail("bandeja");
   const text = `Hola, ¿cuándo llega el set? Mensaje ${Date.now()}.`;
@@ -139,7 +158,7 @@ test("a visitor's contact message reaches the admin's inbox", async ({ page, bro
   await expect(visitor.getByRole("heading", { name: "¡Mensaje enviado!" })).toBeFocused(COLD);
   await context.close();
 
-  await logInAsAdmin(page, "/admin/mensajes");
+  const page = await adminPage(browser, "/admin/mensajes");
   await page.getByRole("searchbox", { name: "Buscar" }).fill(email);
   await page.getByRole("button", { name: "Filtrar" }).click();
   const row = page.getByTestId("admin-message-row");
