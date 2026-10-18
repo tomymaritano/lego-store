@@ -82,6 +82,14 @@ const clean: Array<[string, string]> = [
 ];
 
 describe("design-system guardrails", () => {
+  it("speak in tuteo, never voseo", async () => {
+    const messages = new Set<string>();
+    for (const [, code] of flagged) for (const hit of await guardrailHits(code, APP_FILE)) messages.add(hit.message);
+    expect(messages.size).toBeGreaterThan(3);
+    const voseo = /(?<!\p{L})(usá|elegí|escribí|poné|mirá|revisá|probá|cambiá|agregá|evitá|sacá|pasá|tenés|podés|querés|necesitás|fijate)(?!\p{L})/iu;
+    for (const message of messages) expect(message).not.toMatch(voseo);
+  });
+
   describe.each([
     ["app code", APP_FILE, 2],
     ["ui primitives", UI_FILE, 2],

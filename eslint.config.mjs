@@ -39,7 +39,7 @@ const MOTION_PROPS = "^(transition|animate|initial|exit|whileHover|whileTap|whil
 const rawColorMessage =
   "Usa tokens semánticos (bg-surface, text-fg-muted, bg-primary, text-danger…) en vez de colores crudos de la paleta.";
 const aliasMessage =
-  "Alias heredado (lego-*, brand-*, background-*, foreground-*, status-*, border-subtle): usá el token semántico (bg-bg, text-fg, bg-primary, text-danger…).";
+  "Alias heredado (lego-*, brand-*, background-*, foreground-*, status-*, border-subtle): usa el token semántico (bg-bg, text-fg, bg-primary, text-danger…).";
 const darkMessage =
   "No uses `dark:` fuera de src/components/ui: los tokens semánticos ya cambian con el tema.";
 const motionMessage =
