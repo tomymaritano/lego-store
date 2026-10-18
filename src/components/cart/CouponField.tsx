@@ -3,41 +3,18 @@
 import { useId, useRef, useState } from "react";
 import { AnimatePresence, m } from "motion/react";
 import { Check, TicketPercent, X } from "lucide-react";
-import type { CouponQuote } from "@/lib/coupons/server";
 import { fadeInUp, successPop } from "@/lib/motion";
-import type { CheckoutError } from "@/lib/orders/types";
 import { cn, formatPrice } from "@/lib/utils";
-import { useAppliedCoupon, useCouponStore } from "@/stores";
+import { useViewer } from "@/providers/ViewerProvider";
+import { useAppliedCoupon, useCheckedCoupon, useCouponStore } from "@/stores";
 import { Button, Field, Input } from "@/components/ui";
-
-type QuoteResult = { ok: true; quote: CouponQuote } | { ok: false; error: string };
-
-const NETWORK_ERROR = "No pudimos validar el cupón. Revisa tu conexión e inténtalo de nuevo.";
-
-/** POST /api/checkout/coupon: the server checks the code and prices the lines. */
-async function requestQuote(body: { code: string; lines: { productId: string; quantity: number }[]; email?: string }): Promise<QuoteResult> {
-  try {
-    const response = await fetch("/api/checkout/coupon", {
-      method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      cache: "no-store",
-    });
-    const data = (await response.json().catch(() => null)) as (CouponQuote & Partial<CheckoutError>) | null;
-    if (response.ok && data?.coupon) return { ok: true, quote: data };
-    return { ok: false, error: data?.error ?? NETWORK_ERROR };
-  } catch {
-    return { ok: false, error: NETWORK_ERROR };
-  }
-}
+import { requestCouponQuote } from "./couponApi";
 
 export interface CouponFieldProps {
   /** What the coupon would apply to (the server prices them). */
   lines: { productId: string; quantity: number }[];
   /** The subtotal the coupon's minimum is compared with. */
   subtotal: number;
-  /** The checkout's email, once known: the per-customer limit is checked for guests too. */
-  email?: string | null;
   /** While the payment runs nothing changes. */
   disabled?: boolean;
   /** Prefix of the data-testid values (`${prefix}-coupon-…`): two summaries can be on a page. */
@@ -47,21 +24,30 @@ export interface CouponFieldProps {
 
 /**
  * "Código de descuento" in the cart's and the checkout's summary. Applying
- * asks the server (POST /api/checkout/coupon: active, dates, limits, per
- * customer); an accepted coupon's terms go into the coupon store, and the
- * totals around it show the discount with lib/pricing as the cart changes.
- * The order is what really takes it: preparing it validates and reserves the
- * coupon again on the server.
+ * asks the server (POST /api/checkout/coupon: active, dates, limits); an
+ * accepted coupon's terms go into the coupon store, and the totals around it
+ * show the discount with lib/pricing as the cart changes. The page asks the
+ * server about it again when it loads (useCouponRecheck): while that answer
+ * is out the applied coupon says it is being checked, and a coupon the
+ * server no longer accepts is taken off with the reason as the field's
+ * error. The order is what really takes it: preparing it validates and
+ * reserves the coupon again on the server.
  *
  * The form and the applied coupon swap in place; the applied one pops its
  * check mark, and a live region says what happened for screen readers.
  */
-export function CouponField({ lines, subtotal, email, disabled = false, testIdPrefix = "cart", className }: CouponFieldProps) {
+export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = "cart", className }: CouponFieldProps) {
+  const viewer = useViewer();
   const coupon = useAppliedCoupon();
+  const checking = useCheckedCoupon() === null && coupon !== null;
   const apply = useCouponStore((state) => state.apply);
   const remove = useCouponStore((state) => state.remove);
+  const notice = useCouponStore((state) => state.notice);
+  const clearNotice = useCouponStore((state) => state.clearNotice);
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [typedError, setError] = useState<string | null>(null);
+  // The customer's own try wins over a notice about a coupon the page took off.
+  const error = typedError ?? notice;
   const [pending, setPending] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,7 +72,8 @@ export function CouponField({ lines, subtotal, email, disabled = false, testIdPr
     }
     setPending(true);
     setError(null);
-    const result = await requestQuote({ code: typed, lines, ...(email ? { email } : {}) });
+    clearNotice();
+    const result = await requestCouponQuote({ code: typed, lines });
     setPending(false);
     if (!result.ok) {
       setError(result.error);
@@ -94,7 +81,7 @@ export function CouponField({ lines, subtotal, email, disabled = false, testIdPr
       return;
     }
     const { coupon: terms } = result.quote;
-    apply(terms);
+    apply(terms, viewer?.id ?? null);
     setCode("");
     setAnnouncement(`Aplicamos el cupón ${terms.code}: ${terms.label}.`);
     // The applied coupon replaces the form: focus lands on its "Quitar" once it is there.
@@ -136,7 +123,11 @@ export function CouponField({ lines, subtotal, email, disabled = false, testIdPr
                 {coupon.code}
               </span>
               <span className="text-fg-secondary">{coupon.label}</span>
-              {shortBy > 0 ? (
+              {checking ? (
+                <span className="mt-1 text-caption text-fg-muted" data-testid={`${testIdPrefix}-coupon-checking`}>
+                  Comprobando que siga vigente…
+                </span>
+              ) : shortBy > 0 ? (
                 <span className="mt-1 text-caption text-fg-muted" data-testid={`${testIdPrefix}-coupon-short`}>
                   Se aplica desde {formatPrice(coupon.minSubtotal)}: te faltan {formatPrice(shortBy)}.
                 </span>
@@ -170,7 +161,8 @@ export function CouponField({ lines, subtotal, email, disabled = false, testIdPr
                   value={code}
                   onChange={(event) => {
                     setCode(event.target.value);
-                    if (error) setError(null);
+                    if (typedError) setError(null);
+                    if (notice) clearNotice();
                   }}
                   placeholder="Por ejemplo: BIENVENIDA10"
                   autoComplete="off"
@@ -191,7 +183,7 @@ export function CouponField({ lines, subtotal, email, disabled = false, testIdPr
         )}
       </AnimatePresence>
       <p role="status" aria-live="polite" className="sr-only">
-        {announcement}
+        {notice && !coupon ? notice : announcement}
       </p>
     </div>
   );

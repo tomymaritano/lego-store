@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { OrderView } from "@/lib/orders/types";
-import { useCartStore, useCheckoutStore } from "@/stores";
+import { useCartStore, useCheckoutStore, useCouponStore, useStoreHydrated } from "@/stores";
 import { Button } from "@/components/ui";
 import { fetchCheckoutOrder, syncCheckoutOrder } from "./checkoutApi";
 import { ConfirmationStep } from "./ConfirmationStep";
@@ -26,6 +26,10 @@ export function OrderReturn({ initialOrder, paymentId, canViewInAccount }: { ini
   const [order, setOrder] = useState(initialOrder);
   const [stale, setStale] = useState(false);
   const cleared = useRef(false);
+  // The stores read localStorage after this page's first effects: clearing before that would be overwritten.
+  const cartReady = useStoreHydrated(useCartStore);
+  const couponReady = useStoreHydrated(useCouponStore);
+  const storesReady = cartReady && couponReady;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,9 +62,10 @@ export function OrderReturn({ initialOrder, paymentId, canViewInAccount }: { ini
     };
   }, [initialOrder.id, initialOrder.status, paymentId]);
 
-  // A placed order leaves this browser's cart (the server empties the account's when it is paid).
+  // A placed order leaves this browser's cart (the server empties the account's when it is paid), and its
+  // coupon went with it: the next purchase starts without it (as CheckoutFlow's finishPurchase).
   useEffect(() => {
-    if (cleared.current || (order.status !== "PAID" && order.status !== "PAYMENT_PENDING")) return;
+    if (!storesReady || cleared.current || (order.status !== "PAID" && order.status !== "PAYMENT_PENDING")) return;
     cleared.current = true;
     const bought = new Set(order.items.map((item) => item.productId));
     const { cart, owner, replaceCart } = useCartStore.getState();
@@ -68,8 +73,10 @@ export function OrderReturn({ initialOrder, paymentId, canViewInAccount }: { ini
       cart.filter((line) => !bought.has(line.id)),
       owner
     );
+    const coupons = useCouponStore.getState();
+    if (order.couponCode && coupons.coupon?.code === order.couponCode) coupons.remove();
     useCheckoutStore.getState().resetCheckout();
-  }, [order]);
+  }, [order, storesReady]);
 
   return (
     <div className="space-y-6">

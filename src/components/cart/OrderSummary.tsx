@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
 import { orderTotals } from "@/lib/pricing";
-import { useAppliedCoupon } from "@/stores";
+import { useCheckedCoupon } from "@/stores";
 import type { CartItem } from "@/types";
 import { Button, Card, CardContent, CardHeader } from "@/components/ui";
 import { CouponField } from "./CouponField";
 import { FreeShippingProgress } from "./FreeShippingProgress";
 import { OrderTotals, totalsView } from "./OrderTotals";
+import { useCouponRecheck } from "./useCouponRecheck";
 
 interface OrderSummaryProps {
   lines: CartItem[];
@@ -20,10 +21,12 @@ interface OrderSummaryProps {
  * from $5000) with the progress toward free shipping, total and the checkout
  * CTA. The amounts come from lib/pricing (orderTotals), the same rules the
  * drawer, checkout and the server use; the coupon field asks the server
- * whether a code applies. A secondary "Seguir comprando" link returns to the store.
+ * whether a code applies, and again about the applied one when the page
+ * loads (the discount counts once it answers). A secondary "Seguir comprando" link returns to the store.
  */
 export function OrderSummary({ lines, className }: OrderSummaryProps) {
-  const coupon = useAppliedCoupon();
+  useCouponRecheck();
+  const coupon = useCheckedCoupon();
   const totals = orderTotals(lines, coupon);
   const subtotal = totals.subtotal;
   return (

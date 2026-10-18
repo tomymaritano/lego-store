@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OrderSummary } from "@/components/cart/OrderSummary";
 import { formatPrice as format } from "@/lib/utils";
-import { useCouponStore } from "@/stores";
+import { useCartStore, useCouponStore } from "@/stores";
 import type { CartItem } from "@/types";
 
 /*
@@ -36,10 +36,12 @@ const realFetch = globalThis.fetch;
 describe("Coupon field (cart summary)", () => {
   beforeAll(async () => {
     await useCouponStore.persist.rehydrate();
+    await useCartStore.persist.rehydrate();
   });
 
   beforeEach(() => {
     useCouponStore.getState().remove();
+    useCartStore.setState({ cart: [], owner: null });
     window.localStorage.clear();
   });
 
@@ -94,7 +96,7 @@ describe("Coupon field (cart summary)", () => {
 
   it("follows the cart: below the minimum it says what is missing and discounts nothing; removing it puts the field back", async () => {
     const user = userEvent.setup();
-    useCouponStore.getState().apply(QUOTE.coupon as never);
+    useCouponStore.getState().apply(QUOTE.coupon as never, null);
     const { rerender } = render(<OrderSummary lines={[line("5", 189, 2)]} />);
 
     const applied = screen.getByTestId("cart-coupon-applied");
@@ -110,5 +112,60 @@ describe("Coupon field (cart summary)", () => {
     await waitFor(() => expect(screen.getByLabelText("Código de descuento")).toHaveFocus());
     expect(useCouponStore.getState().coupon).toBeNull();
     await waitFor(() => expect(screen.queryByTestId("cart-discount")).toBeNull());
+  });
+
+  describe("the applied coupon is asked about again when the page loads", () => {
+    /** A coupon applied on an earlier visit: stored, not yet confirmed in this page load. */
+    const stored = (terms: object) => useCouponStore.setState({ coupon: terms as never, owner: null, checked: null, notice: null });
+
+    beforeEach(() => {
+      useCartStore.setState({ cart: [line("7", 2490)], owner: null });
+    });
+
+    it("leaves the discount out until the server answers, then adopts its terms (an admin changed the value)", async () => {
+      stored({ ...QUOTE.coupon, value: 50, label: "50% de descuento" });
+      let answer: (response: Response) => void = () => {};
+      requests = [];
+      globalThis.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({ url: String(input), body: JSON.parse(String(init?.body)) });
+        return new Promise<Response>((resolve) => (answer = resolve));
+      }) as typeof fetch;
+      render(<OrderSummary lines={[line("7", 2490)]} />);
+
+      expect(screen.getByTestId("cart-coupon-checking")).toHaveTextContent("Comprobando que siga vigente");
+      expect(screen.queryByTestId("cart-discount")).toBeNull();
+      expect(text(screen.getByTestId("cart-total"))).toBe(formatPrice(2490 + 299));
+      await waitFor(() => expect(requests).toHaveLength(1));
+      expect(requests[0]).toEqual({ url: "/api/checkout/coupon", body: { code: "BIENVENIDA10", lines: [{ productId: "7", quantity: 1 }], recheck: true } });
+
+      answer(new Response(JSON.stringify(QUOTE), { status: 200, headers: { "Content-Type": "application/json" } }));
+      await waitFor(() => expect(text(screen.getByTestId("cart-discount"))).toBe(formatPrice(249)));
+      expect(useCouponStore.getState().coupon).toMatchObject({ value: 10, label: "10% de descuento" });
+      expect(screen.queryByTestId("cart-coupon-checking")).toBeNull();
+    });
+
+    it("takes off a coupon the server no longer accepts, with its reason on the field", async () => {
+      stored(QUOTE.coupon);
+      stubFetch(422, { code: "coupon", rejection: "inactive", error: "Este cupón ya no está disponible." });
+      render(<OrderSummary lines={[line("7", 2490)]} />);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Quitamos el cupón BIENVENIDA10: Este cupón ya no está disponible.");
+      expect(screen.getByLabelText("Código de descuento")).toHaveAttribute("aria-invalid", "true");
+      expect(useCouponStore.getState().coupon).toBeNull();
+      expect(screen.queryByTestId("cart-discount")).toBeNull();
+      expect(text(screen.getByTestId("cart-total"))).toBe(formatPrice(2490 + 299));
+
+      // Typing a new code clears the notice.
+      await userEvent.setup().type(screen.getByLabelText("Código de descuento"), "O");
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("keeps the stored terms when the server cannot be asked (the order checks them again)", async () => {
+      stored(QUOTE.coupon);
+      stubFetch(429, { code: "rate_limited", error: "Hiciste demasiados intentos." });
+      render(<OrderSummary lines={[line("7", 2490)]} />);
+      await waitFor(() => expect(text(screen.getByTestId("cart-discount"))).toBe(formatPrice(249)));
+      expect(useCouponStore.getState().coupon?.code).toBe("BIENVENIDA10");
+    });
   });
 });

@@ -9,10 +9,11 @@ import type { OrderView, UnavailableLine } from "@/lib/orders/types";
 import type { CheckoutPaymentsConfig } from "@/lib/payments/config";
 import { orderTotals } from "@/lib/pricing";
 import { useViewer } from "@/providers/ViewerProvider";
-import { useAppliedCoupon, useCartItems, useCartStore, useCheckoutStore, useCouponStore, useStoreHydrated } from "@/stores";
+import { useAppliedCoupon, useCartItems, useCartStore, useCheckedCoupon, useCheckoutStore, useCouponStore, useStoreHydrated } from "@/stores";
 import { isMercadoPagoPayment, type MercadoPagoPaymentSummary, type PaymentSummary } from "@/stores/checkoutStore";
 import { Breadcrumbs, Skeleton, showToast } from "@/components/ui";
 import { orderTotalsView, totalsView } from "@/components/cart/OrderTotals";
+import { couponRemovedNotice, useCouponRecheck } from "@/components/cart/useCouponRecheck";
 import type { CartItem, CheckoutStep, ShippingInfo } from "@/types";
 import { fetchCheckoutOrder, payMercadoPagoOrder, payOrder, prepareOrder, type ApiResult, type PrepareRequest } from "./checkoutApi";
 import { ConfirmationStep } from "./ConfirmationStep";
@@ -42,12 +43,13 @@ const couponStore = useCouponStore.getState;
 
 /**
  * The coupon code the order is prepared with: the applied coupon, once the
- * cart reaches its minimum (below it the summary says what is missing and
- * the order goes without it). The server validates it again.
+ * server confirmed it during this page load and the cart reaches its minimum
+ * (below it the summary says what is missing and the order goes without
+ * it). The server validates it again.
  */
 function couponCodeFor(cart: CartItem[]): string | undefined {
-  const coupon = couponStore().coupon;
-  return coupon && orderTotals(cart, coupon).coupon?.applies ? coupon.code : undefined;
+  const { coupon, checked } = couponStore();
+  return coupon && checked === coupon.code && orderTotals(cart, coupon).coupon?.applies ? coupon.code : undefined;
 }
 
 /** The confirmation enters from the top of the page, not from wherever the review was scrolled. */
@@ -146,7 +148,11 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
   const hydrated = useStoreHydrated(useCartStore);
   const couponHydrated = useStoreHydrated(useCouponStore);
   const cart = useCartItems();
-  const coupon = useAppliedCoupon();
+  // The applied coupon is asked about again as the checkout loads; its discount counts once the server answers.
+  useCouponRecheck();
+  const storedCoupon = useAppliedCoupon();
+  const coupon = useCheckedCoupon();
+  const couponSettled = couponHydrated && (storedCoupon === null || coupon !== null);
 
   const currentStep = useCheckoutStore((state) => state.currentStep);
   const shippingInfo = useCheckoutStore((state) => state.shippingInfo);
@@ -205,8 +211,9 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
 
   const cartTotals = orderTotals(cart, coupon);
   const couponCode = coupon && cartTotals.coupon?.applies ? coupon.code : undefined;
-  // Waits for the persisted coupon: preparing without it would reserve nothing and price the order without the discount.
-  const prepareKey = step === "review" && shippingInfo && payment && couponHydrated ? prepareKeyOf(cart, shippingInfo, payment, couponCode) : null;
+  // Waits for the persisted coupon and the server's answer about it: preparing without it would reserve
+  // nothing and price the order without the discount (and then again with it).
+  const prepareKey = step === "review" && shippingInfo && payment && couponSettled ? prepareKeyOf(cart, shippingInfo, payment, couponCode) : null;
   const ready = prepared && prepared.key === prepareKey ? prepared : null;
   const preparedOrder = ready && "order" in ready ? ready.order : null;
 
@@ -258,7 +265,8 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
           // The coupon cannot be used any more (expired, used up meanwhile...): the order is
           // prepared again without it, and the review says why.
           if (requestedCoupon) {
-            pendingNotice.current = `Quitamos el cupón ${requestedCoupon}: ${result.error}`;
+            // The review says it (not the coupon field too).
+            pendingNotice.current = couponRemovedNotice(requestedCoupon, result.error);
             couponStore().remove();
             return;
           }
@@ -328,6 +336,22 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
     );
   };
 
+  /**
+   * The coupon could not be held when paying (its place was taken while the
+   * review was open, or this email already used it up): it comes off, the
+   * order is prepared again without it (the review shows why), and the
+   * customer places it again at the new total. Nothing was charged.
+   */
+  const couponRefusedAtPayment = (order: OrderView, message: string) => {
+    const code = order.couponCode;
+    if (!code || couponStore().coupon?.code !== code) {
+      setPayError(message);
+      return;
+    }
+    pendingNotice.current = couponRemovedNotice(code, message);
+    couponStore().remove();
+  };
+
   /** A refusal (or a step to redo) sends the customer back to the payment step with the reason. */
   const backToPayment = (message: string) => {
     setDirection(-1);
@@ -342,6 +366,9 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
         case "declined":
         case "payment_method":
           backToPayment(result.error);
+          return;
+        case "coupon":
+          couponRefusedAtPayment(order, result.error);
           return;
         case "unavailable": {
           const before = cartStore().cart;
@@ -384,6 +411,9 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
           case "declined":
           case "payment_method":
             backToPayment(result.error);
+            return;
+          case "coupon":
+            couponRefusedAtPayment(preparedOrder, result.error);
             return;
           case "unavailable": {
             const before = cartStore().cart;
@@ -440,7 +470,6 @@ export function CheckoutFlow({ payments, account = null }: { payments: CheckoutP
   const couponField = {
     lines: cart.map((line) => ({ productId: line.id, quantity: line.quantity })),
     subtotal: cartTotals.subtotal,
-    email: shippingInfo?.email ?? null,
   };
   const reviewError = payError ?? (ready && "error" in ready ? ready.error : null);
 

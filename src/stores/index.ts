@@ -10,7 +10,7 @@ export {
 export { positionIn, type RestorePosition } from "./restorePosition";
 export { useRecentlyViewedStore, useRecentlyViewedIds } from "./recentlyViewedStore";
 export { useCheckoutStore } from "./checkoutStore";
-export { useCouponStore, useAppliedCoupon, type AppliedCouponTerms } from "./couponStore";
+export { useCouponStore, useAppliedCoupon, useCheckedCoupon, type AppliedCouponTerms } from "./couponStore";
 export { useThemeStore } from "./themeStore";
 export { StoreHydrator, useStoresHydrated, useStoreHydrated } from "./hydration";
 export { useUiStore, useCartDrawerOpen, openCartDrawer } from "./uiStore";

@@ -103,6 +103,13 @@ export function setE2eCouponActive(code: string, active: boolean): Promise<void>
   });
 }
 
+/** Changes a spec's coupon's value behind the shopper's back (an admin's edit). */
+export function setE2eCouponValue(code: string, value: number): Promise<void> {
+  return withClient(async (client) => {
+    await client.query(`UPDATE "Coupon" SET "value" = $2, "updatedAt" = now() WHERE "code" = $1`, [code, value]);
+  });
+}
+
 /** The coupon use of the newest order placed with this email. */
 export function latestOrderCoupon(email: string): Promise<{ couponCode: string | null; discount: number; total: number; redemption: string | null } | null> {
   return withClient(async (client) => {

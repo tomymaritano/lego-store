@@ -1,14 +1,17 @@
 import { test, expect, type Page } from "@playwright/test";
 import { E2E_ADMIN_EMAIL, logIn, uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
-import { createE2eCoupon, e2eCouponCode, latestOrderCoupon, setE2eCouponActive } from "./helpers/db";
+import { createE2eCoupon, e2eCouponCode, latestOrder, latestOrderCoupon, setE2eCouponActive, setE2eCouponValue } from "./helpers/db";
+import { notifyPayment, payPreference } from "./helpers/mercadopago";
 
 /*
  * Coupons against the dev server (Mercado Pago's mock pays): a code applied
  * in the cart's summary, carried into the checkout, validated and reserved
- * by the server and charged with the discount; a coupon that stops being
- * valid on the way is removed with the reason; and an admin creates one that
- * a shopper then uses. The specs' coupons (codes starting with E2E) and
+ * by the server and charged with the discount (by card, and through Mercado
+ * Pago's own site); the cart and the checkout ask the server again about a
+ * stored coupon when they load (an admin's edit or deactivation shows at
+ * once); a coupon that stops being valid on the way is removed with the
+ * reason; and an admin creates one that a shopper then uses. The specs' coupons (codes starting with E2E) and
  * orders are deleted by the global teardown.
  */
 
@@ -47,12 +50,36 @@ async function fillShipping(page: Page, email: string) {
   await page.getByRole("option", { name: "Córdoba" }).click();
 }
 
-/** From the checkout's first step to "Revisar", paying with Mercado Pago's approved test card. */
-async function toReview(page: Page, email: string) {
+/**
+ * Counts the cart's and the checkout's re-checks of the applied coupon, so a
+ * spec can wait until the ones in flight have been answered before it
+ * changes the coupon behind the shopper's back.
+ */
+function trackRechecks(page: Page) {
+  let sent = 0;
+  let answered = 0;
+  const isRecheck = (body: string | null) => Boolean(body?.includes('"recheck":true'));
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/checkout/coupon") && isRecheck(request.postData())) sent += 1;
+  });
+  const done = () => (answered += 1);
+  page.on("requestfinished", (request) => {
+    if (request.url().endsWith("/api/checkout/coupon") && isRecheck(request.postData())) done();
+  });
+  page.on("requestfailed", (request) => {
+    if (request.url().endsWith("/api/checkout/coupon") && isRecheck(request.postData())) done();
+  });
+  return { settled: () => expect.poll(() => sent > 0 && answered === sent).toBe(true) };
+}
+
+const storedCoupon = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem("lego-coupon-storage") ?? "{}").state?.coupon ?? null);
+
+/** From the checkout's first step to "Revisar", paying with Mercado Pago's approved test card (or `option`). */
+async function toReview(page: Page, email: string, option: RegExp = /Mastercard aprobada en 3 cuotas/) {
   await fillShipping(page, email);
   await page.getByRole("button", { name: /Continuar al pago/ }).click();
   await expect(page.getByTestId("mp-mock-payment")).toBeVisible();
-  await page.getByRole("radio", { name: /Mastercard aprobada en 3 cuotas/ }).check();
+  await page.getByRole("radio", { name: option }).check();
   await page.getByRole("button", { name: /Revisar pedido/ }).click();
   await expect(page.getByRole("heading", { name: "Revisa tu pedido" })).toBeFocused();
 }
@@ -97,11 +124,69 @@ test.describe("coupons", () => {
     await expect(confirmation.getByTestId("order-discount")).toHaveText(new RegExp(`Ahorraste .*329 con ${code}`));
     expect(await latestOrderCoupon(email)).toEqual({ couponCode: code, discount: 329, total: 3259, redemption: "REDEEMED" });
     // The coupon went with this order: the browser forgets it.
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("lego-coupon-storage") ?? "{}").state?.coupon ?? null)).toBeNull();
+    expect(await storedCoupon(page)).toBeNull();
+  });
+
+  test("the cart and the checkout ask the server again about a stored coupon: an edit or a deactivation shows at once", async ({ page }) => {
+    test.slow();
+    const code = await createE2eCoupon("stale", { type: "FIXED", value: 300 });
+    await seedCart(page, REAL_CART);
+    await page.goto("/cart");
+    await applyCoupon(page, "cart", code);
+    await expect(page.getByTestId("cart-discount")).toHaveText(/300/);
+
+    // An admin raises it: the next load shows the new discount, never the stored one.
+    await setE2eCouponValue(code, 450);
+    await page.reload();
+    await expect(page.getByTestId("cart-discount")).toHaveText(/450/);
+    await expect(page.getByTestId("cart-total")).toHaveText(/3\.138/);
+    await expect(page.getByTestId("cart-discount")).not.toHaveText(/300/);
+
+    // Turned off: the checkout drops it before showing any discount, and says why on the field.
+    await setE2eCouponActive(code, false);
+    await page.goto("/checkout");
+    const box = summary(page, "checkout");
+    await expect(box.getByRole("alert")).toHaveText(`Quitamos el cupón ${code}: Este cupón ya no está disponible.`);
+    await expect(box.getByLabel("Código de descuento")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("checkout-discount")).toHaveCount(0);
+    await expect(page.getByTestId("checkout-total")).toHaveText(/3\.588/);
+    expect(await storedCoupon(page)).toBeNull();
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
+  });
+
+  test("paid through Mercado Pago's site ('Cuenta de Mercado Pago'): the return page forgets the used coupon", async ({ page }) => {
+    test.slow();
+    const code = await createE2eCoupon("wallet", { type: "FIXED", value: 200 });
+    await seedCart(page, REAL_CART);
+    await page.goto("/cart");
+    await applyCoupon(page, "cart", code);
+    await expect(page.getByTestId("cart-discount")).toHaveText(/200/);
+    await page.getByTestId("cart-checkout-btn").click();
+    await expect(page).toHaveURL(/\/checkout$/);
+
+    const email = uniqueEmail("coupon-wallet");
+    await toReview(page, email, /Cuenta de Mercado Pago/);
+    // $3.289 - $200 + $299.
+    await expect(page.getByTestId("review-total")).toHaveText(/3\.388/);
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
+    await page.waitForURL(/\/checkout\/pedido\/[^/?]+\?preference_id=/, { timeout: 15_000 });
+    const preferenceId = new URL(page.url()).searchParams.get("preference_id")!;
+    // Not paid yet: the coupon stays applied (the customer may go back and pay another way).
+    await expect(page.getByTestId("order-confirmation")).toHaveAttribute("data-status", "PENDING");
+    expect((await storedCoupon(page))?.code).toBe(code);
+
+    const paymentId = await payPreference(page.request, preferenceId);
+    expect(await notifyPayment(page.request, paymentId)).toBe("paid");
+    await expect(page.getByTestId("order-confirmation")).toHaveAttribute("data-status", "PAID", { timeout: 15_000 });
+    expect((await latestOrder(email))?.status).toBe("PAID");
+    expect(await latestOrderCoupon(email)).toMatchObject({ couponCode: code, discount: 200, redemption: "REDEEMED" });
+    // The next purchase starts without it.
+    await expect.poll(() => storedCoupon(page)).toBeNull();
   });
 
   test("a code the server refuses says why; one that stops being valid is removed at checkout with the reason", async ({ page }) => {
     test.slow();
+    const rechecks = trackRechecks(page);
     await seedCart(page, REAL_CART);
     await page.goto("/cart");
     await applyCoupon(page, "cart", "E2ENOEXISTE");
@@ -115,6 +200,9 @@ test.describe("coupons", () => {
     await expect(page.getByTestId("cart-discount")).toHaveText(/400/);
     await page.getByTestId("cart-checkout-btn").click();
     await expect(page).toHaveURL(/\/checkout$/);
+    // The checkout asks the server about it as it loads: wait for that answer.
+    await rechecks.settled();
+    await expect(summary(page, "checkout").getByTestId("checkout-discount")).toHaveText(/400/);
 
     // The store turns it off while the shopper fills the checkout in.
     await setE2eCouponActive(code, false);

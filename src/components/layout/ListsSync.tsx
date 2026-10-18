@@ -18,7 +18,7 @@ import type { ServerLists } from "@/lib/lists/types";
 import { fetchProductsByIds } from "@/lib/api-client";
 import { MAX_IDS_PER_REQUEST } from "@/lib/productQuery";
 import { useViewer } from "@/providers/ViewerProvider";
-import { useCartStore, useStoreHydrated, useWishlistStore } from "@/stores";
+import { useCartStore, useCouponStore, useStoreHydrated, useWishlistStore } from "@/stores";
 import { noWritesSince, setListsRemote, writeGeneration } from "@/stores/listsRemote";
 import { showToast } from "@/components/ui";
 import type { CartLineInput } from "@/lib/validations/lists";
@@ -39,7 +39,9 @@ import type { CartItem, WishlistItem } from "@/types";
  * - reloads the account's lists when the tab comes back into view (another
  *   device may have changed them);
  * - for a visitor, refreshes the cart's stored prices and stock from the
- *   catalogue.
+ *   catalogue;
+ * - the applied coupon follows the session too: signing out or into another
+ *   account drops it, a visitor who signs in keeps theirs (couponStore).
  */
 
 async function fetchServerLists(signal?: AbortSignal): Promise<ServerLists> {
@@ -158,6 +160,11 @@ export function ListsSync() {
   const cartReady = useStoreHydrated(useCartStore);
   const wishlistReady = useStoreHydrated(useWishlistStore);
   const ready = cartReady && wishlistReady;
+  const couponReady = useStoreHydrated(useCouponStore);
+
+  useEffect(() => {
+    if (couponReady) useCouponStore.getState().adoptOwner(viewerId);
+  }, [couponReady, viewerId]);
 
   useEffect(
     () =>
