@@ -57,14 +57,15 @@ export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects.find((project) => project.name === "chromium")?.use.baseURL;
   if (!baseURL) return;
 
-  // The checkout specs pay through the mock gateway: a dev server reused from
-  // `npm run dev` without STRIPE_MOCK=1 would show "Pagos no configurados".
+  // The checkout specs pay through the mock gateways, with Mercado Pago as the
+  // store's provider: a dev server reused from `npm run dev` without
+  // PAYMENTS_MOCK=1 would show "Pagos no configurados".
   const checkout = await (await fetch(new URL("/checkout", baseURL))).text();
-  if (!checkout.includes('data-payments-mode="mock"')) {
+  if (!checkout.includes('data-payments-mode="mock"') || !checkout.includes('data-payments-provider="MERCADOPAGO"')) {
     throw new Error(
-      `El servidor de ${baseURL} no corre con pagos simulados. Detén el servidor que está usando ese puerto ` +
-        "(Playwright levanta el suyo con STRIPE_MOCK=1), reinícialo con STRIPE_MOCK=1 y STRIPE_WEBHOOK_SECRET=" +
-        "whsec_e2e_lego_store_mock_only (ver e2e/helpers/stripe.ts) o elige otro puerto con E2E_DEV_PORT."
+      `El servidor de ${baseURL} no corre con pagos simulados de Mercado Pago. Detén el servidor que está usando ese puerto ` +
+        "(Playwright levanta el suyo con PAYMENTS_MOCK=1), reinícialo con las variables de E2E_SERVER_ENV " +
+        "(e2e/helpers/stripe.ts) y sin PAYMENT_PROVIDER, o elige otro puerto con E2E_DEV_PORT."
     );
   }
   for (const route of ROUTES) {

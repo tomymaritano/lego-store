@@ -45,7 +45,8 @@ export default defineConfig({
         url: URL,
         reuseExistingServer: false,
         timeout: 180_000,
-        env: { NEXT_DIST_DIR: ".next-stripe-live", STRIPE_MOCK: "0" },
+        // A Stripe store (Mercado Pago is the default provider), against Stripe test mode: no mock.
+        env: { NEXT_DIST_DIR: ".next-stripe-live", STRIPE_MOCK: "0", PAYMENTS_MOCK: "0", PAYMENT_PROVIDER: "stripe" },
       }
     : undefined,
 });

@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { expect, type APIRequestContext } from "@playwright/test";
+import { expect, type APIRequestContext, type BrowserContext } from "@playwright/test";
 import Stripe from "stripe";
 import { latestOrder } from "./db";
 
 /*
- * Stripe in the e2e suite. The dev server runs with STRIPE_MOCK=1 (see
- * playwright.config.ts): payments go through the in-memory mock gateway and
- * nothing reaches Stripe. What Stripe would then send, the
+ * Stripe in the e2e suite. The dev server runs with PAYMENTS_MOCK=1 (see
+ * playwright.config.ts): payments go through the in-memory mock gateways and
+ * nothing reaches Stripe or Mercado Pago. The store's provider is Mercado
+ * Pago (the default; helpers/mercadopago.ts); the Stripe specs switch their
+ * browser to Stripe with the mock-only cookie (useStripeCheckout), as a store
+ * with PAYMENT_PROVIDER=stripe would be. What Stripe would then send, the
  * payment_intent.succeeded webhook, the spec sends itself: signed with the
  * test secret the server verifies (stripe.webhooks.generateTestHeaderString),
  * through the real route.
@@ -15,8 +18,23 @@ import { latestOrder } from "./db";
 /** The webhook signing secret of the e2e dev server (test only; never a real one). */
 export const E2E_WEBHOOK_SECRET = "whsec_e2e_lego_store_mock_only";
 
+/** Mercado Pago's webhook secret of the e2e dev server (test only). */
+export const E2E_MERCADOPAGO_SECRET = "mp_e2e_lego_store_mock_only";
+
 /** Environment of the dev server the e2e suite starts. */
-export const E2E_SERVER_ENV = { STRIPE_MOCK: "1", STRIPE_WEBHOOK_SECRET: E2E_WEBHOOK_SECRET };
+export const E2E_SERVER_ENV = {
+  PAYMENTS_MOCK: "1",
+  STRIPE_WEBHOOK_SECRET: E2E_WEBHOOK_SECRET,
+  MERCADOPAGO_WEBHOOK_SECRET: E2E_MERCADOPAGO_SECRET,
+};
+
+/** The mock-only cookie that picks the provider of this browser's checkout (src/lib/payments/config.ts). */
+const MOCK_PROVIDER_COOKIE = "payments-mock-provider";
+
+/** This browser checks out with Stripe (the store's PAYMENT_PROVIDER=stripe). */
+export async function useStripeCheckout(context: BrowserContext, baseURL: string | undefined) {
+  await context.addCookies([{ name: MOCK_PROVIDER_COOKIE, value: "STRIPE", url: baseURL ?? "http://localhost:3000" }]);
+}
 
 /**
  * Sends the signed payment_intent.succeeded event for the newest order of

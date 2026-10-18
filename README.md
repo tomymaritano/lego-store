@@ -2,14 +2,14 @@
 
 Tienda online de sets LEGO (proyecto de portfolio): catálogo con búsqueda e
 infinite scroll, ficha de producto, carrito, lista de deseos, comparador de
-hasta 4 productos y un checkout en pasos con Stripe. Toda la UI está en
+hasta 4 productos y un checkout en pasos con Mercado Pago (o Stripe). Toda la UI está en
 español, tiene modo oscuro y apunta a WCAG 2.1 AA.
 
 El catálogo vive en PostgreSQL (Prisma) y todas las lecturas pasan por una sola
 capa (`src/lib/api`). Hay cuentas de usuario (registro, login, perfil, roles
 cliente/admin) con Auth.js, carrito y favoritos por cuenta, reseñas, y pedidos
-pagados con Stripe (modo test) con email de confirmación (Resend) y "Mis
-pedidos", y un panel de admin (productos, stock, pedidos con envío, entrega y
+pagados con Mercado Pago (tarjetas en cuotas, efectivo, dinero en cuenta; Stripe
+como alternativa) con email de confirmación (Resend) y "Mis pedidos", y un panel de admin (productos, stock, pedidos con envío, entrega y
 cancelación con reembolso, moderación de reseñas). El diseño está en
 `docs/superpowers/specs/2026-10-17-backend-completo-design.md`. La app
 necesita Postgres para correr: ver [Puesta en marcha local del backend](#puesta-en-marcha-local-del-backend).
@@ -41,7 +41,7 @@ producción en marcha (`npm run build && npm start`).
 - **Auth.js** (`next-auth@5.0.0-beta.32`, compatible con Next 16 y React 19): email + contraseña (bcrypt) y Google opcional, sesiones JWT
 - **PostgreSQL 17** + **Prisma 7** (cliente `prisma-client` generado en `src/generated/prisma`, driver adapter `@prisma/adapter-pg`)
 - **Zustand** (estado del cliente persistido), **TanStack Query** (datos en islas cliente)
-- **Stripe** (`stripe` 23 en el servidor, Payment Element con `@stripe/react-stripe-js` 7 y ConfirmationTokens) y **Resend** (emails; sin claves se loguean a consola)
+- **Mercado Pago** (`mercadopago` 3 en el servidor, Payment Brick con `@mercadopago/sdk-react` 1, Checkout Pro para dinero en cuenta), **Stripe** como alternativa (`stripe` 23, Payment Element con `@stripe/react-stripe-js` 7 y ConfirmationTokens) y **Resend** (emails; sin claves se loguean a consola)
 - **React Hook Form** + **Zod** (checkout, contacto y reseñas; se cargan solo donde se usan), **sonner** (toasts)
 - Barlow servida por `next/font` (self-hosted y precargada)
 - **Vitest** (unit + Storybook), **Playwright** (E2E), **Storybook 10** con a11y
@@ -78,7 +78,7 @@ Requiere Node `^22.13` o `>=24`.
 ```
 prisma/
   schema.prisma        Modelo de datos (usuarios y tablas de Auth.js, catálogo,
-                       carrito, favoritos, reseñas, pedidos, eventos de Stripe)
+                       carrito, favoritos, reseñas, pedidos, eventos de pago)
   migrations/          Migraciones SQL (las restricciones CHECK van escritas a mano)
   seed.ts seed/        Seed idempotente (catálogo de src/data, reseñas y pedidos de ejemplo, admin)
 prisma.config.ts       Config del CLI de Prisma (URL de la base, seed)
@@ -99,11 +99,15 @@ src/
       products/facets/ GET /api/products/facets (conteos en vivo de los filtros)
       search/          GET /api/search?q= (autocompletado)
       auth/[...nextauth]/  Endpoints de Auth.js (OAuth, sesión, CSRF)
-      checkout/orders/ POST: preparar el pedido · GET [id]: estado · POST [id]/pay: pagar
+      checkout/orders/ POST: preparar el pedido · GET [id]: estado · POST [id]/pay: pagar ·
+                       POST [id]/sync: consultar el pago a Mercado Pago (vuelta de Checkout Pro)
+      webhooks/mercadopago/  POST: notificaciones de Mercado Pago (x-signature verificada)
       stripe/webhook/  POST: eventos de Stripe (firma verificada)
+      test/mercadopago/  POST: solo con PAYMENTS_MOCK (E2E): lo que Mercado Pago haría solo
       cron/expire-orders/  GET con CRON_SECRET: cancela pedidos pendientes viejos
     cart/ wishlist/ compare/ search/ category/ item/
-    checkout/_components/  Pasos, resumen y confirmación del checkout
+    checkout/_components/  Pasos, resumen y confirmación del checkout (mercadopago/: Brick y opciones de prueba)
+    checkout/pedido/[orderId]/  Vuelta desde Mercado Pago: consulta el pago y sigue el pedido
   components/
     ui/                Primitivos del sistema de diseño (barrel index.ts)
     layout/            Navbar, Footer, PageHeader, menú de cuenta, menús y paneles (carga diferida)
@@ -124,8 +128,10 @@ src/
                        adapter de Prisma, callbackUrl seguro, hash de contraseñas (bcrypt),
                        actions.ts (logout y Google, que usan el navbar y /account)
     rate-limit/        Rate limiting en Postgres (login, registro, reseñas, checkout)
-    orders/            Pedidos: checkout en el servidor, webhook, limpieza, acceso, consultas, formato
-    payments/          Pasarela de pago: Stripe, el mock de tests (STRIPE_MOCK) y su configuración
+    orders/            Pedidos: checkout en el servidor (Stripe: checkout.ts, webhook.ts; Mercado Pago:
+                       mercadopago.ts), limpieza, acceso, consultas, formato, efectos (emails, caché)
+    payments/          Proveedores de pago: la interfaz PaymentProvider, Mercado Pago (mercadopago/:
+                       SDK, firma de webhooks, estados, mock), Stripe y su mock (PAYMENTS_MOCK), configuración
     email/             Envío (Resend o consola) y plantillas de los emails de pedidos
     admin/             Panel de admin: productos, pedidos (transiciones, reembolso),
                        reseñas, resumen; data.ts (lecturas que verifican el rol) y
@@ -340,7 +346,110 @@ scripts/               Presupuesto de JS y capturas del README
 ## Checkout, pagos y pedidos
 
 El flujo visible no cambió: **Envío → Pago → Revisar** y la confirmación. Lo que
-cuesta plata lo decide el servidor (`src/lib/orders/checkout.ts`):
+cuesta plata lo decide el servidor, y **solo "Realizar pedido" cobra**.
+
+### Proveedores de pago
+
+Los pedidos nuevos se cobran con el proveedor de `PAYMENT_PROVIDER`:
+**`mercadopago`** (el default) o **`stripe`** (la alternativa). Cada pedido guarda
+su proveedor (`Order.paymentProvider`) y lo conserva: sus reembolsos y
+cancelaciones van siempre al proveedor que lo cobró, aunque la tienda cambie de
+proveedor después. El admin muestra en el panel quién cobra los pedidos nuevos y
+en qué modo (producción, credenciales de prueba, simulado o sin configurar).
+
+Todo lo que pasa después de cobrar va por una interfaz común,
+`PaymentProvider` (`src/lib/payments/provider.ts`): cancelar un pago que no se
+acreditó, reembolsar (total o parcial) con idempotency key, buscar un reembolso
+cuya respuesta se perdió, verificar un webhook y traducirlo a eventos
+normalizados (`succeeded`, `pending`, `failed`, `cancelled`, `refunded`,
+`chargeback`) y mapear estados del proveedor a los del pedido. Stripe va detrás
+de esa interfaz sin cambiar su comportamiento (`stripe-provider.ts` sobre la
+pasarela de siempre). Lo que no es común es cómo se recolecta el pago: cada
+proveedor tiene su paso Pago en el navegador y su flujo de checkout en el
+servidor (`src/lib/orders/checkout.ts` para Stripe,
+`src/lib/orders/mercadopago.ts` para Mercado Pago).
+
+| Estado | Qué significa |
+| --- | --- |
+| `PENDING` | Preparado en "Revisar"; todavía sin pago (o con uno rechazado). |
+| `PAYMENT_PENDING` | Mercado Pago tomó el pago pero no lo acreditó: un ticket de efectivo por pagar, una tarjeta en revisión. No descuenta stock. |
+| `PAID` → `SHIPPED` → `DELIVERED` | Cobrado (el stock se descuenta acá), enviado, entregado. |
+| `CANCELLED` | Con motivo (`cancelReason`): sin stock al acreditarse, monto distinto, vencido, reemplazado, rechazado, reembolsado, contracargo, admin. |
+
+### Mercado Pago (principal)
+
+1. **Pago** muestra dos opciones. *Tarjeta o efectivo*: el **Payment Brick**
+   (`@mercadopago/sdk-react`, `es-AR`, tematizado con los tokens del sitio en claro
+   y oscuro) con tarjetas de crédito, débito y prepagas en cuotas, y efectivo
+   (Rapipago, Pago Fácil). Su botón de pago está oculto: "Revisar pedido" le pide
+   lo que recolectó (`paymentBrickController.getFormData()`: token de tarjeta de
+   un solo uso, medio, cuotas, documento) y lo guarda en memoria. *Cuenta de
+   Mercado Pago* (dinero en cuenta y lo que el cliente tenga guardado ahí) usa
+   Checkout Pro: el Brick necesitaría una preferencia antes de que exista el
+   pedido y mandaría al cliente afuera desde este paso, así que el pedido se
+   revisa igual y recién "Realizar pedido" crea la preferencia y lleva a Mercado
+   Pago.
+2. **Revisar** (`POST /api/checkout/orders` con `provider: "MERCADOPAGO"`) precia y
+   crea el pedido PENDING igual que con Stripe, sin datos de pago: Mercado Pago no
+   necesita nada antes de cobrar. Muestra el medio, las cuotas o que es efectivo.
+3. **Realizar pedido** (`POST …/pay` con `{ mercadopago: { attemptId, method,
+   formData } }`, zod) crea el pago en Mercado Pago **con el total del pedido
+   calculado en el servidor** (nunca el monto del navegador), `external_reference`
+   = id del pedido, `notification_url` al webhook y `X-Idempotency-Key`
+   `order/<id>/mp/<attemptId>` (un reintento es el mismo pago, nunca uno nuevo).
+   Con el pedido bloqueado, la respuesta se aplica en el momento:
+   - `approved` → el mismo camino que el webhook de Stripe: stock atómico, PAID,
+     se vacían esas líneas del carrito, email de confirmación; si falta stock o el
+     monto no es el total: reembolso + CANCELLED.
+   - `in_process` / `pending` (tickets incluidos) → **PAYMENT_PENDING**: la
+     confirmación, "Mis pedidos" y un email muestran el ticket (monto, dónde, link y
+     vencimiento) o que la tarjeta está en revisión.
+   - `rejected` → vuelve al paso Pago con el motivo en castellano según
+     `status_detail` (fondos insuficientes, código de seguridad, cuotas…); el pedido
+     sigue PENDING y fuera de Mis pedidos.
+   - "Cuenta de Mercado Pago" → el navegador va a la preferencia (una por total;
+     un segundo clic abre la misma) y vuelve a `/checkout/pedido/<id>`, que le pide
+     al servidor que consulte el pago (`POST …/sync`: lee el pago de la API y solo lo
+     usa si su `external_reference` es ese pedido) y sigue el estado.
+4. **Webhook** (`POST /api/webhooks/mercadopago`): verifica `x-signature`
+   (HMAC-SHA256 con `MERCADOPAGO_WEBHOOK_SECRET` sobre
+   `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`, comparación en tiempo
+   constante; coincide con el validador del SDK oficial), **lee el pago de la API**
+   (el cuerpo no se usa) y lo aplica una sola vez: la tabla `PaymentEvent` guarda
+   cada (pago, estado, detalle) con clave única en la misma transacción, así que
+   los reintentos, los duplicados y un webhook que llega después de que el checkout
+   ya aplicó la respuesta no hacen nada. Como siempre se lee el estado actual, una
+   notificación vieja que llega tarde no puede hacer retroceder el pedido; los
+   pagos de intentos anteriores (una tarjeta rechazada antes de la aprobada) solo
+   quedan en el historial. Estados: `cancelled` (ticket vencido) → CANCELLED con
+   email "No se acreditó el pago"; `refunded` (desde Mercado Pago) → CANCELLED con el
+   stock devuelto (un pedido enviado solo lo anota); `charged_back` → CANCELLED
+   (`chargeback`) con el stock devuelto; un pago aprobado de un pedido ya cancelado,
+   o un segundo pago de uno ya pagado, se reembolsa. 401 con firma inválida, 500
+   si algo falla (Mercado Pago reintenta).
+5. **Pendientes**: la limpieza diaria (`/api/cron/expire-orders`) también consulta
+   los PAYMENT_PENDING cuyo ticket venció hace más de un día (o que llevan una
+   semana): uno acreditado se aplica (el webhook se perdió), uno todavía pendiente
+   se cancela en Mercado Pago y el pedido con él. Mientras el pago está pendiente
+   no se reserva stock (se descuenta al acreditarse; si falta, se reembolsa).
+
+**Admin**: el detalle del pedido muestra proveedor, medio, cuotas, id de pago,
+estado en el proveedor, ticket, reembolso y el historial del pago. Cancelar un PAID
+reembolsa el total por Mercado Pago (`POST /v1/payments/<id>/refunds`, idempotency
+key `order/<id>/refund`), con el mismo esquema de retención que con Stripe;
+cancelar un PAYMENT_PENDING cancela el pago o ticket en Mercado Pago (si ya se
+acreditó, se rechaza y lo resuelve el webhook).
+
+**Mercado Pago en local**: con credenciales de prueba (cuenta de vendedor de
+prueba en *Tus integraciones*) el Brick funciona en `localhost`, pero Mercado Pago
+no puede notificar a `localhost`: el `notification_url` solo se manda con un
+`NEXT_PUBLIC_SITE_URL` https público (un túnel como `ngrok`/`cloudflared` sirve).
+Sin eso, las aprobaciones con tarjeta se aplican en el momento, la vuelta de
+Checkout Pro consulta el pago, y los tickets quedan pendientes hasta la limpieza.
+Tarjetas de prueba de Mercado Pago: el nombre del titular decide el resultado
+(`APRO` aprobada, `CONT` pendiente, `FUND` sin fondos, `OTHE` rechazada).
+
+### Stripe (alternativa, `PAYMENT_PROVIDER=stripe`)
 
 1. **Pago** solo *recolecta* la tarjeta: el Payment Element de Stripe (tematizado
    con los tokens del sitio en claro y oscuro, `stripeClient.ts`) hace
@@ -420,26 +529,41 @@ muestran en la consola del servidor.
 
 **Configuración** (`src/lib/payments/config.ts`):
 
+- **`PAYMENT_PROVIDER`**: `mercadopago` (default) o `stripe`; otro valor cuenta como
+  Mercado Pago y se avisa en el log.
+- **Mercado Pago** necesita `MERCADOPAGO_ACCESS_TOKEN`,
+  `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY` y `MERCADOPAGO_WEBHOOK_SECRET` (la "Clave
+  secreta" de *Tus integraciones > Webhooks*; el webhook se configura ahí, evento
+  *Pagos*, apuntando a `https://<tu-dominio>/api/webhooks/mercadopago`). Con un
+  access token `TEST-…` el admin lo muestra como "credenciales de prueba".
 - **Stripe** necesita `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` y
   `STRIPE_WEBHOOK_SECRET` (claves de test: <https://dashboard.stripe.com/test/apikeys>).
   En local, los webhooks llegan con la [Stripe CLI](https://docs.stripe.com/stripe-cli):
   `stripe listen --forward-to localhost:3000/api/stripe/webhook` imprime el
   `whsec_…` para `.env.local`. Tarjetas de prueba: `4242 4242 4242 4242` (aprobada),
   `4000 0027 6000 3184` (3D Secure), `4000 0000 0000 0002` (rechazada).
-- **Sin esas variables** el paso Pago muestra "Pagos no configurados" (en dev, con
-  la lista de lo que falta) y las rutas de checkout responden 503.
-- **`STRIPE_MOCK=1`** (solo fuera de producción: con `NODE_ENV=production` se
-  ignora, y también en cualquier build de `next build` aunque se arranque con otro
-  `NODE_ENV`, porque Next fija `process.env.NODE_ENV` al compilar; un servidor que
-  lo usa lo avisa en el log al arrancar) reemplaza Stripe por una pasarela en memoria (`src/lib/payments/mock.ts`)
-  y el Payment Element por una lista de tarjetas de prueba. Es lo que usan los E2E
-  y los tests de integración; el webhook sigue verificando firmas, así que los tests
-  firman sus eventos con `stripe.webhooks.generateTestHeaderString`.
+- **Sin las variables del proveedor elegido** el paso Pago muestra "Pagos no
+  configurados" (en dev, con la lista de lo que falta) y las rutas de checkout
+  responden 503.
+- **`PAYMENTS_MOCK=1`** (o el anterior `STRIPE_MOCK=1`; solo fuera de producción:
+  con `NODE_ENV=production` se ignora, y también en cualquier build de `next build`
+  aunque se arranque con otro `NODE_ENV`, porque Next fija `process.env.NODE_ENV` al
+  compilar; un servidor que lo usa lo avisa en el log al arrancar) reemplaza a los
+  dos proveedores por versiones en memoria (`src/lib/payments/mock.ts`,
+  `src/lib/payments/mercadopago/mock.ts`) y sus formularios por listas de opciones
+  de prueba (tarjetas aprobada, en cuotas, en revisión, sin fondos y rechazada;
+  Rapipago, Pago Fácil; cuenta de Mercado Pago). Es lo que usan los E2E y los tests
+  de integración; los webhooks siguen verificando firmas, así que los tests firman
+  sus eventos con los secretos de test. En ese modo, y solo en ese, la cookie
+  `payments-mock-provider=STRIPE` hace que ese navegador pague con Stripe (los E2E
+  corren así el checkout de Stripe sobre el mismo servidor), y
+  `POST /api/test/mercadopago` hace lo que Mercado Pago haría solo (acreditar un
+  ticket, pagar una preferencia); fuera del modo simulado responde 404.
 - Rate limits del checkout: 30 preparaciones y 15 pagos cada 15 minutos por usuario
   (o IP).
 - **Con sesión**, el paso Envío llega con nombre y email de la cuenta y avisa que el
   pedido queda asociado a ella (el email se puede cambiar: es adonde van los avisos).
-- El paso Pago (Stripe Elements, tarjetas de prueba) se carga bajo demanda con
+- El paso Pago (el Brick de Mercado Pago o Stripe Elements, las opciones de prueba) se carga bajo demanda con
   `next/dynamic` y se precarga mientras se completa el envío: no está en la primera
   carga de `/checkout`.
 - **E2E contra Stripe real** (`e2e/stripe-live`, `npm run test:e2e:stripe`): con
@@ -606,8 +730,14 @@ npm run dev
   nueva recrea una tabla, copia las suyas.
 - **Producción** (Vercel + Neon u otro Postgres): `DATABASE_URL` y `AUTH_SECRET` en
   las variables del proyecto y `npm run db:deploy` + `npm run db:seed` contra esa
-  base antes del primer deploy. Para cobrar: las tres variables de Stripe, un
-  endpoint de webhook en el dashboard de Stripe apuntando a
+  base antes del primer deploy. Para cobrar con **Mercado Pago** (el default): sus
+  tres variables (credenciales de producción de la aplicación en *Tus
+  integraciones*) y el webhook configurado ahí con el evento *Pagos* apuntando a
+  `https://<dominio>/api/webhooks/mercadopago` (su clave secreta es
+  `MERCADOPAGO_WEBHOOK_SECRET`; `NEXT_PUBLIC_SITE_URL` con el dominio https, que es
+  adonde vuelve Checkout Pro y lo que va en `notification_url`). Con **Stripe**
+  (`PAYMENT_PROVIDER=stripe`, o para reembolsar pedidos viejos de Stripe): las tres
+  variables de Stripe, un endpoint de webhook en el dashboard de Stripe apuntando a
   `https://<dominio>/api/stripe/webhook` con los eventos `payment_intent.succeeded`,
   `payment_intent.payment_failed`, `payment_intent.canceled` y `charge.refunded` (su signing secret es
   `STRIPE_WEBHOOK_SECRET`), `CRON_SECRET` + el Cron Job de la limpieza (ver
@@ -617,7 +747,7 @@ npm run dev
   visitantes comparten los límites por IP y una sola persona puede bloquear login,
   registro y checkout de invitado para todos; el servidor lo avisa al arrancar:
   revisa el log del primer arranque; arranca igual, para no tirar un deploy por
-  una variable). Nunca `STRIPE_MOCK` en un servidor público. **Varias instancias
+  una variable). Nunca `PAYMENTS_MOCK` (ni `STRIPE_MOCK`) en un servidor público. **Varias instancias
   fuera de Vercel**: el catálogo sale del data cache de Next y las ediciones del
   admin, las compras y los reembolsos lo invalidan con `revalidateTag`, que en un
   servidor propio solo llega a la instancia que lo ejecutó. Las demás mostrarían
@@ -627,8 +757,9 @@ npm run dev
 - **Headers de seguridad** (`next.config.mjs`, todas las rutas):
   `X-Frame-Options: DENY` y `Content-Security-Policy: frame-ancestors 'none';
   object-src 'none'; base-uri 'self'` (nadie puede meter `/admin` o `/account` en
-  un iframe para clickjacking; el Payment Element es un iframe de Stripe dentro de
-  nuestras páginas, no al revés; sin plugins ni `<base>` ajeno),
+  un iframe para clickjacking; el Payment Brick y el Payment Element son iframes
+  de Mercado Pago y Stripe dentro de nuestras páginas, no al revés; sin plugins ni
+  `<base>` ajeno),
   `X-Content-Type-Options: nosniff`, `Referrer-Policy:
   strict-origin-when-cross-origin`, HSTS en producción y sin `X-Powered-By`. Falta
   un `script-src` con nonces por pedido (`proxy.ts`) que permita los scripts
@@ -715,7 +846,12 @@ npm run dev
   transacción, "útil" una vez, dueño, rate limit, invalidación, orden y páginas),
   checkout (totales y stock desde la base, PaymentIntent en ARS con idempotency key,
   reutilizar o cancelar el pedido pendiente, pagos rechazados, acceso por cookie o
-  cuenta, limpieza de pendientes) y el webhook de Stripe con eventos firmados
+  cuenta, limpieza de pendientes), Mercado Pago (`mercadopago.test.ts`: el total
+  del servidor es lo que se cobra, aprobado / ticket pendiente / en revisión /
+  rechazado / vencido / reembolsado / contracargo, firma del webhook, idempotencia
+  y notificaciones tardías o repetidas, carrera por la última unidad, reembolso y
+  cancelación desde el admin, Checkout Pro y la vuelta, limpieza de tickets
+  vencidos) y el webhook de Stripe con eventos firmados
   (firma, PAID con stock atómico, dos pagos por la última unidad → un reembolso,
   reenvíos idempotentes, reembolso que falla → 500 y reintento, email), y el
   panel de admin (`admin-*.test.ts`: crear / editar / archivar / eliminar
@@ -727,13 +863,15 @@ npm run dev
   lectura).
 - `__tests__/lib`: parser de queries, búsqueda normalizada, caché del catálogo
   (tags e invalidación), validación de cuentas, callbackUrl, roles, rate limiter,
-  la pasarela de Stripe con el SDK simulado (parámetros, errores, tokens), la
-  configuración de pagos, el acceso a pedidos, los emails y utilidades.
+  la pasarela de Stripe con el SDK simulado (parámetros, errores, tokens),
+  Mercado Pago (`mercadopago.test.ts`: firma `x-signature` comparada con el
+  validador del SDK, estados y motivos de rechazo, montos, el adaptador del SDK,
+  el webhook del proveedor), la configuración de pagos, el acceso a pedidos, los emails y utilidades.
 - `__tests__/stores`: stores, selectores, migraciones e hidratación; la capa
   optimista contra el servidor (rollback, respuestas viejas, recargas que se
   cruzan con un cambio) y las reglas de sincronización al ingresar y salir.
 - `__tests__/components`: primitivos (`ui/`), carrito lateral, carrito /
-  favoritos / comparador, catálogo y filtros, checkout, formularios, galería,
+  favoritos / comparador, catálogo y filtros, checkout (Stripe y Mercado Pago), formularios, galería,
   ficha de producto, reseñas, autocompletado, formularios y menú de cuenta,
   useProductActions,
   useProductsByIds y suscripciones a los stores.
@@ -743,7 +881,10 @@ npm run dev
 - `e2e/`: un archivo por área: `homepage` (inicio), `catalog` (filtros en la URL,
   orden, precio), `search` (búsqueda y combobox), `product` (ficha), `cart`
   (agregar desde tarjetas, carrito lateral, aviso del navbar), `lists`
-  (favoritos, comparador y su barra), `checkout` (compra de invitado hasta PAID,
+  (favoritos, comparador y su barra), `mercadopago` (tarjeta aprobada, tarjeta
+  rechazada y otra que paga, ticket de efectivo pendiente con instrucciones en la
+  confirmación y en Mis pedidos que se acredita por webhook, en claro y oscuro con
+  axe; firma inválida), `checkout` (el checkout de Stripe: compra de invitado hasta PAID,
   tarjeta rechazada, validaciones, con axe), `orders` (compra con cuenta → Mis
   pedidos → detalle; otra cuenta recibe 404), `shell` (navbar,
   footer, páginas de información, 404), `state` (estado persistido), `a11y`
@@ -764,8 +905,10 @@ npm run dev
   reseñas se van en cascada). Los specs de reseñas comparan la página con la base y
   no con lo que mostraba antes: una corrida que falló a mitad puede dejar el data
   cache del servidor de dev un paso atrás hasta 1 h. Playwright levanta el servidor
-  de dev con `STRIPE_MOCK=1` y un `STRIPE_WEBHOOK_SECRET` de test
-  (`e2e/helpers/stripe.ts`); si reutiliza un `npm run dev` que ya estaba corriendo
+  de dev con `PAYMENTS_MOCK=1` y los secretos de webhook de test de los dos
+  proveedores (`e2e/helpers/stripe.ts`); la tienda cobra con Mercado Pago y los
+  specs de Stripe (`checkout`, `orders`, `admin`) ponen en su navegador la cookie
+  de prueba que elige Stripe. Si reutiliza un `npm run dev` que ya estaba corriendo
   sin eso, el setup global falla explicando qué hacer. Los pedidos de los specs
   (emails `@e2e.lego-store.test`) se borran en el setup y el teardown, devolviendo
   el stock que tomaron. Playwright arranca primero el servidor de producción
@@ -777,7 +920,7 @@ npm run dev
   que el de producción sirve el build de esta copia (`.next-e2e/BUILD_ID`), pero un
   `next dev` de otra copia con las mismas variables pasaría. Para correr al lado de
   otros servidores, mueve los puertos: `E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx
-  playwright test`. El proyecto `prod` también comprueba que, sin claves de Stripe,
+  playwright test`. El proyecto `prod` también comprueba que, sin claves del proveedor,
   el admin ve "Cancelar y reembolsar" deshabilitado y el motivo, antes de abrir el
   diálogo.
 

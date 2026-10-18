@@ -3,11 +3,13 @@ import { uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
 import { keepSeededCart } from "./helpers/catalog";
 import { latestOrder } from "./helpers/db";
-import { deliverPaymentSucceeded } from "./helpers/stripe";
+import { deliverPaymentSucceeded, useStripeCheckout } from "./helpers/stripe";
 
 /*
- * Checkout against the dev server, which runs with STRIPE_MOCK=1: the payment
- * step offers test cards instead of Stripe's Payment Element, the server
+ * The Stripe checkout (a store with PAYMENT_PROVIDER=stripe; the e2e browser
+ * picks it with the mock-only cookie, helpers/stripe.ts) against the dev
+ * server, which runs with PAYMENTS_MOCK=1: the payment step offers test cards
+ * instead of Stripe's Payment Element, the server
  * prices and creates the order, and the spec delivers the signed
  * payment_intent.succeeded webhook that Stripe would send (helpers/stripe.ts).
  * Purchases buy real products with plenty of stock (7, 20); the global
@@ -55,6 +57,9 @@ async function chooseCard(page: Page, card: RegExp = /Visa aprobada/) {
   await expect(page.getByText(/Modo de prueba/)).toBeVisible();
   await page.getByRole("radio", { name: card }).check();
 }
+
+// Every spec here checks out with Stripe (the Mercado Pago checkout is mercadopago.spec.ts).
+test.beforeEach(async ({ context, baseURL }) => useStripeCheckout(context, baseURL));
 
 const stepper = (page: Page) => page.getByRole("navigation", { name: "Pasos del checkout" });
 

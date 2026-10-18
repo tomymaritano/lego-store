@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { logIn } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
 import { createE2eAccount, latestOrder } from "./helpers/db";
-import { deliverPaymentSucceeded } from "./helpers/stripe";
+import { deliverPaymentSucceeded, useStripeCheckout } from "./helpers/stripe";
 
 /*
  * A signed-in purchase end to end, against the dev database (payments through
@@ -31,9 +31,11 @@ async function fillShipping(page: Page, email: string) {
   await page.getByRole("option", { name: "Córdoba" }).click();
 }
 
-test("a signed-in customer buys, and follows the order in Mis pedidos (only theirs)", async ({ page, browser }) => {
+test("a signed-in customer buys, and follows the order in Mis pedidos (only theirs)", async ({ page, browser, baseURL }) => {
   // Two logins (bcrypt), checkout round trips and a second browser.
   test.slow();
+  // The Stripe checkout (PAYMENT_PROVIDER=stripe); the Mercado Pago one is mercadopago.spec.ts.
+  await useStripeCheckout(page.context(), baseURL);
   const email = await createE2eAccount("buyer", "Bruno Díaz");
   // Groot Guardians ($799) in the guest cart: merged into the account on login.
   await seedGuestCart(page, [{ id: "20", name: "Groot Guardians", price: 799, image: "/images/lego.png", quantity: 2, stock: 10 }]);

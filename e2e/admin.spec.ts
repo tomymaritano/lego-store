@@ -3,7 +3,7 @@ import { E2E_ADMIN_EMAIL, logIn, uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
 import { keepSeededCart } from "./helpers/catalog";
 import { addStock, latestOrder } from "./helpers/db";
-import { deliverPaymentSucceeded } from "./helpers/stripe";
+import { deliverPaymentSucceeded, useStripeCheckout } from "./helpers/stripe";
 
 /*
  * The admin panel against the dev server and database: an admin edits a
@@ -97,8 +97,10 @@ test("a picture URL next/image would refuse is only flagged: the new-product for
   await expect(page.getByRole("img", { name: "Vista previa: Imagen principal" })).toBeVisible();
 });
 
-test("an admin ships and then delivers a paid order", async ({ page, browser }) => {
+test("an admin ships and then delivers a paid order", async ({ page, browser, baseURL }) => {
   test.slow();
+  // The Stripe checkout (PAYMENT_PROVIDER=stripe); the Mercado Pago one is mercadopago.spec.ts.
+  await useStripeCheckout(page.context(), baseURL);
   const email = uniqueEmail("ship");
   // A guest buys the Empire State Building.
   const cart = [{ id: "21", name: "Empire State Building", price: 1299, image: "/images/lego.png", quantity: 1, stock: 10 }];

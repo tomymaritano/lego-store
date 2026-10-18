@@ -74,13 +74,21 @@ export function deleteE2eAccounts() {
   });
 }
 
+interface LatestOrder {
+  id: string;
+  number: number;
+  status: string;
+  total: number;
+  paymentIntentId: string | null;
+  /** Mercado Pago's payment of the latest attempt. */
+  providerPaymentId: string | null;
+}
+
 /** The newest order placed with this email (the checkout specs use unique ones). */
-export function latestOrder(
-  email: string
-): Promise<{ id: string; number: number; status: string; total: number; paymentIntentId: string | null } | null> {
+export function latestOrder(email: string): Promise<LatestOrder | null> {
   return withClient(async (client) => {
-    const { rows } = await client.query<{ id: string; number: number; status: string; total: number; paymentIntentId: string | null }>(
-      `SELECT "id", "number", "status", "total", "stripePaymentIntentId" AS "paymentIntentId"
+    const { rows } = await client.query<LatestOrder>(
+      `SELECT "id", "number", "status", "total", "stripePaymentIntentId" AS "paymentIntentId", "providerPaymentId"
        FROM "Order" WHERE "email" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
       [email.toLowerCase()]
     );

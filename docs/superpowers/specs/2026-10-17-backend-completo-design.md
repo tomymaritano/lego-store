@@ -341,3 +341,49 @@ cuentas externas reales para desarrollar o testear.
   + Resend + Blob) y referencia de variables de entorno.
 - Después: verificación propia, push de `feat/backend` y PR #2 con base
   `feat/ui-overhaul`.
+
+## Notas de implementación: pagos (Mercado Pago + Stripe)
+
+Decisiones tomadas al construir la etapa de pagos de la ampliación (el README,
+«Checkout, pagos y pedidos», tiene el detalle):
+
+- *Interfaz*: `PaymentProvider` (`src/lib/payments/provider.ts`) cubre lo que es
+  común después de cobrar: cancelar un pago no acreditado, reembolsar (total o
+  parcial, idempotente), buscar un reembolso, verificar webhooks y traducirlos a
+  eventos normalizados, mapear estados. Crear el intento y procesar el pago quedan
+  en un flujo de checkout por proveedor (`orders/checkout.ts` para Stripe, sin
+  cambios de comportamiento; `orders/mercadopago.ts`), porque lo que el navegador
+  recolecta es distinto (ConfirmationToken vs. formData del Brick). Admin,
+  limpieza y webhooks usan la interfaz.
+- *Diferir el cobro con el Brick*: el Payment Brick se monta con
+  `hidePaymentButton` y "Revisar pedido" lee el formulario con
+  `paymentBrickController.getFormData()`; el pago se crea en "Realizar pedido". El
+  token de tarjeta es de un solo uso: tras un rechazo hay que volver a ingresarla
+  (como con Stripe). No se pudo verificar contra credenciales reales en esta etapa
+  (no hay cuentas): el modo simulado reemplaza al Brick en los tests.
+- *Dinero en cuenta*: la opción `mercadoPago` del Brick exige una preferencia antes
+  de que exista el pedido y redirige desde el paso Pago, así que "Cuenta de
+  Mercado Pago" es una opción propia del paso Pago y "Realizar pedido" crea la
+  preferencia de Checkout Pro (por el total del pedido, reutilizada mientras no
+  cambie) y redirige; la vuelta (`/checkout/pedido/<id>`) consulta el pago.
+- *Estados*: `PAYMENT_PENDING` nuevo. Mientras un pago está pendiente no se
+  reserva stock (se toma al acreditarse, como con Stripe; si falta, se reembolsa).
+  Rechazado con el cliente en el checkout → sigue PENDING; rechazado después de
+  una revisión → CANCELLED (`payment_rejected`). Contracargo → CANCELLED
+  (`chargeback`) con el stock devuelto.
+- *Idempotencia*: `PaymentEvent` (clave única proveedor:pago:estado:detalle) es a
+  la vez el historial del pago que ve el admin y el registro de qué noticias ya
+  se aplicaron. El webhook siempre lee el pago de la API, así que aplica el estado
+  actual y nunca uno viejo.
+- *Columnas*: Stripe conserva `stripePaymentIntentId`/`stripeRefundId`; Mercado
+  Pago usa `providerPaymentId`/`providerRefundId` y los campos de medio, cuotas,
+  ticket y estado. `paymentProvider` tiene default `STRIPE` en la base (los
+  pedidos anteriores); la app lo fija siempre al crear.
+- *Tests sin cuentas*: `PAYMENTS_MOCK=1` (alias del anterior `STRIPE_MOCK=1`)
+  activa los dos proveedores simulados. En ese modo una cookie de prueba elige el
+  proveedor por navegador (así un mismo servidor e2e corre el checkout de Mercado
+  Pago y el de Stripe) y `/api/test/mercadopago` hace lo que Mercado Pago haría
+  solo; fuera de él ambos se ignoran (404). Los tests de integración de Stripe
+  corren con `PAYMENT_PROVIDER=stripe`.
+- *Local*: Mercado Pago no notifica a `localhost`; `notification_url` solo se
+  manda con un `NEXT_PUBLIC_SITE_URL` https.
