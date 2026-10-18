@@ -39,8 +39,13 @@ async function paidOrder(lines: { productId: string; quantity: number }[], userI
   return { id: row.id, intentId: row.stripePaymentIntentId! };
 }
 
-const succeeded = (order: { id: string; intentId: string }, options?: { id?: string }) =>
-  webhook(webhookRequest("payment_intent.succeeded", { id: order.intentId, orderId: order.id }, options));
+/** payment_intent.succeeded as Stripe sends it: with the amount the (mock) gateway charged. */
+const succeeded = async (order: { id: string; intentId: string }, options?: { id?: string }) => {
+  const intent = await gateway.retrieveIntent(order.intentId);
+  return webhook(
+    webhookRequest("payment_intent.succeeded", { id: order.intentId, orderId: order.id, amountReceived: intent.amount }, options)
+  );
+};
 
 let emails: { mock: { calls: unknown[][] }; mockRestore: () => void };
 
@@ -163,11 +168,35 @@ describe("POST /api/stripe/webhook", () => {
     refund.mockRestore();
   });
 
-  it("payment_failed keeps the order PENDING; canceled cancels it", async () => {
+  it("a charge that is not the order's total is refunded and the order CANCELLED, taking no stock", async () => {
     const order = await paidOrder([{ productId: "7", quantity: 1 }]);
+    const intent = await gateway.retrieveIntent(order.intentId);
+    const charged = (amountReceived: number, currency = "ars") =>
+      webhook(webhookRequest("payment_intent.succeeded", { id: order.intentId, orderId: order.id, amountReceived, currency }));
+
+    // Lines worth more than what was charged (the drift the checkout's lock prevents) never ship.
+    expect(await (await charged(intent.amount - 100)).json()).toMatchObject({ result: "amount_mismatch" });
+    const row = await testDb.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect(row).toMatchObject({ status: "CANCELLED", cancelReason: "amount_mismatch", paidAt: null });
+    expect(row.stripeRefundId).toMatch(/^re_mock_/);
+    expect(await stockOf("7")).toBe(40);
+    expect(sentEmails()).toHaveLength(0);
+
+    // The right amount in another currency is no better.
+    const other = await paidOrder([{ productId: "7", quantity: 1 }]);
+    const usd = await webhook(
+      webhookRequest("payment_intent.succeeded", { id: other.intentId, orderId: other.id, amountReceived: intent.amount, currency: "usd" })
+    );
+    expect(await usd.json()).toMatchObject({ result: "amount_mismatch" });
+    expect(await stockOf("7")).toBe(40);
+  });
+
+  it("payment_failed keeps the order PENDING (out of Mis pedidos); canceled cancels it", async () => {
+    const order = await paidOrder([{ productId: "7", quantity: 1 }]);
+    expect((await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).submittedAt).not.toBeNull();
     const failed = await webhook(webhookRequest("payment_intent.payment_failed", { id: order.intentId, orderId: order.id }));
     expect(await failed.json()).toMatchObject({ result: "unchanged" });
-    expect((await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("PENDING");
+    expect(await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({ status: "PENDING", submittedAt: null });
 
     const canceled = await webhook(webhookRequest("payment_intent.canceled", { id: order.intentId, orderId: order.id }));
     expect(await canceled.json()).toMatchObject({ result: "cancelled" });

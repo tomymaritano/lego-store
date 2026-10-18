@@ -75,10 +75,12 @@ export function deleteE2eAccounts() {
 }
 
 /** The newest order placed with this email (the checkout specs use unique ones). */
-export function latestOrder(email: string): Promise<{ id: string; number: number; status: string; paymentIntentId: string | null } | null> {
+export function latestOrder(
+  email: string
+): Promise<{ id: string; number: number; status: string; total: number; paymentIntentId: string | null } | null> {
   return withClient(async (client) => {
-    const { rows } = await client.query<{ id: string; number: number; status: string; paymentIntentId: string | null }>(
-      `SELECT "id", "number", "status", "stripePaymentIntentId" AS "paymentIntentId"
+    const { rows } = await client.query<{ id: string; number: number; status: string; total: number; paymentIntentId: string | null }>(
+      `SELECT "id", "number", "status", "total", "stripePaymentIntentId" AS "paymentIntentId"
        FROM "Order" WHERE "email" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
       [email.toLowerCase()]
     );

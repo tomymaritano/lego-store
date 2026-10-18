@@ -33,7 +33,17 @@ export async function deliverPaymentSucceeded(request: APIRequestContext, email:
     type: "payment_intent.succeeded",
     created: Math.floor(Date.now() / 1000),
     livemode: false,
-    data: { object: { id: order!.paymentIntentId, object: "payment_intent", status: "succeeded", metadata: { orderId: order!.id } } },
+    data: {
+      object: {
+        id: order!.paymentIntentId,
+        object: "payment_intent",
+        status: "succeeded",
+        // What the mock gateway charged: the order's total, which payOrder confirmed under the order's lock.
+        amount_received: order!.total * 100,
+        currency: "ars",
+        metadata: { orderId: order!.id },
+      },
+    },
   });
   const signature = Stripe.webhooks.generateTestHeaderString({ payload, secret: E2E_WEBHOOK_SECRET });
   const response = await request.post("/api/stripe/webhook", {

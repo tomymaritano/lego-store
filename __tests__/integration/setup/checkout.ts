@@ -51,10 +51,14 @@ export function cookieOf(response: Response): string | null {
 
 let events = 0;
 
-/** A webhook request for a PaymentIntent event, signed like Stripe signs it. */
+/**
+ * A webhook request for a PaymentIntent event, signed like Stripe signs it.
+ * `amountReceived` is what Stripe charged, in centavos (Stripe's
+ * amount_received; 0 when left out, as for a payment that did not go through).
+ */
 export function webhookRequest(
   type: string,
-  intent: { id: string; orderId?: string },
+  intent: { id: string; orderId?: string; amountReceived?: number; currency?: string },
   { id = `evt_test_${++events}_${Date.now()}`, secret = TEST_WEBHOOK_SECRET }: { id?: string; secret?: string } = {}
 ) {
   const payload = JSON.stringify({
@@ -63,7 +67,15 @@ export function webhookRequest(
     type,
     created: Math.floor(Date.now() / 1000),
     livemode: false,
-    data: { object: { id: intent.id, object: "payment_intent", metadata: intent.orderId ? { orderId: intent.orderId } : {} } },
+    data: {
+      object: {
+        id: intent.id,
+        object: "payment_intent",
+        amount_received: intent.amountReceived ?? 0,
+        currency: intent.currency ?? "ars",
+        metadata: intent.orderId ? { orderId: intent.orderId } : {},
+      },
+    },
   });
   const signature = Stripe.webhooks.generateTestHeaderString({ payload, secret });
   return new NextRequest(new URL("/api/stripe/webhook", "http://localhost"), {

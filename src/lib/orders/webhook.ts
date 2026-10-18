@@ -1,13 +1,15 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
-import type { PaymentGateway } from "@/lib/payments/gateway";
+import { toCentavos, type PaymentGateway } from "@/lib/payments/gateway";
 
 /*
  * What Stripe's webhook does to orders (the route verifies the signature
  * first: src/app/api/stripe/webhook/route.ts).
  *
  *   payment_intent.succeeded       PENDING -> PAID, taking the stock; or, when
- *                                  any line is short, refund -> CANCELLED
- *   payment_intent.payment_failed  stays PENDING (the customer can try another card)
+ *                                  any line is short, or Stripe charged anything
+ *                                  but the order's total, refund -> CANCELLED
+ *   payment_intent.payment_failed  stays PENDING (the customer can try another
+ *                                  card), out of "Mis pedidos" again
  *   payment_intent.canceled        PENDING -> CANCELLED
  *
  * Each event is handled at most once: its id goes into ProcessedStripeEvent
@@ -19,6 +21,12 @@ import type { PaymentGateway } from "@/lib/payments/gateway";
  * Stock is taken with the product rows locked (in id order, so two orders
  * never deadlock) and a conditional decrement: two payments racing for the
  * last unit serialise there, and the second finds it gone and is refunded.
+ *
+ * The charge is checked before anything else: the event's amount_received
+ * and currency must be the order's total (in centavos) and currency, read
+ * under the order's lock. The checkout never lets them drift apart
+ * (./checkout.ts locks the order while it pays or re-prices it), and this is
+ * what keeps a drift, from any cause, from selling lines that were not paid.
  */
 
 export interface WebhookEvent {
@@ -33,6 +41,7 @@ export type WebhookOutcome =
   | { result: "unchanged"; orderId: string }
   | { result: "paid"; orderId: string; productIds: string[] }
   | { result: "out_of_stock"; orderId: string }
+  | { result: "amount_mismatch"; orderId: string }
   | { result: "refunded"; orderId: string }
   | { result: "cancelled"; orderId: string };
 
@@ -40,6 +49,9 @@ const HANDLED = new Set(["payment_intent.succeeded", "payment_intent.payment_fai
 
 interface IntentObject {
   id: string;
+  /** Centavos actually charged (Stripe's PaymentIntent.amount_received). */
+  amount_received?: number | null;
+  currency?: string | null;
   metadata?: Record<string, string> | null;
 }
 
@@ -73,6 +85,8 @@ async function lockOrder(tx: Tx, intent: IntentObject) {
       id: true,
       userId: true,
       status: true,
+      total: true,
+      currency: true,
       stripeRefundId: true,
       items: { select: { productId: true, quantity: true } },
     },
@@ -107,9 +121,27 @@ async function refundInto(tx: Tx, gateway: PaymentGateway, orderId: string, inte
   await tx.order.update({ where: { id: orderId }, data: { stripeRefundId: refund.id } });
 }
 
+/** Whether Stripe charged exactly the order's total, in its currency. */
+export function chargedInFull(intent: IntentObject, order: { total: number; currency: string }): boolean {
+  return intent.amount_received === toCentavos(order.total) && intent.currency?.toLowerCase() === order.currency.toLowerCase();
+}
+
 async function onSucceeded(tx: Tx, gateway: PaymentGateway, intent: IntentObject): Promise<WebhookOutcome> {
   const order = await lockOrder(tx, intent);
   if (!order) return { result: "ignored" };
+
+  if (order.status === "PENDING" && !chargedInFull(intent, order)) {
+    // Never sell lines for a different amount than their total: the money goes back.
+    console.error(
+      `[stripe] ${intent.id} cobró ${intent.amount_received ?? "?"} ${intent.currency ?? "?"}; el pedido ${order.id} es de ${toCentavos(order.total)} ${order.currency}. Se reembolsa y se cancela.`
+    );
+    await tx.order.update({
+      where: { id: order.id },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "amount_mismatch" },
+    });
+    await refundInto(tx, gateway, order.id, intent.id);
+    return { result: "amount_mismatch", orderId: order.id };
+  }
 
   if (order.status === "PENDING") {
     if (await takeStock(tx, order)) {
@@ -167,9 +199,12 @@ export async function handleStripeEvent(db: PrismaClient, gateway: PaymentGatewa
         case "payment_intent.canceled":
           return onCanceled(tx, intent);
         default: {
-          // payment_failed: the order waits for another card (or the cleanup).
+          // payment_failed (e.g. 3D Secure refused): the order waits for another card (or the cleanup),
+          // and is not a purchase until one goes through.
           const order = await lockOrder(tx, intent);
-          return order ? ({ result: "unchanged", orderId: order.id } as const) : ({ result: "ignored" } as const);
+          if (!order) return { result: "ignored" } as const;
+          if (order.status === "PENDING") await tx.order.update({ where: { id: order.id }, data: { submittedAt: null } });
+          return { result: "unchanged", orderId: order.id } as const;
         }
       }
     },

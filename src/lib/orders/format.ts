@@ -28,6 +28,8 @@ export const ORDER_STATUS_BADGE = {
 export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
   out_of_stock:
     "Mientras se procesaba el pago se agotó uno de los productos. Cancelamos el pedido y te devolvimos el dinero: puede tardar unos días en verse en tu tarjeta.",
+  amount_mismatch:
+    "El monto cobrado no coincidía con el total del pedido, así que lo cancelamos y te devolvimos el dinero: puede tardar unos días en verse en tu tarjeta.",
   payment_canceled: "El pago se canceló y no se cobró nada.",
   expired: "El pago no se completó a tiempo, así que cancelamos el pedido. No se cobró nada.",
   superseded: "Lo reemplazó un pedido más nuevo hecho desde el mismo navegador. No se cobró nada.",

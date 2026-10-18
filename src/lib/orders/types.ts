@@ -9,7 +9,14 @@ import type { ShippingInfo } from "@/types";
 export type OrderStatus = "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 
 /** Why an order was cancelled (Order.cancelReason). */
-export type CancelReason = "out_of_stock" | "payment_canceled" | "expired" | "superseded" | "payment_setup_failed" | "admin";
+export type CancelReason =
+  | "out_of_stock"
+  | "amount_mismatch"
+  | "payment_canceled"
+  | "expired"
+  | "superseded"
+  | "payment_setup_failed"
+  | "admin";
 
 export interface OrderLineView {
   /** Null once the product was deleted (the snapshot below still describes it). */
