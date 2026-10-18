@@ -204,6 +204,9 @@ scripts/               Presupuesto de JS y capturas del README
   incrementa `sessionVersion` y cualquier copia deja de valer en el siguiente
   pedido. Para un **admin**, cerrar sesión siempre hace eso: un token de admin no
   sobrevive a su logout. Cambiar la contraseña también cierra las demás sesiones.
+  Es un trade-off aceptado: incrementar `sessionVersion` en cada logout de cliente
+  cerraría también sus otros dispositivos, y una lista de tokens revocados (jti)
+  costaría una consulta más por pedido.
 - **La sesión no se renueva sola**: `proxy.ts` decide con la cookie pero no escribe
   cookies (el wrapper de Auth.js re-emite la cookie en cada pedido, y un prefetch
   de `/account` que respondiera después del logout la volvía a escribir y deshacía
@@ -219,6 +222,11 @@ scripts/               Presupuesto de JS y capturas del README
   verificado). El servidor deja un aviso en el log cuando rechaza ese registro. Los emails se guardan siempre en minúsculas (`CHECK` en la
   base); `normalizeEmail()` corre antes de cada escritura y búsqueda, incluido el
   adapter de OAuth.
+- **El registro dice si un email ya tiene cuenta** ("Ya existe una cuenta con ese
+  email"); el login no (mismo mensaje y un bcrypt de relleno para emails
+  desconocidos). Es el trade-off habitual de una tienda sin verificación de email:
+  un registro que no lo revele necesita mandar un email a la dirección existente.
+  Lo frena el límite de 20 registros por IP por hora.
 - **Protección en dos capas**: `src/proxy.ts` manda a `/login?callbackUrl=…` a quien
   pide `/account/*` o `/admin/*` sin sesión (chequeo optimista: solo mira la cookie).
   La autorización real está en el servidor: cada página, Server Action y Route
@@ -243,7 +251,11 @@ scripts/               Presupuesto de JS y capturas del README
   dispositivo nuevo del dueño sí puede esperar hasta una hora si alguien llenó el
   límite por cuenta desde muchas IPs). Registro: 20 cuentas por IP por hora;
   contraseña actual en `/account`: 5 cada 15 min; reseñas nuevas: 10 por usuario por
-  hora; votos "útil": 60 por usuario cada 15 min. Para limitar algo nuevo (contacto,
+  hora; votos "útil": 60 por usuario cada 15 min; cambios de carrito y favoritos:
+  300 por usuario cada 15 min, y 30 fusiones al ingresar por hora (cada una escribe
+  hasta 200 + 200 filas). Un dispositivo nuevo bloqueado por el límite ve "esperá
+  unos minutos" sin el tiempo exacto, y no hay desbloqueo por email (no hay flujo de
+  recuperación de contraseña todavía). Para limitar algo nuevo (contacto,
   newsletter) se agrega una entrada en `rateLimits` y se llama `consume(sujeto)`. `memoryStore()` existe para tests: no se comparte entre
   instancias.
 - **La IP del cliente** (`clientIp()`) solo sale de headers que pone
@@ -348,7 +360,10 @@ cuesta plata lo decide el servidor (`src/lib/orders/checkout.ts`):
    pagarse o cancelarse; con sesión, el pedido queda en la cuenta y solo esa sesión
    lo abre (la cookie no alcanza). Cerrar sesión borra también esa cookie.
 3. **Realizar pedido** (`POST /api/checkout/orders/<id>/pay`) confirma el
-   PaymentIntent en el servidor con el ConfirmationToken. Si el banco pide 3D
+   PaymentIntent en el servidor con el ConfirmationToken, que tiene que ser de la
+   misma tarjeta que mostró Revisar (marca y últimos 4): si no, responde 422 y el
+   cliente vuelve al paso Pago, así el pedido, sus emails y el admin nombran siempre
+   la tarjeta cobrada. Si el banco pide 3D
    Secure, el navegador lo resuelve con `stripe.handleNextAction`. Un rechazo
    vuelve al paso Pago con el motivo en español (y el pedido no aparece en Mis
    pedidos: no hay pago que esperar). Pagar y volver a preparar el mismo pedido
@@ -414,7 +429,9 @@ muestran en la consola del servidor.
 - **Sin esas variables** el paso Pago muestra "Pagos no configurados" (en dev, con
   la lista de lo que falta) y las rutas de checkout responden 503.
 - **`STRIPE_MOCK=1`** (solo fuera de producción: con `NODE_ENV=production` se
-  ignora) reemplaza Stripe por una pasarela en memoria (`src/lib/payments/mock.ts`)
+  ignora, y también en cualquier build de `next build` aunque se arranque con otro
+  `NODE_ENV`, porque Next fija `process.env.NODE_ENV` al compilar; un servidor que
+  lo usa lo avisa en el log al arrancar) reemplaza Stripe por una pasarela en memoria (`src/lib/payments/mock.ts`)
   y el Payment Element por una lista de tarjetas de prueba. Es lo que usan los E2E
   y los tests de integración; el webhook sigue verificando firmas, así que los tests
   firman sus eventos con `stripe.webhooks.generateTestHeaderString`.
@@ -581,13 +598,20 @@ npm run dev
   [Checkout, pagos y pedidos](#checkout-pagos-y-pedidos)), y opcionalmente
   `RESEND_API_KEY` / `EMAIL_FROM`. **Fuera de Vercel**: `AUTH_TRUST_HOST=true` y
   `TRUSTED_PROXY_HOPS` con la cantidad de proxies delante (sin eso todos los
-  visitantes comparten los límites por IP; el servidor lo avisa al arrancar).
+  visitantes comparten los límites por IP y una sola persona puede bloquear login,
+  registro y checkout de invitado para todos; el servidor lo avisa al arrancar:
+  revisá el log del primer arranque). Nunca `STRIPE_MOCK` en un servidor público.
 - **Headers de seguridad** (`next.config.mjs`, todas las rutas):
-  `X-Frame-Options: DENY` y `Content-Security-Policy: frame-ancestors 'none'`
-  (nadie puede meter `/admin` o `/account` en un iframe para clickjacking; el
-  Payment Element es un iframe de Stripe dentro de nuestras páginas, no al revés),
+  `X-Frame-Options: DENY` y `Content-Security-Policy: frame-ancestors 'none';
+  object-src 'none'; base-uri 'self'` (nadie puede meter `/admin` o `/account` en
+  un iframe para clickjacking; el Payment Element es un iframe de Stripe dentro de
+  nuestras páginas, no al revés; sin plugins ni `<base>` ajeno),
   `X-Content-Type-Options: nosniff`, `Referrer-Policy:
-  strict-origin-when-cross-origin`, HSTS en producción y sin `X-Powered-By`.
+  strict-origin-when-cross-origin`, HSTS en producción y sin `X-Powered-By`. Falta
+  un `script-src` con nonces por pedido (`proxy.ts`) que permita los scripts
+  inline de Next, `js.stripe.com` y el login de Google: no hay ningún sink de XSS
+  conocido (el JSON-LD pasa por `serializeJsonLd` y los emails por `escapeHtml`),
+  pero hoy un XSS futuro no quedaría contenido.
 - **`npm audit`**: las dependencias de producción no tienen vulnerabilidades (CI lo
   exige). Quedan avisos altos solo en herramientas de lint (GHSA-vfj7-8cjw-p6xm,
   `braces` vía `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` →
@@ -700,7 +724,8 @@ npm run dev
   tarjeta rechazada, validaciones, con axe), `orders` (compra con cuenta → Mis
   pedidos → detalle; otra cuenta recibe 404), `shell` (navbar,
   footer, páginas de información, 404), `state` (estado persistido), `a11y`
-  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro), `auth` (registro →
+  (axe WCAG 2.1 AA en cada página, en modo claro y oscuro, también Mis pedidos y
+  cada sección del admin con sesión), `auth` (registro →
   logout → login → cuenta, redirección de rutas protegidas, callbackUrl, 403 de
   admin, cambio de contraseña, menú móvil, axe), `account-lists` (carrito y
   favoritos de visitante → cuenta, otro navegador, logout, cerrar sesión en todos
@@ -720,7 +745,10 @@ npm run dev
   (`e2e/helpers/stripe.ts`); si reutiliza un `npm run dev` que ya estaba corriendo
   sin eso, el setup global falla explicando qué hacer. Los pedidos de los specs
   (emails `@e2e.lego-store.test`) se borran en el setup y el teardown, devolviendo
-  el stock que tomaron.
+  el stock que tomaron. Playwright arranca primero el servidor de producción
+  (`next build` en `.next-e2e`, sin chequeo de tipos: eso lo hace `tsc --noEmit`)
+  y después `next dev`, para que el build no lea los tipos que el dev server está
+  escribiendo; la salida del build aparece en el log de la corrida.
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de

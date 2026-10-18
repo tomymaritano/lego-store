@@ -71,7 +71,10 @@ function toProduct({ categoryId, originalPrice, imageSecondary, ...row }: Produc
   };
 }
 
-/** Catalogue order: creation order ("Destacados" without a search). */
+/**
+ * Catalogue order: creation order. The tie-breaker of every sort; "Destacados"
+ * puts products with reviews first and then follows it (featuredIds).
+ */
 const catalogueOrder: Prisma.ProductOrderByWithRelationInput[] = [{ createdAt: "asc" }, { id: "asc" }];
 
 const ORDER_BY: Record<Exclude<ProductQuery["sort"], "featured" | undefined>, Prisma.ProductOrderByWithRelationInput[]> = {

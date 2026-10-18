@@ -21,6 +21,14 @@ emails, Mis pedidos and the admin panel.
   always revokes every admin session (`sessionVersion`).
 - A production server that trusts no client IP (neither `VERCEL=1` nor
   `TRUSTED_PROXY_HOPS`) warns at startup.
+- "Realizar pedido" charges only the card shown at "Revisar": another
+  ConfirmationToken answers 422 and sends the customer back to the payment step.
+- The mock payment gateway can never run from a `next build` output (the
+  build-time `NODE_ENV` is checked too); a server running it warns at startup.
+- Per-user rate limits on cart and wishlist writes (300 / 15 min) and on the
+  login merge (30 / hour).
+- CSP adds `object-src 'none'` and `base-uri 'self'`.
+- `/api/products/by-ids` validates its ids with zod (400 on malformed input).
 
 ### Added
 
@@ -32,6 +40,11 @@ emails, Mis pedidos and the admin panel.
 ### Changed
 
 - The amount-mismatch warning on `/admin` looks at the last 7 days.
+- The checkout confirmation says "Total pagado" only once the order is paid.
+- Playwright starts the production build before `next dev`, the e2e build skips
+  its type check (`tsc --noEmit` gates types) and its output shows in the log;
+  the a11y matrix covers Mis pedidos and every admin section in light and dark;
+  the footer-links and cart navigation specs allow for a loaded dev server.
 - Admin products table and section nav fit phones better.
 
 ### Fixed

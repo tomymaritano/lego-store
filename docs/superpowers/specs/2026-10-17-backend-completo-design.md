@@ -110,7 +110,10 @@ README pasa a describir el proyecto en vez de un producto a la venta.
 - Email + contraseña (Credentials, hash con bcrypt/argon2), sesiones JWT.
 - Google OAuth opcional: se activa solo si están las env vars.
 - Admin: el usuario cuyo email coincide con `ADMIN_EMAIL` recibe rol ADMIN (en seed y
-  al registrarse). `/admin/*` y las acciones de admin protegidas por middleware +
+  al registrarse). *Desvío al implementar*: el formulario de registro rechaza
+  `ADMIN_EMAIL`; como no hay verificación de email, el primero en registrarse con esa
+  dirección en una base nueva sería admin. El admin sale del seed o de un primer
+  ingreso con Google con el email verificado (README, «Cuentas y sesiones»). `/admin/*` y las acciones de admin protegidas por middleware +
   verificación en servidor.
 - Páginas nuevas: `/login`, `/register`, `/account` (perfil + mis pedidos),
   `/account/orders/[id]`. Navbar muestra estado de sesión.
@@ -212,7 +215,16 @@ tiene el detalle):
 - *Tests sin Stripe*: `STRIPE_MOCK=1` (ignorado con `NODE_ENV=production`) cambia la
   pasarela por una en memoria y el Payment Element por tarjetas de prueba; el
   webhook se ejercita con eventos firmados con el secreto de test. El E2E contra
-  Stripe test real con secrets en CI no está hecho.
+  Stripe test real existe (`npm run test:e2e:stripe`, `e2e/stripe-live`) y en CI
+  es el job opcional `e2e-stripe-live`, que solo corre si el repo tiene los secrets
+  de Stripe test. Un build de producción nunca usa el mock, aunque se arranque con
+  otro `NODE_ENV`.
+- *Pagar con la tarjeta revisada*: "Realizar pedido" lee el ConfirmationToken y
+  rechaza (422) uno de otra tarjeta que la que mostró "Revisar"; el cliente vuelve
+  al paso Pago.
+- *"Recomendados"* es el orden "Destacados" (el default): productos con reseñas
+  primero, después el orden del catálogo. "Mejor calificados" también deja al final
+  a los que no tienen (rating 0).
 
 ## Notas de implementación: panel de admin
 
@@ -222,8 +234,14 @@ tiene el detalle):
 - *Auditoría*: tabla `OrderStatusChange` (pedido, de, a, admin, email del admin,
   reembolso, fecha). Solo los cambios del admin; los del webhook y la limpieza
   siguen en las fechas del pedido (`paidAt`, `cancelledAt`…).
-- *Cancelar un PAID*: stock de vuelta + reembolso en la misma transacción con la
-  fila del pedido bloqueada; misma idempotency key que el webhook.
+- *Cancelar un PAID*: en tres pasos, para que ningún resultado del reembolso deje
+  el pedido en condiciones de enviarse: (1) con la fila bloqueada se marca
+  `refundRequestedAt` (el pedido queda retenido), (2) el reembolso a Stripe va fuera
+  de la transacción, con la misma idempotency key que el webhook, y (3) con la fila
+  bloqueada otra vez se devuelve el stock y se cancela. Si la llamada falla, se le
+  pregunta a Stripe si el pago ya tiene un reembolso (la respuesta se perdió): si lo
+  tiene se sigue con él, si no se levanta la retención; si Stripe no responde, el
+  pedido queda retenido hasta que el admin reintente.
 - *Imágenes*: solo URLs que `next/image` puede cargar (rutas del sitio o el CDN
   de lego.com de `remotePatterns`).
 - *Moderación*: el admin borra reseñas sin pasar por el límite de ediciones de
