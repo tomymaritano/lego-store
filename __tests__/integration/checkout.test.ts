@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashAccessToken, serializeCheckoutCookie, type CheckoutAccess, type Requester } from "@/lib/orders/access";
-import { getCheckoutOrder, payOrder, prepareOrder } from "@/lib/orders/checkout";
+import { CARD_CHANGED_MESSAGE, getCheckoutOrder, payOrder, prepareOrder } from "@/lib/orders/checkout";
 import { expireStaleOrders } from "@/lib/orders/expire";
 import { getUserOrder, listUserOrders } from "@/lib/orders/queries";
 import { mockGateway } from "@/lib/payments/mock";
@@ -216,12 +216,22 @@ describe("payOrder", () => {
 
   it("a declined card leaves the order pending, payable with another card, and out of Mis pedidos meanwhile", async () => {
     const gateway = mockGateway();
-    const { order } = await prepared(gateway, [{ productId: "7", quantity: 1 }], as(ana.id));
+    const lines = [{ productId: "7", quantity: 1 }];
+    // Each new card is reviewed first ("Revisar" re-prepares this browser's order), then paid.
+    let access: CheckoutAccess | null = null;
+    const review = async (token: string) => {
+      const outcome = await prepareOrder(testDb, gateway, input(lines, token), as(ana.id, access));
+      if (!outcome.ok) throw new Error(`prepareOrder failed: ${outcome.code}`);
+      access = outcome.access ?? access;
+      return outcome.order;
+    };
+    const order = await review("ctoken_mock_declined");
     expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_declined", as(ana.id))).toMatchObject({
       ok: false,
       code: "declined",
       message: expect.stringContaining("rechazó"),
     });
+    expect((await review("ctoken_mock_insufficient")).id).toBe(order.id);
     expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_insufficient", as(ana.id))).toMatchObject({
       code: "declined",
       message: expect.stringContaining("fondos"),
@@ -229,8 +239,24 @@ describe("payOrder", () => {
     // Refused cards are no purchase: nothing to wait for in Mis pedidos.
     expect((await testDb.order.findUniqueOrThrow({ where: { id: order.id } })).submittedAt).toBeNull();
     expect((await listUserOrders(testDb, ana.id)).map((listed) => listed.id)).not.toContain(order.id);
+    expect((await review("ctoken_mock_visa")).id).toBe(order.id);
     expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", as(ana.id))).toMatchObject({ ok: true });
     expect((await listUserOrders(testDb, ana.id)).map((listed) => listed.id)).toContain(order.id);
+  });
+
+  it("charges only the card that was reviewed: another token goes back to the payment step", async () => {
+    const gateway = spiedGateway();
+    const { order, access } = await prepared(gateway, [{ productId: "7", quantity: 1 }]); // reviewed with Visa 4242
+    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_mastercard", as(null, access))).toEqual({
+      ok: false,
+      code: "payment_method",
+      message: CARD_CHANGED_MESSAGE,
+    });
+    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_unknown", as(null, access))).toMatchObject({ code: "payment_method" });
+    expect(gateway.confirmIntent).not.toHaveBeenCalled();
+    const row = await testDb.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect([row.paymentBrand, row.paymentLast4, row.submittedAt]).toEqual(["visa", "4242", null]);
+    expect(await payOrder(testDb, gateway, order.id, "ctoken_mock_visa", as(null, access))).toMatchObject({ ok: true, next: "done" });
   });
 
   it("does not charge when the stock is already gone", async () => {
@@ -314,7 +340,7 @@ describe("paying and re-preparing the same order at once", () => {
 });
 
 describe("checkout Route Handlers", () => {
-  const body = (lines = [{ productId: "7", quantity: 1 }]) => ({ shipping, lines, confirmationTokenId: "ctoken_mock_visa" });
+  const body = (lines = [{ productId: "7", quantity: 1 }], confirmationTokenId = "ctoken_mock_visa") => ({ shipping, lines, confirmationTokenId });
 
   it("POST /api/checkout/orders prices on the server, ignores client prices and sets an HttpOnly cookie", async () => {
     const response = await prepareRoute(
@@ -381,18 +407,24 @@ describe("checkout Route Handlers", () => {
   });
 
   it("POST …/pay confirms the payment for the order's browser only", async () => {
-    const created = await prepareRoute(jsonRequest("/api/checkout/orders", body()));
+    const created = await prepareRoute(jsonRequest("/api/checkout/orders", body(undefined, "ctoken_mock_declined")));
     const { order } = await created.json();
     const cookie = cookieOf(created)!;
+    const review = (token: string) => prepareRoute(jsonRequest("/api/checkout/orders", body(undefined, token), { cookie }));
     const pay = (cookie: string | null, token = "ctoken_mock_visa") =>
       payRoute(jsonRequest(`/api/checkout/orders/${order.id}/pay`, { confirmationTokenId: token }, { cookie }), {
         params: Promise.resolve({ orderId: order.id }),
       });
 
-    expect((await pay(null)).status).toBe(404);
+    expect((await pay(null, "ctoken_mock_declined")).status).toBe(404);
     const declined = await pay(cookie, "ctoken_mock_declined");
     expect(declined.status).toBe(402);
     expect(await declined.json()).toMatchObject({ code: "declined" });
+    // Not the card that was reviewed: back to the payment step.
+    const otherCard = await pay(cookie);
+    expect(otherCard.status).toBe(422);
+    expect(await otherCard.json()).toMatchObject({ code: "payment_method" });
+    expect((await (await review("ctoken_mock_visa")).json()).order.id).toBe(order.id);
     const paid = await pay(cookie);
     expect(paid.status).toBe(200);
     expect(await paid.json()).toMatchObject({ next: "done", order: { id: order.id } });

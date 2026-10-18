@@ -202,6 +202,9 @@ export async function prepareOrder(
   return { ok: true, order: (await getOrderView(db, order.id))!, access: { orderId: order.id, token } };
 }
 
+/** Paying with a card other than the one reviewed. */
+export const CARD_CHANGED_MESSAGE = "La tarjeta no coincide con la que revisaste. Vuelve a ingresarla y revisa tu pedido.";
+
 export type PayOutcome =
   | { ok: true; next: "done"; order: OrderView }
   | { ok: true; next: "action"; clientSecret: string; order: OrderView }
@@ -222,7 +225,14 @@ export async function payOrder(
     if (!(await lockOrderRow(tx, orderId))) return { ok: false, code: "not_found" };
     const order = await tx.order.findUnique({
       where: { id: orderId },
-      select: { ...accessSelect, total: true, stripePaymentIntentId: true, items: { select: { productId: true, quantity: true } } },
+      select: {
+        ...accessSelect,
+        total: true,
+        stripePaymentIntentId: true,
+        paymentBrand: true,
+        paymentLast4: true,
+        items: { select: { productId: true, quantity: true } },
+      },
     });
     if (!order || !canAccessOrder(order, requester)) return { ok: false, code: "not_found" };
     const view = async () => (await getOrderView(tx, order.id))!;
@@ -244,6 +254,13 @@ export async function payOrder(
     const priced = wanted.length === order.items.length ? await priceLines(tx, wanted) : null;
     if (!priced || !priced.ok) {
       return { ok: false, code: "unavailable", unavailable: priced && !priced.ok ? priced.unavailable : [] };
+    }
+
+    // The card charged is the one "Revisar" showed (and the order, its emails and the admin record):
+    // another token sends the customer back to the payment step to review the order again.
+    const card = await gateway.readConfirmationToken(confirmationTokenId);
+    if (!card || card.brand !== order.paymentBrand || card.last4 !== order.paymentLast4) {
+      return { ok: false, code: "payment_method", message: CARD_CHANGED_MESSAGE };
     }
 
     const amount = toCentavos(order.total);
