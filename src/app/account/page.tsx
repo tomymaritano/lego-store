@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { KeyRound, LayoutDashboard, LogOut, UserRound } from "lucide-react";
+import { ArrowRight, KeyRound, LayoutDashboard, LogOut, Package, UserRound } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
+import { getDb } from "@/lib/db";
+import { listUserOrders } from "@/lib/orders/queries";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { OrderCard } from "@/components/account/OrderCard";
 import { ProfileForm } from "@/components/account/ProfileForm";
 import { PasswordForm } from "@/components/account/PasswordForm";
 import { Badge, Button, Card, CardContent, CardHeader } from "@/components/ui";
@@ -26,10 +29,16 @@ function SectionTitle({ id, icon, children }: { id: string; icon: React.ReactNod
   );
 }
 
-/** /account: profile, password and session. Per-user, so rendered on every request. */
+/** How many recent orders /account lists before "Ver todos". */
+const RECENT_ORDERS = 3;
+
+/** /account: recent orders, profile, password and session. Per-user, so rendered on every request. */
 export default async function AccountPage() {
   const user = await requireUser({ callbackUrl: "/account" });
-  const passwordChanged = await hasPasswordChangedFlash(user.id);
+  const [passwordChanged, orders] = await Promise.all([
+    hasPasswordChangedFlash(user.id),
+    listUserOrders(getDb(), user.id, { take: RECENT_ORDERS + 1 }),
+  ]);
   const firstName = user.name?.split(/\s+/)[0];
 
   return (
@@ -45,6 +54,38 @@ export default async function AccountPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="space-y-6">
+          <Card>
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+              <SectionTitle id="orders-title" icon={<Package />}>
+                Mis pedidos
+              </SectionTitle>
+              {orders.length > 0 ? (
+                <Button variant="ghost" size="sm" render={<Link href="/account/orders" />}>
+                  {orders.length > RECENT_ORDERS ? "Ver todos" : "Ver pedidos"}
+                  <ArrowRight aria-hidden="true" />
+                </Button>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {orders.length === 0 ? (
+                <p className="text-fg-secondary">
+                  Todavía no hiciste pedidos.{" "}
+                  <Link href="/" className="font-medium text-info underline underline-offset-4 hover:no-underline">
+                    Ver productos
+                  </Link>
+                </p>
+              ) : (
+                <ul className="space-y-3" aria-labelledby="orders-title">
+                  {orders.slice(0, RECENT_ORDERS).map((order) => (
+                    <li key={order.id}>
+                      <OrderCard order={order} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <SectionTitle id="profile-title" icon={<UserRound />}>
