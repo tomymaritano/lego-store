@@ -75,11 +75,25 @@ export function GalleryEditor({ name, initial, error, issue }: GalleryEditorProp
   }
   const altError = issueKey !== null && items.some((item) => item.key === issueKey) ? error : undefined;
 
-  const add = (image: GalleryImage) => {
+  // The list as last rendered: an upload that finishes later (the uploader's
+  // callback from when its files were chosen) checks against this, not its stale closure.
+  const latest = useRef(items);
+  useEffect(() => {
+    latest.current = items;
+  }, [items]);
+
+  /** Adds a picture; a message (and nothing added) when it is already there or the gallery is full. */
+  const add = (image: GalleryImage): string | undefined => {
+    const list = latest.current;
+    if (list.length >= MAX_PRODUCT_IMAGES) return `La galería ya tiene ${MAX_PRODUCT_IMAGES} imágenes, el máximo: no la agregamos.`;
+    if (list.some((item) => item.url === image.url)) return "Esa imagen ya está en la galería.";
     const key = ++counter.current;
-    setItems((list) => (list.length >= MAX_PRODUCT_IMAGES || list.some((item) => item.url === image.url) ? list : [...list, { ...image, key }]));
+    const next = [...list, { ...image, key }];
+    latest.current = next;
+    setItems(next);
     // The alt text is what is missing next: its field gets the focus.
     focusAfterRender.current = { key, which: "alt" };
+    return undefined;
   };
 
   /** Moves a picture and keeps the keyboard on it: the same kind of button, or the next sensible control. */
@@ -222,6 +236,7 @@ export function GalleryEditor({ name, initial, error, issue }: GalleryEditorProp
         multiple
         label="Subir imágenes"
         disabled={full}
+        maxFiles={MAX_PRODUCT_IMAGES - items.length}
         onUploaded={(image) => add({ url: image.url, alt: "" })}
       />
 
