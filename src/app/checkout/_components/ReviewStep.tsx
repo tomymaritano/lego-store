@@ -127,12 +127,10 @@ export function ReviewStep({
           onEdit={onEditPayment}
           disabled={isProcessing}
         >
+          {/* Only what the card told us: the Payment Element asks no cardholder name, so the shipping name is not shown here. */}
           <div className="space-y-0.5 text-label font-normal text-fg-secondary" data-testid="review-payment">
             <p className="font-medium text-fg">
               {cardBrandLabel(payment.brand)} <span className="font-mono">•••• {payment.last4}</span>
-            </p>
-            <p>
-              {shippingInfo.firstName} {shippingInfo.lastName}
             </p>
           </div>
         </ReviewBlock>

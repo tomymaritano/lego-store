@@ -188,6 +188,8 @@ describe("Checkout", { timeout: 20_000 }, () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Revisa tu pedido" })).toHaveFocus());
     expect(screen.getByTestId("review-payment")).toHaveTextContent("Visa •••• 4242");
+    // The card has no holder name (the Payment Element asks none): the shipping name is not passed off as one.
+    expect(screen.getByTestId("review-payment")).not.toHaveTextContent("Ana Pérez");
     expect(screen.getByTestId("review-shipping")).toHaveTextContent("Córdoba 1043");
     expect(await screen.findByTestId("review-total")).toHaveTextContent(formatPrice(2746));
     // Only ids, quantities, the address and the token go to the server: never prices.
