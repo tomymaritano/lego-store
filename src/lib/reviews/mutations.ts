@@ -23,10 +23,11 @@ export type HelpfulResult =
   | { ok: true; productId: string; voted: boolean; helpful: number }
   | { ok: false; reason: "not_found" | "own_review" };
 
-export interface ReviewActor {
-  id: string;
-  role: "USER" | "ADMIN";
-}
+/**
+ * Who deletes a review: its author (only their own, whatever their role), or
+ * an admin moderating (any review, always with its audit entry).
+ */
+export type ReviewDeleter = { author: string } | { moderator: AuditActor };
 
 const isUniqueViolation = (error: unknown) =>
   error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -69,18 +70,14 @@ export function updateReview(db: PrismaClient, userId: string, reviewId: string,
 }
 
 /**
- * Deletes a review: the author's own, or any for an admin (moderation). The
- * admin panel's moderation passes `audit` (the admin making it): the review's
- * content then goes to the audit log, since the review itself is gone.
+ * Deletes a review: the author's own, or any as moderation. A moderation
+ * deletion always writes its audit entry (the review's content goes to the
+ * audit log, since the review itself is gone): there is no way to delete
+ * someone else's review without one.
  */
-export function deleteReview(
-  db: PrismaClient,
-  actor: ReviewActor,
-  reviewId: string,
-  { audit }: { audit?: AuditActor } = {}
-): Promise<ReviewWriteResult> {
+export function deleteReview(db: PrismaClient, deleter: ReviewDeleter, reviewId: string): Promise<ReviewWriteResult> {
   return db.$transaction(async (tx) => {
-    const where = actor.role === "ADMIN" ? { id: reviewId } : { id: reviewId, userId: actor.id };
+    const where = "moderator" in deleter ? { id: reviewId } : { id: reviewId, userId: deleter.author };
     const review = await tx.review.findFirst({
       where,
       select: { productId: true, rating: true, title: true, comment: true, user: { select: { email: true } } },
@@ -88,8 +85,8 @@ export function deleteReview(
     if (!review) return { ok: false, reason: "not_found" } as const;
     await tx.review.delete({ where: { id: reviewId } });
     await refreshProductRatings(tx, [review.productId]);
-    if (audit) {
-      await recordAudit(tx, audit, {
+    if ("moderator" in deleter) {
+      await recordAudit(tx, deleter.moderator, {
         action: "review.delete",
         entityType: "review",
         entityId: reviewId,

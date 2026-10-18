@@ -138,7 +138,10 @@ pagar un pedido cancelado (por ejemplo, tras ganar un contracargo).
 
 Todas, filtrables por producto, estrellas o texto. Eliminar recalcula el rating
 del producto en la misma transacción; `updateCatalog` del producto; auditoría
-`review.delete`. Sin el límite de ediciones de los clientes.
+`review.delete`. Sin el límite de ediciones de los clientes. Es el único camino
+para borrar la reseña de otra persona: la acción de la ficha del producto borra
+solo las propias, también para un admin, así que ninguna moderación queda sin
+auditar.
 
 ### Cupones
 

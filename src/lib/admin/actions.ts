@@ -284,7 +284,7 @@ export async function deleteReviewAsAdminAction(reviewId: unknown): Promise<Admi
   const admin = await requireAdminActor({ callbackUrl: "/admin/reviews" });
   const id = idSchema.safeParse(reviewId);
   if (!id.success) return { ok: false, error: "Esa reseña ya no existe." };
-  const result = await deleteReview(getDb(), { id: admin.id, role: "ADMIN" }, id.data, { audit: admin });
+  const result = await deleteReview(getDb(), { moderator: admin }, id.data);
   if (!result.ok) return { ok: false, error: "Esa reseña ya no existe." };
   updateCatalog({ productIds: [result.productId] });
   refresh();

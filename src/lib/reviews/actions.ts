@@ -91,7 +91,11 @@ export async function updateReviewAction(reviewId: unknown, input: unknown): Pro
   return written(await updateReview(getDb(), user.id, id.data, content.data), { not_found: NOT_FOUND });
 }
 
-/** Deletes the signed-in user's own review (an admin can delete any; rate limited). */
+/**
+ * Deletes the signed-in user's own review (rate limited). Only their own,
+ * admins included: moderating someone else's review is the admin panel's
+ * deleteReviewAsAdminAction, which records it in the audit log.
+ */
 export async function deleteReviewAction(reviewId: unknown): Promise<ReviewActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: SIGN_IN };
@@ -99,7 +103,7 @@ export async function deleteReviewAction(reviewId: unknown): Promise<ReviewActio
   if (!id.success) return { ok: false, error: NOT_FOUND };
   const limited = await editLimited(user.id);
   if (limited) return limited;
-  return written(await deleteReview(getDb(), { id: user.id, role: user.role }, id.data), { not_found: NOT_FOUND });
+  return written(await deleteReview(getDb(), { author: user.id }, id.data), { not_found: NOT_FOUND });
 }
 
 /** Marks or unmarks a review as "útil" for the signed-in user. */

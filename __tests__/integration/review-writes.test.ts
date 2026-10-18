@@ -151,7 +151,7 @@ describe("updateReview and deleteReview", () => {
     expect(await testDb.review.findUniqueOrThrow({ where: { id: created.reviewId } })).toMatchObject({ rating: 3, title: "Bien" });
     await expectRatingMatchesReviews();
 
-    expect(await deleteReview(testDb, { id: ana.id, role: "USER" }, created.reviewId)).toMatchObject({ ok: true });
+    expect(await deleteReview(testDb, { author: ana.id }, created.reviewId)).toMatchObject({ ok: true });
     await expectRatingMatchesReviews();
     expect(await testDb.product.findUniqueOrThrow({ where: { id: PRODUCT } })).toMatchObject({ rating: 1, reviewCount: 1 });
   });
@@ -163,15 +163,21 @@ describe("updateReview and deleteReview", () => {
       ok: false,
       reason: "not_found",
     });
-    expect(await deleteReview(testDb, { id: bruno.id, role: "USER" }, created.reviewId)).toEqual({ ok: false, reason: "not_found" });
+    expect(await deleteReview(testDb, { author: bruno.id }, created.reviewId)).toEqual({ ok: false, reason: "not_found" });
     expect(await testDb.review.findUniqueOrThrow({ where: { id: created.reviewId } })).toMatchObject({ title: content.title });
   });
 
   it("an admin can delete any review (moderation)", async () => {
     const created = await createReview(testDb, ana.id, PRODUCT, content);
     if (!created.ok) throw new Error("not created");
-    expect(await deleteReview(testDb, { id: admin.id, role: "ADMIN" }, created.reviewId)).toMatchObject({ ok: true });
+    // As an author, an admin deletes only their own reviews: moderation is its own path, always audited.
+    expect(await deleteReview(testDb, { author: admin.id }, created.reviewId)).toEqual({ ok: false, reason: "not_found" });
+    expect(await deleteReview(testDb, { moderator: { id: admin.id, email: "jefa@resenas.test" } }, created.reviewId)).toMatchObject({ ok: true });
     await expectRatingMatchesReviews();
+    expect(await testDb.auditLog.findFirst({ where: { entityType: "review", entityId: created.reviewId } })).toMatchObject({
+      action: "review.delete",
+      actorId: admin.id,
+    });
   });
 });
 
@@ -243,6 +249,15 @@ describe("review Server Actions", () => {
     expect(await actions.deleteReviewAction(created.reviewId)).toMatchObject({ ok: false });
     expect(updateTag).not.toHaveBeenCalled();
     expect(await testDb.review.count({ where: { id: created.reviewId } })).toBe(1);
+  });
+
+  it("an admin cannot moderate through the storefront's action: it deletes only their own reviews", async () => {
+    const created = await createReview(testDb, ana.id, PRODUCT, content);
+    if (!created.ok) throw new Error("not created");
+    session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
+    expect(await actions.deleteReviewAction(created.reviewId)).toMatchObject({ ok: false });
+    expect(await testDb.review.count({ where: { id: created.reviewId } })).toBe(1);
+    expect(await testDb.auditLog.count({ where: { entityId: created.reviewId } })).toBe(0);
   });
 
   it("rate-limit review creation per user", async () => {
