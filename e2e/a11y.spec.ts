@@ -5,6 +5,8 @@ import { createE2eAccount } from "./helpers/db";
 
 /**
  * Automated WCAG 2.1 AA checks (axe) across the app, once per theme. The
+ * store-ops specs (e2e/store-ops) check the content editor's preview and a
+ * message's page. The
  * checkout steps have their own axe checks in checkout.spec.ts; login,
  * register, /account and /admin's dashboard are in auth.spec.ts, and the
  * signed-in pages below (account orders, every admin section) run here.
@@ -64,6 +66,7 @@ const pages: Array<{ name: string; path: string; setup?: (page: Page) => Promise
   { name: "contact", path: "/contacto" },
   { name: "privacy", path: "/privacidad" },
   { name: "terms", path: "/terminos" },
+  { name: "newsletter unsubscribe, bad link", path: "/newsletter/baja?token=no-es-un-token" },
   { name: "not found", path: "/item/no-existe" },
 ];
 
@@ -102,7 +105,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
     test("account and admin pages, signed in", async ({ page }) => {
       // One login, then ~20 pages that may compile on first hit, next to the other workers.
-      test.setTimeout(240_000);
+      test.setTimeout(330_000);
       // An admin of its own (an admin's logout revokes its sessions: no other spec signs this one out).
       // It also has an /account, which every signed-in user shares.
       await page.goto("/login?callbackUrl=%2Fadmin");
@@ -124,6 +127,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/admin/categories/new",
         "/admin/themes",
         "/admin/themes/new",
+        // A year, so the charts have bars wherever the dev database has orders.
+        `/admin?from=${new Date(Date.now() - 360 * 24 * 3600 * 1000).toISOString().slice(0, 10)}`,
+        "/admin/configuracion",
+        "/admin/contenido",
+        "/admin/contenido/privacidad",
+        "/admin/mensajes",
+        "/admin/newsletter",
       ]) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });

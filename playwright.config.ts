@@ -31,7 +31,7 @@ export default defineConfig({
     {
       name: "chromium",
       // stripe-live/ runs only with real test keys, from playwright.stripe-live.config.ts.
-      testIgnore: ["prod/**", "stripe-live/**"],
+      testIgnore: ["prod/**", "stripe-live/**", "store-ops/**"],
       use: { ...devices["Desktop Chrome"], baseURL: DEV_URL },
     },
     {
@@ -39,6 +39,16 @@ export default defineConfig({
       name: "prod",
       testDir: "./e2e/prod",
       use: { ...devices["Desktop Chrome"], baseURL: PROD_URL },
+    },
+    {
+      // The admin's store settings and content: they change what every page shows (the
+      // shipping cost, the FAQ), so they run after the other projects, alone (each spec
+      // puts the store back as it was).
+      name: "store-ops",
+      testDir: "./e2e/store-ops",
+      dependencies: ["chromium", "prod"],
+      fullyParallel: false,
+      use: { ...devices["Desktop Chrome"], baseURL: DEV_URL },
     },
   ],
   // Playwright starts these one after another, in this order: the production
