@@ -101,7 +101,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
 
     test("account and admin pages, signed in", async ({ page }) => {
-      test.slow(); // one login, then ~18 pages that may compile on first hit
+      // One login, then ~20 pages that may compile on first hit, next to the other workers.
+      test.setTimeout(240_000);
       // An admin of its own (an admin's logout revokes its sessions: no other spec signs this one out).
       // It also has an /account, which every signed-in user shares.
       await page.goto("/login?callbackUrl=%2Fadmin");
@@ -136,7 +137,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       ] as const) {
         await page.goto(list);
         await page.getByTestId(row).first().getByRole("link").first().click();
-        await expect(page).not.toHaveURL(new RegExp(`${list}$`));
+        await expect(page).toHaveURL(new RegExp(`${list}/[^/]+$`), { timeout: 30_000 });
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
         await expectNoSeriousViolations(page);
       }
