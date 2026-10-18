@@ -292,6 +292,7 @@ async function seedOrders(
       shipping: totals.shipping.cost,
       total: totals.total,
       createdAt,
+      submittedAt: createdAt,
       paidAt: createdAt,
       shippedAt: new Date(createdAt.getTime() + 2 * DAY),
       deliveredAt: new Date(createdAt.getTime() + 7 * DAY),

@@ -259,6 +259,8 @@ enum OrderStatus {
 
 model Order {
   id     String      @id @default(cuid())
+  /// What customers see ("LEGO-001001", src/lib/orders/format.ts). Starts at 1001.
+  number Int         @unique @default(autoincrement())
   /// Null for guest checkouts (never linked to an account created later).
   userId String?
   /// Contact email from the shipping form (lowercased).
@@ -283,10 +285,16 @@ model Order {
 
   stripePaymentIntentId String? @unique
   stripeRefundId        String? @unique
+  /// sha256 of the checkout access token kept in the browser's HttpOnly cookie
+  /// (src/lib/orders/access.ts): lets a guest's browser read and pay its own order.
+  checkoutTokenHash     String?
   /// What the review step and the order page show ("visa", "4242"); never card data.
   paymentBrand          String?
   paymentLast4          String?
 
+  /// First "Realizar pedido" (payment attempt). Orders without it are abandoned
+  /// checkouts: "Mis pedidos" does not list them.
+  submittedAt  DateTime?
   paidAt       DateTime?
   shippedAt    DateTime?
   deliveredAt  DateTime?
