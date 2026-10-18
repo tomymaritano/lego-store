@@ -45,6 +45,15 @@ const pages: Array<{ name: string; path: string; setup?: (page: Page) => Promise
   { name: "product", path: "/item/1" },
   { name: "empty cart", path: "/cart" },
   { name: "cart", path: "/cart", setup: (page) => seed(page, { "lego-cart-storage": { cart: [{ ...line, quantity: 2 }] } }) },
+  {
+    name: "cart with a coupon",
+    path: "/cart",
+    setup: (page) =>
+      seed(page, {
+        "lego-cart-storage": { cart: [{ ...line, quantity: 3 }] },
+        "lego-coupon-storage": { coupon: { code: "BIENVENIDA10", type: "PERCENT", value: 10, minSubtotal: 2000, label: "10% de descuento" } },
+      }),
+  },
   { name: "empty favourites", path: "/wishlist" },
   { name: "favourites", path: "/wishlist", setup: (page) => seed(page, { "lego-wishlist-storage": { wishlist: [line] } }) },
   { name: "compare", path: "/compare", setup: (page) => seed(page, { "lego-compare-storage": { ids: ["1", "2"] } }) },
@@ -99,11 +108,25 @@ for (const colorScheme of ["light", "dark"] as const) {
       await logIn(page, await createE2eAccount("axe-admin", "Admin Axe", "ADMIN"));
       await expect(page.getByRole("heading", { level: 1, name: "Panel de administración" })).toBeVisible({ timeout: 30_000 });
 
-      for (const path of ["/account/orders", "/admin/orders", "/admin/products", "/admin/products/new", "/admin/products/1", "/admin/reviews"]) {
+      for (const path of [
+        "/account/orders",
+        "/admin/orders",
+        "/admin/products",
+        "/admin/products/new",
+        "/admin/products/1",
+        "/admin/reviews",
+        "/admin/coupons",
+        "/admin/coupons/new",
+      ]) {
         await page.goto(path);
         await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 30_000 });
         await expectNoSeriousViolations(page);
       }
+      // A coupon's page (the seed has two).
+      await page.goto("/admin/coupons?q=BIENVENIDA10");
+      await page.getByTestId("admin-coupon-row").first().getByRole("link").first().click();
+      await expect(page.getByRole("heading", { level: 1, name: "BIENVENIDA10" })).toBeVisible({ timeout: 30_000 });
+      await expectNoSeriousViolations(page);
       // An order's page, when the database has one (the checkout specs place them).
       await page.goto("/admin/orders");
       const firstOrder = page.getByTestId("admin-order-row").first().getByRole("link").first();

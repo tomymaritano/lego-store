@@ -62,8 +62,58 @@ const DELETE_E2E_ORDERS = [
 ] as const;
 
 async function deleteE2eOrders(client: Client) {
+  // Their coupon uses go with them (CouponRedemption cascades).
   for (const sql of DELETE_E2E_ORDERS) await client.query(sql, [`%@${E2E_EMAIL_DOMAIN}`]);
   await client.query(`DELETE FROM "ProcessedStripeEvent" WHERE "id" LIKE 'evt_e2e_%'`);
+  await deleteE2eCoupons(client);
+}
+
+/** Coupons the specs created (codes start with E2E_COUPON_PREFIX), with their uses and audit entries. */
+export const E2E_COUPON_PREFIX = "E2E";
+
+async function deleteE2eCoupons(client: Client) {
+  const pattern = `${E2E_COUPON_PREFIX}%`;
+  await client.query(`DELETE FROM "AuditLog" WHERE "entityType" = 'coupon' AND "entityId" IN (SELECT "id" FROM "Coupon" WHERE "code" LIKE $1)`, [pattern]);
+  await client.query(`DELETE FROM "CouponRedemption" WHERE "couponId" IN (SELECT "id" FROM "Coupon" WHERE "code" LIKE $1)`, [pattern]);
+  await client.query(`DELETE FROM "Coupon" WHERE "code" LIKE $1`, [pattern]);
+}
+
+/** A unique code for a spec's coupon (the teardown deletes it). */
+export const e2eCouponCode = (label: string) => `${E2E_COUPON_PREFIX}${label.toUpperCase()}${randomBytes(3).toString("hex").toUpperCase()}`;
+
+/** A coupon straight in the dev database, for specs that are not about creating one. */
+export async function createE2eCoupon(
+  label: string,
+  { type = "PERCENT", value = 10, minSubtotal = 0, maxPerUser = null }: { type?: "PERCENT" | "FIXED"; value?: number; minSubtotal?: number; maxPerUser?: number | null } = {}
+): Promise<string> {
+  const code = e2eCouponCode(label);
+  await withClient((client) =>
+    client.query(
+      `INSERT INTO "Coupon" ("id", "code", "type", "value", "minSubtotal", "maxPerUser", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, now())`,
+      [`e2e-${randomBytes(8).toString("hex")}`, code, type, value, minSubtotal, maxPerUser]
+    )
+  );
+  return code;
+}
+
+/** Turns a spec's coupon off (or on) behind the shopper's back. */
+export function setE2eCouponActive(code: string, active: boolean): Promise<void> {
+  return withClient(async (client) => {
+    await client.query(`UPDATE "Coupon" SET "active" = $2, "updatedAt" = now() WHERE "code" = $1`, [code, active]);
+  });
+}
+
+/** The coupon use of the newest order placed with this email. */
+export function latestOrderCoupon(email: string): Promise<{ couponCode: string | null; discount: number; total: number; redemption: string | null } | null> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ couponCode: string | null; discount: number; total: number; redemption: string | null }>(
+      `SELECT o."couponCode", o."discount", o."total", r."status" AS "redemption"
+       FROM "Order" o LEFT JOIN "CouponRedemption" r ON r."orderId" = o."id"
+       WHERE o."email" = $1 ORDER BY o."createdAt" DESC LIMIT 1`,
+      [email.toLowerCase()]
+    );
+    return rows[0] ?? null;
+  });
 }
 
 export function deleteE2eAccounts() {

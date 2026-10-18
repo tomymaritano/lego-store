@@ -39,6 +39,8 @@ const ROUTES = [
   "/api/products/1/reviews",
   "/api/lists",
   "/api/search?q=star",
+  // POST only: a GET answers 405, which still compiles it.
+  "/api/checkout/coupon",
   "/login",
   "/register",
   "/account",
