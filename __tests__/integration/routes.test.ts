@@ -29,6 +29,15 @@ describe("Route Handlers", () => {
     expect(body.items.map((p: { id: string }) => p.id)).toEqual(["4", "2", "1"]);
   });
 
+  it("GET /api/products/by-ids answers 400 to malformed ids or too many of them", async () => {
+    expect((await getByIds(request(`/api/products/by-ids?ids=1,${"x".repeat(65)}`))).status).toBe(400);
+    const many = Array.from({ length: 501 }, (_, i) => String(i)).join(",");
+    expect((await getByIds(request(`/api/products/by-ids?ids=${many}`))).status).toBe(400);
+    // Over one request's worth but within the bound: the first ones are resolved.
+    const some = Array.from({ length: 120 }, (_, i) => String(i + 1)).join(",");
+    expect((await getByIds(request(`/api/products/by-ids?ids=${some}`))).status).toBe(200);
+  });
+
   it("GET /api/products/by-ids without ids returns an empty list", async () => {
     expect(await (await getByIds(request("/api/products/by-ids"))).json()).toEqual({ items: [] });
   });
