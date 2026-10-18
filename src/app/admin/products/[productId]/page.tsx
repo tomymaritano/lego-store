@@ -5,6 +5,7 @@ import { Archive, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { archiveProductAction, removeProductAction, restoreProductAction, saveProductAction } from "@/lib/admin/actions";
 import { getAdminAuditHistory, getAdminProductForEdit, getProductFormOptions } from "@/lib/admin/data";
+import { galleryPictures } from "@/lib/gallery";
 import { formatOrderDate } from "@/lib/orders/format";
 import { idSchema } from "@/lib/validations/ids";
 import { pluralize } from "@/lib/utils";
@@ -91,8 +92,8 @@ export default async function EditProductPage({ params, searchParams }: EditProd
           action={saveProductAction.bind(null, product.id)}
           initial={{
             ...product,
-            // The gallery with each picture's alt text (the product's name for one that never had its own).
-            gallery: product.images.map((url, index) => ({ url, alt: product.imageAlts[index] ?? product.name })),
+            // The storefront's gallery (main picture first, even if it is only in img) with each alt text.
+            gallery: galleryPictures(product),
           }}
           categories={options.categories}
           themes={options.themes}
