@@ -3,7 +3,20 @@ import { linesSubtotal } from "@/lib/pricing";
 import { formatPrice, pluralize } from "@/lib/utils";
 import { OrderTotals } from "@/components/cart/OrderTotals";
 import { ProductImage } from "@/components/product/ProductImage";
+import type { OrderView } from "@/lib/orders/types";
 import type { CartItem } from "@/types";
+
+/** An order's snapshot lines in the shape the line lists take. */
+export function orderLinesOf(order: Pick<OrderView, "items">): CartItem[] {
+  return order.items.map((item, index) => ({
+    id: item.productId ?? `deleted-${index}`,
+    name: item.name,
+    price: item.unitPrice,
+    image: item.image,
+    quantity: item.quantity,
+    stock: 0,
+  }));
+}
 
 /** Compact "picture · name × qty · line total" rows (mobile summary bar, confirmation). */
 export function OrderLines({ lines, label }: { lines: readonly CartItem[]; label: string }) {

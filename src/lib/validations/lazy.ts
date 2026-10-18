@@ -1,5 +1,5 @@
 import type { FieldValues, Resolver } from "react-hook-form";
-import type { PaymentInfo, ShippingInfo } from "@/types";
+import type { ShippingInfo } from "@/types";
 import type { ContactInput } from "./contact";
 
 export type LazyResolver<T extends FieldValues> = Resolver<T> & {
@@ -27,5 +27,4 @@ export function lazyResolver<T extends FieldValues>(load: () => Promise<Resolver
 const resolvers = () => import("./resolvers");
 
 export const shippingResolver = lazyResolver<ShippingInfo>(() => resolvers().then((mod) => mod.shippingResolver));
-export const paymentResolver = lazyResolver<PaymentInfo>(() => resolvers().then((mod) => mod.paymentResolver));
 export const contactResolver = lazyResolver<ContactInput>(() => resolvers().then((mod) => mod.contactResolver));

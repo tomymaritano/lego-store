@@ -234,22 +234,4 @@ export interface ShippingInfo {
   country: string;
 }
 
-/** Full card data: lives only in the payment form while that step is open. */
-export interface PaymentInfo {
-  cardNumber: string;
-  cardName: string;
-  expiryDate: string;
-  cvv: string;
-}
-
-export type CardBrand = "visa" | "mastercard" | "amex" | "unknown";
-
-/** What survives the payment step: never the card number or the CVV. */
-export interface PaymentSummary {
-  brand: CardBrand;
-  cardName: string;
-  last4: string;
-  expiryDate: string;
-}
-
 export type CheckoutStep = "shipping" | "payment" | "review" | "confirmation";

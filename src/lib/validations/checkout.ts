@@ -1,12 +1,16 @@
 import { z } from "zod";
-import type { PaymentInfo, ShippingInfo } from "@/types";
+import type { ShippingInfo } from "@/types";
 import { ARGENTINA_PROVINCES, SHIPPING_COUNTRY } from "@/lib/argentina";
-import { cardLength, cvvLength, detectCardBrand, isExpiryInFuture, onlyDigits, passesLuhn } from "@/lib/card";
 
 /**
- * Checkout form schemas (react-hook-form + zodResolver). The data shapes are
- * declared once in @/types; `satisfies` keeps each schema in step with them.
+ * Checkout shipping form schema: the form's resolver (react-hook-form +
+ * zodResolver) and the server, which validates the same data again before it
+ * creates the order (src/lib/validations/orders.ts). The data shape is
+ * declared once in @/types; `satisfies` keeps the schema in step with it.
+ * Card details are collected by Stripe's Payment Element, never by us.
  */
+
+const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
 const text = (label: string, min: number, max: number) =>
   z
@@ -38,29 +42,3 @@ export const shippingSchema = z.object({
     .regex(/^(\d{4}|[A-Za-z]\d{4}[A-Za-z]{3})$/, "Usa 4 dígitos (1425) o el formato CPA (C1425ABC)"),
   country: z.string().refine((value) => value === SHIPPING_COUNTRY, `Por ahora solo enviamos a ${SHIPPING_COUNTRY}`),
 }) satisfies z.ZodType<ShippingInfo>;
-
-export const paymentSchema = z
-  .object({
-    cardNumber: z.string().min(1, "Ingresa el número de tarjeta"),
-    cardName: text("el nombre de la tarjeta", 3, 100),
-    expiryDate: z
-      .string()
-      .min(1, "Ingresa el vencimiento")
-      .regex(/^(0[1-9]|1[0-2])\/\d{2}$/, "Usa el formato MM/AA")
-      .refine((value) => isExpiryInFuture(value), "La tarjeta está vencida"),
-    cvv: z.string().min(1, "Ingresa el código de seguridad").regex(/^\d+$/, "Usa solo números"),
-  })
-  .superRefine(({ cardNumber, cvv }, ctx) => {
-    const brand = detectCardBrand(cardNumber);
-    const digits = onlyDigits(cardNumber);
-    if (digits.length > 0 && brand === "unknown") {
-      ctx.addIssue({ code: "custom", path: ["cardNumber"], message: "Aceptamos Visa, Mastercard o American Express" });
-    } else if (digits.length > 0 && digits.length !== cardLength(brand)) {
-      ctx.addIssue({ code: "custom", path: ["cardNumber"], message: `El número debe tener ${cardLength(brand)} dígitos` });
-    } else if (digits.length > 0 && !passesLuhn(digits)) {
-      ctx.addIssue({ code: "custom", path: ["cardNumber"], message: "Revisa el número: no es una tarjeta válida" });
-    }
-    if (/^\d+$/.test(cvv) && cvv.length !== cvvLength(brand)) {
-      ctx.addIssue({ code: "custom", path: ["cvv"], message: `El código de seguridad tiene ${cvvLength(brand)} dígitos` });
-    }
-  }) satisfies z.ZodType<PaymentInfo>;
