@@ -2,6 +2,7 @@
 
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
+import { rateLimits, type RateLimiter } from "@/lib/rate-limit";
 import { productIdSchema } from "@/lib/validations/ids";
 import { mergeListsSchema, quantitySchema } from "@/lib/validations/lists";
 import type { CartItem, WishlistItem } from "@/types";
@@ -14,7 +15,8 @@ import { listErrorMessages, type ListActionResult, type ListErrorCode, type Serv
  * Cart and wishlist Server Actions, called by the client stores when a user
  * is signed in (src/stores/listsRemote.ts). Each one checks the session
  * itself and only ever touches the signed-in user's rows: no action takes a
- * user id. Inputs are ids and quantities, validated with zod; what comes back
+ * user id, and each counts against the user's rate limit (lists-write, or
+ * lists-merge for the login merge). Inputs are ids and quantities, validated with zod; what comes back
  * is the server's version of the line (current price and stock, quantity
  * capped by the stock), which the store adopts.
  *
@@ -24,9 +26,14 @@ import { listErrorMessages, type ListActionResult, type ListErrorCode, type Serv
 
 const fail = <T>(code: ListErrorCode): ListActionResult<T> => ({ ok: false, code, error: listErrorMessages[code] });
 
-async function withUser<T>(run: (userId: string) => Promise<ListActionResult<T>>): Promise<ListActionResult<T>> {
+/** Runs `run` for the signed-in user, after counting the call against the user's limit. */
+async function withUser<T>(
+  run: (userId: string) => Promise<ListActionResult<T>>,
+  limit: RateLimiter = rateLimits.listsWrite
+): Promise<ListActionResult<T>> {
   const user = await getCurrentUser();
   if (!user) return fail("unauthenticated");
+  if (!(await limit.consume(user.id)).ok) return fail("rate_limited");
   return run(user.id);
 }
 
@@ -116,5 +123,5 @@ export async function mergeListsAction(input: unknown): Promise<ListActionResult
     if (!parsed.success) return fail("invalid");
     const { lists } = await mergeLists(getDb(), userId, parsed.data);
     return { ok: true, data: lists };
-  });
+  }, rateLimits.listsMerge);
 }

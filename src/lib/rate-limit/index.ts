@@ -59,6 +59,13 @@ export const rateLimits = {
   checkoutPrepare: limiter("checkout-prepare", 30, 15 * MINUTE),
   /** "Realizar pedido" (payment confirmations), per user or IP: slows down card testing. */
   checkoutPay: limiter("checkout-pay", 15, 15 * MINUTE),
+  /**
+   * Cart and wishlist writes per user (lib/lists/actions.ts): each one is a
+   * database write. Far above what anyone clicks; a brake on a script.
+   */
+  listsWrite: limiter("lists-write", 300, 15 * MINUTE),
+  /** Login merges of guest lists per user: up to 200 + 200 rows in one transaction each. */
+  listsMerge: limiter("lists-merge", 30, HOUR),
 } as const;
 
 export { clientIp } from "./client-ip";

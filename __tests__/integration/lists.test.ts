@@ -262,6 +262,31 @@ describe("Server Actions and GET /api/lists (authorisation)", () => {
     expect(await actions.setCartQuantityAction("1", 1)).toMatchObject({ ok: false, code: "out_of_stock" });
   });
 
+  it("refuses writes past the user's rate limit, and only that user's", async () => {
+    await testDb.rateLimit.deleteMany();
+    const resetAt = new Date(Date.now() + 60_000);
+    await testDb.rateLimit.createMany({
+      data: [
+        { key: `lists-write:${ana.id}`, count: 300, resetAt },
+        { key: `lists-merge:${ana.id}`, count: 30, resetAt },
+      ],
+    });
+    try {
+      signInAs(ana);
+      expect(await actions.addToCartAction("1", 1)).toMatchObject({ ok: false, code: "rate_limited" });
+      expect(await actions.clearWishlistAction()).toMatchObject({ ok: false, code: "rate_limited" });
+      expect(await actions.mergeListsAction({ token: token(), cart: [{ productId: "2", quantity: 1 }], wishlist: [] })).toMatchObject({
+        ok: false,
+        code: "rate_limited",
+      });
+      expect(await quantities(ana.id)).toEqual({});
+      signInAs(bruno);
+      expect(await actions.addToCartAction("1", 1)).toMatchObject({ ok: true });
+    } finally {
+      await testDb.rateLimit.deleteMany();
+    }
+  });
+
   it("does not count a session whose user was deleted", async () => {
     const ghost = await testDb.user.create({ data: { email: "ghost@listas.test" } });
     signInAs(ghost);
