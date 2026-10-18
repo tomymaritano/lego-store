@@ -34,7 +34,8 @@ export interface CouponFieldProps {
  * reserves the coupon again on the server.
  *
  * The form and the applied coupon swap in place; the applied one pops its
- * check mark, and a live region says what happened for screen readers.
+ * check mark, and a live region says what the customer did for screen
+ * readers (a refusal, or the page's notice, is the field's alert).
  */
 export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = "cart", className }: CouponFieldProps) {
   const viewer = useViewer();
@@ -182,8 +183,9 @@ export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = 
           </m.form>
         )}
       </AnimatePresence>
+      {/* The page's notice is the field's error (an alert): it is not repeated here. */}
       <p role="status" aria-live="polite" className="sr-only">
-        {notice && !coupon ? notice : announcement}
+        {announcement}
       </p>
     </div>
   );

@@ -154,6 +154,8 @@ describe("Coupon field (cart summary)", () => {
       render(<OrderSummary lines={[line("7", 2490)]} />);
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Quitamos el cupón BIENVENIDA10: Este cupón ya no está disponible.");
+      // Said once: the alert, not the live region as well.
+      expect(screen.getAllByText("Quitamos el cupón BIENVENIDA10: Este cupón ya no está disponible.")).toHaveLength(1);
       expect(screen.getByLabelText("Código de descuento")).toHaveAttribute("aria-invalid", "true");
       expect(useCouponStore.getState().coupon).toBeNull();
       expect(screen.queryByTestId("cart-discount")).toBeNull();
