@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterSelect } from "@/components/admin/FilterSelect";
 import { MessageActions } from "@/components/admin/MessageActions";
 import { Pagination } from "@/components/admin/Pagination";
+import { ExportButton } from "@/components/admin/ExportButton";
 import { Badge, Button, Card, EmptyState, Field, Input } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ export default async function AdminMessagesPage({ searchParams }: { searchParams
         title="Mensajes"
         breadcrumbs={[{ label: "Administración", href: "/admin" }, { label: "Mensajes" }]}
         description={page.unread > 0 ? `${pluralize(page.unread, "mensaje nuevo", "mensajes nuevos")} sin leer.` : "No hay mensajes sin leer."}
+        actions={<ExportButton kind="messages" params={params} />}
       />
 
       <Card className="mb-6 p-4">

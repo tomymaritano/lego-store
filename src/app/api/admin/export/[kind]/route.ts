@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authorizeRequest } from "@/lib/auth/session";
 import { auditActorFor } from "@/lib/admin/actor";
-import { exportCustomers, exportNewsletter, exportOrders, type CsvExport } from "@/lib/admin/exports";
+import { exportCustomers, exportMessages, exportNewsletter, exportOrders, type CsvExport, type ExportKind } from "@/lib/admin/exports";
 import { getDb } from "@/lib/db";
 import { parseOrderFilters, type SearchParams } from "@/lib/validations/admin";
-import { parseSubscriberFilters } from "@/lib/validations/inbox";
+import { parseMessageFilters, parseSubscriberFilters } from "@/lib/validations/inbox";
 import { parseUserFilters } from "@/lib/validations/users";
 
 /*
- * GET /api/admin/export/<orders|customers|newsletter>?<the list's filters>:
+ * GET /api/admin/export/<orders|customers|newsletter|messages>?<the list's filters>:
  * a CSV download (UTF-8 with BOM, ";", CSV-injection safe: src/lib/admin/csv.ts)
  * streamed from the database. Admins only (401/403 as JSON); every export is
  * recorded in the audit log with its filters and row count. A plain link
@@ -17,7 +17,7 @@ import { parseUserFilters } from "@/lib/validations/users";
 
 export const dynamic = "force-dynamic";
 
-const KINDS = ["orders", "customers", "newsletter"] as const;
+const KINDS = ["orders", "customers", "newsletter", "messages"] as const satisfies readonly ExportKind[];
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
   const auth = await authorizeRequest({ admin: true });
@@ -29,12 +29,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   for (const [key, value] of request.nextUrl.searchParams) search[key] = value;
   const db = getDb();
   const actor = auditActorFor(auth.user, request.headers);
-  const result: CsvExport =
-    kind === "orders"
-      ? await exportOrders(db, actor, parseOrderFilters(search))
-      : kind === "customers"
-        ? await exportCustomers(db, actor, parseUserFilters(search))
-        : await exportNewsletter(db, actor, parseSubscriberFilters(search));
+  const exports: Record<(typeof KINDS)[number], () => Promise<CsvExport>> = {
+    orders: () => exportOrders(db, actor, parseOrderFilters(search)),
+    customers: () => exportCustomers(db, actor, parseUserFilters(search)),
+    newsletter: () => exportNewsletter(db, actor, parseSubscriberFilters(search)),
+    messages: () => exportMessages(db, actor, parseMessageFilters(search)),
+  };
+  const result = await exports[kind as (typeof KINDS)[number]]();
 
   return new Response(result.body, {
     headers: {

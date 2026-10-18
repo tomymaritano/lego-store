@@ -1,10 +1,10 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { exportCustomers, exportNewsletter, exportOrders, NEWSLETTER_EXPORT_HEADER, ORDER_EXPORT_HEADER, type CsvExport } from "@/lib/admin/exports";
+import { exportCustomers, exportMessages, exportNewsletter, exportOrders, MESSAGE_EXPORT_HEADER, NEWSLETTER_EXPORT_HEADER, ORDER_EXPORT_HEADER, type CsvExport } from "@/lib/admin/exports";
 import { formatOrderNumber } from "@/lib/orders/format";
 import { unsubscribeUrl } from "@/lib/newsletter";
 import { parseOrderFilters } from "@/lib/validations/admin";
-import { parseSubscriberFilters } from "@/lib/validations/inbox";
+import { parseMessageFilters, parseSubscriberFilters } from "@/lib/validations/inbox";
 import { parseUserFilters } from "@/lib/validations/users";
 import { resetAndSeed, testDb } from "./setup/db";
 
@@ -155,6 +155,39 @@ describe("GET /api/admin/export/<kind>", () => {
     expect(unsubscribeUrl(active.id)).toContain(`/newsletter/baja?token=${active.id}.`);
     const entry = await testDb.auditLog.findFirstOrThrow({ where: { entityType: "export", entityId: "newsletter" } });
     expect(entry.changes).toEqual({ filters: "q=export.test status=unsubscribed", rows: 1 });
+  });
+});
+
+describe("GET /api/admin/export/messages", () => {
+  it("exports the inbox's messages with its filters, formulas neutralised, and audits it", async () => {
+    session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
+    await testDb.contactMessage.createMany({
+      data: [
+        { topic: "pedido", name: "=SUM(A1:A9)", email: "msg1@export.test", orderNumber: "LS-000123", message: "Hola; ¿dónde está\nmi pedido?" },
+        { topic: "otro", name: "Archivada", email: "msg2@export.test", message: "Vieja", status: "ARCHIVED", archivedAt: new Date() },
+      ],
+    });
+    const { bom, lines } = await csvOf(await request("messages", "?q=export.test"));
+    expect(bom).toEqual([0xef, 0xbb, 0xbf]);
+    expect(lines[0]).toBe(MESSAGE_EXPORT_HEADER.join(";"));
+    // The inbox (the default view) leaves the archived one out.
+    expect(lines.filter((line) => line.includes("@export.test"))).toHaveLength(1);
+    const row = lines.find((line) => line.includes("msg1@export.test"))!;
+    expect(row).toContain(";Nuevo;");
+    expect(row).toContain(";'=SUM(A1:A9);msg1@export.test;LS-000123;");
+    expect(row).toContain('"Hola; ¿dónde está');
+
+    const archived = await csvOf(await request("messages", "?q=export.test&view=ARCHIVED"));
+    expect(archived.lines.slice(1)).toEqual([expect.stringContaining(";Archivado;")]);
+    const entry = await testDb.auditLog.findFirstOrThrow({ where: { entityType: "export", entityId: "messages" }, orderBy: { createdAt: "desc" } });
+    expect(entry).toMatchObject({ action: "export.messages", changes: { filters: "view=ARCHIVED q=export.test", rows: 1 } });
+  });
+
+  it("streams every message once, newest first, across batch boundaries", async () => {
+    const all = await testDb.contactMessage.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true } });
+    const result = await exportMessages(testDb, { id: admin.id, email: admin.email }, parseMessageFilters({ view: "all" }), { batchSize: 1 });
+    const { lines } = await csvOf(new Response(result.body));
+    expect(lines.slice(1).map((line) => line.split(";")[0])).toEqual(all.map((row) => row.id));
   });
 });
 

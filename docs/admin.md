@@ -175,8 +175,10 @@ reseñas, direcciones de sus pedidos e historial.
 
 Bandeja de `ContactMessage` (nuevos y leídos; archivados aparte), con filtros por
 motivo, texto y fechas. Marcar leído / no leído, archivar, volver a la bandeja y
-"Responder por email" (un `mailto:` con el asunto y el mensaje citado). Auditoría
-`message.read`, `.unread`, `.archive`; revalida la bandeja y el resumen.
+"Responder por email" (un `mailto:` con el asunto y el mensaje citado).
+"Exportar CSV" baja los mensajes de la vista y los filtros actuales. Auditoría
+`message.read`, `.unread`, `.archive` (y `export.messages`); revalida la bandeja
+y el resumen.
 
 ### Newsletter
 
@@ -220,8 +222,9 @@ expira el tag `settings`:
 
 ### Exportar CSV
 
-Pedidos (una fila por línea), Usuarios y Newsletter tienen "Exportar CSV" con los
-filtros de la lista: `GET /api/admin/export/<orders|customers|newsletter>`, solo
+Pedidos (una fila por línea), Usuarios, Newsletter y Mensajes tienen "Exportar
+CSV" con los filtros de la lista:
+`GET /api/admin/export/<orders|customers|newsletter|messages>`, solo
 admins, en streaming por lotes. UTF-8 con BOM y `;` (lo que espera Excel en
 español), comillas RFC 4180 y un apóstrofo delante de todo campo que una planilla
 ejecutaría como fórmula (`=`, `+`, `-`, `@`, tab, CR). Cada exportación queda en la
@@ -255,4 +258,4 @@ muestran su propio historial con "Ver todo". Cada entrada guarda el admin, su IP
 | `content` | `draft`, `publish`, `discard` |
 | `message` | `read`, `unread`, `archive` |
 | `subscriber` | `unsubscribe` |
-| `export` | `orders`, `customers`, `newsletter` |
+| `export` | `orders`, `customers`, `newsletter`, `messages` |

@@ -67,6 +67,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "export.orders": "Exportó los pedidos",
   "export.customers": "Exportó los clientes",
   "export.newsletter": "Exportó los suscriptores",
+  "export.messages": "Exportó los mensajes de contacto",
 };
 
 export const auditActionLabel = (action: string) => AUDIT_ACTION_LABELS[action] ?? action;

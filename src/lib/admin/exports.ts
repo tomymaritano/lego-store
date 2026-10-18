@@ -1,11 +1,13 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { Db } from "@/lib/lists/product";
 import { STORE_TIME_ZONE } from "@/lib/argentina";
+import { MESSAGE_STATUS_LABELS, messageWhere } from "@/lib/contact/messages";
 import { subscriberWhere, unsubscribeUrl } from "@/lib/newsletter";
 import { ADMIN_ORDER_STATUS_LABELS, cardBrandLabel, formatOrderNumber, paymentMethodTypeLabel } from "@/lib/orders/format";
 import { PROVIDER_LABELS } from "@/lib/payments/provider";
 import type { AdminOrderFilters } from "@/lib/validations/admin";
-import type { AdminSubscriberFilters } from "@/lib/validations/inbox";
+import { CONTACT_TOPICS } from "@/lib/validations/contact-options";
+import type { AdminMessageFilters, AdminSubscriberFilters } from "@/lib/validations/inbox";
 import type { AdminUserFilters } from "@/lib/validations/users";
 import { recordAudit, type AuditActor } from "./audit";
 import { csvStream, type CsvValue } from "./csv";
@@ -16,14 +18,15 @@ import { orderStats, userWhere } from "./users";
 /*
  * The admin's CSV exports (Route Handlers under /api/admin/export): orders
  * with one line per product, customers (accounts with what they ordered and
- * spent) and newsletter subscribers, with the same filters as their lists.
+ * spent), newsletter subscribers and contact messages, with the same filters
+ * as their lists.
  * Each export is counted and recorded in the audit log ("export.<what>",
  * with the filters and the row count) before the first byte goes out, then
  * streamed in batches (src/lib/admin/csv.ts). Client first; the routes
  * check the admin.
  */
 
-export type ExportKind = "orders" | "customers" | "newsletter";
+export type ExportKind = "orders" | "customers" | "newsletter" | "messages";
 
 export interface CsvExport {
   filename: string;
@@ -238,4 +241,42 @@ export async function exportNewsletter(db: Db, actor: AuditActor, filters: Admin
     return { lines, cursor: batch.length === batchSize ? batch.at(-1)!.id : null };
   });
   return { filename: filename("newsletter", now), rows, body };
+}
+
+// ---------------------------------------------------------------------------
+// Contact messages
+// ---------------------------------------------------------------------------
+
+export const MESSAGE_EXPORT_HEADER = ["ID", "Fecha", "Estado", "Motivo", "Nombre", "Email", "Pedido", "Mensaje", "Con cuenta", "Leído"] as const;
+
+const topicLabel = (value: string) => CONTACT_TOPICS.find((topic) => topic.value === value)?.label ?? value;
+
+/** The inbox's messages with its filters (view, topic, text, dates), newest first. */
+export async function exportMessages(db: Db, actor: AuditActor, filters: AdminMessageFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
+  const where = messageWhere(filters);
+  const rows = await db.contactMessage.count({ where });
+  await audit(db, actor, "messages", { ...filters }, rows);
+  const body = csvStream<string>(MESSAGE_EXPORT_HEADER, async (cursor) => {
+    const batch = await db.contactMessage.findMany({
+      where,
+      select: { id: true, createdAt: true, status: true, topic: true, name: true, email: true, orderNumber: true, message: true, userId: true, readAt: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: batchSize,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    const lines = batch.map((row): CsvValue[] => [
+      row.id,
+      csvDateTime(row.createdAt),
+      MESSAGE_STATUS_LABELS[row.status],
+      topicLabel(row.topic),
+      row.name,
+      row.email,
+      row.orderNumber ?? "",
+      row.message,
+      row.userId !== null,
+      csvDateTime(row.readAt),
+    ]);
+    return { lines, cursor: batch.length === batchSize ? batch.at(-1)!.id : null };
+  });
+  return { filename: filename("mensajes", now), rows, body };
 }

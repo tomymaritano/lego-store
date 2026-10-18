@@ -63,7 +63,8 @@ type Row = Prisma.ContactMessageGetPayload<{ select: typeof rowSelect }>;
 
 const toRow = (row: Row): AdminMessageRow => ({ ...row, createdAt: row.createdAt.toISOString(), readAt: row.readAt?.toISOString() ?? null });
 
-function messageWhere(filters: AdminMessageFilters): Prisma.ContactMessageWhereInput {
+/** The inbox's filters as a query (the list and its CSV export). */
+export function messageWhere(filters: AdminMessageFilters): Prisma.ContactMessageWhereInput {
   const and: Prisma.ContactMessageWhereInput[] = [];
   if (filters.view === "inbox") and.push({ status: { in: ["NEW", "READ"] } });
   else if (filters.view !== "all") and.push({ status: filters.view });

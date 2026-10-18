@@ -1,8 +1,9 @@
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui";
+import type { ExportKind } from "@/lib/admin/exports";
 
 interface ExportButtonProps {
-  kind: "orders" | "customers" | "newsletter";
+  kind: ExportKind;
   /** The list's current filters: the export has the same rows (every page). */
   params: Record<string, string>;
   label?: string;
