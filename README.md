@@ -612,10 +612,14 @@ cae en "sin filtro").
   (el formulario sin tocar Stock guarda el resto y deja el stock como está; un
   número nuevo sobre uno viejo se rechaza con "el stock cambió mientras
   editabas"). Crear y editar con todos los campos de la
-  ficha; las imágenes son URLs (un archivo del sitio, `/images/…`, o
-  `https://www.lego.com/cdn/…`: lo mismo que `images.remotePatterns` de
-  `next.config.mjs` deja cargar a next/image, `src/lib/images.ts`) con vista
-  previa. Cada escritura recalcula las columnas de búsqueda y expira los tags del
+  ficha; el tema se elige de la tabla `Theme` y las imágenes son una galería
+  ordenada (la primera es la principal: tarjetas, carrito, búsqueda), cada una
+  con su texto alternativo obligatorio (`Product.imageAlts`, el que usa la
+  ficha), subida (ver «Imágenes subidas») o pegada como URL (un archivo del
+  sitio, `/images/…`, o `https://www.lego.com/cdn/…`: lo mismo que
+  `images.remotePatterns` de `next.config.mjs` deja cargar a next/image,
+  `src/lib/images.ts`), con vista previa, subir/bajar, "hacer principal" y
+  quitar. Cada escritura recalcula las columnas de búsqueda y expira los tags del
   catálogo con `updateCatalog()` (`products`, `product:<id>` y `categories`),
   así que la tienda muestra el cambio en el pedido siguiente.
 - **Archivar / eliminar**: archivar (`Product.archivedAt`) saca el producto de
@@ -667,9 +671,72 @@ cae en "sin filtro").
   los usos con su pedido y el historial. Cada escritura deja una entrada en
   `AuditLog` (quién, qué, cuándo, `{campo: [antes, después]}`) en la misma
   transacción, y revalida las páginas de cupones. Ver «Cupones».
+- **Categorías** (`/admin/categories`; `/admin/categorias` redirige): en el
+  orden de la navegación, con "Subir" / "Bajar" (cada movimiento bloquea la
+  tabla y renumera las posiciones). Se edita todo lo que muestra la tienda:
+  nombre, slug, descripción, imagen (subida o URL, con texto alternativo
+  obligatorio) y si es visible. Oculta, sale de la navegación, la home y los
+  filtros, y su página da 404; sus productos se siguen vendiendo y muestran su
+  nombre. El slug es `Category.id`: cambiarlo mueve los productos en la misma
+  sentencia (`ON UPDATE CASCADE`) y deja el viejo en `CategoryRedirect`, que
+  `proxy.ts` contesta con un 308 al nuevo (filtros incluidos); el historial se
+  busca bajo todos sus slugs, y otra categoría no puede tomar un slug viejo
+  (sus enlaces llevan a la primera). Eliminar solo si ningún producto la usa
+  (archivados incluidos).
+- **Temas** (`/admin/themes`; `/admin/temas` redirige): la tabla `Theme`
+  (nombre único sin importar mayúsculas ni acentos, slug, orden, visible) que
+  reemplazó al texto libre `Product.theme`. El menú «Temas» del navbar, el
+  menú móvil y el footer leen los visibles en su orden (tag `themes`), y el
+  filtro lista los temas en ese orden; `?theme=` acepta el nombre (como
+  siempre: `/search?theme=Star%20Wars`) o el slug. Renombrar recalcula las
+  columnas de búsqueda de sus productos. Eliminar solo si ningún producto lo
+  usa.
+- **Usuarios** (`/admin/users`; `/admin/usuarios` redirige): lista con
+  búsqueda por nombre o email, rol, estado y fecha de alta, con pedidos
+  realizados y lo gastado (PAID + SHIPPED + DELIVERED); el detalle muestra
+  perfil, cómo ingresa, pedidos, reseñas, las direcciones de sus pedidos y su
+  historial. Cambiar el rol USER/ADMIN y bloquear/desbloquear, con
+  confirmación (el bloqueo con un motivo opcional). Nadie cambia su propia
+  cuenta, y el último admin activo no se puede degradar ni bloquear (la
+  escritura bloquea todas las filas ADMIN, así que dos admins degradándose a
+  la vez dejan uno). Bloquear sube `sessionVersion` (todas sus sesiones
+  terminan en su siguiente pedido al servidor) y marca `User.blockedAt`: el
+  login con contraseña se rechaza (el motivo solo se dice tras la contraseña
+  correcta) y el de Google termina en `/login?error=AccountBlocked`.
+- **Auditoría** (`/admin/audit`; `/admin/auditoria` redirige): `AuditLog`
+  registra **toda** mutación del admin (productos, stock, archivo, pedidos,
+  moderación de reseñas, cupones, usuarios, categorías, temas, subidas) en la
+  misma transacción que el cambio, con el admin, la acción (`<entidad>.<verbo>`),
+  `{campo: [antes, después]}` (o lo guardado al crear o borrar) y la IP
+  (solo la que `client-ip.ts` confía; si no, vacía). Filtros por admin, tipo
+  de registro, un registro y fechas. Productos, pedidos, cupones, usuarios,
+  categorías y temas muestran su propio historial con "Ver todo".
+  `OrderStatusChange` sigue alimentando la línea de tiempo del pedido.
 - **UI**: primitivos del sistema (Table nuevo en `ui/`, Dialog para cada
   confirmación, toasts, Field/Select), filtros como formularios GET (funcionan
   sin JavaScript), navegación lateral que en teléfonos pasa arriba.
+
+### Imágenes subidas
+
+`POST /api/admin/uploads` (solo admins, mismo origen, 120 por hora por admin)
+recibe una imagen: se acepta por sus bytes (JPEG, PNG, WebP o AVIF; nunca SVG,
+GIF ni HEIC, se llame como se llame el archivo), hasta 8 MB y 40 megapíxeles.
+Con sharp se vuelve a codificar a WebP (máximo 1600 px de lado y una variante
+de 480 px; se descarta todo metadato, EXIF con ubicación incluido) y se guarda
+con un nombre aleatorio:
+
+- con `BLOB_READ_WRITE_TOKEN`, en **Vercel Blob** (público, `uploads/<nombre>`,
+  servido desde `*.public.blob.vercel-storage.com`, que `next.config.mjs` y
+  `src/lib/images.ts` permiten);
+- si no, en el disco del servidor: `public/uploads` (fuera de git, o
+  `UPLOADS_DIR`), servido en `/uploads/<nombre>`. `next dev` sirve los
+  archivos nuevos de `public/` solo; un `next start` solo los que había al
+  arrancar, así que `src/app/uploads/[file]/route.ts` sirve los demás (solo
+  nombres generados por el uploader). En Vercel sin token no hay dónde
+  escribir: la subida dice que no está configurada y se puede usar una URL.
+
+Cada subida queda en la auditoría. Las subidas no se borran: un producto o un
+pedido viejo puede seguir usándolas.
 
 ## Cupones
 

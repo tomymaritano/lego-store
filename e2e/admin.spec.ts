@@ -89,12 +89,17 @@ test("an admin edits a product and the store shows it right away", async ({ page
 test("a picture URL next/image would refuse is only flagged: the new-product form keeps what was typed", async ({ page }) => {
   await logInAsAdmin(page, "/admin/products/new");
   await field(page, "Nombre").fill("Prueba de imagen");
-  // A site file with a query string: next/image throws on it (no images.localPatterns), so it is not previewed.
-  await field(page, "Imagen principal").fill("/images/lego.png?v=2");
-  await expect(page.getByText("URL no permitida")).toBeVisible();
+  // A site file with a query string: next/image throws on it (no images.localPatterns), so it is not added.
+  await field(page, "O pega una URL").fill("/images/lego.png?v=2");
+  await page.getByRole("button", { name: "Agregar" }).click();
+  await expect(page.getByText(/^Sube una imagen, o usa una ruta del sitio/)).toBeVisible();
+  await expect(page.getByTestId("gallery-item")).toHaveCount(0);
   await expect(field(page, "Nombre")).toHaveValue("Prueba de imagen");
-  await field(page, "Imagen principal").fill("/images/lego.png");
+  await field(page, "O pega una URL").fill("/images/lego.png");
+  await page.getByRole("button", { name: "Agregar" }).click();
   await expect(page.getByRole("img", { name: "Vista previa: Imagen principal" })).toBeVisible();
+  // Its alt text is what is missing next: the field has the focus.
+  await expect(page.getByLabel(/^Texto alternativo \(imagen principal\)/)).toBeFocused();
 });
 
 test("an admin ships and then delivers a paid order", async ({ page, browser, baseURL }) => {

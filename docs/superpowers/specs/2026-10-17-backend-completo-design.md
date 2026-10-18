@@ -452,3 +452,46 @@ Decisiones tomadas al construir la etapa (el README, «Cupones», tiene el detal
   completo la usa para el resto.
 - *Rutas*: el admin vive en `/admin/coupons` como las otras secciones
   (`/admin/products`, `/admin/orders`); `/admin/cupones` redirige ahí.
+
+## Notas de implementación: admin (catálogo, usuarios, auditoría)
+
+Decisiones tomadas al construir la etapa (el README, «Panel de admin» e
+«Imágenes subidas», tiene el detalle). Reemplazan a las notas anteriores
+"Imágenes: solo URLs" y "Auditoría: solo `OrderStatusChange`".
+
+- *Auditoría general*: `AuditLog` (admin, acción `<entidad>.<verbo>`, entidad e
+  id, `{campo: [antes, después]}` o lo guardado al crear/borrar, IP, fecha) en
+  la misma transacción que cada mutación del admin: productos, stock, archivo,
+  pedidos, moderación de reseñas, cupones, usuarios, categorías, temas y
+  subidas. La IP es solo la que `client-ip.ts` confía (sin proxy confiable,
+  vacía). `/admin/audit` filtra por admin, tipo, registro y fechas; cada
+  detalle tiene su panel de historial. `OrderStatusChange` se mantiene para la
+  línea de tiempo del pedido.
+- *Usuarios*: `User.blockedAt` / `blockedReason`. Bloquear sube
+  `sessionVersion` (las sesiones JWT existentes dejan de valer) y rechaza el
+  login con contraseña (el motivo solo después de la contraseña correcta, para
+  no revelar el estado de una cuenta ajena) y con Google. Reglas: nadie cambia
+  su propio rol ni se bloquea; el último admin activo no se degrada ni se
+  bloquea, con las filas ADMIN bloqueadas en la transacción para que dos
+  cambios simultáneos no dejen la tienda sin admin.
+- *Temas*: tabla `Theme` (nombre único sin mayúsculas/acentos, slug, orden,
+  visible) y `Product.themeId`. La migración crea un tema por valor distinto
+  con el mismo nombre, así que las URLs y filtros por nombre siguen igual; el
+  filtro también acepta el slug. Los enlaces del menú pasan de `/search?q=` a
+  `/search?theme=` (más preciso que una búsqueda de texto). Visible = en el menú
+  y en la lista del filtro; un tema oculto sigue en sus productos.
+- *Categorías*: el slug sigue siendo `Category.id` (no se cambió la clave:
+  todo el catálogo y las URLs la usan). Cambiarlo es un `UPDATE` de la clave
+  con `ON UPDATE CASCADE` y una fila `CategoryRedirect` con el slug viejo (308
+  desde `proxy.ts`); el historial se busca bajo todos los slugs de la
+  categoría, y un slug viejo no se reutiliza. Oculta = fuera de navegación,
+  home y filtros, página 404; sus productos se siguen vendiendo.
+- *Orden*: "Subir" / "Bajar" (accesible con teclado, sin arrastrar), con la
+  tabla bloqueada y posiciones renumeradas en cada movimiento.
+- *Imágenes*: subida por Route Handler (progreso con XHR; las Server Actions
+  limitan el cuerpo a 1 MB). Validación por bytes mágicos, límite de tamaño y
+  de píxeles, re-codificación con sharp a WebP (1600 px + 480 px), nombres
+  aleatorios. Vercel Blob con `BLOB_READ_WRITE_TOKEN`, si no `public/uploads`
+  servido también por una ruta para `next start`. Las URL siguen como opción.
+  Galería con texto alternativo obligatorio por imagen (`Product.imageAlts`) y
+  categorías con `imageAlt`.
