@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_TRANSITIONS, canTransition, pageCount, storeDate, storeDayEnd, storeDayStart } from "@/lib/admin/format";
+import { ADMIN_TRANSITIONS, canTransition, formatAdminDateTime, pageCount, storeDate, storeDayEnd, storeDayStart } from "@/lib/admin/format";
 import { pageHref } from "@/components/admin/Pagination";
 import { orderTransitionSchema, parseOrderFilters, parseProductFilters, parseReviewFilters, stockUpdateSchema } from "@/lib/validations/admin";
 
@@ -60,6 +60,8 @@ describe("admin list filters from the URL", () => {
       page: 1,
     });
     expect(parseOrderFilters({ status: "LOST" }).status).toBe("");
+    // Checkouts that never reached "Realizar pedido" have their own filter.
+    expect(parseOrderFilters({ status: "draft" }).status).toBe("draft");
   });
 
   it("reviews: rating 1 to 5 only", () => {
@@ -76,6 +78,11 @@ describe("admin list filters from the URL", () => {
     for (const seen of [undefined, "", "-1", "x"]) {
       expect(stockUpdateSchema.safeParse({ productId: "1", stock: "12", seen }).success, String(seen)).toBe(false);
     }
+  });
+
+  it("admin dates always carry the year (store time)", () => {
+    expect(formatAdminDateTime("2024-01-18T17:05:00Z")).toBe("18/01/2024, 14:05");
+    expect(formatAdminDateTime("2026-01-01T02:30:00Z")).toBe("31/12/2025, 23:30");
   });
 });
 

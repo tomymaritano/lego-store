@@ -19,13 +19,15 @@ const STATUS_OPTIONS = [
   { value: "", label: "Todos" },
   ...ORDER_STATUSES.map((status) => ({ value: status, label: ORDER_STATUS_LABELS[status] })),
   { value: "amount_mismatch", label: "Cancelados: monto distinto" },
+  { value: "draft", label: "Sin intento de pago" },
 ];
 
 /**
- * /admin/orders: every order, newest first, abandoned checkouts included
- * (marked "Sin intento de pago"). Filters by status (and the cancellations
- * for a charge that did not match the total), email or order number, and
- * creation date (store calendar days), in the URL; 20 per page.
+ * /admin/orders: placed orders ("Realizar pedido"), the last placed first, as
+ * the dashboard counts them; checkouts that never got there only under the
+ * "Sin intento de pago" filter. Filters by status (and the cancellations for
+ * a charge that did not match the total), email or order number, and the
+ * date it was placed (store calendar days), in the URL; 20 per page.
  */
 export default async function AdminOrdersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdmin({ callbackUrl: "/admin/orders" });

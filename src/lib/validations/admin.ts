@@ -197,15 +197,19 @@ export function parseProductFilters(params: SearchParams): AdminProductFilters {
   };
 }
 
-/** Order list status filter: a status, or the cancelled orders whose charge did not match their total. */
-export const ORDER_STATUS_FILTERS = [...ORDER_STATUSES, "amount_mismatch"] as const;
+/**
+ * Order list status filter: a status, the cancelled orders whose charge did
+ * not match their total, or "draft": checkouts that never reached "Realizar
+ * pedido" (no payment attempt). Every other filter lists placed orders only.
+ */
+export const ORDER_STATUS_FILTERS = [...ORDER_STATUSES, "amount_mismatch", "draft"] as const;
 export type OrderStatusFilter = (typeof ORDER_STATUS_FILTERS)[number];
 
 export interface AdminOrderFilters {
   status: OrderStatusFilter | "";
   /** Part of the customer's email (or the order number "LEGO-001001" / "1001"). */
   q: string;
-  /** Store-time calendar dates, inclusive (YYYY-MM-DD). */
+  /** Store-time calendar dates of "Realizar pedido" (creation, for drafts), inclusive (YYYY-MM-DD). */
   from: string;
   to: string;
   page: number;

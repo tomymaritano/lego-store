@@ -51,3 +51,20 @@ export function storeDayEnd(date: string): Date {
   const start = storeDayStart(date);
   return new Date(start.getTime() + 24 * 60 * 60 * 1000);
 }
+
+const adminDateTimeFormat = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: STORE_TIME_ZONE,
+});
+
+/**
+ * "18/01/2024, 14:05" (store time zone): the admin's tables and order pages
+ * span years of orders, so the year is always there (the customer's
+ * formatOrderDateTime leaves it out).
+ */
+export const formatAdminDateTime = (iso: string) => adminDateTimeFormat.format(new Date(iso));

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
+import { formatAdminDateTime } from "@/lib/admin/format";
 import type { AdminOrderRow } from "@/lib/admin/orders";
-import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderDateTime, formatOrderNumber } from "@/lib/orders/format";
+import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, formatOrderNumber } from "@/lib/orders/format";
 import { formatPrice } from "@/lib/utils";
 import { Badge, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
 
@@ -28,7 +29,7 @@ export function OrdersTable({ orders, label }: { orders: AdminOrderRow[]; label:
               </Link>
             </TableCell>
             <TableCell className="whitespace-nowrap text-fg-secondary">
-              {formatOrderDateTime(order.submittedAt ?? order.createdAt)}
+              {formatAdminDateTime(order.submittedAt ?? order.createdAt)}
               {order.submittedAt ? null : <span className="block text-caption text-fg-muted">Sin intento de pago</span>}
             </TableCell>
             <TableCell className="max-w-64">

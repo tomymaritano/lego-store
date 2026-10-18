@@ -444,8 +444,11 @@ cae en "sin filtro").
   producto que ningún pedido incluye (con sus reseñas); si hay pedidos, lo
   archiva. Un pedido PENDING que ya tenía el producto se puede pagar igual (el
   precio ya quedó fijado).
-- **Pedidos**: lista con filtros por estado (más "Cancelados: monto distinto"),
-  email o número (`LEGO-001001` / `1001`) y fechas, y el detalle con líneas,
+- **Pedidos**: lista de pedidos realizados ("Realizar pedido", como los cuenta
+  el resumen; los checkouts que no llegaron a pagar, solo con el filtro "Sin
+  intento de pago"), con filtros por estado (más "Cancelados: monto distinto"),
+  email o número (`LEGO-001001` / `1001`) y fechas del día en que se realizó
+  (las mismas que muestra la tabla, con año), y el detalle con líneas,
   cliente, envío, tarjeta, PaymentIntent y reembolso de Stripe, línea de tiempo
   y el historial de cambios. Transiciones, exactamente las del diseño
   (`ADMIN_TRANSITIONS`, `src/lib/admin/orders.ts`):

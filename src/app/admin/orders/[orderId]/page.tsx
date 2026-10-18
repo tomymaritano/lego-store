@@ -3,12 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CreditCard, History, MapPin, Package, ReceiptText, UserRound } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
+import { formatAdminDateTime } from "@/lib/admin/format";
 import { getAdminOrderDetail } from "@/lib/admin/data";
 import {
   ORDER_STATUS_BADGE,
   ORDER_STATUS_LABELS,
   cancelReasonLabel,
-  formatOrderDateTime,
   formatOrderNumber,
   paymentLabel,
 } from "@/lib/orders/format";
@@ -66,7 +66,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ ord
       <PageHeader
         title={`Pedido ${number}`}
         breadcrumbs={[{ label: "Administración", href: "/admin" }, { label: "Pedidos", href: "/admin/orders" }, { label: number }]}
-        description={order.submittedAt ? `Realizado el ${formatOrderDateTime(placedAt)}` : `Creado el ${formatOrderDateTime(order.createdAt)} · sin intento de pago`}
+        description={order.submittedAt ? `Realizado el ${formatAdminDateTime(placedAt)}` : `Creado el ${formatAdminDateTime(order.createdAt)} · sin intento de pago`}
         actions={
           <Badge variant={ORDER_STATUS_BADGE[order.status]} data-testid="admin-order-status">
             {ORDER_STATUS_LABELS[order.status]}
@@ -145,7 +145,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ ord
                     <span className="font-semibold text-fg">
                       {ORDER_STATUS_LABELS[change.from]} → {ORDER_STATUS_LABELS[change.to]}
                     </span>{" "}
-                    por {change.actorEmail}, el {formatOrderDateTime(change.at)}
+                    por {change.actorEmail}, el {formatAdminDateTime(change.at)}
                     {change.refundId ? <span className="block font-mono text-caption text-fg-muted">Reembolso {change.refundId}</span> : null}
                   </li>
                 ))}
@@ -235,7 +235,7 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ ord
                     {order.stripeRefundId}
                   </Detail>
                 ) : null}
-                {order.paidAt ? <Detail term="Pagado">{formatOrderDateTime(order.paidAt)}</Detail> : null}
+                {order.paidAt ? <Detail term="Pagado">{formatAdminDateTime(order.paidAt)}</Detail> : null}
               </dl>
             </CardContent>
           </Card>

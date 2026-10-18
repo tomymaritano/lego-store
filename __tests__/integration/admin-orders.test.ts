@@ -275,7 +275,7 @@ describe("changeOrderStatus: cancelling", () => {
 });
 
 describe("listAdminOrders and the dashboard", () => {
-  it("filters by status, the amount_mismatch cancellations, email or number, and store dates", async () => {
+  it("filters by status, the amount_mismatch cancellations, email or number, and the store day it was placed", async () => {
     await testDb.order.deleteMany({ where: { email: { endsWith: "@lista.test" } } });
     const base = {
       firstName: "Lista",
@@ -290,23 +290,48 @@ describe("listAdminOrders and the dashboard", () => {
       shipping: 0,
       total: 100,
     };
+    const at = (iso: string) => ({ createdAt: new Date(iso), submittedAt: new Date(iso) });
     const mismatch = await testDb.order.create({
-      data: { ...base, email: "mal@lista.test", status: "CANCELLED", cancelReason: "amount_mismatch", createdAt: new Date("2026-10-10T15:00:00Z") },
+      data: { ...base, email: "mal@lista.test", status: "CANCELLED", cancelReason: "amount_mismatch", ...at("2026-10-10T15:00:00Z") },
     });
     const shipped = await testDb.order.create({
-      data: { ...base, email: "bien@lista.test", status: "SHIPPED", createdAt: new Date("2026-10-12T02:30:00Z") },
+      data: { ...base, email: "bien@lista.test", status: "SHIPPED", ...at("2026-10-12T02:30:00Z") },
+    });
+    // Created at 23:50 of the 12th (store time), placed at 00:10 of the 13th: it belongs to the 13th.
+    const pastMidnight = await testDb.order.create({
+      data: {
+        ...base,
+        email: "medianoche@lista.test",
+        status: "PAID",
+        createdAt: new Date("2026-10-13T02:50:00Z"),
+        submittedAt: new Date("2026-10-13T03:10:00Z"),
+      },
+    });
+    // A checkout that reached "Revisar pedido" and stopped: no payment attempt.
+    const draft = await testDb.order.create({
+      data: { ...base, email: "borrador@lista.test", status: "PENDING", createdAt: new Date("2026-10-13T15:00:00Z") },
     });
 
     const list = (filters: Partial<Parameters<typeof listAdminOrders>[1]>) =>
       listAdminOrders(testDb, { status: "", q: "", from: "", to: "", page: 1, ...filters });
+    const ids = async (filters: Partial<Parameters<typeof listAdminOrders>[1]>) => (await list(filters)).items.map((order) => order.id);
 
-    expect((await list({ status: "amount_mismatch" })).items.map((order) => order.id)).toEqual([mismatch.id]);
-    expect((await list({ q: "BIEN@LISTA" })).items.map((order) => order.id)).toEqual([shipped.id]);
-    expect((await list({ q: `LEGO-${String(shipped.number).padStart(6, "0")}` })).items.map((order) => order.id)).toEqual([shipped.id]);
-    expect((await list({ q: "@lista.test", status: "SHIPPED" })).items.map((order) => order.id)).toEqual([shipped.id]);
+    // Placed orders only, the last placed first; the draft only under its own filter.
+    expect(await ids({ q: "@lista.test" })).toEqual([pastMidnight.id, shipped.id, mismatch.id]);
+    expect(await ids({ q: "@lista.test", status: "PENDING" })).toEqual([]);
+    expect(await ids({ q: "@lista.test", status: "draft" })).toEqual([draft.id]);
+    expect(await ids({ status: "amount_mismatch" })).toEqual([mismatch.id]);
+    expect(await ids({ q: "BIEN@LISTA" })).toEqual([shipped.id]);
+    expect(await ids({ q: `LEGO-${String(shipped.number).padStart(6, "0")}` })).toEqual([shipped.id]);
+    expect(await ids({ q: "@lista.test", status: "SHIPPED" })).toEqual([shipped.id]);
     // 2026-10-12T02:30Z is still the 11th in Argentina (UTC-3).
-    expect((await list({ q: "@lista.test", from: "2026-10-11", to: "2026-10-11" })).items.map((order) => order.id)).toEqual([shipped.id]);
-    expect((await list({ q: "@lista.test", from: "2026-10-12" })).items).toEqual([]);
+    expect(await ids({ q: "@lista.test", from: "2026-10-11", to: "2026-10-11" })).toEqual([shipped.id]);
+    // By the day it was placed (what the table shows and "Pedidos de hoy" counts), not created.
+    expect(await ids({ q: "@lista.test", from: "2026-10-13", to: "2026-10-13" })).toEqual([pastMidnight.id]);
+    expect(await ids({ q: "@lista.test", from: "2026-10-12", to: "2026-10-12" })).toEqual([]);
+    // A draft's day is its creation's.
+    expect(await ids({ q: "@lista.test", status: "draft", from: "2026-10-13", to: "2026-10-13" })).toEqual([draft.id]);
+    expect(await ids({ q: "@lista.test", from: "2026-10-14" })).toEqual([]);
     // A LIKE wildcard in the search is a literal character.
     expect((await list({ q: "%" })).items).toEqual([]);
   });
@@ -328,6 +353,12 @@ describe("listAdminOrders and the dashboard", () => {
     expect(dashboard.outOfStock).toBeGreaterThanOrEqual(1);
     expect(dashboard.lowStockProducts.map((product) => product.id).slice(0, 2)).toEqual(["15", "5"]);
     expect(dashboard.recentOrders[0]).toMatchObject({ id: order.id, status: "PAID" });
+
+    // A checkout abandoned at "Revisar pedido" is neither on the dashboard nor in the list it links to.
+    await placeOrder([{ productId: "7", quantity: 1 }], { pending: true });
+    expect((await getDashboard(testDb)).ordersByStatus.PENDING).toBe(0);
+    expect((await listAdminOrders(testDb, { status: "PENDING", q: "", from: "", to: "", page: 1 })).total).toBe(0);
+    expect((await listAdminOrders(testDb, { status: "draft", q: "", from: "", to: "", page: 1 })).total).toBe(1);
 
     await move(order.id, "CANCELLED", "PAID");
     expect(await getDashboard(testDb)).toMatchObject({ revenue: 0, toShip: 0 });

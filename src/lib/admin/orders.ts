@@ -69,22 +69,39 @@ function orderNumberOf(query: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/**
+ * The list shows placed orders ("Realizar pedido", submittedAt set), as the
+ * dashboard counts them; checkouts that never got there (a PENDING draft with
+ * its PaymentIntent, or one the cleanup cancelled) only under the "draft"
+ * filter. Dates are the store calendar days of when the order was placed
+ * (orderPlacedAt: submittedAt, or createdAt for a draft), the date the table
+ * shows and "Pedidos de hoy" counts.
+ */
 function orderWhere(filters: AdminOrderFilters): Prisma.OrderWhereInput {
   const and: Prisma.OrderWhereInput[] = [];
-  if (filters.status === "amount_mismatch") and.push({ status: "CANCELLED", cancelReason: "amount_mismatch" });
-  else if (filters.status) and.push({ status: filters.status });
+  if (filters.status === "draft") and.push({ submittedAt: null });
+  else if (filters.status === "amount_mismatch") and.push({ status: "CANCELLED", cancelReason: "amount_mismatch" });
+  else {
+    and.push({ submittedAt: { not: null } });
+    if (filters.status) and.push({ status: filters.status });
+  }
   if (filters.q) {
     const number = orderNumberOf(filters.q);
     and.push({
       OR: [{ email: { contains: escapeLike(filters.q.toLowerCase()) } }, ...(number !== null ? [{ number }] : [])],
     });
   }
-  if (filters.from) and.push({ createdAt: { gte: storeDayStart(filters.from) } });
-  if (filters.to) and.push({ createdAt: { lt: storeDayEnd(filters.to) } });
+  if (filters.from || filters.to) {
+    const range: Prisma.DateTimeFilter = {
+      ...(filters.from ? { gte: storeDayStart(filters.from) } : {}),
+      ...(filters.to ? { lt: storeDayEnd(filters.to) } : {}),
+    };
+    and.push({ OR: [{ submittedAt: range }, { submittedAt: null, createdAt: range }] });
+  }
   return { AND: and };
 }
 
-/** One page of orders, newest first. */
+/** One page of orders, the last placed first (drafts after them, newest first). */
 export async function listAdminOrders(db: Db, filters: AdminOrderFilters): Promise<Page<AdminOrderRow>> {
   const where = orderWhere(filters);
   const total = await db.order.count({ where });
@@ -92,7 +109,7 @@ export async function listAdminOrders(db: Db, filters: AdminOrderFilters): Promi
   const page = Math.min(filters.page, totalPages);
   const rows = await db.order.findMany({
     where,
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [{ submittedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
     skip: (page - 1) * ADMIN_PAGE_SIZE,
     take: ADMIN_PAGE_SIZE,
     select: {
