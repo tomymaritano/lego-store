@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getPaymentGateway, paymentsClientConfig, paymentsMode } from "@/lib/payments/config";
+import { getPaymentGateway, isMockAllowed, mockPaymentsWarning, paymentsClientConfig, paymentsMode } from "@/lib/payments/config";
 import { PaymentDeclinedError, toCentavos } from "@/lib/payments/gateway";
 import { stripeGateway } from "@/lib/payments/stripe";
 import { SETTLED_TOKEN_ACCESS_MS, canAccessOrder, hashAccessToken, parseCheckoutCookie, serializeCheckoutCookie, tokenMatches } from "@/lib/orders/access";
@@ -131,6 +131,18 @@ describe("payments configuration", () => {
     expect(paymentsMode({ STRIPE_MOCK: "1", NODE_ENV: "production" })).toBe("unconfigured");
     expect(paymentsMode({ STRIPE_MOCK: "1", NODE_ENV: "production", ...keys })).toBe("stripe");
     expect(paymentsMode({ STRIPE_MOCK: "true", NODE_ENV: "development" })).toBe("unconfigured");
+  });
+
+  it("a production build never selects the mock, whatever NODE_ENV it is started with", () => {
+    expect(isMockAllowed({ STRIPE_MOCK: "1", NODE_ENV: "test" }, false)).toBe(true);
+    expect(isMockAllowed({ STRIPE_MOCK: "1", NODE_ENV: "test" }, true)).toBe(false);
+    expect(isMockAllowed({ STRIPE_MOCK: "1", NODE_ENV: "development" }, true)).toBe(false);
+  });
+
+  it("warns at startup only when the mock takes the payments", () => {
+    expect(mockPaymentsWarning({ STRIPE_MOCK: "1", NODE_ENV: "development" })).toContain("no se cobra nada");
+    expect(mockPaymentsWarning({ NODE_ENV: "development" })).toBeNull();
+    expect(mockPaymentsWarning({ STRIPE_MOCK: "1", NODE_ENV: "production" })).toBeNull();
   });
 });
 

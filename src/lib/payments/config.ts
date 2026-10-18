@@ -14,7 +14,9 @@ import { createStripeClient, stripeGateway } from "./stripe";
  *                 STRIPE_WEBHOOK_SECRET; the tests sign their events with it.
  *   unconfigured  anything else: checkout says payments are not configured.
  *
- * The mock can never run in production: NODE_ENV=production ignores the flag.
+ * The mock can never run in production: NODE_ENV=production ignores the flag,
+ * and so does a production build (`next build`), whatever NODE_ENV the server
+ * is later started with: Next inlines process.env.NODE_ENV into the bundle.
  */
 
 export type PaymentsMode = "stripe" | "mock" | "unconfigured";
@@ -23,8 +25,24 @@ type Env = Record<string, string | undefined>;
 
 const set = (value: string | undefined) => Boolean(value?.trim());
 
-export function isMockAllowed(env: Env = process.env): boolean {
-  return env.STRIPE_MOCK === "1" && env.NODE_ENV !== "production";
+/**
+ * True in a bundle built by `next build`. Written as the literal
+ * process.env.NODE_ENV on purpose: Next replaces it at build time, so starting
+ * a production build with NODE_ENV=test cannot turn it back into a dev server.
+ */
+const PRODUCTION_BUILD = process.env.NODE_ENV === "production";
+
+export function isMockAllowed(env: Env = process.env, productionBuild = PRODUCTION_BUILD): boolean {
+  return env.STRIPE_MOCK === "1" && env.NODE_ENV !== "production" && !productionBuild;
+}
+
+/** The startup warning for a server that takes payments through the mock (nothing is charged). */
+export function mockPaymentsWarning(env: Env = process.env): string | null {
+  if (!isMockAllowed(env)) return null;
+  return (
+    "[payments] STRIPE_MOCK=1: los pagos pasan por la pasarela simulada y no se cobra nada. " +
+    "Solo para desarrollo y los tests e2e; nunca en un servidor público."
+  );
 }
 
 /** The Stripe variables that are missing (empty when Stripe is fully configured). */
