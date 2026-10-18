@@ -140,7 +140,9 @@ export interface AdminUserDetail extends AdminUserRow {
   /** Sign-in providers linked to the account ("google"). */
   providers: string[];
   recentOrders: AdminUserOrder[];
+  /** The latest reviews (at most USER_DETAIL_LIMIT); reviewCount counts them all. */
   reviews: AdminUserReview[];
+  reviewCount: number;
   addresses: ShippingAddress[];
   /** Changes made to this account (role, block). */
   history: AuditEntryView[];
@@ -149,6 +151,9 @@ export interface AdminUserDetail extends AdminUserRow {
   /** The account is the only unblocked admin: it can be neither demoted nor blocked. */
   lastActiveAdmin: boolean;
 }
+
+/** Most orders and reviews a user's page lists (the newest); the counts cover all of them. */
+export const USER_DETAIL_LIMIT = 50;
 
 /** How many unblocked admins there are, `except` one. */
 const activeAdminsExcept = (db: Db, except: string) => db.user.count({ where: { role: "ADMIN", blockedAt: null, id: { not: except } } });
@@ -159,12 +164,12 @@ export async function getAdminUser(db: Db, id: string): Promise<AdminUserDetail 
     select: { ...rowSelect, blockedReason: true, emailVerified: true, passwordHash: true, accounts: { select: { provider: true } } },
   });
   if (!user) return null;
-  const [stats, orders, reviews, history, adminActions, otherAdmins] = await Promise.all([
+  const [stats, orders, reviews, reviewCount, history, adminActions, otherAdmins] = await Promise.all([
     orderStats(db, [id]),
     db.order.findMany({
       where: { userId: id, submittedAt: { not: null } },
       orderBy: [{ submittedAt: "desc" }, { id: "desc" }],
-      take: 50,
+      take: USER_DETAIL_LIMIT,
       select: {
         id: true,
         number: true,
@@ -185,9 +190,10 @@ export async function getAdminUser(db: Db, id: string): Promise<AdminUserDetail 
     db.review.findMany({
       where: { userId: id },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 50,
+      take: USER_DETAIL_LIMIT,
       select: { id: true, rating: true, title: true, createdAt: true, product: { select: { id: true, name: true } } },
     }),
+    db.review.count({ where: { userId: id } }),
     listAuditEntries(db, "user", id),
     user.role === "ADMIN" ? listActorEntries(db, id) : Promise.resolve([]),
     activeAdminsExcept(db, id),
@@ -231,6 +237,7 @@ export async function getAdminUser(db: Db, id: string): Promise<AdminUserDetail 
       placedAt: order.submittedAt!.toISOString(),
     })),
     reviews: reviews.map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })),
+    reviewCount,
     addresses: Array.from(addresses.values()).sort((a, b) => b.orders - a.orders || b.lastUsedAt.localeCompare(a.lastUsedAt)),
     history,
     adminActions,

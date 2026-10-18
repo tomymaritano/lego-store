@@ -211,4 +211,19 @@ describe("the list and the detail", () => {
     expect(detail.addresses.length).toBeGreaterThan(0);
     expect(detail.addresses.reduce((sum, address) => sum + address.orders, 0)).toBe(placed);
   });
+
+  it("counts every review the account wrote, apart from the list it shows", async () => {
+    const products = await testDb.product.findMany({ select: { id: true }, orderBy: { id: "asc" }, take: 3 });
+    await testDb.review.createMany({
+      data: products.map((product, index) => ({ userId: segunda.id, productId: product.id, rating: 4, title: `Reseña ${index}`, comment: "Muy bueno para armar." })),
+    });
+    try {
+      const detail = (await getAdminUser(testDb, segunda.id))!;
+      expect(detail.reviewCount).toBe(await testDb.review.count({ where: { userId: segunda.id } }));
+      expect(detail.reviewCount).toBe(3);
+      expect(detail.reviews).toHaveLength(3);
+    } finally {
+      await testDb.review.deleteMany({ where: { userId: segunda.id } });
+    }
+  });
 });

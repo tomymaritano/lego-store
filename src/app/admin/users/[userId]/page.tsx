@@ -146,8 +146,8 @@ export default async function AdminUserPage({ params }: UserPageProps) {
       <section aria-label="Números de la cuenta" className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <AdminStat icon={<ReceiptText />} label="Pedidos" value={<span data-testid="user-orders">{user.orders}</span>} detail="Realizados con esta cuenta" />
         <AdminStat icon={<BadgeDollarSign />} label="Gastado" value={formatPrice(user.spent)} detail="Pedidos pagados, enviados y entregados" />
-        <AdminStat icon={<MessageSquareText />} label="Reseñas" value={user.reviews.length} detail={user.reviews.length === 1 ? "Escribió 1 reseña" : `Escribió ${user.reviews.length} reseñas`} />
-        <AdminStat icon={<CalendarDays />} label="Alta" value={formatAdminDate(user.createdAt)} detail={signIn.length > 0 ? `Ingresa con ${signIn.join(" y ")}` : "Sin forma de ingresar"} />
+        <AdminStat icon={<MessageSquareText />} label="Reseñas" value={<span data-testid="user-reviews">{user.reviewCount}</span>} detail={user.reviewCount === 1 ? "Escribió 1 reseña" : `Escribió ${user.reviewCount} reseñas`} />
+        <AdminStat icon={<CalendarDays />} label="Alta" value={<span className="text-title whitespace-nowrap" data-testid="user-created">{formatAdminDate(user.createdAt)}</span>} detail={signIn.length > 0 ? `Ingresa con ${signIn.join(" y ")}` : "Sin forma de ingresar"} />
       </section>
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
@@ -222,9 +222,14 @@ export default async function AdminUserPage({ params }: UserPageProps) {
           </section>
 
           <section aria-labelledby="user-reviews-title">
-            <h2 id="user-reviews-title" className="mb-4 text-title text-fg">
+            <h2 id="user-reviews-title" className={user.reviewCount > user.reviews.length ? "text-title text-fg" : "mb-4 text-title text-fg"}>
               Reseñas
             </h2>
+            {user.reviewCount > user.reviews.length ? (
+              <p className="mb-4 text-caption text-fg-muted">
+                Las {user.reviews.length} más recientes de {user.reviewCount}.
+              </p>
+            ) : null}
             {user.reviews.length === 0 ? (
               <p className="text-label font-normal text-fg-muted">No escribió reseñas.</p>
             ) : (

@@ -144,6 +144,17 @@ test("an admin blocks a customer: their session ends and logging in again is ref
   await expect(page.getByRole("heading", { level: 1, name: "Cliente Bloqueable" })).toBeVisible(COLD);
   await expect(page.getByTestId("user-status")).toHaveText("Activa");
   await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
+  // The sign-up date stays on one line in the four-column stats, inside its card.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const created = page.getByTestId("user-created");
+  await expect(created).toHaveText(/^\d{2}\/\d{2}\/\d{4}$/);
+  expect(await created.evaluate((el) => el.getClientRects().length)).toBe(1);
+  expect(
+    await created.evaluate((el) => {
+      const card = el.closest("p")!.parentElement!.getBoundingClientRect();
+      return el.getBoundingClientRect().right <= card.right + 0.5;
+    })
+  ).toBe(true);
 
   await page.getByTestId("user-block").click();
   const dialog = page.getByRole("dialog", { name: /Bloquear la cuenta/ });
