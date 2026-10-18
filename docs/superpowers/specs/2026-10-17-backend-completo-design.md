@@ -505,3 +505,42 @@ Decisiones tomadas al construir la etapa (el README, «Panel de admin» e
   servido también por una ruta para `next start`. Las URL siguen como opción.
   Galería con texto alternativo obligatorio por imagen (`Product.imageAlts`) y
   categorías con `imageAlt`.
+
+## Notas de implementación: admin de la tienda (configuración, contenido, bandeja, dashboard, exports)
+
+Decisiones tomadas al construir la etapa (el README, «Panel de admin» y
+«Configuración, contenido y bandeja», tiene el detalle):
+
+- *Configuración*: `StoreSettings` es una fila (id 1, check) y la app cae en
+  `DEFAULT_STORE_SETTINGS` mientras falta. Las páginas la leen con el tag
+  `settings`; **el precio de un pedido sale de la fila leída en la
+  transacción**, no de la caché. `lib/pricing` toma la regla de envío como
+  argumento (sin constantes; el default queda para seed y tests). El costo de
+  envío es > 0 (check): con un cupón que cubre todo y envío $0 el pedido
+  costaría $0, que los proveedores no cobran; envío gratis siempre = umbral $1.
+  La barra de anuncio guarda un tono (par de tokens), nunca un color.
+- *Marcadores* (`{{costo_envio}}`…) en la barra y el contenido: así una cifra
+  de la configuración no queda vieja escrita en un texto.
+- *Contenido*: documento JSON (título, introducción, bloques markdown / faq /
+  list) en `ContentPage.draft` y `.published`, validado al escribir y al leer
+  (una fila inválida es "sin contenido": 404, nunca a medias). Markdown con
+  react-markdown sin HTML crudo ni imágenes, enlaces filtrados. Se descartó un
+  editor de HTML/rich text: más superficie de inyección y otra dependencia
+  pesada en el admin. Lo que cada página agrega por su cuenta sigue en código.
+  Las páginas renderizan por request (el layout lee la sesión), así que "estática
+  con revalidación" es el data cache con el tag `content:<slug>`, que "Publicar"
+  expira.
+- *Contacto y newsletter*: rate limit por IP (y por email el contacto), campo
+  trampa, aviso a `STORE_NOTIFY_EMAIL` o al email de contacto. Token de baja de
+  256 bits guardado como sha256; baja solo por POST (botón), nunca por GET.
+  Suscribirse otra vez contesta igual y no manda nada. No hay doble opt-in:
+  cualquiera puede suscribir un email ajeno (recibe la bienvenida con el enlace
+  de baja); queda como pendiente.
+- *Dashboard*: ingresos = PAID + SHIPPED + DELIVERED por día de pago en hora de
+  Argentina; conversión = checkouts iniciados (pedidos creados) que terminaron
+  cobrados, porque no hay analítica de visitas. Gráficos en HTML sobre tokens con
+  d3-scale para el eje (sin librería de charts pesada ni JS en el cliente), con
+  resumen y tabla de datos.
+- *Exportaciones*: `;` + BOM para Excel en español, comillas RFC 4180,
+  apóstrofo ante `= + - @ tab CR`, streaming por lotes, auditadas con filtros y
+  filas.

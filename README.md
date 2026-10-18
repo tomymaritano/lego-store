@@ -597,12 +597,23 @@ base, nunca por la caché del catálogo; toda entrada pasa por zod
 (`src/lib/validations/admin.ts`, filtros incluidos: un valor inválido en la URL
 cae en "sin filtro").
 
-- **Resumen**: pedidos de hoy (día calendario de Argentina), ingresos
-  (PAID + SHIPPED + DELIVERED, total y de hoy), pedidos por enviar, pagos
-  pendientes, stock bajo (≤ 5, con edición en línea), últimos pedidos y un aviso
-  si hubo pedidos cancelados por `amount_mismatch` en los últimos 7 días (un
-  incidente viejo no deja el aviso para siempre; el filtro "Cancelados: monto
-  distinto" de Pedidos los muestra todos).
+- **Resumen** (`src/lib/admin/dashboard.ts` y `report.ts`): lo que necesita
+  atención (ingresos de hoy, de 7 y de 30 días; pedidos de hoy; por enviar;
+  pagos pendientes; stock bajo ≤ 5 con edición en línea; mensajes nuevos) y un
+  aviso si hubo pedidos cancelados por `amount_mismatch` en los últimos 7 días
+  (el filtro "Cancelados: monto distinto" de Pedidos los muestra todos). Para un
+  período (`?from=&to=`, días de Argentina; últimos 30 por defecto, atajos de
+  7/30/90, máximo 366): ingresos, pedidos pagados, ticket promedio, conversión
+  (checkouts iniciados que terminaron pagados: una aproximación, no hay
+  analítica de visitas), pedidos del período por estado y cuatro gráficos:
+  ventas por día, productos más vendidos, ingresos por medio de pago y uso de
+  cupones. Ingresos = lo que la tienda conservó (PAID + SHIPPED + DELIVERED)
+  según el día en que se pagó (el SQL pasa `paidAt` al calendario de
+  Argentina). Los gráficos son HTML sobre los tokens, renderizados en el
+  servidor (d3-scale solo calcula el eje): una serie cada uno en el azul
+  `info`, etiquetas directas, una frase resumen y la tabla de datos en "Ver los
+  datos" (teclado, lectores de pantalla, colores forzados). Últimos pedidos al
+  final.
 - **Productos**: lista con búsqueda (la misma de la tienda, o el id exacto),
   categoría, estado (en la tienda / archivados) y stock bajo (≤ 5, agotados
   incluidos, lo mismo que cuenta la tarjeta del resumen) o agotado, 20 por
@@ -707,9 +718,22 @@ cae en "sin filtro").
   terminan en su siguiente pedido al servidor) y marca `User.blockedAt`: el
   login con contraseña se rechaza (el motivo solo se dice tras la contraseña
   correcta) y el de Google termina en `/login?error=AccountBlocked`.
+- **Configuración** (`/admin/configuracion`), **Contenido** (`/admin/contenido`),
+  **Mensajes** (`/admin/mensajes`) y **Newsletter** (`/admin/newsletter`): ver
+  «Configuración, contenido y bandeja».
+- **Exportar CSV**: Pedidos (una línea por producto), Usuarios y Newsletter
+  tienen "Exportar CSV" con los filtros de la lista (y el resumen, los pedidos
+  del período): `GET /api/admin/export/<orders|customers|newsletter>`, solo
+  admins, en streaming por lotes desde la base. UTF-8 con BOM y `;` entre campos
+  (lo que espera Excel en español; Sheets y LibreOffice lo detectan), comillas
+  RFC 4180 y un apóstrofo delante de todo campo que una planilla ejecutaría como
+  fórmula (`=`, `+`, `-`, `@`, tab, CR): el nombre `=HYPERLINK(…)` de un cliente
+  queda como texto. Cada exportación queda en la auditoría con sus filtros y la
+  cantidad de filas (`src/lib/admin/csv.ts`, `exports.ts`).
 - **Auditoría** (`/admin/audit`; `/admin/auditoria` redirige): `AuditLog`
   registra **toda** mutación del admin (productos, stock, archivo, pedidos,
-  moderación de reseñas, cupones, usuarios, categorías, temas, subidas) en la
+  moderación de reseñas, cupones, usuarios, categorías, temas, subidas,
+  configuración, contenido, mensajes y exportaciones) en la
   misma transacción que el cambio, con el admin, la acción (`<entidad>.<verbo>`),
   `{campo: [antes, después]}` (o lo guardado al crear o borrar) y la IP
   (solo la que `client-ip.ts` confía; si no, vacía). Filtros por admin, tipo
@@ -741,6 +765,65 @@ con un nombre aleatorio:
 
 Cada subida queda en la auditoría. Las subidas no se borran: un producto o un
 pedido viejo puede seguir usándolas.
+
+### Configuración, contenido y bandeja
+
+- **Configuración** (`StoreSettings`, una sola fila; `src/lib/settings`):
+  costo de envío y umbral de envío gratis, barra de anuncio (texto, enlace a una
+  ruta del sitio o una URL https, activa, y un *tono*: un par de tokens del
+  sistema, nunca un color libre), contacto (email, teléfono, ubicación,
+  horario) y redes, y los destacados de la home (`FeaturedProduct`, hasta 8 en
+  orden con "Subir" / "Bajar"; un archivado deja de mostrarse). Cada sección se
+  guarda sola, validada con zod en el servidor y auditada
+  (`settings.<sección>`). Las páginas la leen por el data cache (tag
+  `settings`, que el guardado expira); el carrito recibe la regla de envío del
+  layout (`ShippingRulesProvider`) y **el servidor cotiza cada pedido con la
+  regla leída de la base en la misma transacción** (`readShippingRules`): lo
+  que cobra el proveedor nunca sale de una copia en caché. `lib/pricing` ya no
+  tiene constantes: toma la regla como argumento (`DEFAULT_SHIPPING_RULES`,
+  $299 / $5.000, es la de una base sin la fila, el seed y los tests). El envío
+  nunca es $0 (check en la base): para envío gratis siempre, umbral $1. El seed
+  escribe la fila y los destacados solo si faltan.
+- **Marcadores**: la barra de anuncio y las páginas de contenido aceptan
+  `{{costo_envio}}`, `{{envio_gratis_desde}}`, `{{dias_devolucion}}`,
+  `{{dias_entrega_min}}`, `{{dias_entrega_max}}`, `{{tienda}}`, `{{email}}`,
+  `{{telefono}}` y `{{horario}}` (`src/lib/settings/placeholders.ts`), que se
+  reemplazan al mostrar: cambiar el envío cambia también el texto que lo cita.
+- **Contenido** (`ContentPage`: borrador y publicado, JSON validado con zod al
+  escribir y al leer; `src/lib/content`): /faq, /envios, /devoluciones,
+  /nosotros, /privacidad, /terminos y la introducción de /contacto. Una página
+  es título, introducción (Markdown en línea) y bloques ordenados: texto
+  Markdown (títulos, listas, enlaces, tablas), grupos de preguntas frecuentes
+  (pregunta y respuesta Markdown, en orden; de ellos sale el JSON-LD FAQPage,
+  escapado para el `<script>`) y listas de pasos o tarjetas. El Markdown pasa
+  por react-markdown + remark-gfm **sin HTML crudo** (`skipHtml`), sin imágenes,
+  y los enlaces solo conservan rutas del sitio, http(s), mailto y tel. Las
+  páginas legales numeran sus `##` con tabla de contenidos y muestran la fecha
+  de publicación. Lo que cada página agrega por su cuenta (las cifras de envío
+  de la configuración, las de "Sobre nosotros", el formulario de contacto, los
+  botones) sigue en código. El editor (`/admin/contenido/<slug>`) ordena
+  bloques e ítems con teclado (el foco acompaña, una región `aria-live`
+  anuncia), tiene vista previa con los mismos componentes de la página y
+  "Guardar borrador" (la página no cambia), "Publicar" (expira el tag
+  `content:<slug>` y la ruta) y "Descartar borrador"; todo auditado
+  (`content.draft` / `.publish` / `.discard`). El seed publica el texto de
+  siempre una vez y nunca pisa lo que editó un admin.
+- **Mensajes de contacto** (`ContactMessage`): el formulario de /contacto los
+  guarda (zod, 5 por hora por IP y 3 por email, un campo trampa para bots;
+  vincula la cuenta si hay sesión) y avisa a la tienda por email
+  (`STORE_NOTIFY_EMAIL`, o el email de contacto de la configuración; a consola
+  sin Resend). `/admin/mensajes`: bandeja (nuevos y leídos; archivados aparte),
+  filtros por motivo, texto y fechas, marcar leído / no leído, archivar y
+  "Responder por email" (mailto con el asunto y el mensaje citado); auditado
+  (`message.*`).
+- **Newsletter** (`NewsletterSubscriber`): el pie de página suscribe (zod, 10
+  por hora por IP) y manda la bienvenida con el enlace de baja. El enlace lleva
+  un token aleatorio de 256 bits del que la base guarda solo el sha256; cada
+  (re)suscripción emite uno nuevo. Suscribir un email ya suscripto contesta lo
+  mismo y no manda nada (no revela quién está). `/newsletter/baja?token=…`
+  muestra a qué dirección corresponde (enmascarada) y da de baja con un botón:
+  un GET nunca da de baja, porque los filtros de correo abren los enlaces.
+  `/admin/newsletter` lista, busca y exporta.
 
 ## Cupones
 
@@ -1079,7 +1162,11 @@ npm run dev
   otros servidores, mueve los puertos: `E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx
   playwright test`. El proyecto `prod` también comprueba que, sin claves del proveedor,
   el admin ve "Cancelar y reembolsar" deshabilitado y el motivo, antes de abrir el
-  diálogo.
+  diálogo. El proyecto `store-ops` (`e2e/store-ops`) corre después de `chromium` y
+  `prod`, solo: cambia el costo de envío y el FAQ (lo que ven todas las páginas) y
+  los deja como estaban desde el admin; también lleva un mensaje de contacto a la
+  bandeja. Los mensajes y suscripciones de los specs (emails
+  `@e2e.lego-store.test`) se borran en el setup y el teardown.
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
