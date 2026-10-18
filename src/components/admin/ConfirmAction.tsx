@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useHydrated } from "@/hooks/useHydrated";
 import {
@@ -59,9 +59,11 @@ function Navigate({ href }: { href: string }) {
 /**
  * A button that asks before doing something with consequences (cancel an
  * order, refund, delete): a Dialog says what will happen, the confirm button
- * runs the Server Action, and a toast reports the result. The dialog stays
- * open, with the button busy, until the server answers; Escape and "Volver"
- * close it without doing anything.
+ * runs the Server Action, and a toast reports the result once the page shows
+ * it (the action refreshes the page within the same transition: the toast
+ * waits for that to commit, so it never says "blocked" next to a stale
+ * "Activa" badge). The dialog stays open, with the button busy, until the
+ * server answers; Escape and "Volver" close it without doing anything.
  */
 export function ConfirmAction({
   label,
@@ -84,6 +86,15 @@ export function ConfirmAction({
   const [navigateTo, setNavigateTo] = useState<string | null>(null);
   // Opening the dialog needs JavaScript: no dead clicks before hydration.
   const hydrated = useHydrated();
+  // The answer, toasted once the transition (the action and the refreshed page) has committed.
+  const answer = useRef<ConfirmActionResult | null>(null);
+  useEffect(() => {
+    const result = answer.current;
+    if (pending || !result) return;
+    answer.current = null;
+    if (result.ok) showToast.success(result.message);
+    else showToast.error(result.error);
+  }, [pending]);
 
   const confirm = () =>
     startTransition(async () => {
@@ -96,14 +107,9 @@ export function ConfirmAction({
           error: "No pudimos completar la acción. Revisa tu conexión e inténtalo de nuevo.",
         };
       }
-      if (result.ok) {
-        showToast.success(result.message);
-        setOpen(false);
-        if (redirectTo && (!redirectOnlyIfDeleted || result.removed === "deleted")) setNavigateTo(redirectTo);
-      } else {
-        showToast.error(result.error);
-        setOpen(false);
-      }
+      answer.current = result;
+      setOpen(false);
+      if (result.ok && redirectTo && (!redirectOnlyIfDeleted || result.removed === "deleted")) setNavigateTo(redirectTo);
     });
 
   return (
