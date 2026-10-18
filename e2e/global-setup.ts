@@ -27,6 +27,8 @@ const ROUTES = [
   "/api/products?page=1",
   "/api/products/facets",
   "/api/products/by-ids?ids=1",
+  "/api/products/1/reviews",
+  "/api/lists",
   "/api/search?q=star",
   "/login",
   "/register",

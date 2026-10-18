@@ -67,58 +67,6 @@ test.describe("Product page", () => {
     await expect(page.getByRole("img", { name: /reseñas/ })).toHaveCount(0);
   });
 
-  test("the review form validates in Spanish and publishes a review", async ({ page }) => {
-    await page.goto("/item/2");
-    await page.waitForLoadState("networkidle");
-    // The link, the tab badge and the list all count the seeded reviews in the database.
-    const link = page.getByRole("link", { name: /^Ver \d+ reseñas?$/ });
-    const published = Number((await link.textContent())!.match(/\d+/)![0]);
-    expect(published).toBeGreaterThan(0);
-    const tab = page.getByRole("tab", { name: /Reseñas/ });
-    await expect(tab).toContainText(String(published));
-    await link.click();
-    await expect(tab).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("region", { name: "Reseñas de clientes" }).getByTestId("review")).toHaveCount(published);
-    await page.getByRole("button", { name: "Escribir reseña" }).click();
-    await expect(page.getByRole("button", { name: "Publicar reseña" })).toBeVisible();
-
-    await page.getByRole("button", { name: "Publicar reseña" }).click();
-    await expect(page.getByText("Elige una calificación de 1 a 5 estrellas")).toBeVisible();
-    await expect(page.getByText("Ingresa tu nombre (al menos 2 caracteres)")).toBeVisible();
-    await expect(page.getByText("Escribe un título (al menos 3 caracteres)")).toBeVisible();
-    await expect(page.getByText("Cuéntanos un poco más (al menos 10 caracteres)")).toBeVisible();
-    await expect(page.getByRole("radio", { name: "1 estrella" })).toBeFocused();
-
-    // The radios are visually hidden; the visible star is their label.
-    await page.getByRole("radio", { name: "5 estrellas" }).locator("..").click();
-    await page.getByLabel("Tu nombre").fill("Lucía");
-    await page.getByLabel("Título").fill("Precioso en la repisa");
-    await page.getByLabel("Tu reseña").fill("Se arma rápido y queda espectacular.");
-    await page.getByRole("button", { name: "Publicar reseña" }).click();
-
-    await expect(page.getByRole("heading", { level: 3, name: "Precioso en la repisa" })).toBeVisible();
-    await expect(tab).toContainText(String(published + 1));
-    await expect(link).toHaveText(`Ver ${published + 1} reseñas`);
-  });
-
-  test("an invalid review submit shows the focused rating group below the sticky header", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 600 });
-    await page.goto("/item/1");
-    await page.waitForLoadState("networkidle");
-    await page.getByRole("link", { name: /^Ver \d+ reseñas?$/ }).click();
-    await page.getByRole("button", { name: "Escribir reseña" }).click();
-    await page.getByRole("button", { name: "Publicar reseña" }).focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("radio", { name: "1 estrella" })).toBeFocused();
-
-    const headerBottom = await page.locator("[data-site-header]").evaluate((el) => el.getBoundingClientRect().bottom);
-    const group = page.getByRole("radiogroup", { name: /Tu calificación/ });
-    await expect
-      .poll(() => group.evaluate((el) => el.querySelector("legend")!.getBoundingClientRect().top))
-      .toBeGreaterThanOrEqual(headerBottom);
-    await expect(page.getByText("Elige una calificación de 1 a 5 estrellas")).toBeInViewport();
-  });
-
   test("gallery: arrow keys and thumbnails change the picture", async ({ page }) => {
     await page.goto("/item/10");
     await page.waitForLoadState("networkidle");

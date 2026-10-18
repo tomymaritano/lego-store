@@ -23,8 +23,30 @@ async function withClient<T>(run: (client: Client) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * The cached rating columns, recomputed from the reviews (the same numbers as
+ * src/lib/api/ratings.ts): deleting accounts deletes their reviews by cascade,
+ * which no trigger reflects in Product.rating / reviewCount.
+ */
+const REFRESH_RATINGS = `
+  UPDATE "Product" AS p
+  SET "rating" = s.avg, "reviewCount" = s.count
+  FROM (
+    SELECT p2."id",
+           COALESCE(ROUND(AVG(r."rating")::numeric, 1), 0)::float8 AS avg,
+           COUNT(r."id")::int AS count
+    FROM "Product" p2
+    LEFT JOIN "Review" r ON r."productId" = p2."id"
+    GROUP BY p2."id"
+  ) AS s
+  WHERE s."id" = p."id" AND (p."rating" <> s.avg OR p."reviewCount" <> s.count)
+`;
+
 export function deleteE2eAccounts() {
-  return withClient((client) => client.query(`DELETE FROM "User" WHERE "email" LIKE $1`, [`%@${E2E_EMAIL_DOMAIN}`]));
+  return withClient(async (client) => {
+    await client.query(`DELETE FROM "User" WHERE "email" LIKE $1`, [`%@${E2E_EMAIL_DOMAIN}`]);
+    await client.query(REFRESH_RATINGS);
+  });
 }
 
 /** Returns the admin's password. */
@@ -34,6 +56,7 @@ export async function prepareAuthFixtures(): Promise<string> {
   const hash = await bcrypt.hash(password, 4);
   await withClient(async (client) => {
     await client.query(`DELETE FROM "User" WHERE "email" LIKE $1`, [`%@${E2E_EMAIL_DOMAIN}`]);
+    await client.query(REFRESH_RATINGS);
     await client.query(`DELETE FROM "RateLimit"`);
     await client.query(
       `INSERT INTO "User" ("id", "email", "name", "passwordHash", "role", "updatedAt")
@@ -42,4 +65,25 @@ export async function prepareAuthFixtures(): Promise<string> {
     );
   });
   return password;
+}
+
+/**
+ * Review counts straight from the dev database. A failed earlier run can leave
+ * the dev server's data cache a step behind (its accounts, and their reviews
+ * and votes, are deleted by cascade, which invalidates no cache tag), so the
+ * review specs compare the page with the database, not with what it showed
+ * before.
+ */
+export function countReviews(productId: string): Promise<number> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ count: string }>(`SELECT count(*) FROM "Review" WHERE "productId" = $1`, [productId]);
+    return Number(rows[0]!.count);
+  });
+}
+
+export function countHelpfulVotes(reviewId: string): Promise<number> {
+  return withClient(async (client) => {
+    const { rows } = await client.query<{ count: string }>(`SELECT count(*) FROM "ReviewHelpful" WHERE "reviewId" = $1`, [reviewId]);
+    return Number(rows[0]!.count);
+  });
 }
