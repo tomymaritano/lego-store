@@ -2,9 +2,11 @@
 
 import { getDb } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
-import { mergeListsSchema, productIdSchema, quantitySchema } from "@/lib/validations/lists";
+import { productIdSchema } from "@/lib/validations/ids";
+import { mergeListsSchema, quantitySchema } from "@/lib/validations/lists";
 import type { CartItem, WishlistItem } from "@/types";
 import * as cart from "./cart";
+import { mergeLists } from "./merge";
 import * as wishlist from "./wishlist";
 import { listErrorMessages, type ListActionResult, type ListErrorCode, type ServerLists } from "./types";
 
@@ -105,17 +107,14 @@ export async function clearWishlistAction(): Promise<ListActionResult<null>> {
 /**
  * On login: adds this browser's guest cart and wishlist to the account
  * (quantities summed and capped by stock, wishlists united) and returns the
- * result, which becomes the browser's copy.
+ * result, which becomes the browser's copy. Idempotent per token
+ * (./merge.ts): a retried or repeated merge adds nothing twice.
  */
 export async function mergeListsAction(input: unknown): Promise<ListActionResult<ServerLists>> {
   return withUser(async (userId) => {
     const parsed = mergeListsSchema.safeParse(input);
     if (!parsed.success) return fail("invalid");
-    const db = getDb();
-    const merged = {
-      cart: await cart.mergeCart(db, userId, parsed.data.cart),
-      wishlist: await wishlist.mergeWishlist(db, userId, parsed.data.wishlist),
-    };
-    return { ok: true, data: merged };
+    const { lists } = await mergeLists(getDb(), userId, parsed.data);
+    return { ok: true, data: lists };
   });
 }

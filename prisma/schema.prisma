@@ -49,6 +49,7 @@ model User {
   sessions      Session[]
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
+  listMerges    ListMerge[]
   reviews       Review[]
   helpfulVotes  ReviewHelpful[]
   orders        Order[]
@@ -193,6 +194,19 @@ model WishlistItem {
 
   @@id([userId, productId])
   @@index([productId])
+}
+
+/// A browser's guest lists merged into an account on login, by the token the
+/// browser generated for that merge: a retried or repeated merge with the same
+/// token does nothing (src/lib/lists/merge.ts). Old rows are pruned on merge.
+model ListMerge {
+  userId    String
+  token     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, token])
 }
 
 // ---------------------------------------------------------------------------

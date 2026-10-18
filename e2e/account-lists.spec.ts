@@ -89,4 +89,32 @@ test.describe("Cart and wishlist with an account", () => {
     await expect.poll(() => stored(page)).toEqual({ cart: [], prices: [], wishlist: [], owner: null });
     await expect(page.getByTestId("cart-count")).toHaveCount(0);
   });
+
+  test("the login merge adds a guest cart once, even when another sync starts while it is out", async ({ page }) => {
+    test.slow();
+    await seedOnce(page, { "lego-cart-storage": { cart: [staleLine("1", 2)] } });
+    // Every Server Action POST (the merge among them) makes the tab "come back into view"
+    // right away, which asks for another sync while the merge is still out.
+    await page.addInitScript(() => {
+      const original = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const headers = new Headers(init?.headers);
+        if (init?.method === "POST" && headers.has("next-action")) {
+          setTimeout(() => document.dispatchEvent(new Event("visibilitychange")), 0);
+        }
+        return original(input, init);
+      };
+    });
+    const email = uniqueEmail("lists-once");
+    await page.goto("/register");
+    await register(page, { name: "Carrito Una Vez", email });
+    await expect(page.getByTestId("account-menu")).toBeVisible({ timeout: 15_000 });
+
+    await expect.poll(async () => (await stored(page)).owner).not.toBeNull();
+    // Settle: any second sync has run by now.
+    await page.waitForLoadState("networkidle");
+    expect((await stored(page)).cart).toEqual(["1x2"]);
+    const lists = (await (await page.request.get("/api/lists")).json()) as { cart: { id: string; quantity: number }[] };
+    expect(lists.cart.map((line) => `${line.id}x${line.quantity}`)).toEqual(["1x2"]);
+  });
 });

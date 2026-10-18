@@ -12,7 +12,8 @@ import {
   removeFromWishlistAction,
   setCartQuantityAction,
 } from "@/lib/lists/actions";
-import { planListsSync } from "@/lib/lists/sync-plan";
+import { newMergeToken, readPendingMerge, writePendingMerge } from "@/lib/lists/pending-merge";
+import { planCartReplay, planListsSync, planWishlistReplay } from "@/lib/lists/sync-plan";
 import type { ServerLists } from "@/lib/lists/types";
 import { fetchProductsByIds } from "@/lib/api-client";
 import { MAX_IDS_PER_REQUEST } from "@/lib/productQuery";
@@ -20,6 +21,8 @@ import { useViewer } from "@/providers/ViewerProvider";
 import { useCartStore, useStoreHydrated, useWishlistStore } from "@/stores";
 import { noWritesSince, setListsRemote, writeGeneration } from "@/stores/listsRemote";
 import { showToast } from "@/components/ui";
+import type { CartLineInput } from "@/lib/validations/lists";
+import type { CartItem, WishlistItem } from "@/types";
 
 /*
  * Keeps the browser's cart and wishlist in step with the account (see
@@ -28,7 +31,11 @@ import { showToast } from "@/components/ui";
  * - once the stores have loaded localStorage, and again whenever the session
  *   changes: merges a visitor's lists into the account on login, reloads the
  *   account's lists (server truth: current prices and stock), clears the
- *   account's copy on logout;
+ *   account's copy on logout. Account syncs run one at a time (a second one
+ *   waits for the first), and a merge is idempotent: the payload and its
+ *   token are kept until the answer is adopted, so a retry never adds the
+ *   guest lines twice (src/lib/lists/pending-merge.ts, merge.ts); changes
+ *   made while it was out are replayed on top of the merged lists;
  * - reloads the account's lists when the tab comes back into view (another
  *   device may have changed them);
  * - for a visitor, refreshes the cart's stored prices and stock from the
@@ -46,23 +53,48 @@ function adopt(lists: ServerLists, owner: string) {
   useWishlistStore.getState().replaceWishlist(lists.wishlist, owner);
 }
 
+/** Re-applies, as writes to the account, what the user changed in the guest lists since `sent` was merged. */
+function replayChanges(sent: { cart: CartLineInput[] | null; wishlist: string[] | null }, now: { cart: CartItem[]; wishlist: WishlistItem[] }) {
+  const cart = useCartStore.getState();
+  for (const change of sent.cart ? planCartReplay(sent.cart, now.cart) : []) {
+    const merged = useCartStore.getState().cart.find((line) => line.id === (change.kind === "add" ? change.line.id : change.id));
+    if (change.kind === "remove") cart.removeItem(change.id);
+    else if (change.kind === "add" && !merged) cart.restoreItem(change.line);
+    else if (merged) cart.setQuantity(merged.id, merged.quantity + (change.kind === "add" ? change.line.quantity : change.delta));
+  }
+  const wishlist = useWishlistStore.getState();
+  for (const change of sent.wishlist ? planWishlistReplay(sent.wishlist, now.wishlist) : []) {
+    if (change.kind === "add") wishlist.restoreItem(change.item);
+    else wishlist.removeFromWishlist(change.id);
+  }
+}
+
 async function syncAccount(viewerId: string, isCurrent: () => boolean) {
   const cart = useCartStore.getState();
   const wishlist = useWishlistStore.getState();
   const plan = planListsSync(viewerId, { cart: cart.owner, wishlist: wishlist.owner });
   if (plan.kind !== "account") return;
 
-  const guestCart = plan.mergeCart ? cart.cart.map((line) => ({ productId: line.id, quantity: line.quantity })) : [];
-  const guestWishlist = plan.mergeWishlist ? wishlist.wishlist.map((item) => item.id) : [];
-
   if (plan.mergeCart || plan.mergeWishlist) {
-    const result = await mergeListsAction({ cart: guestCart, wishlist: guestWishlist });
-    if (!isCurrent()) return;
-    // (Changes made meanwhile were local only, the lists had no owner yet: the merged lists replace them.)
-    // A failed merge leaves the visitor's lists as they are: the next page load tries again.
-    if (!result.ok) return;
+    // A merge sent before and never seen answered is resent as it was (same token): the
+    // server added it at most once. Otherwise the guest lists as they are now.
+    const pending = readPendingMerge();
+    const payload = {
+      token: pending?.token ?? newMergeToken(),
+      cart: plan.mergeCart ? (pending?.cart ?? cart.cart.map((line) => ({ productId: line.id, quantity: line.quantity }))) : [],
+      wishlist: plan.mergeWishlist ? (pending?.wishlist ?? wishlist.wishlist.map((item) => item.id)) : [],
+    };
+    writePendingMerge(payload);
+    const result = await mergeListsAction(payload);
+    // Not adopted (signed out meanwhile, or the merge failed): the payload stays pending, and the
+    // next sync for an account resends it with its token.
+    if (!isCurrent() || !result.ok) return;
+    // The guest lists as they are now: changes made while the merge was out were local only.
+    const now = { cart: useCartStore.getState().cart, wishlist: useWishlistStore.getState().wishlist };
     adopt(result.data, viewerId);
-    if (guestCart.length + guestWishlist.length > 0) {
+    writePendingMerge(null);
+    replayChanges({ cart: plan.mergeCart ? payload.cart : null, wishlist: plan.mergeWishlist ? payload.wishlist : null }, now);
+    if (payload.cart.length + payload.wishlist.length > 0) {
       showToast.info("Guardamos en tu cuenta lo que tenías en el carrito y en favoritos.");
     }
     return;
@@ -72,6 +104,31 @@ async function syncAccount(viewerId: string, isCurrent: () => boolean) {
   const lists = await fetchServerLists();
   // A change made while the request was out is newer than this answer: keep the local copy.
   if (isCurrent() && noWritesSince(generation)) adopt(lists, viewerId);
+}
+
+/*
+ * Account syncs run one at a time: a sync asked for while another is out
+ * (the tab came back into view during the login merge) waits for it, and then
+ * finds the lists already owned by the account, so it reloads instead of
+ * merging again. Requests made while one is waiting collapse into it; it runs
+ * for the latest viewer.
+ */
+let syncChain: Promise<void> = Promise.resolve();
+let syncWaiting = false;
+let latestSync: { viewerId: string; isCurrent: () => boolean } | null = null;
+
+function requestAccountSync(viewerId: string, isCurrent: () => boolean) {
+  latestSync = { viewerId, isCurrent };
+  if (syncWaiting) return;
+  syncWaiting = true;
+  syncChain = syncChain
+    .then(() => {
+      syncWaiting = false;
+      const target = latestSync;
+      if (!target?.isCurrent()) return;
+      return syncAccount(target.viewerId, target.isCurrent);
+    })
+    .catch(() => {});
 }
 
 function syncVisitor() {
@@ -133,7 +190,7 @@ export function ListsSync() {
       };
     }
 
-    const sync = () => void syncAccount(viewerId, isCurrent).catch(() => {});
+    const sync = () => requestAccountSync(viewerId, isCurrent);
     sync();
     const onVisible = () => {
       if (document.visibilityState === "visible") sync();

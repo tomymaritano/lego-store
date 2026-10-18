@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { authorizeRequest } from "@/lib/auth/session";
 import { getViewerReviews } from "@/lib/api/reviews";
-import { productIdSchema } from "@/lib/validations/lists";
+import { productIdSchema } from "@/lib/validations/ids";
 import type { ViewerReviews } from "@/types";
 
 /**

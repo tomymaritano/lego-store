@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { CartLineInput } from "@/lib/validations/lists";
 import type { CartItem } from "@/types";
+import { listProductSelect, type Db, type ListProduct } from "./product";
 
 /*
  * A signed-in user's cart in the database (CartItem rows). Every function
@@ -17,18 +18,13 @@ import type { CartItem } from "@/types";
  *   checkout never sees it.
  */
 
-type Db = PrismaClient | Prisma.TransactionClient;
-
 export type CartWriteResult =
   | { ok: true; line: CartItem }
   | { ok: false; reason: "not_found" | "out_of_stock" };
 
-const lineSelect = {
-  quantity: true,
-  product: { select: { id: true, name: true, price: true, img: true, stock: true } },
-} as const;
+const lineSelect = { quantity: true, product: { select: listProductSelect } } as const;
 
-type LineRow = { quantity: number; product: { id: string; name: string; price: number; img: string; stock: number } };
+type LineRow = { quantity: number; product: ListProduct };
 
 function toCartItem({ quantity, product }: LineRow): CartItem {
   return {
@@ -135,31 +131,35 @@ function combine(lines: CartLineInput[]): CartLineInput[] {
 }
 
 /**
- * Merges a guest cart into the user's (on login): quantities of the same
- * product are added up and capped by the stock; products that no longer
- * exist or are sold out are skipped. One transaction. Returns the merged cart.
+ * Merges a guest cart into the user's (on login), inside the caller's
+ * transaction (./merge.ts): quantities of the same product are added up and
+ * capped by the stock; products that no longer exist or are sold out are
+ * skipped. Returns the merged cart.
  */
-export function mergeCart(db: PrismaClient, userId: string, lines: CartLineInput[]): Promise<CartItem[]> {
-  return db.$transaction(async (tx) => {
-    const wanted = combine(lines);
-    if (wanted.length > 0) {
-      const available = await tx.product.findMany({
-        where: { id: { in: wanted.map((line) => line.productId) }, stock: { gt: 0 } },
-        select: { id: true },
+export async function mergeCartIn(tx: Prisma.TransactionClient, userId: string, lines: CartLineInput[]): Promise<CartItem[]> {
+  const wanted = combine(lines);
+  if (wanted.length > 0) {
+    const available = await tx.product.findMany({
+      where: { id: { in: wanted.map((line) => line.productId) }, stock: { gt: 0 } },
+      select: { id: true },
+    });
+    const ids = new Set(available.map((product) => product.id));
+    // Explicit, increasing timestamps: new lines keep the guest cart's order, after the saved ones.
+    const start = Date.now();
+    for (const [index, { productId, quantity }] of wanted.entries()) {
+      if (!ids.has(productId)) continue;
+      await tx.cartItem.upsert({
+        where: { userId_productId: { userId, productId } },
+        create: { userId, productId, quantity, createdAt: new Date(start + index) },
+        update: { quantity: { increment: quantity } },
       });
-      const ids = new Set(available.map((product) => product.id));
-      // Explicit, increasing timestamps: new lines keep the guest cart's order, after the saved ones.
-      const start = Date.now();
-      for (const [index, { productId, quantity }] of wanted.entries()) {
-        if (!ids.has(productId)) continue;
-        await tx.cartItem.upsert({
-          where: { userId_productId: { userId, productId } },
-          create: { userId, productId, quantity, createdAt: new Date(start + index) },
-          update: { quantity: { increment: quantity } },
-        });
-      }
-      await capToStock(tx, userId, Array.from(ids));
     }
-    return getCart(tx, userId);
-  });
+    await capToStock(tx, userId, Array.from(ids));
+  }
+  return getCart(tx, userId);
+}
+
+/** mergeCartIn in a transaction of its own. */
+export function mergeCart(db: PrismaClient, userId: string, lines: CartLineInput[]): Promise<CartItem[]> {
+  return db.$transaction((tx) => mergeCartIn(tx, userId, lines));
 }

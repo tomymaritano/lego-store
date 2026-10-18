@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { addToCart, getCart, mergeCart, setCartQuantity } from "@/lib/lists/cart";
+import { mergeLists } from "@/lib/lists/merge";
 import { addToWishlist, getWishlist, mergeWishlist } from "@/lib/lists/wishlist";
 import { resetAndSeed, testDb } from "./setup/db";
 
@@ -30,6 +31,10 @@ const signInAs = (user: { id: string } | null) => {
 };
 
 const setStock = (id: string, stock: number) => testDb.product.update({ where: { id }, data: { stock } });
+
+let tokens = 0;
+/** A fresh merge token (what a browser generates for each guest lists it merges). */
+const token = () => `token-de-prueba-${String(++tokens).padStart(4, "0")}`;
 
 const quantities = async (userId: string) =>
   Object.fromEntries((await testDb.cartItem.findMany({ where: { userId } })).map((row) => [row.productId, row.quantity]));
@@ -158,11 +163,50 @@ describe("wishlist", () => {
   });
 });
 
+describe("mergeLists (idempotent per token)", () => {
+  const guest = { cart: [{ productId: "1", quantity: 2 }], wishlist: ["3"] };
+
+  it("adds a guest cart once, however many times the same merge is sent", async () => {
+    await testDb.cartItem.create({ data: { userId: ana.id, productId: "1", quantity: 1 } });
+    const merge = { token: token(), ...guest };
+    expect(await mergeLists(testDb, ana.id, merge)).toMatchObject({ merged: true, lists: { cart: [{ id: "1", quantity: 3 }] } });
+    // A retry (the answer was lost) or a second sync started meanwhile: nothing is added again.
+    expect(await mergeLists(testDb, ana.id, merge)).toMatchObject({ merged: false, lists: { cart: [{ id: "1", quantity: 3 }] } });
+    expect(await quantities(ana.id)).toEqual({ "1": 3 });
+    // A new guest cart (a new token) is merged as usual.
+    await mergeLists(testDb, ana.id, { token: token(), ...guest });
+    expect(await quantities(ana.id)).toEqual({ "1": 5 });
+  });
+
+  it("adds it once when the same merge arrives twice at the same time", async () => {
+    const merge = { token: token(), ...guest };
+    const results = await Promise.all([mergeLists(testDb, ana.id, merge), mergeLists(testDb, ana.id, merge)]);
+    expect(results.map((result) => result.merged).sort()).toEqual([false, true]);
+    expect(await quantities(ana.id)).toEqual({ "1": 2 });
+  });
+
+  it("keeps tokens per account: the same token still merges into another account", async () => {
+    const merge = { token: token(), ...guest };
+    await mergeLists(testDb, ana.id, merge);
+    expect(await mergeLists(testDb, bruno.id, merge)).toMatchObject({ merged: true });
+    expect(await quantities(bruno.id)).toEqual({ "1": 2 });
+    expect(await quantities(ana.id)).toEqual({ "1": 2 });
+  });
+
+  it("through the Server Action too", async () => {
+    signInAs(ana);
+    const merge = { token: token(), ...guest };
+    await actions.mergeListsAction(merge);
+    expect(await actions.mergeListsAction(merge)).toMatchObject({ ok: true, data: { cart: [{ id: "1", quantity: 2 }] } });
+    expect(await quantities(ana.id)).toEqual({ "1": 2 });
+  });
+});
+
 describe("Server Actions and GET /api/lists (authorisation)", () => {
   it("refuses every action without a session and writes nothing", async () => {
     expect(await actions.addToCartAction("1", 1)).toMatchObject({ ok: false, code: "unauthenticated" });
     expect(await actions.addToWishlistAction("1")).toMatchObject({ ok: false, code: "unauthenticated" });
-    expect(await actions.mergeListsAction({ cart: [], wishlist: [] })).toMatchObject({ ok: false, code: "unauthenticated" });
+    expect(await actions.mergeListsAction({ token: token(), cart: [], wishlist: [] })).toMatchObject({ ok: false, code: "unauthenticated" });
     expect(await testDb.cartItem.count()).toBe(0);
     expect((await getLists()).status).toBe(401);
   });
@@ -172,14 +216,19 @@ describe("Server Actions and GET /api/lists (authorisation)", () => {
     expect(await actions.addToCartAction("1", 0)).toMatchObject({ ok: false, code: "invalid" });
     expect(await actions.setCartQuantityAction("1", 1.5)).toMatchObject({ ok: false, code: "invalid" });
     expect(await actions.setCartQuantityAction("", 1)).toMatchObject({ ok: false, code: "invalid" });
-    expect(await actions.mergeListsAction({ cart: [{ productId: "1", quantity: 1 }] })).toMatchObject({
+    expect(await actions.mergeListsAction({ token: token(), cart: [{ productId: "1", quantity: 1 }] })).toMatchObject({
       ok: false,
+      code: "invalid",
+    });
+    // The merge token is required and has a fixed shape.
+    expect(await actions.mergeListsAction({ cart: [{ productId: "1", quantity: 1 }], wishlist: [] })).toMatchObject({ code: "invalid" });
+    expect(await actions.mergeListsAction({ token: "x", cart: [{ productId: "1", quantity: 1 }], wishlist: [] })).toMatchObject({
       code: "invalid",
     });
     expect(await testDb.cartItem.count()).toBe(0);
 
     // Anything else the client sends (a price) is ignored: the line carries the database's.
-    const merged = await actions.mergeListsAction({ cart: [{ productId: "1", quantity: 1, price: 1 }], wishlist: [] });
+    const merged = await actions.mergeListsAction({ token: token(), cart: [{ productId: "1", quantity: 1, price: 1 }], wishlist: [] });
     const product = await testDb.product.findUniqueOrThrow({ where: { id: "1" } });
     expect(merged).toMatchObject({ ok: true, data: { cart: [{ id: "1", price: product.price }] } });
   });
@@ -194,7 +243,7 @@ describe("Server Actions and GET /api/lists (authorisation)", () => {
     await actions.clearCartAction();
     await actions.removeFromWishlistAction("1");
     await actions.clearWishlistAction();
-    await actions.mergeListsAction({ cart: [{ productId: "2", quantity: 1 }], wishlist: ["2"] });
+    await actions.mergeListsAction({ token: token(), cart: [{ productId: "2", quantity: 1 }], wishlist: ["2"] });
 
     expect(await quantities(bruno.id)).toEqual({ "1": 2 });
     expect(await testDb.wishlistItem.count({ where: { userId: bruno.id } })).toBe(1);

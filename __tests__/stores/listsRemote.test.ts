@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { setListsRemote, type ListsRemote } from "@/stores/listsRemote";
-import { planListsSync } from "@/lib/lists/sync-plan";
+import { planCartReplay, planListsSync, planWishlistReplay } from "@/lib/lists/sync-plan";
 import type { ListActionResult } from "@/lib/lists/types";
 import type { CartItem, ProductSummary, WishlistItem } from "@/types";
 
@@ -234,5 +234,33 @@ describe("noWritesSince (full reloads never overwrite a newer change)", () => {
     await flush();
     expect(noWritesSince(busy)).toBe(false);
     expect(noWritesSince(writeGeneration())).toBe(true);
+  });
+});
+
+describe("planCartReplay / planWishlistReplay", () => {
+  it("lists what changed in the guest lists since the merge was sent", () => {
+    const sent = [
+      { productId: "1", quantity: 2 },
+      { productId: "2", quantity: 1 },
+    ];
+    expect(planCartReplay(sent, [line(rex, 2), line(leia, 1)])).toEqual([]);
+    expect(planCartReplay(sent, [line(rex, 4)])).toEqual([
+      { kind: "change", id: "1", delta: 2 },
+      { kind: "remove", id: "2" },
+    ]);
+    const newLine = line({ ...rex, id: "3" }, 1);
+    expect(planCartReplay(sent, [line(rex, 1), line(leia, 1), newLine])).toEqual([
+      { kind: "change", id: "1", delta: -1 },
+      { kind: "add", line: newLine },
+    ]);
+  });
+
+  it("wishlist: added and removed items", () => {
+    const item = (product: ProductSummary) => ({ id: product.id, name: product.name, price: product.price, image: product.img, stock: product.stock });
+    expect(planWishlistReplay(["1"], [item(rex)])).toEqual([]);
+    expect(planWishlistReplay(["1"], [item(leia)])).toEqual([
+      { kind: "add", item: item(leia) },
+      { kind: "remove", id: "1" },
+    ]);
   });
 });
