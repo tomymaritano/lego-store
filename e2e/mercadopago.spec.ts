@@ -63,7 +63,7 @@ test.describe("Mercado Pago checkout", () => {
     await seedCart(page, REAL_CART);
     const email = uniqueEmail("mp-card");
     await toPayment(page, email);
-    expect(await seriousAxeViolations(page)).toEqual([]);
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
     await review(page, /Mastercard aprobada en 3 cuotas/);
     await expect(page.getByTestId("review-payment")).toContainText("Mastercard •••• 0604");
     await expect(page.getByTestId("review-payment")).toContainText("3 cuotas");
@@ -89,7 +89,7 @@ test.describe("Mercado Pago checkout", () => {
     await page.getByRole("button", { name: /Realizar pedido/ }).click();
 
     await expect(page.getByRole("heading", { level: 2, name: "Pago" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("alert")).toContainText("La tarjeta no tiene fondos suficientes");
+    await expect(page.getByRole("region", { name: "Pago" }).getByRole("alert")).toContainText("La tarjeta no tiene fondos suficientes");
     await expect(page.getByTestId("order-confirmation")).toHaveCount(0);
     expect((await latestOrder(email))?.status).toBe("PENDING");
 
@@ -121,7 +121,7 @@ test.describe("Mercado Pago checkout", () => {
       await expect(instructions).toContainText("en efectivo en Rapipago");
       await expect(instructions.getByTestId("ticket-expiry")).toBeVisible();
       await expect(instructions.getByRole("link", { name: /Ver el ticket de pago/ })).toHaveAttribute("href", /ticket/);
-      expect(await seriousAxeViolations(page)).toEqual([]);
+      await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
       const order = (await latestOrder(email))!;
       expect(order.status).toBe("PAYMENT_PENDING");
@@ -133,7 +133,7 @@ test.describe("Mercado Pago checkout", () => {
       await page.goto(`/account/orders/${order.id}`);
       await expect(page.getByTestId("order-status")).toHaveText("Esperando el pago");
       await expect(page.getByTestId("pending-payment")).toContainText("Rapipago");
-      expect(await seriousAxeViolations(page)).toEqual([]);
+      await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
       // The customer pays at the counter: Mercado Pago approves the payment and notifies us.
       const paid = await setLatestPaymentStatus(page.request, email, "approved", "accredited");
