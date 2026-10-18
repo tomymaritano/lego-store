@@ -211,6 +211,27 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                   <dt className="text-fg-secondary">Subtotal ({pluralize(units, "producto")})</dt>
                   <dd className="tabular-nums">{formatPrice(order.subtotal)}</dd>
                 </div>
+                {order.discount > 0 ? (
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-fg-secondary">
+                      Descuento{" "}
+                      {order.couponCode && order.coupon ? (
+                        <Link
+                          href={`/admin/coupons/${order.coupon.id}`}
+                          prefetch={false}
+                          className="font-mono text-caption underline-offset-4 hover:underline"
+                        >
+                          ({order.couponCode})
+                        </Link>
+                      ) : order.couponCode ? (
+                        <span className="font-mono text-caption">({order.couponCode})</span>
+                      ) : null}
+                    </dt>
+                    <dd className="text-success tabular-nums" data-testid="admin-order-discount">
+                      −{formatPrice(order.discount)}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="flex justify-between gap-4">
                   <dt className="text-fg-secondary">Envío</dt>
                   <dd className="tabular-nums">{order.shipping === 0 ? "Gratis" : formatPrice(order.shipping)}</dd>

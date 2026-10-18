@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, MessageSquareText, Package, ReceiptText } from "lucide-react";
+import { LayoutDashboard, MessageSquareText, Package, ReceiptText, TicketPercent } from "lucide-react";
 
 export const ADMIN_NAV = [
   { href: "/admin", label: "Resumen", icon: LayoutDashboard, exact: true },
   { href: "/admin/products", label: "Productos", icon: Package, exact: false },
   { href: "/admin/orders", label: "Pedidos", icon: ReceiptText, exact: false },
   { href: "/admin/reviews", label: "Reseñas", icon: MessageSquareText, exact: false },
+  { href: "/admin/coupons", label: "Cupones", icon: TicketPercent, exact: false },
 ] as const;
 
 const isCurrent = (pathname: string, href: string, exact: boolean) =>
@@ -16,7 +17,7 @@ const isCurrent = (pathname: string, href: string, exact: boolean) =>
 
 /**
  * The admin panel's sections: a sticky column beside the content on large
- * screens, a row above it on tablets, a 2x2 grid on phones (a single row
+ * screens, a row above it on tablets, a two-column grid on phones (a single row
  * would cut off the last section at 390px). The current
  * section carries aria-current="page". No prefetch, like the other links to
  * /admin (README, "La sesión no se renueva sola").

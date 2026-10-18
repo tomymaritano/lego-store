@@ -4,6 +4,8 @@ import { cache } from "react";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import type { AdminOrderFilters, AdminProductFilters, AdminReviewFilters } from "@/lib/validations/admin";
+import type { AdminCouponFilters } from "@/lib/validations/coupons";
+import { getAdminCoupon, listAdminCoupons } from "./coupons";
 import { getDashboard } from "./dashboard";
 import { getAdminOrder, listAdminOrders } from "./orders";
 import { adminCategories, getAdminProduct, listAdminProducts, productFormOptions } from "./products";
@@ -61,3 +63,14 @@ export async function getAdminReviews(filters: AdminReviewFilters) {
   const [page, products] = await Promise.all([listAdminReviews(db, filters), reviewedProducts(db)]);
   return { ...page, products };
 }
+
+export async function getAdminCoupons(filters: AdminCouponFilters) {
+  await requireAdmin({ callbackUrl: "/admin/coupons" });
+  return listAdminCoupons(getDb(), filters);
+}
+
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminCouponDetail = cache(async (id: string) => {
+  await requireAdmin({ callbackUrl: `/admin/coupons/${encodeURIComponent(id)}` });
+  return getAdminCoupon(getDb(), id);
+});
