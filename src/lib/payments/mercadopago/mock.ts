@@ -21,6 +21,8 @@ import { MercadoPagoRequestError, type MercadoPagoClient, type MpPayment, type M
 interface MockPreference {
   id: string;
   request: MpPreferenceRequest;
+  /** Closed with expirePreference: it can no longer be paid. */
+  expired: boolean;
 }
 
 export interface MockMercadoPagoState {
@@ -45,7 +47,7 @@ export function mockMercadoPago(state: MockMercadoPagoState = createMockMercadoP
     if (!found) throw new MercadoPagoRequestError(`Payment not found: ${id}`, 404);
     return found;
   };
-  const copy = (value: MpPayment): MpPayment => ({ ...value, refunds: [...value.refunds] });
+  const copy = (value: MpPayment): MpPayment => ({ ...value, refunds: value.refunds.map((refund) => ({ ...refund })) });
 
   return {
     async createPayment(request, idempotencyKey) {
@@ -114,8 +116,10 @@ export function mockMercadoPago(state: MockMercadoPagoState = createMockMercadoP
       const current = payment(id);
       if (current.status !== "approved") throw new MercadoPagoRequestError(`Payment ${id} cannot be refunded: it is ${current.status}`, 400);
       const refundId = newId();
-      current.refunds.push({ id: refundId });
-      const partial = amount !== undefined && amount < current.amount;
+      const left = current.amount - current.refunds.reduce((sum, refund) => sum + refund.amount, 0);
+      // Without an amount, Mercado Pago refunds what is left of the payment.
+      const partial = amount !== undefined && amount < left;
+      current.refunds.push({ id: refundId, amount: amount ?? left, status: "approved" });
       current.status = partial ? "approved" : "refunded";
       current.statusDetail = partial ? "partially_refunded" : "refunded";
       state.keys.set(idempotencyKey, refundId);
@@ -124,11 +128,17 @@ export function mockMercadoPago(state: MockMercadoPagoState = createMockMercadoP
 
     async createPreference(request) {
       const id = `pref_mock_${newId()}`;
-      state.preferences.set(id, { id, request });
+      state.preferences.set(id, { id, request, expired: false });
       // There is no Mercado Pago site to go to: the customer "comes back" at once, still unpaid.
       const back = new URL(request.back_urls.pending);
       back.searchParams.set("preference_id", id);
       return { id, initPoint: back.toString() };
+    },
+
+    async expirePreference(id) {
+      const preference = state.preferences.get(id);
+      if (!preference) throw new MercadoPagoRequestError(`Preference not found: ${id}`, 404);
+      preference.expired = true;
     },
   };
 }
@@ -144,10 +154,15 @@ export function mockMercadoPagoControls(state: MockMercadoPagoState) {
       current.statusDetail = statusDetail;
       return { ...current };
     },
-    /** The customer pays a Checkout Pro preference with account money: a new approved payment. */
-    payPreference(preferenceId: string): MpPayment {
+    /**
+     * The customer pays a Checkout Pro preference with account money: a new
+     * approved payment. `force` pays one that was expired (a payment that was
+     * already under way when it closed).
+     */
+    payPreference(preferenceId: string, { force = false }: { force?: boolean } = {}): MpPayment {
       const preference = state.preferences.get(preferenceId);
       if (!preference) throw new Error(`No mock preference ${preferenceId}`);
+      if (preference.expired && !force) throw new Error(`Mock preference ${preferenceId} expired`);
       const amount = preference.request.items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
       const created: MpPayment = {
         id: newId(),

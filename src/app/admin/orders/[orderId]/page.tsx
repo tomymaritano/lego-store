@@ -11,6 +11,7 @@ import {
   formatOrderNumber,
   formatTicketExpiry,
   installmentsLabel,
+  isCardPaymentType,
   orderPaymentLabel,
   paymentMethodTypeLabel,
 } from "@/lib/orders/format";
@@ -274,7 +275,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                   {order.paymentBrand || order.paymentLast4 || order.payment.methodType ? orderPaymentLabel(order) : "Sin datos"}
                 </Detail>
                 {paymentMethodTypeLabel(order.payment.methodType) ? <Detail term="Tipo">{paymentMethodTypeLabel(order.payment.methodType)}</Detail> : null}
-                {order.payment.installments ? <Detail term="Cuotas">{installmentsLabel(order.payment.installments)}</Detail> : null}
+                {order.payment.installments && isCardPaymentType(order.payment.methodType) ? <Detail term="Cuotas">{installmentsLabel(order.payment.installments)}</Detail> : null}
                 <Detail term={order.payment.provider === "STRIPE" ? "PaymentIntent de Stripe" : "Pago de Mercado Pago"} mono>
                   {order.paymentId ?? "—"}
                 </Detail>

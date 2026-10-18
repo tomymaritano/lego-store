@@ -1,4 +1,5 @@
 import type { NormalizedPaymentStatus } from "../provider";
+import type { MpPayment, MpRefund } from "./types";
 
 /*
  * Mercado Pago's payment statuses in the store's words, and what to tell the
@@ -31,6 +32,44 @@ export function mapMercadoPagoStatus(status: string, detail?: string | null): No
     default:
       return "pending";
   }
+}
+
+/**
+ * Where a payment stands for cancelling it (the one classification every
+ * cancel path uses: the provider's cancelPayment, the order flow's cleanup):
+ * - "settled": it went through, or is disputed (approved, refunded,
+ *   charged_back, in_mediation): it cannot be cancelled, it is applied;
+ * - "ended": it already ended unpaid (cancelled, rejected);
+ * - "cancellable": waiting (pending, in_process, authorized): Mercado Pago can cancel it.
+ */
+export type MercadoPagoPaymentStage = "settled" | "ended" | "cancellable";
+
+const STAGES: Record<string, MercadoPagoPaymentStage> = {
+  approved: "settled",
+  refunded: "settled",
+  charged_back: "settled",
+  in_mediation: "settled",
+  cancelled: "ended",
+  rejected: "ended",
+  pending: "cancellable",
+  in_process: "cancellable",
+  authorized: "cancellable",
+};
+
+/** The payment's stage, or null for a status Mercado Pago does not document. */
+export const mercadoPagoPaymentStage = (status: string): MercadoPagoPaymentStage | null => (Object.hasOwn(STAGES, status) ? STAGES[status]! : null);
+
+/**
+ * The refund that returned the whole payment, or null when it is not fully
+ * refunded (none yet, or only part of it: a partial refund made in Mercado
+ * Pago's panel is not the order's refund). The latest refund, the one that
+ * completed it.
+ */
+export function fullRefundOf(payment: MpPayment): MpRefund | null {
+  const latest = payment.refunds.at(-1);
+  if (!latest) return null;
+  const refunded = payment.refunds.filter((refund) => refund.status !== "rejected" && refund.status !== "cancelled").reduce((sum, refund) => sum + refund.amount, 0);
+  return payment.status === "refunded" || refunded >= payment.amount ? latest : null;
 }
 
 /** Why Mercado Pago rejected a payment, for the customer (tuteo), by status_detail. */

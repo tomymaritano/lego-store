@@ -25,6 +25,8 @@ export type CancelReason =
   | "superseded"
   | "payment_setup_failed"
   | "refunded"
+  /** A payment that arrived after the order was cancelled (a ticket paid after it expired): the store refunded it. */
+  | "late_payment_refunded"
   /** Mercado Pago rejected a payment that was under review (or a ticket's payment). */
   | "payment_rejected"
   /** The customer disputed the charge with their bank (Mercado Pago charged_back). */

@@ -10,7 +10,7 @@ import { MercadoPagoRequestError, type MercadoPagoClient, type MpPayment } from 
 
 type PaymentResponse = Awaited<ReturnType<Payment["get"]>>;
 
-type Sdk = { payment: Pick<Payment, "create" | "get" | "cancel">; refund: Pick<PaymentRefund, "create">; preference: Pick<Preference, "create"> };
+type Sdk = { payment: Pick<Payment, "create" | "get" | "cancel">; refund: Pick<PaymentRefund, "create">; preference: Pick<Preference, "create" | "update"> };
 
 /** The SDK's payment in the store's shape. */
 export function toMpPayment(payment: PaymentResponse): MpPayment {
@@ -28,7 +28,9 @@ export function toMpPayment(payment: PaymentResponse): MpPayment {
     lastFourDigits: payment.card?.last_four_digits ?? null,
     ticketUrl: details?.external_resource_url ?? null,
     expiresAt: payment.date_of_expiration ?? null,
-    refunds: (payment.refunds ?? []).flatMap((refund) => (refund.id === undefined ? [] : [{ id: String(refund.id) }])),
+    refunds: (payment.refunds ?? []).flatMap((refund) =>
+      refund.id === undefined ? [] : [{ id: String(refund.id), amount: refund.amount ?? 0, status: refund.status ?? null }]
+    ),
   };
 }
 
@@ -77,6 +79,12 @@ export function mercadoPagoApi(sdk: Sdk): MercadoPagoClient {
       const initPoint = preference.init_point;
       if (!preference.id || !initPoint) throw new Error("Mercado Pago no devolvió el enlace de pago de la preferencia");
       return { id: preference.id, initPoint };
+    },
+
+    async expirePreference(id) {
+      // PUT /checkout/preferences/{id} changes only the fields sent (the SDK's type asks for `items`, the API does not).
+      const update = { expires: true, expiration_date_to: new Date().toISOString() } as Parameters<Preference["update"]>[0]["updatePreferenceRequest"];
+      await sdk.preference.update({ id, updatePreferenceRequest: update });
     },
   };
 }

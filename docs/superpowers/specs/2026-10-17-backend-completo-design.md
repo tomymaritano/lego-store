@@ -365,7 +365,11 @@ Decisiones tomadas al construir la etapa de pagos de la ampliación (el README,
   de que exista el pedido y redirige desde el paso Pago, así que "Cuenta de
   Mercado Pago" es una opción propia del paso Pago y "Realizar pedido" crea la
   preferencia de Checkout Pro (por el total del pedido, reutilizada mientras no
-  cambie) y redirige; la vuelta (`/checkout/pedido/<id>`) consulta el pago.
+  cambie) y redirige; la vuelta (`/checkout/pedido/<id>`) consulta el pago. Si el
+  cliente vuelve a "Revisar" (cambió el carrito), la preferencia anterior se cierra
+  en Mercado Pago; un pago suyo que llegue igual por otro monto mientras el pedido
+  sigue PENDING se reembolsa solo y el pedido no se toca (`amount_mismatch` queda
+  para el pago pendiente del propio pedido acreditado por otro monto).
 - *Estados*: `PAYMENT_PENDING` nuevo. Mientras un pago está pendiente no se
   reserva stock (se toma al acreditarse, como con Stripe; si falta, se reembolsa).
   Rechazado con el cliente en el checkout → sigue PENDING; rechazado después de

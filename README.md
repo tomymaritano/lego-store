@@ -374,7 +374,7 @@ servidor (`src/lib/orders/checkout.ts` para Stripe,
 | `PENDING` | Preparado en "Revisar"; todavía sin pago (o con uno rechazado). |
 | `PAYMENT_PENDING` | Mercado Pago tomó el pago pero no lo acreditó: un ticket de efectivo por pagar, una tarjeta en revisión. No descuenta stock. |
 | `PAID` → `SHIPPED` → `DELIVERED` | Cobrado (el stock se descuenta acá), enviado, entregado. |
-| `CANCELLED` | Con motivo (`cancelReason`): sin stock al acreditarse, monto distinto, vencido, reemplazado, rechazado, reembolsado, contracargo, admin. |
+| `CANCELLED` | Con motivo (`cancelReason`): sin stock al acreditarse, monto distinto, vencido, reemplazado, rechazado, reembolsado, pago tardío reembolsado, contracargo, admin. |
 
 ### Mercado Pago (principal)
 
@@ -408,7 +408,10 @@ servidor (`src/lib/orders/checkout.ts` para Stripe,
      `status_detail` (fondos insuficientes, código de seguridad, cuotas…); el pedido
      sigue PENDING y fuera de Mis pedidos.
    - "Cuenta de Mercado Pago" → el navegador va a la preferencia (una por total;
-     un segundo clic abre la misma) y vuelve a `/checkout/pedido/<id>`, que le pide
+     un segundo clic abre la misma; si el cliente vuelve y cambia el carrito, la
+     preferencia anterior se cierra en Mercado Pago con `expiration_date_to` = ahora,
+     y si igual se paga por el total viejo, ese pago solo se reembolsa y el pedido
+     sigue en el checkout) y vuelve a `/checkout/pedido/<id>`, que le pide
      al servidor que consulte el pago (`POST …/sync`: lee el pago de la API y solo lo
      usa si su `external_reference` es ese pedido) y sigue el estado.
 4. **Webhook** (`POST /api/webhooks/mercadopago`): verifica `x-signature`
@@ -424,8 +427,10 @@ servidor (`src/lib/orders/checkout.ts` para Stripe,
    quedan en el historial. Estados: `cancelled` (ticket vencido) → CANCELLED con
    email "No se acreditó el pago"; `refunded` (desde Mercado Pago) → CANCELLED con el
    stock devuelto (un pedido enviado solo lo anota); `charged_back` → CANCELLED
-   (`chargeback`) con el stock devuelto; un pago aprobado de un pedido ya cancelado,
-   o un segundo pago de uno ya pagado, se reembolsa. 401 con firma inválida, 500
+   (`chargeback`) con el stock devuelto; `in_mediation` (disputa abierta) de un
+   pedido pagado solo se anota para el admin; un pago aprobado de un pedido ya
+   cancelado (motivo `late_payment_refunded`), o un segundo pago de uno ya pagado,
+   se reembolsa. 401 con firma inválida, 500
    si algo falla (Mercado Pago reintenta).
 5. **Pendientes**: la limpieza diaria (`/api/cron/expire-orders`) también consulta
    los PAYMENT_PENDING cuyo ticket venció hace más de un día (o que llevan una

@@ -43,7 +43,15 @@ export interface MpPayment {
   ticketUrl: string | null;
   /** Until when it can be paid (ISO), for tickets. */
   expiresAt: string | null;
-  refunds: { id: string }[];
+  /** Oldest first. A partial refund leaves the payment approved ("partially_refunded"). */
+  refunds: MpRefund[];
+}
+
+/** A refund of a payment: `amount` pesos, its own status ("approved", "in_process"...). */
+export interface MpRefund {
+  id: string;
+  amount: number;
+  status: string | null;
 }
 
 /** The payment the store asks for (POST /v1/payments). */
@@ -90,6 +98,8 @@ export interface MercadoPagoClient {
   /** Refunds the whole payment, or `amount` pesos of it. */
   refundPayment(id: string, options: { idempotencyKey: string; amount?: number }): Promise<{ id: string }>;
   createPreference(request: MpPreferenceRequest): Promise<{ id: string; initPoint: string }>;
+  /** Closes a preference now (it can no longer be paid): its total is not the order's any more. */
+  expirePreference(id: string): Promise<void>;
 }
 
 /**

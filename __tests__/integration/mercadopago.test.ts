@@ -205,7 +205,8 @@ describe("pending payments", () => {
     );
     expect(response.status).toBe(200);
     const { order: view } = await response.json();
-    expect(view).toMatchObject({ status: "PAYMENT_PENDING", payment: { methodType: "ticket", ticketUrl: expect.stringContaining("ticket") } });
+    // Mercado Pago says installments: 1 for cash too: only a card's is kept.
+    expect(view).toMatchObject({ status: "PAYMENT_PENDING", payment: { methodType: "ticket", installments: null, ticketUrl: expect.stringContaining("ticket") } });
     expect(view.payment.ticketExpiresAt).not.toBeNull();
     expect(view.submittedAt).not.toBeNull();
     expect(await stockOf("5")).toBe(8);
@@ -237,6 +238,21 @@ describe("pending payments", () => {
     expect(await orderRow(id)).toMatchObject({ status: "CANCELLED", cancelReason: "expired" });
     expect(await stockOf("5")).toBe(8);
     expect(sentEmails().some((text) => text.includes("No se acreditó el pago"))).toBe(true);
+  });
+
+  it("a ticket paid after it expired is refunded by the store, keeping why the order was cancelled apart from a refund made in Mercado Pago", async () => {
+    const { id, paymentId } = await ticketOrder([{ productId: "5", quantity: 1 }]);
+    controls().setStatus(paymentId, "cancelled", "expired");
+    expect((await notify(paymentId)).body.result).toBe("cancelled");
+    controls().setStatus(paymentId, "approved", "accredited");
+    expect((await notify(paymentId)).body.result).toBe("refunded");
+    expect(await orderRow(id)).toMatchObject({ status: "CANCELLED", cancelReason: "late_payment_refunded", providerRefundId: expect.any(String) });
+    expect(controls().get(paymentId)?.status).toBe("refunded");
+    expect(await stockOf("5")).toBe(8);
+    expect(sentEmails().some((text) => text.includes("Te reembolsamos"))).toBe(true);
+    // Its refund's notification only records it.
+    expect((await notify(paymentId)).body.result).toBe("unchanged");
+    expect((await orderRow(id)).cancelReason).toBe("late_payment_refunded");
   });
 
   it("a card under review waits, then a rejection cancels the order", async () => {
@@ -285,8 +301,8 @@ describe("the webhook", () => {
     expect(controls().get(loser.paymentId)?.status).toBe("refunded");
   });
 
-  it("a charge for another amount is refunded and the order cancelled", async () => {
-    const { order } = await prepared([{ productId: "11", quantity: 1 }]);
+  it("a charge for another amount while the order is at the checkout is refunded alone: the order stays pending and can be paid", async () => {
+    const { order, requester } = await prepared([{ productId: "11", quantity: 1 }]);
     const stray = controls().addPayment({
       id: "777000111",
       status: "approved",
@@ -302,10 +318,41 @@ describe("the webhook", () => {
       expiresAt: null,
       refunds: [],
     });
-    expect((await notify(stray.id)).body.result).toBe("amount_mismatch");
-    expect(await orderRow(order.id)).toMatchObject({ status: "CANCELLED", cancelReason: "amount_mismatch" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await notify(stray.id)).body.result).toBe("refunded");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(await orderRow(order.id)).toMatchObject({ status: "PENDING", providerPaymentId: null, providerRefundId: null, cancelReason: null });
     expect(controls().get(stray.id)?.status).toBe("refunded");
     expect(await stockOf("11")).toBe(15);
+    expect(await pay(order.id, card("approved"), requester)).toMatchObject({ ok: true, order: { status: "PAID" } });
+  });
+
+  it("the order's own pending payment approved for another amount is refunded and the order cancelled", async () => {
+    const { id, paymentId } = await ticketOrder([{ productId: "11", quantity: 1 }]);
+    const ticket = controls().get(paymentId)!;
+    controls().addPayment({ ...ticket, status: "approved", statusDetail: "accredited", amount: ticket.amount - 100 });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await notify(paymentId)).body.result).toBe("amount_mismatch");
+    } finally {
+      error.mockRestore();
+    }
+    expect(await orderRow(id)).toMatchObject({ status: "CANCELLED", cancelReason: "amount_mismatch" });
+    expect(controls().get(paymentId)?.status).toBe("refunded");
+    expect(await stockOf("11")).toBe(15);
+  });
+
+  it("a dispute opened on a paid order is recorded for the admin; the order stays paid", async () => {
+    const disputed = await ticketOrder([{ productId: "7", quantity: 1 }]);
+    controls().setStatus(disputed.paymentId, "approved", "accredited");
+    await notify(disputed.paymentId);
+    controls().setStatus(disputed.paymentId, "in_mediation", null);
+    expect((await notify(disputed.paymentId)).body.result).toBe("unchanged");
+    expect(await orderRow(disputed.id)).toMatchObject({ status: "PAID", paymentStatus: "in_mediation", paymentStatusDetail: null });
+    expect(await stockOf("7")).toBe(39);
   });
 
   it("a refund made in Mercado Pago cancels a paid order and puts the stock back; a chargeback too", async () => {
@@ -403,7 +450,7 @@ describe("the webhook", () => {
     });
     expect(await applyMercadoPagoPayment(testDb, mp, mercadoPagoEvent(late), "webhook")).toEqual({ result: "refunded", orderId: order.id, notify: true });
     expect(controls().get(late.id)?.status).toBe("refunded");
-    expect(await orderRow(order.id)).toMatchObject({ status: "CANCELLED", cancelReason: "refunded" });
+    expect(await orderRow(order.id)).toMatchObject({ status: "CANCELLED", cancelReason: "late_payment_refunded" });
     expect(await stockOf("11")).toBe(15);
   });
 });
@@ -422,10 +469,31 @@ describe("admin", () => {
     expect(view).toMatchObject({ paymentId: expect.any(String), refundId: result.ok ? result.refundId : null, payment: { provider: "MERCADOPAGO" } });
     expect(view!.history).toEqual([expect.objectContaining({ from: "PAID", to: "CANCELLED", refundId: result.ok ? result.refundId : null })]);
     expect(controls().get(view!.paymentId!)?.status).toBe("refunded");
+    // The admin sees Mercado Pago's status now, without waiting for the refund's notification.
+    expect(await orderRow(order.id)).toMatchObject({ paymentStatus: "refunded", paymentStatusDetail: "refunded" });
 
     expect((await notify(view!.paymentId!)).body.result).toBe("unchanged");
     expect(await stockOf("7")).toBe(40);
     expect((await getAdminOrder(testDb, order.id))!.paymentEvents.map((event) => event.status)).toEqual(["approved", "refunded"]);
+  });
+
+  it("a failed refund call is not saved by an earlier partial refund: the order stays paid", async () => {
+    const { order, requester } = await prepared([{ productId: "7", quantity: 1 }]);
+    await pay(order.id, card("approved"), requester);
+    const { providerPaymentId } = await orderRow(order.id);
+    // A partial refund made in Mercado Pago's panel.
+    await mp.refundPayment(providerPaymentId!, { idempotencyKey: `panel/${providerPaymentId}`, amount: 100 });
+    const refund = vi.spyOn(mp, "refundPayment").mockRejectedValueOnce(new Error("timeout"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const result = await changeOrderStatus(testDb, { stripe: null, mercadopago: mp }, { orderId: order.id, to: "CANCELLED", expected: "PAID" }, actor());
+      expect(result).toEqual({ ok: false, reason: "refund_failed" });
+    } finally {
+      refund.mockRestore();
+      error.mockRestore();
+    }
+    expect(await orderRow(order.id)).toMatchObject({ status: "PAID", refundRequestedAt: null, providerRefundId: null });
+    expect(await stockOf("7")).toBe(39);
   });
 
   it("cancelling an order waiting for its ticket cancels the payment in Mercado Pago", async () => {
@@ -484,6 +552,67 @@ describe("account money (Checkout Pro)", () => {
     expect(await stockOf("11")).toBe(13);
     // The webhook that follows finds it done.
     expect((await notify(payment.id)).body.result).toBe("duplicate");
+  });
+
+  it("changing the cart after opening Mercado Pago closes the old preference; paying it anyway refunds only that payment", async () => {
+    const lines = (quantity: number) => prepareMercadoPagoOrderSchema.parse({ shipping, lines: [{ productId: "11", quantity }], provider: "MERCADOPAGO" });
+    const { order, requester } = await prepared([{ productId: "11", quantity: 1 }]);
+    const wallet = (): PayMercadoPagoOrderInput => ({ attemptId: randomUUID(), method: "wallet" });
+    const first = await pay(order.id, wallet(), requester);
+    if (!first.ok || first.next !== "redirect") throw new Error("expected a redirect");
+    const oldPreference = new URL(first.url).searchParams.get("preference_id")!;
+
+    // Back at the checkout, one more unit: the same order, a new total, the old preference closed.
+    const again = await prepareMercadoPagoOrder(testDb, { stripe: null, mercadopago: mp }, lines(2), requester);
+    if (!again.ok) throw new Error(again.code);
+    expect(again.order.id).toBe(order.id);
+    expect(again.order.total).toBeGreaterThan(order.total);
+    expect(controls().preference(oldPreference)?.expired).toBe(true);
+    expect(() => controls().payPreference(oldPreference)).toThrow(/expired/);
+    expect(await orderRow(order.id)).toMatchObject({ providerCheckoutId: null, providerCheckoutUrl: null });
+
+    // A payment of the old preference that was already under way still arrives: only it goes back.
+    const stale = controls().payPreference(oldPreference, { force: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect((await notify(stale.id)).body.result).toBe("refunded");
+    } finally {
+      warn.mockRestore();
+    }
+    expect(controls().get(stale.id)?.status).toBe("refunded");
+    expect(await orderRow(order.id)).toMatchObject({ status: "PENDING", total: again.order.total, providerPaymentId: null, cancelReason: null });
+    expect(sentEmails()).toEqual([]);
+
+    // The new preference, for the new total, pays the order.
+    const second = await pay(order.id, wallet(), requester);
+    if (!second.ok || second.next !== "redirect") throw new Error("expected a redirect");
+    const newPreference = new URL(second.url).searchParams.get("preference_id")!;
+    expect(newPreference).not.toBe(oldPreference);
+    const payment = controls().payPreference(newPreference);
+    expect(payment.amount).toBe(again.order.total);
+    expect((await notify(payment.id)).body.result).toBe("paid");
+    expect(await orderRow(order.id)).toMatchObject({ status: "PAID", providerPaymentId: payment.id });
+    expect(await stockOf("11")).toBe(13);
+  });
+
+  it("a preference that cannot be closed (Mercado Pago unreachable) does not stop the checkout", async () => {
+    const { order, requester } = await prepared([{ productId: "11", quantity: 1 }]);
+    await pay(order.id, { attemptId: randomUUID(), method: "wallet" }, requester);
+    const expire = vi.spyOn(mp, "expirePreference").mockRejectedValueOnce(new Error("timeout"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const again = await prepareMercadoPagoOrder(
+        testDb,
+        { stripe: null, mercadopago: mp },
+        prepareMercadoPagoOrderSchema.parse({ shipping, lines: [{ productId: "11", quantity: 2 }], provider: "MERCADOPAGO" }),
+        requester
+      );
+      expect(again).toMatchObject({ ok: true, order: { id: order.id, status: "PENDING" } });
+      expect(expire).toHaveBeenCalledTimes(1);
+    } finally {
+      expire.mockRestore();
+      warn.mockRestore();
+    }
   });
 
   it("the sync is only for the order's browser", async () => {

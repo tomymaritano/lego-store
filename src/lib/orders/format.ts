@@ -48,6 +48,8 @@ export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
   superseded: "Lo reemplazó un pedido más nuevo hecho desde el mismo navegador. No se cobró nada.",
   payment_setup_failed: "No pudimos iniciar el pago. No se cobró nada.",
   refunded: "Se reembolsó el pago, así que cancelamos el pedido: el dinero puede tardar unos días en verse en tu medio de pago.",
+  late_payment_refunded:
+    "El pago llegó cuando el pedido ya estaba cancelado (por ejemplo, un ticket pagado después de su vencimiento), así que te devolvimos el dinero: puede tardar unos días en verse en tu medio de pago.",
   payment_rejected: "El medio de pago rechazó el pago, así que cancelamos el pedido. No se cobró nada.",
   chargeback:
     "Desconociste el pago ante tu banco o tarjeta, así que cancelamos el pedido. Si fue un error, escríbenos.",
@@ -106,6 +108,11 @@ const METHOD_TYPE_LABELS: Record<string, string> = {
 
 /** "Tarjeta de crédito" for "credit_card"; null for an unknown or missing type. */
 export const paymentMethodTypeLabel = (type: string | null | undefined) => (type && Object.hasOwn(METHOD_TYPE_LABELS, type) ? METHOD_TYPE_LABELS[type]! : null);
+
+const CARD_TYPES = new Set(["credit_card", "debit_card", "prepaid_card"]);
+
+/** Whether a payment type is a card's: only those are paid in installments (cash and account money say 1, meaning nothing). */
+export const isCardPaymentType = (type: string | null | undefined) => Boolean(type && CARD_TYPES.has(type));
 
 /** "3 cuotas" / "1 pago". */
 export const installmentsLabel = (installments: number) => (installments === 1 ? "1 pago" : `${installments} cuotas`);

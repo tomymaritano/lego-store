@@ -1,6 +1,6 @@
 import type { NormalizedPaymentEvent, PaymentProvider } from "../provider";
 import { verifyMercadoPagoSignature } from "./signature";
-import { mapMercadoPagoStatus } from "./status";
+import { fullRefundOf, mapMercadoPagoStatus, mercadoPagoPaymentStage } from "./status";
 import type { MercadoPagoClient, MpPayment } from "./types";
 
 /*
@@ -11,9 +11,33 @@ import type { MercadoPagoClient, MpPayment } from "./types";
  * carries the payment's current status, never an old one.
  */
 
-/** Statuses after which a payment can no longer be cancelled (it went through, or ended). */
-const SETTLED = new Set(["approved", "refunded", "charged_back", "in_mediation"]);
-const ENDED = new Set(["cancelled", "rejected"]);
+/**
+ * What cancelling a payment left: "cancelled" when it will not be paid (it
+ * was cancelled now, it had already ended, or there is no such payment);
+ * "in_flight" when it went through (or could not be stopped). `payment` is
+ * the payment as it now is, for the order code to apply; null when there is
+ * none, or when the cancel call failed and its state is unknown.
+ */
+export interface MercadoPagoCancelResult {
+  outcome: "cancelled" | "in_flight";
+  payment: MpPayment | null;
+}
+
+/** The one way the store cancels a Mercado Pago payment (the admin's cancellation, the cleanup, a replaced order). */
+export async function cancelMercadoPagoPayment(client: MercadoPagoClient, paymentId: string): Promise<MercadoPagoCancelResult> {
+  const payment = await client.getPayment(paymentId);
+  if (!payment) return { outcome: "cancelled", payment: null };
+  const stage = mercadoPagoPaymentStage(payment.status);
+  if (stage === "ended") return { outcome: "cancelled", payment };
+  if (stage === "settled") return { outcome: "in_flight", payment };
+  try {
+    return { outcome: "cancelled", payment: await client.cancelPayment(paymentId) };
+  } catch (error) {
+    // Approved meanwhile (a ticket paid just now): the notification settles the order.
+    console.warn(`[mercadopago] No se pudo cancelar el pago ${paymentId}:`, error);
+    return { outcome: "in_flight", payment: null };
+  }
+}
 
 /** A payment as the event the order code applies. */
 export function mercadoPagoEvent(payment: MpPayment): NormalizedPaymentEvent<MpPayment> {
@@ -52,17 +76,7 @@ export function mercadoPagoProvider(client: MercadoPagoClient, webhookSecret: st
     id: "MERCADOPAGO",
 
     async cancelPayment(paymentId) {
-      const payment = await client.getPayment(paymentId);
-      if (!payment || ENDED.has(payment.status)) return "cancelled";
-      if (SETTLED.has(payment.status)) return "in_flight";
-      try {
-        await client.cancelPayment(paymentId);
-        return "cancelled";
-      } catch (error) {
-        // Approved meanwhile (a ticket paid just now): the notification settles the order.
-        console.warn(`[mercadopago] No se pudo cancelar el pago ${paymentId}:`, error);
-        return "in_flight";
-      }
+      return (await cancelMercadoPagoPayment(client, paymentId)).outcome;
     },
 
     refund(paymentId, options) {
@@ -70,8 +84,10 @@ export function mercadoPagoProvider(client: MercadoPagoClient, webhookSecret: st
     },
 
     async findRefund(paymentId) {
+      // Only a refund of the whole payment: an earlier partial one is not proof the order's refund went through.
       const payment = await client.getPayment(paymentId);
-      return payment?.refunds[0] ?? null;
+      const refund = payment ? fullRefundOf(payment) : null;
+      return refund ? { id: refund.id } : null;
     },
 
     async parseWebhook({ body, url, headers }) {

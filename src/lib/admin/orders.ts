@@ -444,7 +444,14 @@ async function cancelPaid(db: PrismaClient, payments: OrderPayments, input: Orde
     const restockedProductIds = await restock(tx, order.items);
     await tx.order.update({
       where: { id: input.orderId },
-      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "admin" satisfies CancelReason, [refundColumn]: refundId },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        cancelReason: "admin" satisfies CancelReason,
+        [refundColumn]: refundId,
+        // The whole payment went back: Mercado Pago's status says so now (its notification may never reach this server).
+        ...(order.paymentProvider === "MERCADOPAGO" ? { paymentStatus: "refunded", paymentStatusDetail: "refunded" } : {}),
+      },
     });
     await recordChange(tx, input, "PAID", actor, refundId);
     return { ok: true, changed: true, status: "CANCELLED", restockedProductIds, refundId };

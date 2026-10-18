@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { MPBadRequestError, MPNotFoundError, WebhookSignatureValidator } from "mercadopago";
 import { chargedOrderTotal } from "@/lib/orders/mercadopago";
-import { orderPaymentLabel } from "@/lib/orders/format";
+import { isCardPaymentType, orderPaymentLabel } from "@/lib/orders/format";
 import { mercadoPagoNotificationUrl } from "@/lib/orders/payments";
 import {
   checkoutPaymentsConfig,
@@ -13,7 +13,7 @@ import {
   providerEnvironment,
 } from "@/lib/payments/config";
 import { mercadoPagoApi, toMpPayment } from "@/lib/payments/mercadopago/api";
-import { mercadoPagoProvider } from "@/lib/payments/mercadopago/provider";
+import { cancelMercadoPagoPayment, mercadoPagoProvider } from "@/lib/payments/mercadopago/provider";
 import { createMockMercadoPagoState, mockMercadoPago, mockMercadoPagoControls } from "@/lib/payments/mercadopago/mock";
 import { mpMockToken } from "@/lib/payments/mercadopago/mock-options";
 import {
@@ -22,7 +22,15 @@ import {
   signatureManifest,
   verifyMercadoPagoSignature,
 } from "@/lib/payments/mercadopago/signature";
-import { DEFAULT_REJECTION_MESSAGE, mapMercadoPagoStatus, mercadoPagoStatusLabel, pendingMessage, rejectionMessage } from "@/lib/payments/mercadopago/status";
+import {
+  DEFAULT_REJECTION_MESSAGE,
+  fullRefundOf,
+  mapMercadoPagoStatus,
+  mercadoPagoPaymentStage,
+  mercadoPagoStatusLabel,
+  pendingMessage,
+  rejectionMessage,
+} from "@/lib/payments/mercadopago/status";
 import { MercadoPagoRequestError, type MpPayment } from "@/lib/payments/mercadopago/types";
 import { orderRefundKey } from "@/lib/payments/provider";
 import { mapStripeStatus, normalizeStripeEvent } from "@/lib/payments/stripe-provider";
@@ -38,6 +46,23 @@ import { mercadoPagoFormDataSchema, payMercadoPagoOrderSchema } from "@/lib/vali
  */
 
 const SECRET = "mp_secret_for_unit_tests";
+
+/** An approved card payment, for the pure helpers. */
+const makeMpPayment = (): MpPayment => ({
+  id: "1",
+  status: "approved",
+  statusDetail: "accredited",
+  externalReference: "order_1",
+  amount: 100,
+  currency: "ARS",
+  paymentMethodId: "visa",
+  paymentTypeId: "credit_card",
+  installments: 1,
+  lastFourDigits: "3704",
+  ticketUrl: null,
+  expiresAt: null,
+  refunds: [],
+});
 
 describe("x-signature", () => {
   it("builds the documented manifest: id (lowercased), request-id, ts, each followed by ';', missing parts left out", () => {
@@ -106,6 +131,27 @@ describe("statuses", () => {
     expect(mapStripeStatus("processing")).toBe("pending");
     expect(mapStripeStatus("requires_payment_method")).toBe("failed");
     expect(mapStripeStatus("canceled")).toBe("cancelled");
+  });
+
+  it("classify a payment once for every cancel path: settled, ended, cancellable", () => {
+    for (const status of ["approved", "refunded", "charged_back", "in_mediation"]) expect(mercadoPagoPaymentStage(status)).toBe("settled");
+    for (const status of ["cancelled", "rejected"]) expect(mercadoPagoPaymentStage(status)).toBe("ended");
+    for (const status of ["pending", "in_process", "authorized"]) expect(mercadoPagoPaymentStage(status)).toBe("cancellable");
+    expect(mercadoPagoPaymentStage("something_new")).toBeNull();
+    expect(mercadoPagoPaymentStage("toString")).toBeNull();
+  });
+
+  it("only take a refund of the whole payment as the order's refund", () => {
+    const base = { ...makeMpPayment(), amount: 1000 };
+    expect(fullRefundOf({ ...base, refunds: [] })).toBeNull();
+    // A partial refund made in Mercado Pago's panel: still approved.
+    const partial = { ...base, statusDetail: "partially_refunded", refunds: [{ id: "r1", amount: 200, status: "approved" }] };
+    expect(fullRefundOf(partial)).toBeNull();
+    // Then the rest: the latest refund completed it.
+    const full = { ...base, status: "refunded", statusDetail: "refunded", refunds: [...partial.refunds, { id: "r2", amount: 800, status: "approved" }] };
+    expect(fullRefundOf(full)).toEqual({ id: "r2", amount: 800, status: "approved" });
+    expect(fullRefundOf({ ...full, status: "approved" })).toEqual(expect.objectContaining({ id: "r2" }));
+    expect(fullRefundOf({ ...base, refunds: [{ id: "r3", amount: 1000, status: "rejected" }] })).toBeNull();
   });
 
   it("refund an order with one idempotency key, whoever asks", () => {
@@ -184,6 +230,9 @@ describe("payment labels", () => {
     expect(mp({ methodType: "ticket" }, "rapipago", null)).toBe("Rapipago (efectivo)");
     expect(mp({ methodType: "account_money" }, "account_money", null)).toBe("Dinero en cuenta de Mercado Pago");
     expect(mp({}, null, null)).toBe("A confirmar");
+    // Only cards are paid in installments (Mercado Pago says 1 for cash and account money too).
+    expect(["credit_card", "debit_card", "prepaid_card"].every(isCardPaymentType)).toBe(true);
+    expect([null, "ticket", "account_money", "toString"].some(isCardPaymentType)).toBe(false);
   });
 });
 
@@ -207,7 +256,10 @@ describe("the SDK adapter", () => {
     return {
       payment: { create: vi.fn(async () => sdkPayment), get: vi.fn(async () => sdkPayment), cancel: vi.fn(async () => ({ ...sdkPayment, status: "cancelled" })) },
       refund: { create: vi.fn(async () => ({ id: 555 })) },
-      preference: { create: vi.fn(async () => ({ id: "pref_1", init_point: "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref_1" })) },
+      preference: {
+        create: vi.fn(async () => ({ id: "pref_1", init_point: "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=pref_1" })),
+        update: vi.fn(async () => ({ id: "pref_1" })),
+      },
     };
   }
   const adapter = (sdk: ReturnType<typeof fakeSdk>) => mercadoPagoApi(sdk as unknown as Parameters<typeof mercadoPagoApi>[0]);
@@ -239,6 +291,17 @@ describe("the SDK adapter", () => {
     expect(sdk.refund.create).toHaveBeenCalledWith({ payment_id: "123", requestOptions: { idempotencyKey: "order/order_1/refund" } });
     await adapter(sdk).refundPayment("123", { idempotencyKey: "k", amount: 100 });
     expect(sdk.refund.create).toHaveBeenLastCalledWith({ payment_id: "123", body: { amount: 100 }, requestOptions: { idempotencyKey: "k" } });
+  });
+
+  it("reads refunds with their amount and status, and closes a preference by expiring it now", async () => {
+    const refunded = { ...sdkPayment, status: "refunded", refunds: [{ id: 9, amount: 3167, status: "approved" }, { amount: 1 }] };
+    expect(toMpPayment(refunded as never).refunds).toEqual([{ id: "9", amount: 3167, status: "approved" }]);
+    const sdk = fakeSdk();
+    await adapter(sdk).expirePreference("pref_1");
+    expect(sdk.preference.update).toHaveBeenCalledWith({
+      id: "pref_1",
+      updatePreferenceRequest: { expires: true, expiration_date_to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) },
+    });
   });
 
   it("turns a refused request into MercadoPagoRequestError, a missing payment into null", async () => {
@@ -303,6 +366,41 @@ describe("the provider's webhook", () => {
     const refund = await provider.refund(card.id, { idempotencyKey: "r1" });
     expect(await provider.refund(card.id, { idempotencyKey: "r1" })).toEqual(refund);
     expect(await provider.findRefund(card.id)).toEqual(refund);
+  });
+
+  it("does not take an earlier partial refund for the order's full refund", async () => {
+    const { client, controls, provider } = setup();
+    const card = await client.createPayment(
+      { transaction_amount: 1000, description: "x", payment_method_id: "visa", token: mpMockToken("approved"), external_reference: "o", payer: { email: "a@b.c" } },
+      "k-partial"
+    );
+    controls.setStatus(card.id, "approved", "accredited");
+    await provider.refund(card.id, { idempotencyKey: "panel", amount: 300 });
+    expect((await client.getPayment(card.id))?.statusDetail).toBe("partially_refunded");
+    expect(await provider.findRefund(card.id)).toBeNull();
+    const rest = await provider.refund(card.id, { idempotencyKey: "order/o/refund" });
+    expect(await client.getPayment(card.id)).toMatchObject({ status: "refunded", refunds: [{ amount: 300 }, { id: rest.id, amount: 700 }] });
+    expect(await provider.findRefund(card.id)).toEqual(rest);
+  });
+
+  it("cancels through one function that also returns the payment as it now is", async () => {
+    const { client, controls } = setup();
+    const create = (key: string, method = "rapipago") =>
+      client.createPayment({ transaction_amount: 100, description: "x", payment_method_id: method, external_reference: "o", payer: { email: "a@b.c" } }, key);
+    const ticket = await create("c1");
+    expect(await cancelMercadoPagoPayment(client, ticket.id)).toEqual({ outcome: "cancelled", payment: expect.objectContaining({ id: ticket.id, status: "cancelled" }) });
+    // Already ended: nothing to cancel, the payment comes back to be applied.
+    expect(await cancelMercadoPagoPayment(client, ticket.id)).toEqual({ outcome: "cancelled", payment: expect.objectContaining({ status: "cancelled" }) });
+    const paid = await create("c2");
+    controls.setStatus(paid.id, "approved", "accredited");
+    expect(await cancelMercadoPagoPayment(client, paid.id)).toEqual({ outcome: "in_flight", payment: expect.objectContaining({ status: "approved" }) });
+    expect(await cancelMercadoPagoPayment(client, "999")).toEqual({ outcome: "cancelled", payment: null });
+    // The cancel call fails: its state is unknown.
+    const pending = await create("c3");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const failing = { ...client, cancelPayment: vi.fn(async () => Promise.reject(new Error("timeout"))) };
+    expect(await cancelMercadoPagoPayment(failing, pending.id)).toEqual({ outcome: "in_flight", payment: null });
+    warn.mockRestore();
   });
 });
 

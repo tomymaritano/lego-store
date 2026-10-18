@@ -81,6 +81,8 @@ const ADMIN_CANCEL_REASONS: Record<Exclude<CancelReason, "admin">, string> = {
   superseded: "Lo reemplazó un pedido más nuevo del mismo navegador; no se cobró nada.",
   payment_setup_failed: "No se pudo crear el pago en el proveedor; no se cobró nada.",
   refunded: "El pago se reembolsó desde el proveedor (fuera del panel), así que el pedido se canceló.",
+  late_payment_refunded:
+    "El pago se acreditó cuando el pedido ya estaba cancelado (por ejemplo, un ticket pagado después de vencer); la tienda lo reembolsó automáticamente.",
   payment_rejected: "El pago quedó en revisión y después fue rechazado; no se cobró nada.",
   chargeback: "El cliente desconoció el pago (contracargo); se devolvió el stock.",
 };
