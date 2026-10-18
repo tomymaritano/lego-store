@@ -16,7 +16,8 @@ const isCurrent = (pathname: string, href: string, exact: boolean) =>
 
 /**
  * The admin panel's sections: a sticky column beside the content on large
- * screens, a row that scrolls sideways above it on phones. The current
+ * screens, a row above it on tablets, a 2x2 grid on phones (a single row
+ * would cut off the last section at 390px). The current
  * section carries aria-current="page". No prefetch, like the other links to
  * /admin (README, "La sesión no se renueva sola").
  */
@@ -25,7 +26,7 @@ export function AdminNav() {
   const pathname = usePathname() ?? "";
   return (
     <nav aria-label="Administración" className="min-w-0 lg:sticky lg:top-24 lg:self-start">
-      <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-border lg:bg-bg-subtle lg:p-3 lg:pb-3">
+      <ul className="grid grid-cols-2 gap-1 sm:flex sm:overflow-x-auto sm:pb-1 lg:flex-col lg:overflow-visible lg:rounded-2xl lg:border lg:border-border lg:bg-bg-subtle lg:p-3 lg:pb-3">
         {ADMIN_NAV.map(({ href, label, icon: Icon, exact }) => (
           <li key={href} className="shrink-0">
             <Link

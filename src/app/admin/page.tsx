@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Banknote, CalendarCheck, PackageOpen, TriangleAlert, Truck } from "lucide-react";
 import { requireAdmin } from "@/lib/auth/session";
 import { getAdminDashboard } from "@/lib/admin/data";
+import { MISMATCH_WINDOW_DAYS } from "@/lib/admin/dashboard";
 import { LOW_STOCK } from "@/lib/admin/format";
 import { updateStockAction } from "@/lib/admin/actions";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
@@ -42,6 +43,7 @@ export default async function AdminPage() {
         <div role="alert" className="mb-6 flex items-start gap-3 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-label text-fg">
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-danger" />
           <p>
+            En los últimos {MISMATCH_WINDOW_DAYS} días,{" "}
             {pluralize(dashboard.amountMismatches, "pedido se canceló", "pedidos se cancelaron")} porque Stripe cobró un monto distinto
             del total (y se reembolsó). No debería pasar: revísalos.{" "}
             <Link href="/admin/orders?status=amount_mismatch" prefetch={false} className="font-semibold underline underline-offset-4">

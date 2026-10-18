@@ -12,6 +12,9 @@ import { lowStockProducts, type AdminProductRow } from "./products";
 /** Statuses whose money the store keeps (a cancelled paid order was refunded). */
 const COLLECTED: OrderStatus[] = ["PAID", "SHIPPED", "DELIVERED"];
 
+/** How far back the amount-mismatch warning looks: an old incident does not keep the banner up forever. */
+export const MISMATCH_WINDOW_DAYS = 7;
+
 export interface AdminDashboard {
   /** Orders placed ("Realizar pedido") today, whatever happened to them since. */
   ordersToday: number;
@@ -23,7 +26,10 @@ export interface AdminDashboard {
   /** Placed and waiting for the payment to be confirmed. */
   awaitingPayment: number;
   ordersByStatus: Record<OrderStatus, number>;
-  /** Cancelled because the charge did not match the total: should never happen; worth a look. */
+  /**
+   * Cancelled in the last MISMATCH_WINDOW_DAYS because the charge did not
+   * match the total: should never happen; worth a look.
+   */
   amountMismatches: number;
   products: number;
   outOfStock: number;
@@ -36,13 +42,14 @@ export interface AdminDashboard {
 export async function getDashboard(db: Db, now = new Date()): Promise<AdminDashboard> {
   const today = storeDayStart(storeDate(now));
   const listed = { archivedAt: null };
+  const mismatchSince = new Date(now.getTime() - MISMATCH_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const [ordersToday, revenue, revenueToday, groups, amountMismatches, products, outOfStock, lowStock, low, recent, users] =
     await Promise.all([
       db.order.count({ where: { submittedAt: { gte: today } } }),
       db.order.aggregate({ where: { status: { in: COLLECTED } }, _sum: { total: true } }),
       db.order.aggregate({ where: { status: { in: COLLECTED }, paidAt: { gte: today } }, _sum: { total: true } }),
       db.order.groupBy({ by: ["status"], where: { submittedAt: { not: null } }, _count: { _all: true } }),
-      db.order.count({ where: { status: "CANCELLED", cancelReason: "amount_mismatch" } }),
+      db.order.count({ where: { status: "CANCELLED", cancelReason: "amount_mismatch", cancelledAt: { gte: mismatchSince } } }),
       db.product.count({ where: listed }),
       db.product.count({ where: { ...listed, stock: 0 } }),
       db.product.count({ where: { ...listed, stock: { gt: 0, lte: LOW_STOCK } } }),

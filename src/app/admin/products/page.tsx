@@ -107,7 +107,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             <TableHeader>
               <TableRow>
                 <TableHead>Producto</TableHead>
-                <TableHead>Categoría</TableHead>
+                <TableHead className="hidden md:table-cell">Categoría</TableHead>
                 <TableHead className="text-right">Precio</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>
@@ -118,7 +118,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
             <TableBody>
               {page.items.map((product) => (
                 <TableRow key={product.id} data-testid="admin-product-row" data-product-id={product.id}>
-                  <TableCell className="min-w-64">
+                  <TableCell className="min-w-44 sm:min-w-64">
                     <div className="flex items-center gap-3">
                       <span className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-bg-subtle">
                         <ProductImage src={product.img} alt="" fill sizes="48px" className="object-contain p-1" />
@@ -133,6 +133,8 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
                         </Link>
                         <span className="flex flex-wrap items-center gap-1.5 text-caption text-fg-muted">
                           <span className="font-mono">#{product.id}</span>
+                          {/* Phones: the category column is hidden, so it shows here and price and stock fit on screen. */}
+                          <span className="md:hidden">· {product.categoryName}</span>
                           {product.archived ? <Badge>Archivado</Badge> : null}
                           {product.isNew ? <Badge variant="new">Nuevo</Badge> : null}
                           {product.isOnSale ? <Badge variant="sale">Oferta</Badge> : null}
@@ -140,7 +142,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-fg-secondary">{product.categoryName}</TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-fg-secondary md:table-cell">{product.categoryName}</TableCell>
                   <TableCell className="text-right whitespace-nowrap tabular-nums">
                     <span className="font-semibold">{formatPrice(product.price)}</span>
                     {product.originalPrice ? (
