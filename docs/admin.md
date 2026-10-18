@@ -143,7 +143,8 @@ del producto en la misma transacción; `updateCatalog` del producto; auditoría
 ### Cupones
 
 Lista con estado (activo, programado, vencido, agotado, desactivado), usos contra
-el límite (con las reservas vigentes), descuento otorgado y ventas de los pedidos
+el límite (pagados más los que tienen el pago enviado; los checkouts sin pagar se
+muestran aparte y no ocupan usos), descuento otorgado y ventas de los pedidos
 pagados que lo usaron. Crear y editar (tipo, valor, mínimo, fechas, límites,
 descripción); **el código no cambia nunca y los cupones no se borran** (los
 pedidos los guardan); "Desactivar" / "Activar" corta o habilita usos nuevos (los

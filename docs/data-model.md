@@ -264,9 +264,11 @@ stateDiagram-v2
   REDEEMED --> [*]
 ```
 
-- Los límites (`maxRedemptions`, `maxPerUser`) cuentan los `REDEEMED` más los
-  `RESERVED` vigentes (`holdExpiresAt` `null` o en el futuro). Una reserva vencida
-  no cuenta y, si el cliente paga igual, se valida como un uso nuevo.
+- El límite total (`maxRedemptions`) y el del email cuentan los `REDEEMED` más los
+  `RESERVED` con el pago enviado (`holdExpiresAt` `null`): una reserva corta de un
+  checkout sin pagar no ocupa usos. El límite por cuenta cuenta además sus
+  reservas cortas vigentes. Una reserva vencida, si el cliente paga igual, se
+  valida como un uso nuevo (activo y fechas incluidos).
 - `PAYMENT_PENDING` deja la reserva sin vencimiento hasta que el pago se resuelva.
 - Detalle de las reglas en [payments.md](./payments.md#cupones-en-los-totales).
 

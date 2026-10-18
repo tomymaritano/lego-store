@@ -18,24 +18,30 @@ import {
  * hold on a use while the checkout's order waits to be paid, and the check
  * when its payment is submitted.
  *
- * A use counts toward a coupon's limits while it is REDEEMED (paid) or
- * RESERVED with a live hold:
- * - "Revisar" (claimCoupon + holdOrderCoupon) reserves a use for
- *   COUPON_HOLD_MS. An unpaid checkout costs nothing to make, so its hold
- *   lapses on its own: abandoned or scripted checkouts cannot keep a coupon's
- *   uses taken for long (and preparing a new order with a coupon has its own
- *   rate limit, rateLimits.couponPrepare).
- * - "Realizar pedido" (secureOrderCoupon) checks the limits again (every
- *   rule, dates included, when the hold lapsed) and makes the hold last
- *   until the order settles (holdExpiresAt NULL), before any money moves; a
- *   refused payment puts the short hold back (relaxOrderCoupon).
+ * The coupon's total limit (maxRedemptions) counts only committed uses:
+ * REDEEMED (paid) or RESERVED until the order settles (holdExpiresAt NULL: its
+ * payment was submitted). An unpaid checkout costs nothing to make, so it
+ * never takes one of the coupon's uses: anybody can prepare orders without
+ * signing in, and a script that kept preparing them would otherwise keep a
+ * small coupon ("the first 20 customers") used up for real buyers.
+ * - "Revisar" (claimCoupon + holdOrderCoupon) records the order's use as
+ *   RESERVED with a short hold (COUPON_HOLD_MS). The hold counts only toward
+ *   the signed-in account's own per-customer limit, and it tells
+ *   secureOrderCoupon whether the coupon's dates were already checked.
+ * - "Realizar pedido" (secureOrderCoupon) checks the limits with the coupon
+ *   locked (every rule, dates included, when the hold lapsed) and makes the
+ *   use last until the order settles (holdExpiresAt NULL), before any money
+ *   moves; a refused payment puts the short hold back (relaxOrderCoupon). So
+ *   when the last uses are contested, the first to pay gets them and the
+ *   others learn it when they submit their payment.
  * - Checkout Pro ("Cuenta de Mercado Pago") is paid on Mercado Pago's site:
  *   opening it renews the short hold, its preference expires with it, and
  *   the payment's report runs the same check before the order becomes PAID
  *   or PAYMENT_PENDING (a payment that no longer fits is given back).
- * Both run with the coupon's row locked (FOR UPDATE): two checkouts racing
+ * Both run with the coupon's row locked (FOR UPDATE): two payments racing
  * for its last use serialise there, and the second one counts the first's
- * hold and is refused. So the limits hold however many checkouts run at once.
+ * committed use and is refused. So the limits hold however many checkouts run
+ * at once.
  *
  * The per-customer limit (maxPerUser) counts:
  * - by account: the signed-in user's live uses, checked everywhere (quote,
@@ -69,12 +75,12 @@ export const COUPON_HOLD_MS = 30 * 60 * 1000;
 
 const holdUntil = (now: Date) => new Date(now.getTime() + COUPON_HOLD_MS);
 
-/** Uses that take a coupon's place at `now`: paid, or held (a submitted payment, or "Revisar" within COUPON_HOLD_MS). */
+/** An account's uses at `now`: paid, or held (a submitted payment, or "Revisar" within COUPON_HOLD_MS). What its own limit counts. */
 const liveUse = (now: Date): Prisma.CouponRedemptionWhereInput => ({
   OR: [{ status: "REDEEMED" }, { status: "RESERVED", OR: [{ holdExpiresAt: null }, { holdExpiresAt: { gt: now } }] }],
 });
 
-/** Uses someone paid for or submitted a payment for: what an email's limit counts. */
+/** Uses someone paid for or submitted a payment for: what the coupon's total and an email's limit count. */
 const committedUse: Prisma.CouponRedemptionWhereInput = {
   OR: [{ status: "REDEEMED" }, { status: "RESERVED", holdExpiresAt: null }],
 };
@@ -105,7 +111,7 @@ export async function countCouponUses(
   if (customer.userId) who.push({ AND: [{ userId: customer.userId }, liveUse(now)] });
   if (customer.email) who.push({ AND: [{ email: customer.email.trim().toLowerCase() }, committedUse] });
   const [total, mine] = await Promise.all([
-    db.couponRedemption.count({ where: { AND: [base, liveUse(now)] } }),
+    db.couponRedemption.count({ where: { AND: [base, committedUse] } }),
     who.length > 0 ? db.couponRedemption.count({ where: { AND: [base, { OR: who }] } }) : Promise.resolve(0),
   ]);
   return { total, customer: mine };

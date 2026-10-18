@@ -280,14 +280,18 @@ Reserva y control (`src/lib/coupons/server.ts`):
    guarda solo los términos devueltos y vuelve a preguntar al cargar el carrito o
    el checkout (con el token firmado que devolvió "Aplicar" tiene un límite
    propio de 60).
-2. **Revisar** escribe el pedido y reserva el uso en la misma transacción, con la
-   fila del cupón bloqueada (`FOR UPDATE`), por **30 minutos**
-   (`COUPON_HOLD_MS`). Preparar un pedido con cupón tiene su propio límite (15
-   cada 15 min).
+2. **Revisar** escribe el pedido y anota el uso (`RESERVED`) en la misma
+   transacción, con la fila del cupón bloqueada (`FOR UPDATE`), con una reserva
+   corta de **30 minutos** (`COUPON_HOLD_MS`). Esa reserva **no ocupa un uso del
+   límite total**: un checkout sin pagar no cuesta nada (ni siquiera iniciar
+   sesión), así que si contara, un script podía tener agotado un cupón chico
+   preparando pedidos. Solo cuenta para el límite por cliente de la propia
+   cuenta. Preparar un pedido con cupón tiene su propio límite (15 cada 15 min).
 3. **Realizar pedido** vuelve a contar los límites con el cupón bloqueado y deja la
-   reserva sin vencimiento hasta que el pedido se resuelva. Si ya no entra (la
-   reserva venció y otro tomó el último uso, el email ya lo usó, venció o se
-   desactivó), el pago se rechaza con `code: "coupon"` y el checkout prepara el
+   reserva sin vencimiento hasta que el pedido se resuelva: desde ahí ocupa un
+   uso. El límite total cuenta solo los usos pagados o con el pago enviado; si
+   quedan pocos usos, los gana quien paga primero. Si ya no entra (otro pagó el
+   último uso, el email ya lo usó, venció o se desactivó), el pago se rechaza con `code: "coupon"` y el checkout prepara el
    pedido sin el cupón y lo dice. Un pago rechazado devuelve la reserva corta.
 4. **Checkout Pro** se paga en el sitio de Mercado Pago: el aviso del pago repite
    el control antes de PAID o PAYMENT_PENDING; si el cupón ya no entra, se

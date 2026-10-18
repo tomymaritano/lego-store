@@ -414,8 +414,8 @@ Decisiones tomadas al construir la etapa (docs/payments.md, «Cupones en los tot
   `src/lib/pricing.ts` es la única fuente: carrito, checkout, el pedido y el
   monto de Mercado Pago/Stripe.
 - *Reserva atómica*: el pedido PENDING y la reserva del uso se escriben en la
-  misma transacción, con la fila del cupón bloqueada; los límites cuentan
-  REDEEMED + las reservas vigentes.
+  misma transacción, con la fila del cupón bloqueada. El límite total cuenta
+  REDEEMED + las reservas con el pago enviado (ver «Verificación final»).
 - *Reserva corta* (revisión de la etapa): «Revisar» reserva por 30 min
   (`holdExpiresAt`); al enviar el pago se vuelven a contar los límites con el
   cupón bloqueado y la reserva dura hasta que el pedido se resuelva. Sin esto,

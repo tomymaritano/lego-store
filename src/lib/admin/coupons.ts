@@ -27,9 +27,12 @@ import { pageCount, type Page } from "./format";
 export type { CouponStatus };
 
 export interface CouponStats {
-  /** Uses that count toward the limits: reserved (a live hold, waiting for payment) + redeemed. */
+  /** Uses that count toward the total limit: redeemed + held (src/lib/coupons/server.ts). */
   uses: number;
+  /** Unpaid orders whose use is live: in a checkout (a short hold) or waiting on a submitted payment (held). */
   reserved: number;
+  /** The part of `reserved` whose payment was submitted: they count toward the limit until the order settles. */
+  held: number;
   /** Reservations whose hold lapsed without a payment (the order is still unpaid): they no longer count. */
   lapsed: number;
   redeemed: number;
@@ -74,7 +77,7 @@ const couponSelect = {
 
 type CouponRecord = Prisma.CouponGetPayload<{ select: typeof couponSelect }>;
 
-const EMPTY_STATS: CouponStats = { uses: 0, reserved: 0, lapsed: 0, redeemed: 0, released: 0, discountGiven: 0, revenue: 0 };
+const EMPTY_STATS: CouponStats = { uses: 0, reserved: 0, held: 0, lapsed: 0, redeemed: 0, released: 0, discountGiven: 0, revenue: 0 };
 
 /** Where a coupon stands now: off, not started, over, used up, or usable. */
 export function couponStatus(coupon: Pick<CouponRecord, "active" | "startsAt" | "expiresAt" | "maxRedemptions">, uses: number, now: Date): CouponStatus {
@@ -89,15 +92,17 @@ export function couponStatus(coupon: Pick<CouponRecord, "active" | "startsAt" | 
 async function statsOf(db: Db, couponIds: string[], now: Date): Promise<Map<string, CouponStats>> {
   const stats = new Map<string, CouponStats>();
   if (couponIds.length === 0) return stats;
-  // A RESERVED use whose hold lapsed (src/lib/coupons/server.ts) is LAPSED here: it no longer counts.
-  const rows = await db.$queryRaw<{ couponId: string; status: "RESERVED" | "LAPSED" | "REDEEMED" | "RELEASED"; count: number; discount: number; revenue: number }[]>`
+  // A RESERVED use whose payment was submitted is HELD here (it counts toward the limit); one whose
+  // short hold lapsed is LAPSED (src/lib/coupons/server.ts).
+  const rows = await db.$queryRaw<{ couponId: string; status: "RESERVED" | "HELD" | "LAPSED" | "REDEEMED" | "RELEASED"; count: number; discount: number; revenue: number }[]>`
     SELECT s."couponId", s."status", COUNT(*)::int AS "count",
            COALESCE(SUM(s."discount"), 0)::int AS "discount",
            COALESCE(SUM(s."total"), 0)::int AS "revenue"
     FROM (
       SELECT r."couponId", r."discount", o."total",
-             CASE WHEN r."status" = 'RESERVED' AND r."holdExpiresAt" IS NOT NULL AND r."holdExpiresAt" <= ${now}
-                  THEN 'LAPSED' ELSE r."status"::text END AS "status"
+             CASE WHEN r."status" = 'RESERVED' AND r."holdExpiresAt" IS NULL THEN 'HELD'
+                  WHEN r."status" = 'RESERVED' AND r."holdExpiresAt" <= ${now} THEN 'LAPSED'
+                  ELSE r."status"::text END AS "status"
       FROM "CouponRedemption" r JOIN "Order" o ON o."id" = r."orderId"
       WHERE r."couponId" = ANY(${couponIds}::text[])
     ) s
@@ -105,7 +110,11 @@ async function statsOf(db: Db, couponIds: string[], now: Date): Promise<Map<stri
   `;
   for (const row of rows) {
     const entry = stats.get(row.couponId) ?? { ...EMPTY_STATS };
-    if (row.status === "RESERVED") entry.reserved = row.count;
+    if (row.status === "RESERVED") entry.reserved += row.count;
+    if (row.status === "HELD") {
+      entry.held = row.count;
+      entry.reserved += row.count;
+    }
     if (row.status === "LAPSED") entry.lapsed = row.count;
     if (row.status === "RELEASED") entry.released = row.count;
     if (row.status === "REDEEMED") {
@@ -113,7 +122,7 @@ async function statsOf(db: Db, couponIds: string[], now: Date): Promise<Map<stri
       entry.discountGiven = row.discount;
       entry.revenue = row.revenue;
     }
-    entry.uses = entry.reserved + entry.redeemed;
+    entry.uses = entry.held + entry.redeemed;
     stats.set(row.couponId, entry);
   }
   return stats;
