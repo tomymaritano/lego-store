@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import sharp from "sharp";
-import { E2E_ADMIN_EMAIL, field, logIn, signUpFresh, PASSWORD } from "./helpers/accounts";
+import { E2E_ADMIN_EMAIL, field, logIn, PASSWORD } from "./helpers/accounts";
+import { createE2eAccount } from "./helpers/db";
 import { seriousAxeViolations } from "./helpers/axe";
 
 /*
@@ -131,8 +132,10 @@ test("an admin blocks a customer: their session ends and logging in again is ref
   // The customer, signed in in their own browser.
   const customerContext = await browser.newContext();
   const customer = await customerContext.newPage();
-  const email = await signUpFresh(customer, "Cliente Bloqueable");
-  await customer.goto("/account");
+  // Made in the database: the register form's per-IP limit is for the specs about registering.
+  const email = await createE2eAccount("blockable", "Cliente Bloqueable");
+  await customer.goto("/login?callbackUrl=%2Faccount");
+  await logIn(customer, email, PASSWORD);
   await expect(customer).toHaveURL(/\/account$/);
 
   await logInAsAdmin(page, "/admin/users");
