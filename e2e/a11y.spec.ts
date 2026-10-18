@@ -181,7 +181,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto("/cart");
         await page.getByLabel("Código de descuento").fill("NOEXISTE1");
         await page.getByRole("button", { name: "Aplicar" }).click();
-        await expect(page.getByTestId("cart-coupon").getByRole("alert")).toHaveText(/no existe/);
+        await expect(page.getByTestId("cart-coupon").getByRole("alert")).toHaveText(/no es válido/);
         await expect(page.getByLabel("Código de descuento")).toHaveAttribute("aria-invalid", "true");
         await expectNoSeriousViolations(page);
       });
