@@ -14,6 +14,8 @@ import { getAdminOrder, listAdminOrders } from "./orders";
 import { adminCategories, getAdminProduct, listAdminProducts, productFormOptions } from "./products";
 import { listAdminReviews, reviewedProducts } from "./reviews";
 import { getAdminUser, listAdminUsers } from "./users";
+import { getAdminCategory, listAdminCategories } from "./categories";
+import { getAdminTheme, listAdminThemes } from "./themes";
 
 /*
  * What the /admin pages read. Each function checks the admin itself (data
@@ -100,4 +102,26 @@ export async function getAdminUsers(filters: AdminUserFilters) {
 export const getAdminUserDetail = cache(async (id: string) => {
   await requireAdmin({ callbackUrl: `/admin/users/${encodeURIComponent(id)}` });
   return getAdminUser(getDb(), id);
+});
+
+export async function getAdminCategoryList() {
+  await requireAdmin({ callbackUrl: "/admin/categories" });
+  return listAdminCategories(getDb());
+}
+
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminCategoryDetail = cache(async (id: string) => {
+  await requireAdmin({ callbackUrl: `/admin/categories/${encodeURIComponent(id)}` });
+  return getAdminCategory(getDb(), id);
+});
+
+export async function getAdminThemeList() {
+  await requireAdmin({ callbackUrl: "/admin/themes" });
+  return listAdminThemes(getDb());
+}
+
+/** Once per request (the page and its generateMetadata both read it). */
+export const getAdminThemeDetail = cache(async (id: string) => {
+  await requireAdmin({ callbackUrl: `/admin/themes/${encodeURIComponent(id)}` });
+  return getAdminTheme(getDb(), id);
 });

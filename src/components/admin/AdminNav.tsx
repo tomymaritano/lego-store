@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, MessageSquareText, Package, ReceiptText, ScrollText, TicketPercent, Users } from "lucide-react";
+import { FolderTree, LayoutDashboard, MessageSquareText, Package, ReceiptText, ScrollText, Tags, TicketPercent, Users } from "lucide-react";
 
 export const ADMIN_NAV = [
   { href: "/admin", label: "Resumen", icon: LayoutDashboard, exact: true },
   { href: "/admin/products", label: "Productos", icon: Package, exact: false },
+  { href: "/admin/categories", label: "Categorías", icon: FolderTree, exact: false },
+  { href: "/admin/themes", label: "Temas", icon: Tags, exact: false },
   { href: "/admin/orders", label: "Pedidos", icon: ReceiptText, exact: false },
   { href: "/admin/reviews", label: "Reseñas", icon: MessageSquareText, exact: false },
   { href: "/admin/coupons", label: "Cupones", icon: TicketPercent, exact: false },

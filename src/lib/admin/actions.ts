@@ -12,6 +12,9 @@ import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateS
 import { idSchema } from "@/lib/validations/ids";
 import { couponFormSchema, newCouponCodeSchema, type CouponField } from "@/lib/validations/coupons";
 import { requireAdminActor } from "./actor";
+import { createCategory, deleteCategory, moveCategory, updateCategory } from "./categories";
+import { createTheme, deleteTheme, moveTheme, updateTheme } from "./themes";
+import { categoryFormSchema, moveSchema, themeFormSchema, type CategoryField, type ThemeField } from "@/lib/validations/catalog";
 import { userBlockSchema, userRoleSchema } from "@/lib/validations/users";
 import { createCoupon, setCouponActive, updateCoupon } from "./coupons";
 import { changeOrderStatus } from "./orders";
@@ -402,3 +405,175 @@ export async function setUserBlockedAction(userId: unknown, blocked: unknown, re
   };
 }
 
+// ---------------------------------------------------------------------------
+// Categories and themes
+// ---------------------------------------------------------------------------
+
+function formErrors<Field extends string>(issues: { path: PropertyKey[]; message: string }[]): Partial<Record<Field, string>> {
+  const fieldErrors: Partial<Record<Field, string>> = {};
+  for (const issue of issues) {
+    const field = issue.path[0] as Field | undefined;
+    if (field && !fieldErrors[field]) fieldErrors[field] = issue.message;
+  }
+  return fieldErrors;
+}
+
+const NOT_FOUND_CATEGORY = "Esa categoría ya no existe. Recarga la lista.";
+const NOT_FOUND_THEME = "Ese tema ya no existe. Recarga la lista.";
+
+function categoryFormValues(formData: FormData) {
+  return {
+    slug: formText(formData, "slug"),
+    name: formText(formData, "name"),
+    description: formText(formData, "description"),
+    image: formText(formData, "image"),
+    imageAlt: formText(formData, "imageAlt"),
+    visible: flag(formData, "visible"),
+  };
+}
+
+/** The navigation, the home page and the filters read categories: their tags, and the admin lists. */
+function categoriesChanged(productIds: string[] = []) {
+  updateCatalog({ categories: true, productIds });
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/products");
+}
+
+/**
+ * Creates (categoryId null) or saves a category from its form. A new
+ * category opens its page; a changed slug moves the page to the new URL.
+ */
+export async function saveCategoryAction(
+  categoryId: string | null,
+  _previous: FormState<CategoryField>,
+  formData: FormData
+): Promise<FormState<CategoryField>> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/categories" });
+  const parsed = categoryFormSchema.safeParse(categoryFormValues(formData));
+  if (!parsed.success) return { status: "error", message: "Revisa los campos marcados.", fieldErrors: formErrors<CategoryField>(parsed.error.issues) };
+
+  const db = getDb();
+  const id = categoryId === null ? null : idSchema.safeParse(categoryId);
+  const result =
+    id === null
+      ? await createCategory(db, admin, parsed.data)
+      : id.success
+        ? await updateCategory(db, admin, id.data, parsed.data)
+        : ({ ok: false, reason: "not_found" } as const);
+  if (!result.ok) {
+    switch (result.reason) {
+      case "not_found":
+        return { status: "error", message: NOT_FOUND_CATEGORY };
+      case "slug_taken":
+        return { status: "error", message: "Revisa los campos marcados.", fieldErrors: { slug: "Ya hay una categoría con ese slug." } };
+      case "slug_redirect":
+        return {
+          status: "error",
+          message: "Revisa los campos marcados.",
+          fieldErrors: { slug: `Era el slug de «${result.categoryId}» y sus enlaces viejos llevan ahí: elige otro.` },
+        };
+    }
+  }
+  categoriesChanged(result.productIds);
+  if (id === null) redirect(`/admin/categories/${encodeURIComponent(result.categoryId)}?created=1`);
+  if (result.categoryId !== categoryId) redirect(`/admin/categories/${encodeURIComponent(result.categoryId)}?moved=1`);
+  refresh();
+  return { status: "success", message: result.changed ? "Guardamos los cambios. Ya se ven en la tienda." : "No había cambios para guardar." };
+}
+
+/** "Subir" / "Bajar" in the categories list. */
+export async function moveCategoryAction(categoryId: unknown, direction: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/categories" });
+  const parsed = moveSchema.safeParse({ id: categoryId, direction });
+  if (!parsed.success) return { ok: false, error: NOT_FOUND_CATEGORY };
+  const result = await moveCategory(getDb(), admin, parsed.data.id, parsed.data.direction);
+  if (!result.ok) return { ok: false, error: NOT_FOUND_CATEGORY };
+  if (result.moved) categoriesChanged();
+  refresh();
+  return { ok: true, message: result.moved ? "Cambiamos el orden de las categorías." : "Ya estaba en ese extremo." };
+}
+
+export async function deleteCategoryAction(categoryId: unknown): Promise<AdminActionResult & { removed?: "deleted" }> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/categories" });
+  const id = idSchema.safeParse(categoryId);
+  const result = id.success ? await deleteCategory(getDb(), admin, id.data) : ({ ok: false, reason: "not_found" } as const);
+  if (!result.ok) {
+    return result.reason === "in_use"
+      ? {
+          ok: false,
+          error: `Tiene ${result.products === 1 ? "1 producto" : `${result.products} productos`} (archivados incluidos): muévelos a otra categoría u oculta esta.`,
+        }
+      : { ok: false, error: NOT_FOUND_CATEGORY };
+  }
+  categoriesChanged();
+  return { ok: true, removed: "deleted", message: "Eliminamos la categoría." };
+}
+
+function themeFormValues(formData: FormData) {
+  return { name: formText(formData, "name"), slug: formText(formData, "slug"), visible: flag(formData, "visible") };
+}
+
+/** The "Temas" menu and every product read (they carry the theme name), and the admin lists. */
+function themesChanged(productIds: string[] = []) {
+  updateCatalog({ themes: true, productIds });
+  revalidatePath("/admin/themes");
+  revalidatePath("/admin/products");
+}
+
+/** Creates (themeId null) or saves a theme from its form. */
+export async function saveThemeAction(themeId: string | null, _previous: FormState<ThemeField>, formData: FormData): Promise<FormState<ThemeField>> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/themes" });
+  const parsed = themeFormSchema.safeParse(themeFormValues(formData));
+  if (!parsed.success) return { status: "error", message: "Revisa los campos marcados.", fieldErrors: formErrors<ThemeField>(parsed.error.issues) };
+
+  const db = getDb();
+  const id = themeId === null ? null : idSchema.safeParse(themeId);
+  const result =
+    id === null
+      ? await createTheme(db, admin, parsed.data)
+      : id.success
+        ? await updateTheme(db, admin, id.data, parsed.data)
+        : ({ ok: false, reason: "not_found" } as const);
+  if (!result.ok) {
+    switch (result.reason) {
+      case "not_found":
+        return { status: "error", message: NOT_FOUND_THEME };
+      case "name_taken":
+        return { status: "error", message: "Revisa los campos marcados.", fieldErrors: { name: "Ya hay un tema con ese nombre." } };
+      case "slug_taken":
+        return { status: "error", message: "Revisa los campos marcados.", fieldErrors: { slug: "Ya hay un tema con ese slug." } };
+    }
+  }
+  themesChanged(result.productIds);
+  if (id === null) redirect(`/admin/themes/${encodeURIComponent(result.themeId)}?created=1`);
+  refresh();
+  return { status: "success", message: result.changed ? "Guardamos los cambios. Ya se ven en la tienda." : "No había cambios para guardar." };
+}
+
+/** "Subir" / "Bajar" in the themes list. */
+export async function moveThemeAction(themeId: unknown, direction: unknown): Promise<AdminActionResult> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/themes" });
+  const parsed = moveSchema.safeParse({ id: themeId, direction });
+  if (!parsed.success) return { ok: false, error: NOT_FOUND_THEME };
+  const result = await moveTheme(getDb(), admin, parsed.data.id, parsed.data.direction);
+  if (!result.ok) return { ok: false, error: NOT_FOUND_THEME };
+  if (result.moved) themesChanged();
+  refresh();
+  return { ok: true, message: result.moved ? "Cambiamos el orden de los temas." : "Ya estaba en ese extremo." };
+}
+
+export async function deleteThemeAction(themeId: unknown): Promise<AdminActionResult & { removed?: "deleted" }> {
+  const admin = await requireAdminActor({ callbackUrl: "/admin/themes" });
+  const id = idSchema.safeParse(themeId);
+  const result = id.success ? await deleteTheme(getDb(), admin, id.data) : ({ ok: false, reason: "not_found" } as const);
+  if (!result.ok) {
+    return result.reason === "in_use"
+      ? {
+          ok: false,
+          error: `Lo usan ${result.products === 1 ? "1 producto" : `${result.products} productos`} (archivados incluidos): cámbiales el tema u oculta este.`,
+        }
+      : { ok: false, error: NOT_FOUND_THEME };
+  }
+  themesChanged();
+  return { ok: true, removed: "deleted", message: "Eliminamos el tema." };
+}
