@@ -257,6 +257,7 @@ stateDiagram-v2
   [*] --> RESERVED: Revisar (reserva corta, holdExpiresAt = ahora + 30 min)
   RESERVED --> RESERVED: Realizar pedido (holdExpiresAt = null, hasta que se resuelva)
   RESERVED --> RESERVED: pago rechazado (vuelve a la reserva corta)
+  RESERVED --> RESERVED: ticket sin pagar o 3D Secure (holdExpiresAt = hasta que el pago puede llegar)
   RESERVED --> REDEEMED: el pedido pasa a PAID (trigger)
   RESERVED --> RELEASED: el pedido pasa a CANCELLED (trigger)
   REDEEMED --> RELEASED: el pedido pagado se cancela (trigger)
@@ -269,7 +270,11 @@ stateDiagram-v2
   checkout sin pagar no ocupa usos. El límite por cuenta cuenta además sus
   reservas cortas vigentes. Una reserva vencida, si el cliente paga igual, se
   valida como un uso nuevo (activo y fechas incluidos).
-- `PAYMENT_PENDING` deja la reserva sin vencimiento hasta que el pago se resuelva.
+- `PAYMENT_PENDING` deja la reserva sin vencimiento hasta que el pago se resuelva
+  (trigger), salvo un ticket de efectivo sin pagar: la app le pone de vencimiento
+  el del ticket + 1 día, así no cuenta para el total ni para el email hasta que
+  se acredite (entonces se vuelve a controlar). Lo mismo, 30 min, para un pago
+  de Stripe que espera 3D Secure.
 - Detalle de las reglas en [payments.md](./payments.md#cupones-en-los-totales).
 
 ### Pago (estados del proveedor → `NormalizedPaymentStatus`)

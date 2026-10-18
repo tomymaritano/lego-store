@@ -79,6 +79,11 @@ dashboard, exports, audit log), sitemap and robots, and the documentation.
 - The Mercado Pago webhook checks the signature before reading the body, and
   both webhooks cap their bodies; `next/image` and admin picture URLs accept only
   the store's own Vercel Blob store.
+- Unpaid cash tickets and payments waiting on 3D Secure take no coupon use
+  (neither the coupon's total nor someone else's per-email allowance); the
+  coupon is checked again when they are paid, and refunded if it no longer fits.
+- The checkout's JSON bodies are capped at 64 KB (413); an off or upcoming
+  coupon reads as an unknown code to a visitor who never had it accepted.
 
 ### Changed
 

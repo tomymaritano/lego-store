@@ -620,7 +620,39 @@ Decisiones explícitas (no son pendientes):
   prueba de Mercado Pago») antes de producción.
 - *Ruido conocido*: `next dev` puede registrar `uncaughtException: Error:
   aborted` cuando un spec cierra el navegador con un pedido en curso. Se vio una
-  vez y no se reprodujo; los handlers de la tienda que leen cuerpos a mano
-  (subidas, webhooks) capturan el corte, así que lo más probable es que venga del
+  vez (y otra en la corrida de store-ops de la segunda verificación, sin tests
+  fallidos) y no se reprodujo; los handlers de la tienda que leen cuerpos a mano
+  (subidas, webhooks y los JSON del checkout) capturan el corte, así que lo más probable es que venga del
   manejo de cuerpos de Next en desarrollo (sin confirmar). `npm audit` informa `braces` (alta) solo en dependencias de
   desarrollo, vía `eslint-config-next`; producción queda limpia.
+
+## Notas de implementación: verificación final, segunda ronda
+
+- *Cupones y pagos sin pagar*: un ticket de efectivo (Rapipago, Pago Fácil)
+  enviado y no pagado, o un pago de Stripe esperando 3D Secure, ya no ocupa un
+  uso del límite total ni del límite por email. Imprimir un ticket no cuesta
+  nada y vence en días: alcanzaba con dos requests por pedido para agotar un
+  cupón chico, o para gastar el `maxPerUser` de otra persona usando su email.
+  Ahora esos pedidos guardan el uso con una reserva que dura mientras el pago
+  puede llegar (`holdCouponUntilPaid`: vencimiento del ticket + 1 día de gracia;
+  30 min para 3D Secure), que solo cuenta para la propia cuenta. Al acreditarse,
+  el cupón se vuelve a controlar con su fila bloqueada; si ya no entra, se
+  reembolsa y el pedido se cancela (`coupon_unavailable`), igual que Checkout
+  Pro. Una tarjeta en revisión sí ocupa el uso (hubo una autorización real).
+- *Cuerpos del checkout*: los JSON de `/api/checkout/coupon`, `/orders`,
+  `/orders/<id>/pay` y `/sync` se leen con tope de 64 KB antes de validar o
+  consumir el rate limit (413 si se pasa), como los webhooks.
+- *Códigos de cupón*: un cupón desactivado o que todavía no empezó responde igual
+  que uno inexistente («Ese código no es válido») salvo que el navegador mande el
+  token de una cotización aceptada de ese código (`recheckToken` en la consulta,
+  `couponToken` al preparar el pedido). Así probar nombres no revela qué cupones
+  existen ni cuándo empieza una promoción.
+- *Historial del pago*: el reembolso de un admin en Mercado Pago queda en el
+  historial del pago en el momento (fuente «panel»); la notificación posterior
+  es la misma entrada.
+- *Admin*: el aviso de una acción confirmada (bloquear, cancelar…) aparece
+  cuando la página ya muestra el cambio.
+- Sin cambios: el formulario de registro vacía las contraseñas tras un error del
+  servidor (nunca las devuelve); docs/testing.md explica cómo limpiar
+  `RateLimit` en dev. El error de hidratación visto una vez en
+  `/admin/mensajes` no se reprodujo.

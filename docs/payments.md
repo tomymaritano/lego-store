@@ -162,7 +162,7 @@ puede notificar a tu máquina.
 
 | Estado de Mercado Pago | Pedido |
 | --- | --- |
-| `approved` | PENDING o PAYMENT_PENDING → **PAID**: stock descontado de todas las líneas o de ninguna (filas de producto bloqueadas en orden de id), esas líneas salen del carrito de la cuenta, se invalida la caché de esos productos y sale el email de confirmación. Si a una línea le falta stock → reembolso + CANCELLED (`out_of_stock`); si cobró otro monto → reembolso + CANCELLED (`amount_mismatch`); si era Checkout Pro y el cupón ya no entra → reembolso + CANCELLED (`coupon_unavailable`). |
+| `approved` | PENDING o PAYMENT_PENDING → **PAID**: stock descontado de todas las líneas o de ninguna (filas de producto bloqueadas en orden de id), esas líneas salen del carrito de la cuenta, se invalida la caché de esos productos y sale el email de confirmación. Si a una línea le falta stock → reembolso + CANCELLED (`out_of_stock`); si cobró otro monto → reembolso + CANCELLED (`amount_mismatch`); si era Checkout Pro o un ticket y el cupón ya no entra → reembolso + CANCELLED (`coupon_unavailable`). |
 | `in_process`, `pending` (incluye tickets de efectivo) | PENDING → **PAYMENT_PENDING**: la confirmación, "Mis pedidos" y un email muestran el ticket (monto, dónde pagar, enlace y vencimiento) o que la tarjeta está en revisión. **No se descuenta stock** hasta que se acredite (si entonces falta, se reembolsa). |
 | `rejected` | Con el cliente en el checkout: el pedido sigue PENDING y vuelve al paso Pago con el motivo en español según `status_detail` (`rejectionMessage`: fondos insuficientes, código de seguridad, cuotas…). Un PAYMENT_PENDING rechazado tras revisión → CANCELLED (`payment_rejected`) con email. |
 | `cancelled` | PENDING o PAYMENT_PENDING → CANCELLED (`expired` si venció el ticket, si no `payment_canceled`) con email "No se acreditó el pago". |
@@ -251,7 +251,9 @@ Con `PAYMENT_PROVIDER=stripe`:
 3. **Realizar pedido** confirma el PaymentIntent en el servidor con el
    ConfirmationToken, que tiene que ser de la misma tarjeta que mostró Revisar
    (si no, 422 y vuelta al paso Pago). 3D Secure se resuelve en el navegador con
-   `stripe.handleNextAction`.
+   `stripe.handleNextAction`; mientras tanto el uso del cupón vuelve a una
+   reserva de 30 min y el webhook `payment_intent.succeeded` lo controla de
+   nuevo (si ya no entra: reembolso + CANCELLED, `coupon_unavailable`).
 4. La confirmación consulta `GET /api/checkout/orders/<id>` cada 1,5 s hasta que
    el webhook lo marca pagado o cancelado.
 
@@ -310,11 +312,31 @@ Reserva y control (`src/lib/coupons/server.ts`):
    el control antes de PAID o PAYMENT_PENDING; si el cupón ya no entra, se
    reembolsa (o se cancela el pago pendiente) y el pedido queda CANCELLED
    (`coupon_unavailable`).
-5. Después, el trigger de la base sigue al pedido: PAID → `REDEEMED`, CANCELLED →
+5. **Pagos enviados que nadie pagó todavía**: un ticket de efectivo (Rapipago,
+   Pago Fácil) y un pago de Stripe que espera 3D Secure no cuestan nada y pueden
+   quedar sin pagar días (o para siempre). Su uso no cuenta para el límite total
+   ni para el del email: queda con una reserva que dura mientras el pago puede
+   llegar (`holdCouponUntilPaid`: vencimiento del ticket + 1 día; 30 min para
+   3D Secure) y que solo cuenta para la propia cuenta. Al acreditarse se vuelve a
+   controlar el cupón; si otro pagó el último uso, se reembolsa y el pedido queda
+   CANCELLED (`coupon_unavailable`). Una tarjeta en revisión sí ocupa el uso.
+6. Después, el trigger de la base sigue al pedido: PAID → `REDEEMED`, CANCELLED →
    `RELEASED`.
 
 El límite por cliente cuenta por cuenta en todos los pasos; por email (lo escribe
-cualquiera) solo cuentan los usos pagados o con el pago enviado, y solo al pagar.
+cualquiera) solo cuentan los usos pagados o con el pago enviado y en curso (no un
+ticket sin pagar), y solo al pagar o al acreditarse.
+
+Quien prueba códigos sin haberlos aplicado antes no distingue un cupón
+desactivado o que todavía no empezó de uno inexistente: los tres responden «Ese
+código no es válido». El motivo real (y la fecha de inicio) solo se dice con el
+token firmado de una cotización aceptada de ese código (`recheckToken` en
+`POST /api/checkout/coupon`, `couponToken` en `POST /api/checkout/orders`).
+Vencido, agotado y compra mínima dicen su motivo siempre.
+
+Los cuerpos JSON del checkout (cupón, pedidos, pago y sync) se leen con tope de
+64 KB (`MAX_CHECKOUT_BODY_BYTES`) antes de validar o consumir el rate limit: más
+es **413**.
 
 ## Modo de prueba sin cuentas (`PAYMENTS_MOCK=1`)
 

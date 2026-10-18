@@ -151,6 +151,12 @@ borra (devolviendo el stock que tomaron), limpia los contadores de rate limiting
 crea un admin con contraseña aleatoria, y el teardown vuelve a borrarlos. Una
 corrida hace 20 registros por el formulario (el límite por IP por hora): un spec
 nuevo que necesite una cuenta debe usar `createE2eAccount` (`e2e/helpers/db.ts`).
+Después de una corrida, registrarte a mano en el mismo equipo puede chocar con
+ese límite ("Se crearon demasiadas cuentas desde tu conexión"); en dev se
+limpia con `docker compose exec db psql -U lego -d lego_store -c 'DELETE FROM
+"RateLimit";'` (el setup de la próxima corrida también lo limpia). Tras
+ese error el formulario vacía las contraseñas a propósito: el servidor nunca las
+devuelve.
 
 **Pagos en los E2E**: `mercadopago.spec.ts` (tarjeta aprobada, rechazada y otra que
 paga, ticket pendiente que se acredita por webhook firmado, firma inválida, con axe
