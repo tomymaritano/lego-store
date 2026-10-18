@@ -37,19 +37,19 @@ const TW_FONT_SIZE = "(^|[\\s\"'`:])text-(xs|sm|base|lg|[2-9]?xl)(?![\\w-])";
 const MOTION_PROPS = "^(transition|animate|initial|exit|whileHover|whileTap|whileInView|whileFocus|variants)$";
 
 const rawColorMessage =
-  "Usá tokens semánticos (bg-surface, text-fg-muted, bg-primary, text-danger…) en vez de colores crudos de la paleta.";
+  "Usa tokens semánticos (bg-surface, text-fg-muted, bg-primary, text-danger…) en vez de colores crudos de la paleta.";
 const aliasMessage =
   "Alias heredado (lego-*, brand-*, background-*, foreground-*, status-*, border-subtle): usá el token semántico (bg-bg, text-fg, bg-primary, text-danger…).";
 const darkMessage =
   "No uses `dark:` fuera de src/components/ui: los tokens semánticos ya cambian con el tema.";
 const motionMessage =
-  "Usá los presets de @/lib/motion (transitions.fast/base/slow, fadeInUp, staggerItem…) en vez de duraciones numéricas sueltas.";
+  "Usa los presets de @/lib/motion (transitions.fast/base/slow, fadeInUp, staggerItem…) en vez de duraciones numéricas sueltas.";
 const twTimingMessage =
-  "Usá los tokens de movimiento (duration-fast/base/slow, ease-standard/emphasized/exit) en vez de duration-300 / ease-in-out.";
+  "Usa los tokens de movimiento (duration-fast/base/slow, ease-standard/emphasized/exit) en vez de duration-300 / ease-in-out.";
 const typeScaleMessage =
-  "Usá la escala tipográfica (text-caption, text-label, text-body, text-title, text-heading, text-headline, text-display) en vez de text-sm / text-2xl.";
+  "Usa la escala tipográfica (text-caption, text-label, text-body, text-title, text-heading, text-headline, text-display) en vez de text-sm / text-2xl.";
 const transitionScaleMessage =
-  "En Tailwind v4 scale-*/rotate-*/translate-* usan sus propias propiedades CSS: listá scale/rotate/translate en transition-[...], no `transform`.";
+  "En Tailwind v4 scale-*/rotate-*/translate-* usan sus propias propiedades CSS: lista scale/rotate/translate en transition-[...], no `transform`.";
 
 const literal = (pattern, message) => [
   { selector: `Literal[value=/${pattern}/]`, message },
@@ -124,7 +124,7 @@ export default defineConfig([
           patterns: [
             {
               group: ["@/data", "@/data/*", "**/data/products", "**/data/categories"],
-              message: "src/data es solo la fuente del seed: leé el catálogo vía @/lib/api (base de datos).",
+              message: "src/data es solo la fuente del seed: lee el catálogo vía @/lib/api (base de datos).",
             },
           ],
         },
@@ -149,13 +149,13 @@ export default defineConfig([
           patterns: [
             {
               group: ["@/data", "@/data/*", "**/data/products", "**/data/categories"],
-              message: "src/data es solo la fuente del seed: leé el catálogo vía @/lib/api (base de datos).",
+              message: "src/data es solo la fuente del seed: lee el catálogo vía @/lib/api (base de datos).",
             },
             {
               group: ["zod", "zod/*", "@/lib/validations/*", "!@/lib/validations/newsletter"],
               allowTypeImports: true,
               message:
-                "Este módulo va en el bundle del layout (todas las rutas): sin zod. Usá `import type` o una validación a mano; el servidor valida con zod.",
+                "Este módulo va en el bundle del layout (todas las rutas): sin zod. Usa `import type` o una validación a mano; el servidor valida con zod.",
             },
           ],
         },

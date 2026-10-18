@@ -41,7 +41,7 @@ export default async function setup() {
     const name = new URL(url).pathname.slice(1);
     throw new Error(
       `La base de test "${name}" está ocupada: otra corrida de tests de integración la está usando ` +
-        "(¿un `npm test` en modo watch abierto?). Esperá a que termine o apuntá DATABASE_URL_TEST a otra base."
+        "(¿un `npm test` en modo watch abierto?). Espera a que termine o apunta DATABASE_URL_TEST a otra base."
     );
   }
 
