@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { invalidateCatalog } from "@/lib/api/cache";
 import { renewSession, updateSession } from "@/lib/auth";
 import { changeUserPassword, updateUserName } from "@/lib/auth/accounts";
 import { sessionRenewal } from "@/lib/auth/session-token";
@@ -30,7 +31,9 @@ export async function updateProfileAction(
   const parsed = profileSchema.safeParse(values);
   if (!parsed.success) return { status: "error", fieldErrors: fieldErrors<ProfileField>(parsed.error), values };
 
-  await updateUserName(user.id, parsed.data.name);
+  const { reviewedProductIds } = await updateUserName(user.id, parsed.data.name);
+  // Their reviews show the author's name: refresh those products' cached review lists.
+  if (reviewedProductIds.length > 0) invalidateCatalog({ productIds: reviewedProductIds, listings: false });
   // Re-issues the session cookie with the new name; Next re-renders the page (and the navbar) with it.
   await updateSession({});
   return { status: "success", message: "Guardamos tu nombre.", values: { name: parsed.data.name } };

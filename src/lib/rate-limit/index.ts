@@ -45,6 +45,11 @@ export const rateLimits = {
   passwordChange: limiter("password-change", 5, 15 * MINUTE),
   /** New reviews per user (one per product anyway; this slows down a spree across products). */
   reviewCreate: limiter("review-create", 10, HOUR),
+  /**
+   * Edits and deletions of one's own reviews, per user: each one expires the
+   * product's cache (and, when the rating moves, the shared listings).
+   */
+  reviewEdit: limiter("review-edit", 20, HOUR),
   /** "Útil" votes per user: each one refreshes the product page's cache. */
   reviewHelpful: limiter("review-helpful", 60, 15 * MINUTE),
 } as const;

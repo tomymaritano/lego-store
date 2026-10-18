@@ -118,8 +118,19 @@ export async function getAccountUser(id: string): Promise<(AccountUser & { hasPa
   return { ...account, hasPassword: passwordHash !== null };
 }
 
-export async function updateUserName(id: string, name: string): Promise<void> {
-  await getDb().user.update({ where: { id }, data: { name: name.trim() } });
+/**
+ * Renames the account. Returns the products the user has reviewed when the
+ * name actually changed: their cached review lists show the author's name
+ * and must be refreshed (empty otherwise).
+ */
+export async function updateUserName(id: string, name: string): Promise<{ reviewedProductIds: string[] }> {
+  const next = name.trim();
+  const db = getDb();
+  const before = await db.user.findUnique({ where: { id }, select: { name: true } });
+  await db.user.update({ where: { id }, data: { name: next } });
+  if (before?.name === next) return { reviewedProductIds: [] };
+  const reviews = await db.review.findMany({ where: { userId: id }, select: { productId: true } });
+  return { reviewedProductIds: reviews.map((review) => review.productId) };
 }
 
 export type ChangePasswordResult =

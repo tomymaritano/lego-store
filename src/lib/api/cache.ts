@@ -50,9 +50,15 @@ export function cached<A extends unknown[], R>(
  * Call after any catalogue write (admin edits, stock changes on payment,
  * a new review that moves a rating). Expires immediately: the next read is
  * fresh, never stale. Server Actions and Route Handlers only (not proxy.ts).
+ * `listings: false` leaves the shared product lists alone when only the
+ * products' own pages changed (a reviewer's new name).
  */
-export function invalidateCatalog({ productIds = [], categories = false }: { productIds?: string[]; categories?: boolean } = {}) {
-  revalidateTag(CATALOG_TAGS.products, { expire: 0 });
+export function invalidateCatalog({
+  productIds = [],
+  categories = false,
+  listings = true,
+}: { productIds?: string[]; categories?: boolean; listings?: boolean } = {}) {
+  if (listings) revalidateTag(CATALOG_TAGS.products, { expire: 0 });
   for (const id of productIds) revalidateTag(CATALOG_TAGS.product(id), { expire: 0 });
   // Category counts change when products are created, deleted or moved.
   if (categories) revalidateTag(CATALOG_TAGS.categories, { expire: 0 });

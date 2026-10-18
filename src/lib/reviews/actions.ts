@@ -4,7 +4,8 @@ import { updateCatalog } from "@/lib/api/cache";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { rateLimits, waitMessage } from "@/lib/rate-limit";
-import { reviewIdSchema, reviewSchema, type ReviewField } from "@/lib/validations/review";
+import { productIdSchema, reviewIdSchema } from "@/lib/validations/ids";
+import { reviewSchema, type ReviewField } from "@/lib/validations/review";
 import { createReview, deleteReview, setHelpful, updateReview, type ReviewWriteResult } from "./mutations";
 
 /*
@@ -12,7 +13,9 @@ import { createReview, deleteReview, setHelpful, updateReview, type ReviewWriteR
  * validates its input with the same zod schema as the form, and writes
  * through ./mutations.ts (one transaction with the product's cached rating).
  *
- * Afterwards updateCatalog() expires the product's cache tags with updateTag:
+ * Every write is rate limited per user. Afterwards updateCatalog() expires
+ * the product's cache tags with updateTag (and the shared listings' only when
+ * the rating or the review count may have moved):
  * Next re-renders the product page in this same response, so the rating, the
  * review count and the list show the change at once, and every other visitor
  * gets fresh data on their next request.
@@ -43,16 +46,23 @@ function written(result: ReviewWriteResult, messages: { not_found: string; dupli
   if (!result.ok) {
     return { ok: false, error: result.reason === "duplicate" ? (messages.duplicate ?? INVALID) : messages.not_found };
   }
-  // The rating moved: the product page and every listing that shows or sorts by it.
-  updateCatalog({ productIds: [result.productId] });
+  // The product page always; every listing that shows or sorts by the rating only when it moved.
+  updateCatalog({ productIds: [result.productId], listings: result.ratingChanged });
   return { ok: true };
+}
+
+/** Consumes one edit or deletion from the user's allowance; the refusal to return when it ran out. */
+async function editLimited(userId: string): Promise<ReviewActionResult | null> {
+  const limit = await rateLimits.reviewEdit.consume(userId);
+  if (limit.ok) return null;
+  return { ok: false, error: `Hiciste muchos cambios seguidos en tus reseñas. Vuelve a intentarlo en ${waitMessage(limit.retryAfterSeconds)}.` };
 }
 
 /** Publishes the signed-in user's review of a product (one per product; rate limited). */
 export async function createReviewAction(productId: unknown, input: unknown): Promise<ReviewActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: SIGN_IN };
-  const id = reviewIdSchema.safeParse(productId);
+  const id = productIdSchema.safeParse(productId);
   if (!id.success) return { ok: false, error: "Ese producto ya no está en el catálogo." };
   const content = parseContent(input);
   if (!content.ok) return content.result;
@@ -68,7 +78,7 @@ export async function createReviewAction(productId: unknown, input: unknown): Pr
   });
 }
 
-/** Edits the signed-in user's own review. */
+/** Edits the signed-in user's own review (rate limited). */
 export async function updateReviewAction(reviewId: unknown, input: unknown): Promise<ReviewActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: SIGN_IN };
@@ -76,15 +86,19 @@ export async function updateReviewAction(reviewId: unknown, input: unknown): Pro
   if (!id.success) return { ok: false, error: NOT_FOUND };
   const content = parseContent(input);
   if (!content.ok) return content.result;
+  const limited = await editLimited(user.id);
+  if (limited) return limited;
   return written(await updateReview(getDb(), user.id, id.data, content.data), { not_found: NOT_FOUND });
 }
 
-/** Deletes the signed-in user's own review (an admin can delete any). */
+/** Deletes the signed-in user's own review (an admin can delete any; rate limited). */
 export async function deleteReviewAction(reviewId: unknown): Promise<ReviewActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: SIGN_IN };
   const id = reviewIdSchema.safeParse(reviewId);
   if (!id.success) return { ok: false, error: NOT_FOUND };
+  const limited = await editLimited(user.id);
+  if (limited) return limited;
   return written(await deleteReview(getDb(), { id: user.id, role: user.role }, id.data), { not_found: NOT_FOUND });
 }
 

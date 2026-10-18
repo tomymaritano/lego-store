@@ -14,7 +14,8 @@ import type { ReviewInput } from "@/lib/validations/review";
  */
 
 export type ReviewWriteResult =
-  | { ok: true; productId: string; reviewId: string }
+  /** `ratingChanged`: the product's rating or review count may have moved (false for a text-only edit). */
+  | { ok: true; productId: string; reviewId: string; ratingChanged: boolean }
   | { ok: false; reason: "not_found" | "duplicate" };
 
 export type HelpfulResult =
@@ -42,7 +43,7 @@ export async function createReview(db: PrismaClient, userId: string, productId: 
         select: { id: true },
       });
       await refreshProductRatings(tx, [productId]);
-      return { ok: true, productId, reviewId: review.id } as const;
+      return { ok: true, productId, reviewId: review.id, ratingChanged: true } as const;
     });
   } catch (error) {
     // Two submissions racing past the check: the unique key keeps one.
@@ -54,14 +55,15 @@ export async function createReview(db: PrismaClient, userId: string, productId: 
 /** Edits the user's own review (rating, title, comment). */
 export function updateReview(db: PrismaClient, userId: string, reviewId: string, input: ReviewInput): Promise<ReviewWriteResult> {
   return db.$transaction(async (tx) => {
-    const review = await tx.review.findFirst({ where: { id: reviewId, userId }, select: { productId: true } });
+    const review = await tx.review.findFirst({ where: { id: reviewId, userId }, select: { productId: true, rating: true } });
     if (!review) return { ok: false, reason: "not_found" } as const;
     await tx.review.update({
       where: { id: reviewId },
       data: { rating: input.rating, title: input.title, comment: input.comment },
     });
-    await refreshProductRatings(tx, [review.productId]);
-    return { ok: true, productId: review.productId, reviewId } as const;
+    const ratingChanged = review.rating !== input.rating;
+    if (ratingChanged) await refreshProductRatings(tx, [review.productId]);
+    return { ok: true, productId: review.productId, reviewId, ratingChanged } as const;
   });
 }
 
@@ -73,7 +75,7 @@ export function deleteReview(db: PrismaClient, actor: ReviewActor, reviewId: str
     if (!review) return { ok: false, reason: "not_found" } as const;
     await tx.review.delete({ where: { id: reviewId } });
     await refreshProductRatings(tx, [review.productId]);
-    return { ok: true, productId: review.productId, reviewId } as const;
+    return { ok: true, productId: review.productId, reviewId, ratingChanged: true } as const;
   });
 }
 

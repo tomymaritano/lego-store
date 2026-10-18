@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { updateTag } from "next/cache";
 import { NextRequest } from "next/server";
 import { getReviewPage } from "@/lib/api";
+import { updateUserName } from "@/lib/auth/accounts";
 import { createReview, deleteReview, setHelpful, updateReview } from "@/lib/reviews/mutations";
 import { REVIEW_PAGE_SIZE } from "@/lib/reviews/sorts";
 import { resetAndSeed, testDb } from "./setup/db";
@@ -251,6 +252,44 @@ describe("review Server Actions", () => {
     for (const id of products.slice(0, 11)) results.push(await actions.createReviewAction(id, content));
     expect(results.slice(0, 10).every((r) => r.ok)).toBe(true);
     expect(results[10]).toMatchObject({ ok: false, error: expect.stringMatching(/^Publicaste muchas reseñas seguidas/) });
+  });
+
+  it("an edit that keeps the rating refreshes only the product's own tag; one that moves it, the listings too", async () => {
+    signInAs(ana);
+    await actions.createReviewAction(PRODUCT, content);
+    const { id } = await testDb.review.findFirstOrThrow({ where: { userId: ana.id, productId: PRODUCT } });
+    vi.mocked(updateTag).mockClear();
+
+    expect(await actions.updateReviewAction(id, { ...content, title: "Otro título" })).toEqual({ ok: true });
+    expect(updateTag).toHaveBeenCalledWith(`product:${PRODUCT}`);
+    expect(updateTag).not.toHaveBeenCalledWith("products");
+
+    vi.mocked(updateTag).mockClear();
+    expect(await actions.updateReviewAction(id, { ...content, rating: 2 })).toEqual({ ok: true });
+    expect(updateTag).toHaveBeenCalledWith("products");
+    await expectRatingMatchesReviews();
+  });
+
+  it("rate-limit edits and deletions per user", async () => {
+    signInAs(ana);
+    await actions.createReviewAction(PRODUCT, content);
+    const { id } = await testDb.review.findFirstOrThrow({ where: { userId: ana.id, productId: PRODUCT } });
+    const results = [];
+    for (let i = 0; i < 21; i++) results.push(await actions.updateReviewAction(id, { ...content, title: `Edición ${i}` }));
+    expect(results.slice(0, 20).every((r) => r.ok)).toBe(true);
+    expect(results[20]).toMatchObject({ ok: false, error: expect.stringMatching(/^Hiciste muchos cambios seguidos/) });
+    expect(await actions.deleteReviewAction(id)).toMatchObject({ ok: false, error: expect.stringMatching(/^Hiciste muchos cambios/) });
+    expect(await testDb.review.findUniqueOrThrow({ where: { id } })).toMatchObject({ title: "Edición 19" });
+  });
+});
+
+describe("renaming the account", () => {
+  it("returns the products the user reviewed when the name changes (their cached review lists show it)", async () => {
+    await createReview(testDb, ana.id, PRODUCT, content);
+    expect(await updateUserName(ana.id, "Ana María Pérez")).toEqual({ reviewedProductIds: [PRODUCT] });
+    // Same name again: nothing to refresh.
+    expect(await updateUserName(ana.id, " Ana María Pérez ")).toEqual({ reviewedProductIds: [] });
+    await updateUserName(ana.id, "Ana Pérez");
   });
 });
 
