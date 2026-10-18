@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Award, Blocks, RotateCcw, Shield, Sparkles, Truck, Users } from "lucide-react";
-import { getCategoryById, getProductById, getProducts, getRelatedProducts, getReviewPage } from "@/lib/api";
+import { getCategoryById, getCategoryNames, getProductById, getProducts, getRelatedProducts, getReviewPage } from "@/lib/api";
 import { DEFAULT_REVIEW_SORT, REVIEW_PAGE_SIZE } from "@/lib/reviews/sorts";
 import type { ReviewPage } from "@/types";
 import { formatPrice } from "@/lib/utils";
@@ -68,13 +68,18 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const product = await getProductById(productId);
   if (!product) notFound();
 
-  const [category, related, reviewPage] = await Promise.all([
+  const [category, categoryNames, related, reviewPage] = await Promise.all([
     getCategoryById(product.category),
+    getCategoryNames(),
     getRelatedProducts(product.id, 4),
     getReviewPage(product.id, DEFAULT_REVIEW_SORT),
   ]);
   const reviews = reviewPage ?? emptyReviewPage;
-  const categoryName = category?.name ?? product.category;
+  // A hidden category still has a name (getCategoryById only finds visible ones), but no page of its own:
+  // its breadcrumb goes to the search filtered by it.
+  const categoryName =
+    category?.name ?? categoryNames.find((entry) => entry.id.toLowerCase() === product.category.toLowerCase())?.name ?? product.category;
+  const categoryHref = category ? `/category/${category.id}` : `/search?category=${encodeURIComponent(product.category)}`;
 
   const facts = [
     { icon: Users, label: "Edad recomendada", value: product.age },
@@ -104,7 +109,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
       <div className="container-custom space-y-12 py-6 lg:space-y-16">
         <div>
-          <Breadcrumbs items={[{ label: categoryName, href: `/category/${product.category}` }, { label: product.name }]} />
+          <Breadcrumbs items={[{ label: categoryName, href: categoryHref }, { label: product.name }]} />
 
           <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
             <div className="lg:sticky lg:top-24 lg:self-start">
