@@ -3,6 +3,7 @@ import { Barlow } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { CategoriesProvider } from "@/providers/CategoriesProvider";
+import { ViewerProvider } from "@/providers/ViewerProvider";
 import { ClientProviders, Footer, Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui";
 import { getCategories } from "@/lib/api";
@@ -73,6 +74,7 @@ export default async function RootLayout({
     getCurrentUser(),
   ]);
   const account = user ? { name: user.name, email: user.email, role: user.role } : null;
+  const viewer = user ? { id: user.id, name: user.name } : null;
 
   return (
     <html lang="es-AR" className={`${barlow.variable} motion-safe:scroll-smooth`} data-scroll-behavior="smooth" suppressHydrationWarning>
@@ -89,14 +91,16 @@ export default async function RootLayout({
         </a>
         <QueryProvider>
           <CategoriesProvider categories={categories}>
-            <ClientProviders>
-              <Navbar categories={categories} account={account} />
-              <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
-                {children}
-              </main>
-              <Footer categories={categories} />
-              <Toaster />
-            </ClientProviders>
+            <ViewerProvider viewer={viewer}>
+              <ClientProviders>
+                <Navbar categories={categories} account={account} />
+                <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
+                  {children}
+                </main>
+                <Footer categories={categories} />
+                <Toaster />
+              </ClientProviders>
+            </ViewerProvider>
           </CategoriesProvider>
         </QueryProvider>
       </body>

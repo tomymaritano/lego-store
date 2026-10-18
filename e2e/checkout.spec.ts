@@ -1,7 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
 import { seriousAxeViolations } from "./helpers/axe";
+import { keepSeededCart } from "./helpers/catalog";
 
-const seedCart = (page: Page, cart: unknown[]) =>
+const seedCart = async (page: Page, cart: ReturnType<typeof line>[]) => {
+  // Made-up names and prices: keep them when the visitor's cart refreshes from the catalogue.
+  await keepSeededCart(page, cart);
+  return addCart(page, cart);
+};
+
+const addCart = (page: Page, cart: unknown[]) =>
   page.addInitScript((lines) => {
     // Seed once per test, so the cart cleared by the order stays cleared.
     if (!sessionStorage.getItem("seeded:cart")) {
