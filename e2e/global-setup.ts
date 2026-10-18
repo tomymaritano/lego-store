@@ -33,6 +33,7 @@ const ROUTES = [
   "/login",
   "/register",
   "/account",
+  "/account/orders",
   "/admin",
 ];
 
@@ -41,6 +42,17 @@ export default async function globalSetup(config: FullConfig) {
 
   const baseURL = config.projects.find((project) => project.name === "chromium")?.use.baseURL;
   if (!baseURL) return;
+
+  // The checkout specs pay through the mock gateway: a dev server reused from
+  // `npm run dev` without STRIPE_MOCK=1 would show "Pagos no configurados".
+  const checkout = await (await fetch(new URL("/checkout", baseURL))).text();
+  if (!checkout.includes('data-payments-mode="mock"')) {
+    throw new Error(
+      `El servidor de ${baseURL} no corre con pagos simulados. Detené el \`npm run dev\` que está usando ese puerto ` +
+        "(Playwright levanta el suyo con STRIPE_MOCK=1) o reinicialo con STRIPE_MOCK=1 y STRIPE_WEBHOOK_SECRET=" +
+        "whsec_e2e_lego_store_mock_only (ver e2e/helpers/stripe.ts)."
+    );
+  }
   for (const route of ROUTES) {
     try {
       await (await fetch(new URL(route, baseURL))).arrayBuffer();

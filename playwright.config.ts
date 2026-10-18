@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_SERVER_ENV } from "./e2e/helpers/stripe";
 
 const DEV_URL = "http://localhost:3000";
 /** Production server (`next build` + `next start`) for the e2e/prod specs. */
@@ -37,6 +38,9 @@ export default defineConfig({
       command: "npm run dev",
       url: DEV_URL,
       reuseExistingServer: !process.env.CI,
+      // Payments through the mock gateway, webhooks signed by the specs (e2e/helpers/stripe.ts).
+      // A reused dev server must have been started with these too: the global setup checks.
+      env: E2E_SERVER_ENV,
     },
     {
       command: `npm run build && npx next start -p ${PROD_PORT}`,
