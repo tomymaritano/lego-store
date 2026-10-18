@@ -180,7 +180,7 @@ export function AnnouncementSettingsForm({
           </p>
           <div aria-labelledby="announcement-preview-title" role="group" className="overflow-hidden rounded-xl border border-border" data-testid="announcement-preview">
             {draft.active && draft.text.trim() ? (
-              <AnnouncementBar announcement={draft} settings={initial} />
+              <AnnouncementBar announcement={draft} settings={initial} preview />
             ) : (
               <p className="px-4 py-3 text-label font-normal text-fg-muted">La barra no se muestra.</p>
             )}
@@ -240,11 +240,11 @@ export function ContactSettingsForm({ action, initial }: { action: SettingsActio
 /** The placeholders the content and the announcement understand (the help under the content editor uses it too). */
 export function PlaceholderList({ settings }: { settings: StoreSettings }) {
   return (
-    <dl className="grid gap-x-6 gap-y-2 text-label font-normal sm:grid-cols-2">
+    <dl className="grid gap-x-6 gap-y-2 text-label font-normal sm:grid-cols-2 xl:grid-cols-1">
       {PLACEHOLDERS.map((placeholder) => (
-        <div key={placeholder.key} className="flex flex-wrap items-baseline gap-x-2">
-          <dt>
-            <code className="rounded bg-bg-muted px-1.5 py-0.5 font-mono text-caption text-fg">{`{{${placeholder.key}}}`}</code>
+        <div key={placeholder.key} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <dt className="min-w-0">
+            <code className="rounded bg-bg-muted px-1.5 py-0.5 font-mono text-caption break-all text-fg">{`{{${placeholder.key}}}`}</code>
           </dt>
           <dd className="text-fg-secondary">
             {placeholder.label}: {placeholder.value(settings)}
