@@ -31,7 +31,14 @@ export interface CsvExport {
   body: ReadableStream<Uint8Array>;
 }
 
-const BATCH = 250;
+/** Rows read from the database per query while streaming. */
+export const EXPORT_BATCH_SIZE = 250;
+
+export interface ExportOptions {
+  now?: Date;
+  /** Rows per query (EXPORT_BATCH_SIZE); the tests make it small to cross batch boundaries. */
+  batchSize?: number;
+}
 
 const dateTimeFormat = new Intl.DateTimeFormat("sv-SE", {
   year: "numeric",
@@ -149,7 +156,7 @@ function orderLines(order: ExportOrder): CsvValue[][] {
 }
 
 /** Orders matching the list's filters (status, search, dates), newest first. `rows` counts orders, not lines. */
-export async function exportOrders(db: Db, actor: AuditActor, filters: AdminOrderFilters, now = new Date()): Promise<CsvExport> {
+export async function exportOrders(db: Db, actor: AuditActor, filters: AdminOrderFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = orderWhere(filters);
   const rows = await db.order.count({ where });
   await audit(db, actor, "orders", { ...filters }, rows);
@@ -158,10 +165,10 @@ export async function exportOrders(db: Db, actor: AuditActor, filters: AdminOrde
       where,
       select: orderSelect,
       orderBy: [{ number: "desc" }],
-      take: BATCH,
+      take: batchSize,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
-    return { lines: batch.flatMap(orderLines), cursor: batch.length === BATCH ? batch.at(-1)!.id : null };
+    return { lines: batch.flatMap(orderLines), cursor: batch.length === batchSize ? batch.at(-1)!.id : null };
   });
   return { filename: filename("pedidos", now), rows, body };
 }
@@ -172,7 +179,7 @@ export async function exportOrders(db: Db, actor: AuditActor, filters: AdminOrde
 
 export const CUSTOMER_EXPORT_HEADER = ["ID", "Email", "Nombre", "Rol", "Alta", "Bloqueada", "Pedidos", "Gastado", "Newsletter"] as const;
 
-export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminUserFilters, now = new Date()): Promise<CsvExport> {
+export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminUserFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = userWhere(filters);
   const rows = await db.user.count({ where });
   await audit(db, actor, "customers", { ...filters }, rows);
@@ -181,7 +188,7 @@ export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminU
       where,
       select: { id: true, email: true, name: true, role: true, createdAt: true, blockedAt: true },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: BATCH,
+      take: batchSize,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
     const [stats, subscribed] = await Promise.all([
@@ -196,7 +203,7 @@ export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminU
       const { orders, spent } = stats.get(user.id) ?? { orders: 0, spent: 0 };
       return [user.id, user.email, user.name, user.role === "ADMIN" ? "Admin" : "Cliente", csvDateTime(user.createdAt), user.blockedAt !== null, orders, spent, subscribers.has(user.email)];
     });
-    return { lines, cursor: batch.length === BATCH ? batch.at(-1)!.id : null };
+    return { lines, cursor: batch.length === batchSize ? batch.at(-1)!.id : null };
   });
   return { filename: filename("clientes", now), rows, body };
 }
@@ -208,7 +215,7 @@ export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminU
 /** "Enlace de baja": each active subscriber's own unsubscribe link (lib/newsletter), for a mailing tool's merge field. */
 export const NEWSLETTER_EXPORT_HEADER = ["Email", "Estado", "Origen", "Alta", "Baja", "Enlace de baja"] as const;
 
-export async function exportNewsletter(db: Db, actor: AuditActor, filters: AdminSubscriberFilters, now = new Date()): Promise<CsvExport> {
+export async function exportNewsletter(db: Db, actor: AuditActor, filters: AdminSubscriberFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = subscriberWhere(filters);
   const rows = await db.newsletterSubscriber.count({ where });
   await audit(db, actor, "newsletter", { ...filters }, rows);
@@ -217,7 +224,7 @@ export async function exportNewsletter(db: Db, actor: AuditActor, filters: Admin
       where,
       select: { id: true, email: true, source: true, subscribedAt: true, unsubscribedAt: true },
       orderBy: [{ subscribedAt: "desc" }, { id: "desc" }],
-      take: BATCH,
+      take: batchSize,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
     const lines = batch.map((row): CsvValue[] => [
@@ -228,7 +235,7 @@ export async function exportNewsletter(db: Db, actor: AuditActor, filters: Admin
       csvDateTime(row.unsubscribedAt),
       row.unsubscribedAt ? "" : (unsubscribeUrl(row.id) ?? ""),
     ]);
-    return { lines, cursor: batch.length === BATCH ? batch.at(-1)!.id : null };
+    return { lines, cursor: batch.length === batchSize ? batch.at(-1)!.id : null };
   });
   return { filename: filename("newsletter", now), rows, body };
 }

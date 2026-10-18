@@ -1,14 +1,20 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { NEWSLETTER_EXPORT_HEADER, ORDER_EXPORT_HEADER } from "@/lib/admin/exports";
+import { exportCustomers, exportNewsletter, exportOrders, NEWSLETTER_EXPORT_HEADER, ORDER_EXPORT_HEADER, type CsvExport } from "@/lib/admin/exports";
+import { formatOrderNumber } from "@/lib/orders/format";
 import { unsubscribeUrl } from "@/lib/newsletter";
+import { parseOrderFilters } from "@/lib/validations/admin";
+import { parseSubscriberFilters } from "@/lib/validations/inbox";
+import { parseUserFilters } from "@/lib/validations/users";
 import { resetAndSeed, testDb } from "./setup/db";
 
 /*
  * The admin's CSV exports through their Route Handler against the test
  * database: admins only, UTF-8 with BOM, ";" separated, one line per order
  * product, the list's filters, formulas neutralised, and every export in
- * the audit log with its filters and row count.
+ * the audit log with its filters and row count. The streams read the
+ * database in batches; a tiny batch size checks that every row comes out
+ * exactly once, in order, across batch boundaries.
  */
 
 vi.stubEnv("AUTH_SECRET", "exports-integration-secret");
@@ -149,5 +155,55 @@ describe("GET /api/admin/export/<kind>", () => {
     expect(unsubscribeUrl(active.id)).toContain(`/newsletter/baja?token=${active.id}.`);
     const entry = await testDb.auditLog.findFirstOrThrow({ where: { entityType: "export", entityId: "newsletter" } });
     expect(entry.changes).toEqual({ filters: "q=export.test status=unsubscribed", rows: 1 });
+  });
+});
+
+describe("batches", () => {
+  const actor = () => ({ id: admin.id, email: admin.email });
+  const rowsOf = async (result: CsvExport) => {
+    const { lines } = await csvOf(new Response(result.body));
+    return lines.slice(1);
+  };
+
+  it("streams every subscriber once, newest first, across batch boundaries (ties broken by id)", async () => {
+    const at = new Date("2026-01-01T12:00:00Z");
+    // Seven, three of them signed up at the very same moment.
+    await testDb.newsletterSubscriber.createMany({
+      data: Array.from({ length: 7 }, (_, index) => ({
+        email: `lote-${index}@batch.test`,
+        source: "footer",
+        subscribedAt: new Date(at.getTime() + (index < 3 ? 0 : index) * 60_000),
+      })),
+    });
+    const expected = await testDb.newsletterSubscriber.findMany({
+      where: { email: { endsWith: "@batch.test" } },
+      orderBy: [{ subscribedAt: "desc" }, { id: "desc" }],
+      select: { email: true },
+    });
+    for (const batchSize of [3, 7, 1]) {
+      const result = await exportNewsletter(testDb, actor(), parseSubscriberFilters({ q: "@batch.test" }), { batchSize });
+      expect(result.rows).toBe(7);
+      const rows = await rowsOf(result);
+      expect(rows.map((line) => line.split(";")[0])).toEqual(expected.map((row) => row.email));
+    }
+  });
+
+  it("streams every order once, newest number first, across batch boundaries", async () => {
+    const result = await exportOrders(testDb, actor(), parseOrderFilters({}), { batchSize: 2 });
+    const orders = await testDb.order.findMany({ where: { submittedAt: { not: null } }, orderBy: { number: "desc" }, select: { number: true, _count: { select: { items: true } } } });
+    expect(orders.length).toBeGreaterThan(2);
+    expect(result.rows).toBe(orders.length);
+    const rows = await rowsOf(result);
+    // One line per product, each order's lines together, orders in order.
+    const expected = orders.flatMap((order) => Array.from({ length: Math.max(order._count.items, 1) }, () => formatOrderNumber(order.number)));
+    expect(rows.map((line) => line.split(";")[0])).toEqual(expected);
+  });
+
+  it("streams every customer once, across batch boundaries", async () => {
+    const result = await exportCustomers(testDb, actor(), parseUserFilters({}), { batchSize: 2 });
+    const users = await testDb.user.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true } });
+    expect(users.length).toBeGreaterThan(2);
+    expect(result.rows).toBe(users.length);
+    expect((await rowsOf(result)).map((line) => line.split(";")[0])).toEqual(users.map((user) => user.id));
   });
 });
