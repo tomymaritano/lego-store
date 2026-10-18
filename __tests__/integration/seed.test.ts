@@ -75,6 +75,18 @@ describe("seed", () => {
     expect(await snapshot()).toEqual(before);
   });
 
+  it("re-seeds after an admin renamed a seed theme or changed its slug, and restores it", async () => {
+    const technic = await testDb.theme.findUniqueOrThrow({ where: { slug: "technic" } });
+    await testDb.theme.update({ where: { id: technic.id }, data: { name: "Technic Pro" } });
+    await seedDatabase(testDb, { admin: null });
+    expect(await testDb.theme.findUniqueOrThrow({ where: { id: technic.id } })).toMatchObject({ name: technic.name, slug: "technic" });
+
+    await testDb.theme.update({ where: { id: technic.id }, data: { slug: "technic-pro" } });
+    await seedDatabase(testDb, { admin: null });
+    expect(await testDb.theme.findUniqueOrThrow({ where: { id: technic.id } })).toMatchObject({ name: technic.name, slug: "technic" });
+    expect(await testDb.theme.count({ where: { name: technic.name } })).toBe(1);
+  });
+
   it("leaves rows people created alone and counts their reviews", async () => {
     const user = await testDb.user.create({ data: { email: "nueva@example.com", name: "Nueva" } });
     await testDb.review.create({ data: { userId: user.id, productId: "8", rating: 1, title: "Mal", comment: "No me gustó." } });

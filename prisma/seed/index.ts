@@ -119,8 +119,15 @@ async function seedCatalogue(db: PrismaClient) {
 
   const themeIds = new Map<string, string>();
   for (const [position, theme] of seedThemes.entries()) {
-    const data = { slug: theme.slug, position, visible: true };
-    const row = await db.theme.upsert({ where: { name: theme.name }, create: { name: theme.name, ...data }, update: data, select: { id: true } });
+    // Matched by slug (the stable key), then by name: an admin may have renamed a
+    // seed theme or changed its slug. Either way it gets the seed's values back.
+    const data = { name: theme.name, slug: theme.slug, position, visible: true };
+    const existing =
+      (await db.theme.findUnique({ where: { slug: theme.slug }, select: { id: true } })) ??
+      (await db.theme.findUnique({ where: { name: theme.name }, select: { id: true } }));
+    const row = existing
+      ? await db.theme.update({ where: { id: existing.id }, data, select: { id: true } })
+      : await db.theme.create({ data, select: { id: true } });
     themeIds.set(theme.name, row.id);
   }
   const themeOf = (name: string) => {
