@@ -46,6 +46,21 @@ test.describe("Catalogue filters and sort (URL state)", () => {
     await expect(count(page)).toContainText("22 productos");
   });
 
+  test("a link that names a theme checks its checkbox, shows the slug URL, and unchecking clears it", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/search?theme=Star%20Wars");
+    const starWars = sidebar(page).getByRole("checkbox", { name: /Star Wars/ });
+    await expect(starWars).toBeChecked();
+    await expect(page).toHaveURL(/\/search\?theme=star-wars$/);
+    const filtered = await page.getByTestId("product-card").count();
+    expect(filtered).toBeGreaterThan(0);
+
+    await starWars.click();
+    await expect(starWars).not.toBeChecked();
+    await expect(page).toHaveURL(/\/search$/);
+    await expect(count(page)).toContainText("22 productos");
+  });
+
   test("facet counts follow the other active filters", async ({ page }) => {
     await page.goto("/search");
     const filters = sidebar(page);
