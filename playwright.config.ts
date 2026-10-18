@@ -1,10 +1,17 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E_SERVER_ENV } from "./e2e/helpers/stripe";
+import { E2E_DEV_PORT, E2E_PROD_DIST_DIR, E2E_PROD_PORT } from "./e2e/helpers/servers";
 
-const DEV_URL = "http://localhost:3000";
+/*
+ * Outside CI a server already listening on these ports is reused as it is,
+ * whoever started it. The global setup checks that the dev server pays through
+ * the mock and that the production server serves this checkout's e2e build;
+ * to run next to another checkout's servers, pick free ports:
+ * E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx playwright test.
+ */
+const DEV_URL = `http://localhost:${E2E_DEV_PORT}`;
 /** Production server (`next build` + `next start`) for the e2e/prod specs. */
-const PROD_PORT = 3100;
-const PROD_URL = `http://localhost:${PROD_PORT}`;
+const PROD_URL = `http://localhost:${E2E_PROD_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -39,7 +46,7 @@ export default defineConfig({
   // next-env.d.ts, which the build would otherwise read half-written.
   webServer: [
     {
-      command: `npm run build && npx next start -p ${PROD_PORT}`,
+      command: `npm run build && npx next start -p ${E2E_PROD_PORT}`,
       url: PROD_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 300_000,
@@ -50,15 +57,16 @@ export default defineConfig({
       // skips the type check too (next.config.mjs): `tsc --noEmit` gates the types.
       // AUTH_TRUST_HOST: Auth.js only trusts the Host header in production when told to
       // (Vercel sets it implicitly; a local `next start` does not).
-      env: { NEXT_DIST_DIR: ".next-e2e", AUTH_TRUST_HOST: "true" },
+      env: { NEXT_DIST_DIR: E2E_PROD_DIST_DIR, AUTH_TRUST_HOST: "true" },
     },
     {
-      command: "npm run dev",
+      command: `npx next dev -p ${E2E_DEV_PORT}`,
       url: DEV_URL,
       reuseExistingServer: !process.env.CI,
       // Payments through the mock gateway, webhooks signed by the specs (e2e/helpers/stripe.ts).
       // A reused dev server must have been started with these too: the global setup checks.
-      env: E2E_SERVER_ENV,
+      // On a moved port, links in emails and return URLs point at this server, not .env.local's.
+      env: { ...E2E_SERVER_ENV, ...(E2E_DEV_PORT === 3000 ? {} : { NEXT_PUBLIC_SITE_URL: DEV_URL }) },
     },
   ],
 });
