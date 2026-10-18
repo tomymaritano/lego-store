@@ -27,6 +27,7 @@ export function makeOrder(overrides: Partial<OrderView> = {}): OrderView {
     total: 2746,
     paymentBrand: "visa",
     paymentLast4: "4242",
+  payment: { provider: "STRIPE", methodType: null, installments: null, ticketUrl: null, ticketExpiresAt: null },
     createdAt: "2026-10-17T15:00:00.000Z",
     submittedAt: null,
     paidAt: null,

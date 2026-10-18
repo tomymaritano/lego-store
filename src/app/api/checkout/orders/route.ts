@@ -1,46 +1,64 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
-import { prepareOrder } from "@/lib/orders/checkout";
+import { prepareOrder, type PrepareOutcome } from "@/lib/orders/checkout";
 import {
   CHECKOUT_MESSAGES,
   NO_STORE,
+  appPayments,
   checkoutError,
   crossSite,
   gatewayOr503,
   jsonBody,
+  mercadoPagoOr503,
+  providerFor,
   rateLimited,
   requesterOf,
   setCheckoutCookie,
 } from "@/lib/orders/http";
+import { prepareMercadoPagoOrder } from "@/lib/orders/mercadopago";
 import type { CheckoutOrderResponse } from "@/lib/orders/types";
 import { rateLimits } from "@/lib/rate-limit";
-import { prepareOrderSchema } from "@/lib/validations/orders";
+import { prepareMercadoPagoOrderSchema, prepareOrderSchema } from "@/lib/validations/orders";
 
 /**
  * POST /api/checkout/orders: the checkout reached "Revisar".
- * Body: { shipping, lines: [{ productId, quantity }], confirmationTokenId }.
- * Creates this browser's PENDING order and its PaymentIntent (or updates the
- * pending one), with prices, stock and totals from the database. A new order
- * comes with the checkout cookie that lets this browser pay and follow it.
+ * Body: { shipping, lines: [{ productId, quantity }] } plus, for Stripe,
+ * { confirmationTokenId } or, for Mercado Pago, { provider: "MERCADOPAGO" }
+ * (the provider is the store's: PAYMENT_PROVIDER). Creates this browser's
+ * PENDING order (with a PaymentIntent, for Stripe) or updates the pending one,
+ * with prices, stock and totals from the database. A new order comes with the
+ * checkout cookie that lets this browser pay and follow it.
  *
  * 200 { order } · 400 invalid · 409 unavailable (with the lines) · 422 the
- * card token cannot be used · 429 · 503 payments not configured.
+ * payment step has to be done again (a spent card token, or it was for the
+ * other provider) · 429 · 503 payments not configured.
  */
 export async function POST(request: NextRequest) {
   const refused = crossSite(request);
   if (refused) return refused;
-  const payments = gatewayOr503();
+  const provider = providerFor(request);
+  const payments = provider === "STRIPE" ? gatewayOr503() : mercadoPagoOr503();
   if ("response" in payments) return payments.response;
 
-  const parsed = prepareOrderSchema.safeParse(await jsonBody(request));
-  if (!parsed.success) return checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);
+  const body = await jsonBody(request);
+  const stripe = provider === "STRIPE" ? prepareOrderSchema.safeParse(body) : null;
+  const mercadopago = provider === "MERCADOPAGO" ? prepareMercadoPagoOrderSchema.safeParse(body) : null;
+  if (!stripe?.success && !mercadopago?.success) {
+    // A well-formed request for the other provider: the payment step is stale (the store switched providers).
+    const other = provider === "STRIPE" ? prepareMercadoPagoOrderSchema.safeParse(body) : prepareOrderSchema.safeParse(body);
+    return other.success
+      ? checkoutError("payment_method", CHECKOUT_MESSAGES.provider_changed, 422)
+      : checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);
+  }
 
   const requester = await requesterOf(request);
   const limited = await rateLimited(rateLimits.checkoutPrepare, request, requester);
   if (limited) return limited;
 
   try {
-    const outcome = await prepareOrder(getDb(), payments.gateway, parsed.data, requester);
+    let outcome: PrepareOutcome;
+    if (stripe?.success && "gateway" in payments) outcome = await prepareOrder(getDb(), payments.gateway, stripe.data, requester);
+    else outcome = await prepareMercadoPagoOrder(getDb(), appPayments(), mercadopago!.data!, requester);
     if (!outcome.ok) {
       return outcome.code === "unavailable"
         ? checkoutError("unavailable", CHECKOUT_MESSAGES.unavailable, 409, { unavailable: outcome.unavailable })

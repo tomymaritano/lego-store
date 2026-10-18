@@ -2,11 +2,13 @@ import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getPaymentGateway } from "@/lib/payments/config";
+import { MOCK_PROVIDER_COOKIE, checkoutProvider, getMercadoPago, getPaymentGateway } from "@/lib/payments/config";
 import type { PaymentGateway } from "@/lib/payments/gateway";
+import type { MercadoPagoClient } from "@/lib/payments/mercadopago/types";
 import { clientIp, waitMessage, type RateLimiter } from "@/lib/rate-limit";
 import { CHECKOUT_COOKIE, checkoutCookieOptions, parseCheckoutCookie, serializeCheckoutCookie, type CheckoutAccess, type Requester } from "./access";
-import type { CheckoutError, CheckoutErrorCode, UnavailableLine } from "./types";
+import type { OrderPayments } from "./payments";
+import type { CheckoutError, CheckoutErrorCode, PaymentProviderId, UnavailableLine } from "./types";
 
 /*
  * What the checkout Route Handlers (src/app/api/checkout) share: who is
@@ -24,6 +26,8 @@ export const CHECKOUT_MESSAGES = {
   invalid: "Revisa los datos del pedido.",
   unavailable: "Algunos productos ya no tienen el stock que pediste. Actualizamos tu carrito.",
   payment_method: "Vuelve a ingresar los datos de la tarjeta.",
+  /** The payment step was for the other provider (the store switched it meanwhile). */
+  provider_changed: "Cambió el medio de pago de la tienda. Vuelve al paso de pago.",
   payments_unconfigured: "Los pagos no están configurados en este momento.",
   not_found: "No encontramos ese pedido.",
   not_pending: "Este pedido ya no se puede pagar.",
@@ -84,4 +88,20 @@ export async function jsonBody(request: NextRequest): Promise<unknown> {
   } catch {
     return null;
   }
+}
+
+/** Mercado Pago's client, or the 503 to answer when it is not configured. */
+export function mercadoPagoOr503(): { mp: MercadoPagoClient } | { response: NextResponse } {
+  const mp = getMercadoPago();
+  return mp ? { mp } : { response: checkoutError("payments_unconfigured", CHECKOUT_MESSAGES.payments_unconfigured, 503) };
+}
+
+/** Every configured provider's client (for code that may meet an order of either). */
+export function appPayments(): OrderPayments {
+  return { stripe: getPaymentGateway(), mercadopago: getMercadoPago() };
+}
+
+/** Who takes a new order from this request: PAYMENT_PROVIDER (or the mock-only test cookie). */
+export function providerFor(request: NextRequest): PaymentProviderId {
+  return checkoutProvider(process.env, request.cookies.get(MOCK_PROVIDER_COOKIE)?.value);
 }

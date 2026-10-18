@@ -1,7 +1,8 @@
 // Data model of the store (docs/superpowers/specs/2026-10-17-backend-completo-design.md).
 //
 // Conventions
-// - Money is integer pesos (ARS), like the prices in the UI. Stripe gets centavos (x100).
+// - Money is integer pesos (ARS), like the prices in the UI. Stripe gets centavos (x100);
+//   Mercado Pago takes decimal pesos, which for our prices are the same integers.
 // - Check constraints (stock >= 0, quantity > 0, rating 1..5, totals that add up…)
 //   are written by hand in the first migration: Prisma's schema language has no
 //   syntax for them. Keep them there when you add a migration that rebuilds a table.
@@ -256,12 +257,22 @@ model ReviewHelpful {
 // ---------------------------------------------------------------------------
 
 /// PENDING -> PAID -> SHIPPED -> DELIVERED; PENDING | PAID -> CANCELLED.
+/// Mercado Pago adds PENDING -> PAYMENT_PENDING (a cash ticket waiting to be
+/// paid, a card payment under review) -> PAID | CANCELLED.
 enum OrderStatus {
   PENDING
+  PAYMENT_PENDING
   PAID
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+/// Who takes an order's payment (src/lib/payments). Chosen by PAYMENT_PROVIDER
+/// when the order is created and kept for its whole life.
+enum PaymentProvider {
+  STRIPE
+  MERCADOPAGO
 }
 
 model Order {
@@ -290,8 +301,30 @@ model Order {
   total    Int
   currency String @default("ars")
 
-  stripePaymentIntentId String? @unique
-  stripeRefundId        String? @unique
+  /// Stripe orders use stripePaymentIntentId / stripeRefundId; Mercado Pago
+  /// orders providerPaymentId / providerRefundId (src/lib/payments/provider.ts,
+  /// paymentRefOf). Rows from before Mercado Pago are all STRIPE.
+  paymentProvider       PaymentProvider @default(STRIPE)
+  stripePaymentIntentId String?         @unique
+  stripeRefundId        String?         @unique
+  /// Mercado Pago: the payment of the latest attempt (a rejected card is
+  /// replaced by the next one). Every attempt is in PaymentEvent.
+  providerPaymentId     String?
+  providerRefundId      String?
+  /// Mercado Pago Checkout Pro preference of a "Cuenta de Mercado Pago" payment,
+  /// reused while the order's total does not change.
+  providerCheckoutId    String?
+  providerCheckoutUrl   String?
+  /// The provider's own status of the latest payment ("approved", "pending"...)
+  /// and its detail ("accredited", "pending_waiting_payment", "cc_rejected_...").
+  paymentStatus         String?
+  paymentStatusDetail   String?
+  /// credit_card, debit_card, prepaid_card, ticket, account_money...
+  paymentMethodType     String?
+  installments          Int?
+  /// Cash payments: where the customer gets the ticket, and until when it can be paid.
+  ticketUrl             String?
+  ticketExpiresAt       DateTime?
   /// Set (and committed) before an admin's cancellation asks Stripe for the
   /// refund; while it is set and the order is still PAID the refund's outcome
   /// is unknown, so the order cannot be shipped (src/lib/admin/orders.ts).
@@ -317,7 +350,9 @@ model Order {
   user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   items         OrderItem[]
   statusChanges OrderStatusChange[]
+  paymentEvents PaymentEvent[]
 
+  @@unique([paymentProvider, providerPaymentId])
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([email])
@@ -362,6 +397,29 @@ model OrderStatusChange {
 
   @@index([orderId, createdAt])
   @@index([actorId])
+}
+
+/// What a provider said about an order's payments, in order (Mercado Pago;
+/// src/lib/orders/mercadopago.ts): the admin's payment history, and the
+/// idempotency of its notifications. `key` is provider:payment:status:detail,
+/// so the same news about a payment is applied once however many times it
+/// arrives (retries, a webhook after the checkout already applied it).
+model PaymentEvent {
+  id           String          @id @default(cuid())
+  key          String          @unique
+  orderId      String
+  provider     PaymentProvider
+  paymentId    String
+  status       String
+  statusDetail String?
+  /// Who told us: "checkout" (the payment's own answer), "webhook", "return"
+  /// (back from Mercado Pago), "expire" (the cleanup) or "admin".
+  source       String
+  createdAt    DateTime        @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
 }
 
 /// Stripe webhook idempotency: an event id is processed at most once.

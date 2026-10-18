@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { sendOrderCancelled, sendOrderConfirmation } from "@/lib/orders/notify";
 import { handleStripeEvent } from "@/lib/orders/webhook";
 import { getPaymentGateway, webhookSecret } from "@/lib/payments/config";
-import { constructWebhookEvent } from "@/lib/payments/stripe";
+import { stripeProvider } from "@/lib/payments/stripe-provider";
 
 /**
  * POST /api/stripe/webhook: Stripe's events about payments.
@@ -26,16 +26,13 @@ export async function POST(request: NextRequest) {
   const gateway = getPaymentGateway();
   if (!secret || !gateway) return Response.json({ error: "Webhooks de Stripe no configurados." }, { status: 503 });
 
-  const signature = request.headers.get("stripe-signature");
   const payload = await request.text();
-  let event;
-  try {
-    if (!signature) throw new Error("Missing Stripe-Signature");
-    event = constructWebhookEvent(payload, signature, secret);
-  } catch (error) {
-    console.warn("[stripe] Webhook con firma inválida:", error instanceof Error ? error.message : error);
-    return Response.json({ error: "Firma inválida." }, { status: 400 });
-  }
+  // Verified and read through the provider interface; the order code works on Stripe's own event.
+  const events = await stripeProvider(gateway, secret).parseWebhook({ body: payload, url: request.nextUrl, headers: request.headers });
+  if (!events) return Response.json({ error: "Firma inválida." }, { status: 400 });
+  // A verified event the store does not act on.
+  if (events.length === 0) return Response.json({ received: true, result: "ignored" });
+  const event = events[0]!.raw;
 
   const db = getDb();
   let outcome;

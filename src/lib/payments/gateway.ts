@@ -59,7 +59,8 @@ export interface PaymentGateway {
   /** Throws PaymentDeclinedError when the card is refused or the token cannot be used. */
   confirmIntent(id: string, confirmationTokenId: string, idempotencyKey: string): Promise<GatewayIntent>;
   cancelIntent(id: string): Promise<GatewayIntent>;
-  refund(intentId: string, idempotencyKey: string): Promise<{ id: string }>;
+  /** Refunds the whole payment, or `amount` centavos of it. */
+  refund(intentId: string, idempotencyKey: string, amount?: number): Promise<{ id: string }>;
   /**
    * A refund of the PaymentIntent that went (or is going) through, whoever
    * made it; null when it has none. For finding out what happened after a

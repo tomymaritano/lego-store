@@ -10,6 +10,7 @@ export const formatOrderNumber = (number: number) => `LEGO-${String(number).padS
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: "Pago pendiente",
+  PAYMENT_PENDING: "Esperando el pago",
   PAID: "Pagado",
   SHIPPED: "Enviado",
   DELIVERED: "Entregado",
@@ -19,6 +20,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 /** Badge variant (src/components/ui/Badge) per status. */
 export const ORDER_STATUS_BADGE = {
   PENDING: "warning",
+  PAYMENT_PENDING: "warning",
   PAID: "success",
   SHIPPED: "new",
   DELIVERED: "neutral",
@@ -35,6 +37,9 @@ export const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
   superseded: "Lo reemplazó un pedido más nuevo hecho desde el mismo navegador. No se cobró nada.",
   payment_setup_failed: "No pudimos iniciar el pago. No se cobró nada.",
   refunded: "Se reembolsó el pago, así que cancelamos el pedido: el dinero puede tardar unos días en verse en tu tarjeta.",
+  payment_rejected: "El medio de pago rechazó el pago, así que cancelamos el pedido. No se cobró nada.",
+  chargeback:
+    "Desconociste el pago ante tu banco o tarjeta, así que cancelamos el pedido. Si fue un error, escríbenos.",
   admin: "La tienda canceló el pedido. Si ya estaba pago, te devolvimos el dinero.",
 };
 
@@ -50,6 +55,21 @@ const BRAND_LABELS: Record<string, string> = {
   jcb: "JCB",
   unionpay: "UnionPay",
   cartes_bancaires: "Cartes Bancaires",
+  // Mercado Pago's payment_method_id values (cards, debit cards, cash).
+  master: "Mastercard",
+  debvisa: "Visa Débito",
+  debmaster: "Mastercard Débito",
+  maestro: "Maestro",
+  cabal: "Cabal",
+  debcabal: "Cabal Débito",
+  naranja: "Naranja X",
+  tarshop: "Tarjeta Shopping",
+  cencosud: "Cencosud",
+  argencard: "Argencard",
+  cmr: "CMR",
+  rapipago: "Rapipago",
+  pagofacil: "Pago Fácil",
+  account_money: "Dinero en cuenta de Mercado Pago",
 };
 
 /** "Visa" for "visa"; unknown brands are capitalised as they come. */
@@ -61,6 +81,35 @@ export function cardBrandLabel(brand: string | null | undefined): string {
 /** "Visa •••• 4242" */
 export function paymentLabel(brand: string | null | undefined, last4: string | null | undefined): string {
   return last4 ? `${cardBrandLabel(brand)} •••• ${last4}` : cardBrandLabel(brand);
+}
+
+const METHOD_TYPE_LABELS: Record<string, string> = {
+  credit_card: "Tarjeta de crédito",
+  debit_card: "Tarjeta de débito",
+  prepaid_card: "Tarjeta prepaga",
+  ticket: "Efectivo",
+  account_money: "Dinero en cuenta de Mercado Pago",
+  digital_currency: "Mercado Crédito",
+  digital_wallet: "Billetera digital",
+};
+
+/** "Tarjeta de crédito" for "credit_card"; null for an unknown or missing type. */
+export const paymentMethodTypeLabel = (type: string | null | undefined) => (type && Object.hasOwn(METHOD_TYPE_LABELS, type) ? METHOD_TYPE_LABELS[type]! : null);
+
+/** "3 cuotas" / "1 pago". */
+export const installmentsLabel = (installments: number) => (installments === 1 ? "1 pago" : `${installments} cuotas`);
+
+/**
+ * How an order is paid, in one line: "Visa •••• 4242", "Mastercard •••• 4444
+ * · 3 cuotas", "Rapipago (efectivo)", "Dinero en cuenta de Mercado Pago".
+ */
+export function orderPaymentLabel(order: Pick<OrderView, "paymentBrand" | "paymentLast4" | "payment">): string {
+  const { methodType, installments } = order.payment;
+  if (methodType === "ticket") return `${cardBrandLabel(order.paymentBrand)} (efectivo)`;
+  if (methodType === "account_money") return METHOD_TYPE_LABELS.account_money!;
+  if (!order.paymentBrand && !order.paymentLast4) return paymentMethodTypeLabel(methodType) ?? "A confirmar";
+  const card = paymentLabel(order.paymentBrand, order.paymentLast4);
+  return installments && installments > 1 ? `${card} · ${installmentsLabel(installments)}` : card;
 }
 
 const dateFormat = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: STORE_TIME_ZONE });

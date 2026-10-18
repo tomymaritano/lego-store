@@ -118,10 +118,8 @@ async function lockOrder(tx: Tx, intentId: string) {
   });
 }
 
-type LockedOrder = NonNullable<Awaited<ReturnType<typeof lockOrder>>>;
-
 /** Takes the stock of every line, or none of it. False when any line is short (or its product is gone). */
-async function takeStock(tx: Tx, order: LockedOrder): Promise<boolean> {
+export async function takeStock(tx: Tx, order: { items: { productId: string | null; quantity: number }[] }): Promise<boolean> {
   if (order.items.some((item) => item.productId === null)) return false;
   const wanted = new Map(order.items.map((item) => [item.productId!, item.quantity]));
   const ids = [...wanted.keys()].sort();

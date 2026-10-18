@@ -1,6 +1,6 @@
 import "server-only";
 
-import { orderCancelledEmail, orderConfirmationEmail, orderShippedEmail } from "@/lib/email/orders";
+import { orderCancelledEmail, orderConfirmationEmail, orderPaymentLapsedEmail, orderPaymentPendingEmail, orderShippedEmail } from "@/lib/email/orders";
 import { sendEmail, type EmailResult } from "@/lib/email/send";
 import type { Db } from "@/lib/lists/product";
 import { getOrderView } from "./queries";
@@ -26,4 +26,16 @@ export async function sendOrderShipped(db: Db, orderId: string): Promise<EmailRe
 export async function sendOrderCancelled(db: Db, orderId: string): Promise<EmailResult | null> {
   const order = await getOrderView(db, orderId);
   return order?.status === "CANCELLED" ? sendEmail(orderCancelledEmail(order)) : null;
+}
+
+/** "Tu pedido espera el pago": Mercado Pago took the payment but has not settled it (a cash ticket, a card under review). */
+export async function sendOrderPaymentPending(db: Db, orderId: string): Promise<EmailResult | null> {
+  const order = await getOrderView(db, orderId);
+  return order?.status === "PAYMENT_PENDING" ? sendEmail(orderPaymentPendingEmail(order)) : null;
+}
+
+/** "No se acreditó el pago": a pending payment lapsed (an expired ticket, a card rejected after review); nothing was charged. */
+export async function sendOrderPaymentLapsed(db: Db, orderId: string): Promise<EmailResult | null> {
+  const order = await getOrderView(db, orderId);
+  return order?.status === "CANCELLED" ? sendEmail(orderPaymentLapsedEmail(order)) : null;
 }

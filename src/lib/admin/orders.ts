@@ -4,8 +4,10 @@ import type { Db } from "@/lib/lists/product";
 import { sendOrderCancelled, sendOrderShipped } from "@/lib/orders/notify";
 import { orderViewSelect, toOrderView } from "@/lib/orders/queries";
 import type { CancelReason, OrderStatus, OrderView } from "@/lib/orders/types";
+import { asOrderPayments, providerOf, type OrderPayments } from "@/lib/orders/payments";
 import { restock } from "@/lib/orders/webhook";
-import type { IntentStatus, PaymentGateway } from "@/lib/payments/gateway";
+import type { PaymentGateway } from "@/lib/payments/gateway";
+import { paymentRefOf, refundColumnOf, refundRefOf } from "@/lib/payments/provider";
 import { ADMIN_PAGE_SIZE, type AdminOrderFilters, type OrderTransitionInput } from "@/lib/validations/admin";
 import { canTransition, pageCount, storeDayEnd, storeDayStart, type Page } from "./format";
 
@@ -14,15 +16,22 @@ import { canTransition, pageCount, storeDayEnd, storeDayStart, type Page } from 
  * payment and audit trail, and the status changes an admin can make
  * (./format.ts ADMIN_TRANSITIONS, from the design doc):
  *
- *   PENDING -> CANCELLED   the PaymentIntent is cancelled too; refused while
- *                          a payment is under way (the webhook settles it)
+ *   PENDING | PAYMENT_PENDING -> CANCELLED
+ *                          the payment is cancelled with the provider too
+ *                          (Stripe's PaymentIntent, Mercado Pago's pending
+ *                          payment or ticket); refused while a payment is
+ *                          going through (the webhook settles it)
  *   PAID    -> SHIPPED     emails the customer ("Tu pedido está en camino")
- *   PAID    -> CANCELLED   refund in Stripe + the stock goes back, atomically
+ *   PAID    -> CANCELLED   full refund through the order's provider + the
+ *                          stock goes back, atomically
  *   SHIPPED -> DELIVERED
  *
  * Shipped and delivered orders cannot be cancelled, and PAID is only ever
- * set by Stripe's webhook. Client first, like the rest of the server code;
- * no permission checks here (./actions.ts checks the admin).
+ * set by the provider (a webhook, or Mercado Pago's own answer). Payments go
+ * through the provider that took the order (Order.paymentProvider), via the
+ * provider-neutral interface (src/lib/payments/provider.ts). Client first,
+ * like the rest of the server code; no permission checks here (./actions.ts
+ * checks the admin).
  *
  * Every change first locks the order's row (as the checkout and the webhook
  * do, so none of them interleave) and checks the status the admin saw: a
@@ -36,10 +45,8 @@ import { canTransition, pageCount, storeDayEnd, storeDayStart, type Page } from 
 
 type Tx = Prisma.TransactionClient;
 
-/** Room for Stripe's round trips inside a transaction that holds an order's lock (as in checkout.ts). */
+/** Room for the provider's round trips inside a transaction that holds an order's lock (as in checkout.ts). */
 const LOCKED_TX = { timeout: 30_000, maxWait: 10_000 } as const;
-
-const PAYMENT_IN_FLIGHT: readonly IntentStatus[] = ["processing", "succeeded", "requires_capture"];
 
 /** The refund's idempotency key: the same one the webhook would use, so an order is refunded at most once. */
 export const refundKey = (orderId: string) => `order/${orderId}/refund`;
@@ -155,9 +162,26 @@ export interface StatusChangeView {
   at: string;
 }
 
+/** What the provider said about one of the order's payments (PaymentEvent), for the admin's history. */
+export interface PaymentEventView {
+  id: string;
+  paymentId: string;
+  status: string;
+  statusDetail: string | null;
+  source: string;
+  at: string;
+}
+
 export interface AdminOrderView extends OrderView {
   stripePaymentIntentId: string | null;
   stripeRefundId: string | null;
+  /** The provider's payment and refund ids (Stripe's PaymentIntent and refund, or Mercado Pago's). */
+  paymentId: string | null;
+  refundId: string | null;
+  /** The provider's own status of the latest payment ("approved", "pending"...) and its detail. */
+  paymentStatus: string | null;
+  paymentStatusDetail: string | null;
+  paymentEvents: PaymentEventView[];
   /** PAID, but a cancellation asked Stripe for a refund whose outcome is unknown: it cannot ship until cancelled again. */
   refundPending: boolean;
   /** The account that placed it (null for guests). */
@@ -174,9 +198,17 @@ export async function getAdminOrder(db: Db, id: string): Promise<AdminOrderView 
       ...orderViewSelect,
       stripePaymentIntentId: true,
       stripeRefundId: true,
+      providerPaymentId: true,
+      providerRefundId: true,
+      paymentStatus: true,
+      paymentStatusDetail: true,
       refundRequestedAt: true,
       updatedAt: true,
       user: { select: { id: true, email: true, name: true } },
+      paymentEvents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, paymentId: true, status: true, statusDetail: true, source: true, createdAt: true },
+      },
       statusChanges: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { id: true, fromStatus: true, toStatus: true, actorEmail: true, refundId: true, createdAt: true },
@@ -184,11 +216,37 @@ export async function getAdminOrder(db: Db, id: string): Promise<AdminOrderView 
     },
   });
   if (!row) return null;
-  const { stripePaymentIntentId, stripeRefundId, refundRequestedAt, updatedAt, user, statusChanges, ...view } = row;
+  const {
+    stripePaymentIntentId,
+    stripeRefundId,
+    providerPaymentId,
+    providerRefundId,
+    paymentStatus,
+    paymentStatusDetail,
+    refundRequestedAt,
+    updatedAt,
+    user,
+    statusChanges,
+    paymentEvents,
+    ...view
+  } = row;
+  const ids = { paymentProvider: view.paymentProvider, stripePaymentIntentId, stripeRefundId, providerPaymentId, providerRefundId };
   return {
     ...toOrderView(view),
     stripePaymentIntentId,
     stripeRefundId,
+    paymentId: paymentRefOf(ids),
+    refundId: refundRefOf(ids),
+    paymentStatus,
+    paymentStatusDetail,
+    paymentEvents: paymentEvents.map((event) => ({
+      id: event.id,
+      paymentId: event.paymentId,
+      status: event.status,
+      statusDetail: event.statusDetail,
+      source: event.source,
+      at: event.createdAt.toISOString(),
+    })),
     refundPending: view.status === "PAID" && refundRequestedAt !== null,
     account: user,
     updatedAt: updatedAt.toISOString(),
@@ -218,20 +276,20 @@ export type TransitionResult =
   /** The order moved since the admin loaded it; `status` is the current one. */
   | { ok: false; reason: "conflict"; status: OrderStatus }
   | { ok: false; reason: "not_allowed"; status: OrderStatus }
-  /** PENDING whose payment is going through: the webhook will settle it (PAID, then it can be cancelled). */
+  /** Pending, but its payment is going through: the webhook will settle it (PAID, then it can be cancelled). */
   | { ok: false; reason: "payment_in_flight" }
   | { ok: false; reason: "payments_unconfigured" }
-  /** Stripe made no refund (it refused, and has none for the payment): the order is as it was. */
+  /** The provider made no refund (it refused, and has none for the payment): the order is as it was. */
   | { ok: false; reason: "refund_failed" }
   /**
-   * Stripe did not answer, and could not be asked whether the refund went
+   * The provider did not answer, and could not be asked whether the refund went
    * through: the order stays PAID but held (it cannot be shipped) until a
    * retry of the cancellation settles it.
    */
   | { ok: false; reason: "refund_unknown" }
   /** Shipping an order held by a refund of unknown outcome: cancel it again to settle it. */
   | { ok: false; reason: "refund_pending" }
-  /** A paid order without a PaymentIntent to refund (never happens through checkout). */
+  /** A paid order without a payment to refund (never happens through checkout). */
   | { ok: false; reason: "no_payment" };
 
 type Failure = Extract<TransitionResult, { ok: false }>;
@@ -252,8 +310,11 @@ async function lockOrder(tx: Tx, orderId: string) {
     where: { id: orderId },
     select: {
       status: true,
+      paymentProvider: true,
       stripePaymentIntentId: true,
       stripeRefundId: true,
+      providerPaymentId: true,
+      providerRefundId: true,
       refundRequestedAt: true,
       items: { select: { productId: true, quantity: true } },
     },
@@ -277,24 +338,18 @@ function recordChange(tx: Tx, input: OrderTransitionInput, from: OrderStatus, ac
   });
 }
 
-/** Cancels a pending order's PaymentIntent, unless a payment is already going through it. */
-async function cancelPendingPayment(gateway: PaymentGateway | null, intentId: string | null) {
-  if (!intentId) return;
-  if (!gateway) throw new Abort({ ok: false, reason: "payments_unconfigured" });
-  const intent = await gateway.retrieveIntent(intentId);
-  if (PAYMENT_IN_FLIGHT.includes(intent.status)) throw new Abort({ ok: false, reason: "payment_in_flight" });
-  if (intent.status === "canceled") return;
-  try {
-    await gateway.cancelIntent(intentId);
-  } catch (error) {
-    // It moved on meanwhile (a payment went through): the webhook settles the order.
-    console.warn(`[admin] No se pudo cancelar el pago ${intentId}:`, error);
-    throw new Abort({ ok: false, reason: "payment_in_flight" });
-  }
+/** Cancels a pending order's payment with its provider, unless a payment is already going through. */
+async function cancelPendingPayment(payments: OrderPayments, order: LockedOrder) {
+  const paymentId = paymentRefOf(order);
+  if (!paymentId) return;
+  const provider = providerOf(payments, order.paymentProvider);
+  if (!provider) throw new Abort({ ok: false, reason: "payments_unconfigured" });
+  // "in_flight": it went through (or is going through) meanwhile: the webhook settles the order.
+  if ((await provider.cancelPayment(paymentId)) === "in_flight") throw new Abort({ ok: false, reason: "payment_in_flight" });
 }
 
-/** PAID -> SHIPPED, SHIPPED -> DELIVERED and PENDING -> CANCELLED: one transaction under the order's lock. */
-async function changeInOneGo(db: PrismaClient, gateway: PaymentGateway | null, input: OrderTransitionInput, actor: Actor) {
+/** PAID -> SHIPPED, SHIPPED -> DELIVERED and PENDING | PAYMENT_PENDING -> CANCELLED: one transaction under the order's lock. */
+async function changeInOneGo(db: PrismaClient, payments: OrderPayments, input: OrderTransitionInput, actor: Actor) {
   try {
     return await db.$transaction(async (tx): Promise<TransitionResult> => {
       const order = await lockOrder(tx, input.orderId);
@@ -311,7 +366,7 @@ async function changeInOneGo(db: PrismaClient, gateway: PaymentGateway | null, i
           await tx.order.update({ where: { id: input.orderId }, data: { status: "DELIVERED", deliveredAt: now } });
           break;
         case "CANCELLED":
-          await cancelPendingPayment(gateway, order.stripePaymentIntentId);
+          await cancelPendingPayment(payments, order);
           await tx.order.update({
             where: { id: input.orderId },
             data: { status: "CANCELLED", cancelledAt: now, cancelReason: "admin" satisfies CancelReason },
@@ -328,50 +383,54 @@ async function changeInOneGo(db: PrismaClient, gateway: PaymentGateway | null, i
 }
 
 /**
- * PAID -> CANCELLED: the refund in Stripe, then the stock back and the
+ * PAID -> CANCELLED: the refund with the provider, then the stock back and the
  * status, in three steps so that no outcome of the refund call leaves the
  * order able to ship for money that went back:
  *
  * 1. under the lock, the order is held: refundRequestedAt is committed
- *    before Stripe is asked, and a held order cannot be shipped;
+ *    before the provider is asked, and a held order cannot be shipped;
  * 2. the refund, with the order's idempotency key (a retry, a second admin
- *    or the webhook all get the same single refund). If the call fails,
- *    Stripe is asked whether the payment has a refund anyway (the answer
+ *    or the webhook all get the same single refund). If the call fails, the
+ *    provider is asked whether the payment has a refund anyway (the answer
  *    lost on the way back): if so the cancellation goes on with it; if it
- *    has none, the hold is lifted and nothing changed; if Stripe cannot be
- *    reached at all, the order stays held until the admin retries;
+ *    has none, the hold is lifted and nothing changed; if the provider cannot
+ *    be reached at all, the order stays held until the admin retries;
  * 3. under the lock again, the stock goes back, the order is CANCELLED with
  *    the refund, and the change is recorded. If someone finished it first
  *    (a second click, another admin) this changes nothing.
  */
-async function cancelPaid(db: PrismaClient, gateway: PaymentGateway | null, input: OrderTransitionInput, actor: Actor): Promise<TransitionResult> {
-  const held = await db.$transaction(async (tx): Promise<TransitionResult | { intentId: string; refundId: string | null }> => {
+async function cancelPaid(db: PrismaClient, payments: OrderPayments, input: OrderTransitionInput, actor: Actor): Promise<TransitionResult> {
+  type Held = { paymentId: string; refundId: string | null; provider: LockedOrder["paymentProvider"] };
+  const held = await db.$transaction(async (tx): Promise<TransitionResult | Held> => {
     const order = await lockOrder(tx, input.orderId);
     const early = precheck(order, input);
     if (early || !order) return early!;
-    if (!order.stripePaymentIntentId) return { ok: false, reason: "no_payment" };
-    if (!gateway) return { ok: false, reason: "payments_unconfigured" };
+    const paymentId = paymentRefOf(order);
+    if (!paymentId) return { ok: false, reason: "no_payment" };
+    if (!providerOf(payments, order.paymentProvider)) return { ok: false, reason: "payments_unconfigured" };
     if (!order.refundRequestedAt) await tx.order.update({ where: { id: input.orderId }, data: { refundRequestedAt: new Date() } });
-    return { intentId: order.stripePaymentIntentId, refundId: order.stripeRefundId };
+    return { paymentId, refundId: refundRefOf(order), provider: order.paymentProvider };
   });
   if ("ok" in held) return held;
+  const provider = providerOf(payments, held.provider)!;
+  const refundColumn = refundColumnOf(held.provider);
 
   let refundId = held.refundId;
   if (!refundId) {
     try {
-      refundId = (await gateway!.refund(held.intentId, refundKey(input.orderId))).id;
+      refundId = (await provider.refund(held.paymentId, { idempotencyKey: refundKey(input.orderId) })).id;
     } catch (error) {
       console.error(`[admin] Falló el reembolso del pedido ${input.orderId}:`, error);
       let found: { id: string } | null;
       try {
-        found = await gateway!.findRefund(held.intentId);
+        found = await provider.findRefund(held.paymentId);
       } catch (lookupError) {
         console.error(`[admin] No se pudo consultar el reembolso del pedido ${input.orderId}; queda retenido:`, lookupError);
         return { ok: false, reason: "refund_unknown" };
       }
       if (!found) {
         // No refund exists: the order is exactly as it was, and may ship again.
-        await db.order.updateMany({ where: { id: input.orderId, status: "PAID", stripeRefundId: null }, data: { refundRequestedAt: null } });
+        await db.order.updateMany({ where: { id: input.orderId, status: "PAID", [refundColumn]: null }, data: { refundRequestedAt: null } });
         return { ok: false, reason: "refund_failed" };
       }
       refundId = found.id;
@@ -387,7 +446,7 @@ async function cancelPaid(db: PrismaClient, gateway: PaymentGateway | null, inpu
     const restockedProductIds = await restock(tx, order.items);
     await tx.order.update({
       where: { id: input.orderId },
-      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "admin" satisfies CancelReason, stripeRefundId: refundId },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: "admin" satisfies CancelReason, [refundColumn]: refundId },
     });
     await recordChange(tx, input, "PAID", actor, refundId);
     return { ok: true, changed: true, status: "CANCELLED", restockedProductIds, refundId };
@@ -401,15 +460,17 @@ async function cancelPaid(db: PrismaClient, gateway: PaymentGateway | null, inpu
  */
 export async function changeOrderStatus(
   db: PrismaClient,
-  gateway: PaymentGateway | null,
+  /** Each provider's client (a bare Stripe gateway means Stripe only, as before Mercado Pago). */
+  payments: PaymentGateway | OrderPayments | null,
   input: OrderTransitionInput,
   actor: Actor
 ): Promise<TransitionResult> {
+  const clients = asOrderPayments(payments);
   // `expected` is the status the admin saw; any other one is a conflict either way.
   const result =
     input.to === "CANCELLED" && input.expected === "PAID"
-      ? await cancelPaid(db, gateway, input, actor)
-      : await changeInOneGo(db, gateway, input, actor);
+      ? await cancelPaid(db, clients, input, actor)
+      : await changeInOneGo(db, clients, input, actor);
 
   // After the commit: the email never undoes the change (sendEmail logs its own failures).
   if (result.ok && result.changed && result.status === "SHIPPED") await sendOrderShipped(db, input.orderId);

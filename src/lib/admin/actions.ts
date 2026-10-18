@@ -7,7 +7,7 @@ import { formText, type FormState } from "@/lib/auth/form-state";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/format";
-import { getPaymentGateway } from "@/lib/payments/config";
+import { getMercadoPago, getPaymentGateway } from "@/lib/payments/config";
 import { deleteReview } from "@/lib/reviews/mutations";
 import { orderTransitionSchema, productFormSchema, stockSeenSchema, stockUpdateSchema, type ProductField } from "@/lib/validations/admin";
 import { idSchema } from "@/lib/validations/ids";
@@ -193,7 +193,7 @@ export async function changeOrderStatusAction(input: unknown): Promise<AdminActi
   const parsed = orderTransitionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "No entendimos ese cambio de estado." };
 
-  const result = await changeOrderStatus(getDb(), getPaymentGateway(), parsed.data, admin);
+  const result = await changeOrderStatus(getDb(), { stripe: getPaymentGateway(), mercadopago: getMercadoPago() }, parsed.data, admin);
   if (result.ok) {
     // Cancelling a paid order put stock back: the storefront shows it again.
     if (result.restockedProductIds.length > 0) updateCatalog({ productIds: result.restockedProductIds });
@@ -215,20 +215,20 @@ export async function changeOrderStatusAction(input: unknown): Promise<AdminActi
     case "payment_in_flight":
       return { ok: false, error: "El pago de este pedido se está procesando. Espera a que se confirme y vuelve a intentarlo." };
     case "payments_unconfigured":
-      return { ok: false, error: "Los pagos no están configurados en este servidor: no se puede tocar el pago en Stripe." };
+      return { ok: false, error: "Los pagos no están configurados en este servidor: no se puede tocar el pago en el proveedor." };
     case "refund_failed":
-      return { ok: false, error: "Stripe no hizo el reembolso: el pedido sigue pagado, sin cambios. Inténtalo de nuevo en un rato." };
+      return { ok: false, error: "El proveedor de pagos no hizo el reembolso: el pedido sigue pagado, sin cambios. Inténtalo de nuevo en un rato." };
     case "refund_unknown":
       refresh();
       return {
         ok: false,
-        error: "No pudimos confirmar el reembolso con Stripe. Retuvimos el pedido para que no se envíe: reintenta la cancelación en un rato.",
+        error: "No pudimos confirmar el reembolso con el proveedor de pagos. Retuvimos el pedido para que no se envíe: reintenta la cancelación en un rato.",
       };
     case "refund_pending":
       refresh();
       return { ok: false, error: "Este pedido tiene un reembolso sin confirmar, así que no se puede enviar. Reintenta la cancelación para cerrarlo." };
     case "no_payment":
-      return { ok: false, error: "Este pedido no tiene un pago de Stripe asociado para reembolsar." };
+      return { ok: false, error: "Este pedido no tiene un pago asociado para reembolsar." };
   }
 }
 

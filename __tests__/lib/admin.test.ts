@@ -14,9 +14,10 @@ import { pageHref } from "@/components/admin/Pagination";
 import { orderTransitionSchema, parseOrderFilters, parseProductFilters, parseReviewFilters, stockUpdateSchema } from "@/lib/validations/admin";
 
 describe("admin status transitions (design doc)", () => {
-  it("allows exactly PENDING→CANCELLED, PAID→SHIPPED|CANCELLED, SHIPPED→DELIVERED", () => {
+  it("allows exactly PENDING|PAYMENT_PENDING→CANCELLED, PAID→SHIPPED|CANCELLED, SHIPPED→DELIVERED", () => {
     expect(ADMIN_TRANSITIONS).toEqual({
       PENDING: ["CANCELLED"],
+      PAYMENT_PENDING: ["CANCELLED"],
       PAID: ["SHIPPED", "CANCELLED"],
       SHIPPED: ["DELIVERED"],
       DELIVERED: [],
@@ -25,6 +26,8 @@ describe("admin status transitions (design doc)", () => {
     expect(canTransition("SHIPPED", "CANCELLED")).toBe(false);
     expect(canTransition("DELIVERED", "CANCELLED")).toBe(false);
     expect(canTransition("PENDING", "PAID")).toBe(false);
+    // Only the provider marks a pending payment paid.
+    expect(canTransition("PAYMENT_PENDING", "PAID")).toBe(false);
   });
 
   it("the action schema only takes the admin's targets", () => {

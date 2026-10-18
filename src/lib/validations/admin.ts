@@ -140,7 +140,7 @@ export const stockUpdateSchema = z.object({
 // Orders
 // ---------------------------------------------------------------------------
 
-export const ORDER_STATUSES = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
+export const ORDER_STATUSES = ["PENDING", "PAYMENT_PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
 export const orderStatusSchema = z.enum(ORDER_STATUSES);
 
 /** The statuses an admin can move an order to (see src/lib/admin/orders.ts for which from where). */

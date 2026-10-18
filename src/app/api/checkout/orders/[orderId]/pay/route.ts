@@ -1,44 +1,75 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { payOrder } from "@/lib/orders/checkout";
-import { CHECKOUT_MESSAGES, NO_STORE, checkoutError, crossSite, gatewayOr503, jsonBody, rateLimited, requesterOf } from "@/lib/orders/http";
-import type { PayResponse } from "@/lib/orders/types";
+import {
+  CHECKOUT_MESSAGES,
+  NO_STORE,
+  checkoutError,
+  crossSite,
+  gatewayOr503,
+  jsonBody,
+  mercadoPagoOr503,
+  rateLimited,
+  requesterOf,
+} from "@/lib/orders/http";
+import { payMercadoPagoOrder, type MercadoPagoPayOutcome } from "@/lib/orders/mercadopago";
+import { afterMercadoPagoPayment } from "@/lib/orders/payment-effects";
+import type { MercadoPagoPayResponse, PayResponse } from "@/lib/orders/types";
 import { rateLimits } from "@/lib/rate-limit";
-import { orderIdSchema, payOrderSchema } from "@/lib/validations/orders";
+import { orderIdSchema, payMercadoPagoOrderSchema, payOrderSchema } from "@/lib/validations/orders";
 
 /**
- * POST /api/checkout/orders/<id>/pay: "Realizar pedido".
- * Body: { confirmationTokenId }. Confirms the order's PaymentIntent with the
- * token (on the server; the amount is the order's, computed when it was
- * prepared). The order becomes PAID when Stripe's webhook arrives.
+ * POST /api/checkout/orders/<id>/pay: "Realizar pedido". The only call that
+ * charges; the amount is always the order's, computed when it was prepared.
  *
- * 200 { next: "done" } paid (or processing) · 200 { next: "action",
- * clientSecret } the bank wants 3D Secure: the browser runs
- * stripe.handleNextAction · 402 declined · 409 sold out / not payable ·
- * 404 not this browser's order · 429 · 503.
+ * Stripe, body { confirmationTokenId }: confirms the order's PaymentIntent
+ * with the token. 200 { next: "done" } paid (or processing; the order becomes
+ * PAID with Stripe's webhook) · 200 { next: "action", clientSecret } the bank
+ * wants 3D Secure: the browser runs stripe.handleNextAction.
+ *
+ * Mercado Pago, body { mercadopago: { attemptId, method, formData? } }:
+ * creates the payment from the Payment Brick's formData (card or cash).
+ * 200 { next: "done", order } approved (PAID), or taken and waiting
+ * (PAYMENT_PENDING: a cash ticket, a card under review) · 200 { next:
+ * "redirect", url } "Cuenta de Mercado Pago": the browser goes to pay there.
+ *
+ * Both: 402 declined (with the reason) · 422 the payment data has to be
+ * entered again · 409 sold out / not payable · 404 not this browser's order ·
+ * 429 · 503 not configured.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ orderId: string }> }) {
   const refused = crossSite(request);
   if (refused) return refused;
-  const payments = gatewayOr503();
-  if ("response" in payments) return payments.response;
 
   const id = orderIdSchema.safeParse((await params).orderId);
-  const body = payOrderSchema.safeParse(await jsonBody(request));
-  if (!id.success || !body.success) return checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);
+  const raw = await jsonBody(request);
+  const mercadopago = payMercadoPagoOrderSchema.safeParse(raw);
+  const stripe = mercadopago.success ? null : payOrderSchema.safeParse(raw);
+  if (!id.success || (!mercadopago.success && !stripe?.success)) return checkoutError("invalid", CHECKOUT_MESSAGES.invalid, 400);
+
+  const payments = mercadopago.success ? mercadoPagoOr503() : gatewayOr503();
+  if ("response" in payments) return payments.response;
 
   const requester = await requesterOf(request);
   const limited = await rateLimited(rateLimits.checkoutPay, request, requester);
   if (limited) return limited;
 
   try {
-    const outcome = await payOrder(getDb(), payments.gateway, id.data, body.data.confirmationTokenId, requester);
+    const db = getDb();
+    const outcome =
+      "mp" in payments
+        ? await payMercadoPagoOrder(db, payments.mp, id.data, mercadopago.data!.mercadopago, requester)
+        : await payOrder(db, payments.gateway, id.data, stripe!.data!.confirmationTokenId, requester);
     if (outcome.ok) {
-      const payload: PayResponse =
-        outcome.next === "action"
-          ? { next: "action", clientSecret: outcome.clientSecret, order: outcome.order }
-          : { next: "done", order: outcome.order };
-      return NextResponse.json(payload, { headers: NO_STORE });
+      if (outcome.next === "action") {
+        return NextResponse.json({ next: "action", clientSecret: outcome.clientSecret, order: outcome.order } satisfies PayResponse, { headers: NO_STORE });
+      }
+      if (outcome.next === "redirect") {
+        return NextResponse.json({ next: "redirect", url: outcome.url, order: outcome.order } satisfies MercadoPagoPayResponse, { headers: NO_STORE });
+      }
+      if ("applied" in outcome) await afterMercadoPagoPayment(db, (outcome as Extract<MercadoPagoPayOutcome, { next: "done" }>).applied);
+      // After the emails: the order the browser shows is the committed one either way.
+      return NextResponse.json({ next: "done", order: outcome.order } satisfies PayResponse, { headers: NO_STORE });
     }
     switch (outcome.code) {
       case "not_found":

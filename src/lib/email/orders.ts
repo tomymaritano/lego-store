@@ -1,13 +1,15 @@
 import { siteConfig } from "@/config/site";
-import { formatOrderNumber, paymentLabel } from "@/lib/orders/format";
+import { STORE_TIME_ZONE } from "@/lib/argentina";
+import { formatOrderNumber, orderPaymentLabel } from "@/lib/orders/format";
 import type { OrderView } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
 import type { EmailMessage } from "./send";
 
 /*
  * Order emails (Spanish, tuteo): confirmation when an order is paid, "on its
- * way" when the store ships it, and the refund notice when a paid order is
- * cancelled. Plain HTML with inline styles and
+ * way" when the store ships it, the refund notice when a paid order is
+ * cancelled, and for Mercado Pago the payment still to settle (a cash ticket)
+ * and the one that never came. Plain HTML with inline styles and
  * tables, which is what email clients render reliably; the colours are the
  * store's light theme written out (emails cannot read CSS variables).
  */
@@ -141,7 +143,7 @@ export function orderConfirmationEmail(order: OrderView): EmailMessage {
           <strong>Envío a</strong><br /><span style="color:${COLORS.muted}">${addressBlock(order)}</span>
         </td>
         <td style="vertical-align:top">
-          <strong>Pago</strong><br /><span style="color:${COLORS.muted}">${escapeHtml(paymentLabel(order.paymentBrand, order.paymentLast4))}</span>
+          <strong>Pago</strong><br /><span style="color:${COLORS.muted}">${escapeHtml(orderPaymentLabel(order))}</span>
         </td>
       </tr>
     </table>`;
@@ -161,7 +163,7 @@ export function orderConfirmationEmail(order: OrderView): EmailMessage {
       "",
       textLines(order),
       "",
-      `Pago: ${paymentLabel(order.paymentBrand, order.paymentLast4)}`,
+      `Pago: ${orderPaymentLabel(order)}`,
       link ? `Tu pedido: ${link}` : "",
     ]
       .filter((line, index, all) => line !== "" || all[index - 1] !== "")
@@ -207,7 +209,7 @@ export function orderShippedEmail(order: OrderView): EmailMessage {
 export function orderCancelledEmail(order: OrderView): EmailMessage {
   const number = formatOrderNumber(order.number);
   const link = orderLink(order);
-  const card = paymentLabel(order.paymentBrand, order.paymentLast4);
+  const card = orderPaymentLabel(order);
   const refund = `Te reembolsamos ${formatPrice(order.total)} al mismo medio de pago (${card}). Según tu banco, puede tardar de 5 a 10 días hábiles en verse en tu resumen.`;
   const intro = `Hola ${escapeHtml(order.shippingAddress.firstName)}, cancelamos tu pedido <strong>${number}</strong>. ${escapeHtml(refund)}`;
   return {
@@ -228,5 +230,77 @@ export function orderCancelledEmail(order: OrderView): EmailMessage {
       link ? `\nTu pedido: ${link}` : "",
     ].join("\n"),
     idempotencyKey: `order-cancelled/${order.id}`,
+  };
+}
+
+const ticketDateFormat = new Intl.DateTimeFormat("es-AR", {
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: STORE_TIME_ZONE,
+});
+
+/**
+ * "Tu pedido espera el pago": Mercado Pago took the payment but has not
+ * settled it (PAYMENT_PENDING): a cash ticket to pay before it expires, with
+ * its link, or a card payment under review.
+ */
+export function orderPaymentPendingEmail(order: OrderView): EmailMessage {
+  const number = formatOrderNumber(order.number);
+  const link = orderLink(order);
+  const { ticketUrl, ticketExpiresAt } = order.payment;
+  const ticket = order.payment.methodType === "ticket";
+  const until = ticketExpiresAt ? ` antes del ${ticketDateFormat.format(new Date(ticketExpiresAt))}` : "";
+  const message = ticket
+    ? `Paga ${formatPrice(order.total)} en efectivo en ${orderPaymentLabel(order).replace(" (efectivo)", "")}${until}. Cuando se acredite te confirmamos el pedido por email.`
+    : "Mercado Pago está procesando tu pago. Te avisamos por email apenas se acredite (suele tardar menos de 2 días hábiles).";
+  const intro = `Hola ${escapeHtml(order.shippingAddress.firstName)}, recibimos tu pedido <strong>${number}</strong>. ${escapeHtml(message)}`;
+  const cta = ticket && ticketUrl ? { label: "Ver el ticket de pago", href: ticketUrl } : link ? { label: "Ver mi pedido", href: link } : null;
+  return {
+    to: order.email,
+    subject: ticket ? `Tu pedido ${number} espera el pago` : `Estamos procesando el pago de tu pedido ${number}`,
+    html: layout({
+      preheader: ticket ? `Paga el ticket${until} para confirmar tu pedido.` : "Te avisamos cuando se acredite.",
+      title: ticket ? "Tu pedido espera el pago" : "Estamos procesando tu pago",
+      intro,
+      body: linesTable(order),
+      cta,
+    }),
+    text: [
+      `Hola ${order.shippingAddress.firstName}, recibimos tu pedido ${number}.`,
+      message,
+      ticket && ticketUrl ? `Ticket de pago: ${ticketUrl}` : "",
+      "",
+      textLines(order),
+      link ? `\nTu pedido: ${link}` : "",
+    ].join("\n"),
+    idempotencyKey: `order-payment-pending/${order.id}`,
+  };
+}
+
+/**
+ * "No se acreditó el pago": a payment that was pending (a ticket that expired
+ * unpaid, a card rejected after review) will not come, so the order is
+ * cancelled. Nothing was charged.
+ */
+export function orderPaymentLapsedEmail(order: OrderView): EmailMessage {
+  const number = formatOrderNumber(order.number);
+  const ticket = order.payment.methodType === "ticket";
+  const reason = ticket ? "El ticket venció sin pagarse" : "El pago no se acreditó";
+  const message = `${reason}, así que cancelamos el pedido ${number}. No se cobró nada. Si todavía quieres los productos, puedes hacer el pedido de nuevo.`;
+  return {
+    to: order.email,
+    subject: `No se acreditó el pago de tu pedido ${number}`,
+    html: layout({
+      preheader: "Cancelamos el pedido; no se cobró nada.",
+      title: "No se acreditó el pago",
+      intro: `Hola ${escapeHtml(order.shippingAddress.firstName)}, ${escapeHtml(message.charAt(0).toLowerCase() + message.slice(1))}`,
+      body: linesTable(order),
+      cta: { label: "Volver a la tienda", href: siteUrl("/") },
+    }),
+    text: [`Hola ${order.shippingAddress.firstName},`, message, "", textLines(order)].join("\n"),
+    idempotencyKey: `order-payment-lapsed/${order.id}`,
   };
 }

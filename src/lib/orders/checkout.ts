@@ -37,17 +37,17 @@ import type { CancelReason, OrderView, UnavailableLine } from "./types";
 type Tx = Prisma.TransactionClient;
 
 /** Room for Stripe's round trips inside a transaction that holds an order's lock. */
-const LOCKED_TX = { timeout: 30_000, maxWait: 10_000 } as const;
+export const LOCKED_TX = { timeout: 30_000, maxWait: 10_000 } as const;
 
 /** Locks the order's row until the transaction ends; false when there is no such order. */
-async function lockOrderRow(tx: Tx, orderId: string): Promise<boolean> {
+export async function lockOrderRow(tx: Tx, orderId: string): Promise<boolean> {
   const rows = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
   return rows.length > 0;
 }
 
 const PAYMENT_IN_FLIGHT: readonly IntentStatus[] = ["processing", "succeeded", "requires_capture"];
 
-interface PricedLine {
+export interface PricedLine {
   productId: string;
   name: string;
   unitPrice: number;
@@ -58,7 +58,7 @@ interface PricedLine {
 type Priced = { ok: true; lines: PricedLine[] } | { ok: false; unavailable: UnavailableLine[] };
 
 /** The lines at today's prices, or what cannot be sold as asked. */
-async function priceLines(db: Db, wanted: { productId: string; quantity: number }[]): Promise<Priced> {
+export async function priceLines(db: Db, wanted: { productId: string; quantity: number }[]): Promise<Priced> {
   const products = await db.product.findMany({
     // Archived products are off the store: they read as gone (available 0).
     where: { id: { in: wanted.map((line) => line.productId) }, archivedAt: null },
@@ -110,6 +110,24 @@ export async function retireOrder(
   }, LOCKED_TX);
 }
 
+/** The order's columns from the shipping form and the server's totals (the same for every provider). */
+export function orderDataOf(shipping: PrepareOrderInput["shipping"], totals: ReturnType<typeof orderTotals>) {
+  return {
+    email: shipping.email.trim().toLowerCase(),
+    firstName: shipping.firstName,
+    lastName: shipping.lastName,
+    phone: shipping.phone,
+    address: shipping.address,
+    city: shipping.city,
+    state: shipping.state,
+    zipCode: shipping.zipCode.toUpperCase(),
+    country: shipping.country,
+    subtotal: totals.subtotal,
+    shipping: totals.shipping.cost,
+    total: totals.total,
+  };
+}
+
 export type PrepareOutcome =
   | { ok: true; order: OrderView; /** Set when a new order was created: the browser's new cookie. */ access: CheckoutAccess | null }
   | { ok: false; code: "unavailable"; unavailable: UnavailableLine[] }
@@ -129,24 +147,8 @@ export async function prepareOrder(
   const card = await gateway.readConfirmationToken(input.confirmationTokenId);
   if (!card) return { ok: false, code: "payment_method" };
 
-  const { shipping } = input;
-  const email = shipping.email.trim().toLowerCase();
-  const data = {
-    email,
-    firstName: shipping.firstName,
-    lastName: shipping.lastName,
-    phone: shipping.phone,
-    address: shipping.address,
-    city: shipping.city,
-    state: shipping.state,
-    zipCode: shipping.zipCode.toUpperCase(),
-    country: shipping.country,
-    subtotal: totals.subtotal,
-    shipping: totals.shipping.cost,
-    total: totals.total,
-    paymentBrand: card.brand,
-    paymentLast4: card.last4,
-  };
+  const data = { ...orderDataOf(input.shipping, totals), paymentBrand: card.brand, paymentLast4: card.last4 };
+  const { email } = data;
   const amount = toCentavos(totals.total);
 
   // This browser's pending order: update it when it can still be paid, retire it otherwise.

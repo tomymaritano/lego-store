@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { NextRequest } from "next/server";
 import { CHECKOUT_COOKIE } from "@/lib/orders/access";
+import { signMercadoPagoNotification } from "@/lib/payments/mercadopago/signature";
 
 /*
  * Helpers of the checkout integration tests: requests to the Route Handlers
@@ -10,10 +11,18 @@ import { CHECKOUT_COOKIE } from "@/lib/orders/access";
 
 export const TEST_WEBHOOK_SECRET = "whsec_integration_tests_only";
 
-/** Mock payments (STRIPE_MOCK) and the webhook secret, for the code under test. */
-export function enableMockPayments() {
+export const TEST_MERCADOPAGO_SECRET = "mp_webhook_integration_tests_only";
+
+/**
+ * Mock payments (STRIPE_MOCK) and the webhook secrets, for the code under
+ * test. New orders go to `provider` (PAYMENT_PROVIDER): the Stripe suites run
+ * as a store set to Stripe, the Mercado Pago ones with the default.
+ */
+export function enableMockPayments({ provider = "stripe" }: { provider?: "stripe" | "mercadopago" } = {}) {
   process.env.STRIPE_MOCK = "1";
+  process.env.PAYMENT_PROVIDER = provider;
   process.env.STRIPE_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
+  process.env.MERCADOPAGO_WEBHOOK_SECRET = TEST_MERCADOPAGO_SECRET;
   delete process.env.RESEND_API_KEY;
   delete process.env.EMAIL_FROM;
 }
@@ -82,5 +91,25 @@ export function webhookRequest(
     method: "POST",
     body: payload,
     headers: { "content-type": "application/json", "stripe-signature": signature },
+  });
+}
+
+let notifications = 0;
+
+/**
+ * A Mercado Pago webhook notification about a payment, signed like Mercado
+ * Pago signs it (x-signature over id, x-request-id and ts with the secret).
+ * The body says nothing about the status: the route reads the payment from
+ * the (mock) API.
+ */
+export function mercadoPagoNotification(
+  paymentId: string,
+  { secret = TEST_MERCADOPAGO_SECRET, type = "payment", requestId = `req-${++notifications}-${Date.now()}` }: { secret?: string; type?: string; requestId?: string } = {}
+) {
+  const signature = signMercadoPagoNotification({ dataId: paymentId, requestId }, secret);
+  return new NextRequest(new URL(`/api/webhooks/mercadopago?data.id=${paymentId}&type=${type}`, "http://localhost"), {
+    method: "POST",
+    body: JSON.stringify({ id: notifications, type, action: `${type}.updated`, live_mode: false, data: { id: paymentId } }),
+    headers: { "content-type": "application/json", "x-signature": signature, "x-request-id": requestId },
   });
 }

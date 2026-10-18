@@ -57,14 +57,14 @@ export async function getDashboard(db: Db, now = new Date()): Promise<AdminDashb
       listAdminOrders(db, { status: "", q: "", from: "", to: "", page: 1 }),
       db.user.count(),
     ]);
-  const ordersByStatus: Record<OrderStatus, number> = { PENDING: 0, PAID: 0, SHIPPED: 0, DELIVERED: 0, CANCELLED: 0 };
+  const ordersByStatus: Record<OrderStatus, number> = { PENDING: 0, PAYMENT_PENDING: 0, PAID: 0, SHIPPED: 0, DELIVERED: 0, CANCELLED: 0 };
   for (const row of groups) ordersByStatus[row.status] = row._count._all;
   return {
     ordersToday,
     revenue: revenue._sum.total ?? 0,
     revenueToday: revenueToday._sum.total ?? 0,
     toShip: ordersByStatus.PAID,
-    awaitingPayment: ordersByStatus.PENDING,
+    awaitingPayment: ordersByStatus.PENDING + ordersByStatus.PAYMENT_PENDING,
     ordersByStatus,
     amountMismatches,
     products,

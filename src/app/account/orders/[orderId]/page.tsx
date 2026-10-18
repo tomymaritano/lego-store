@@ -11,7 +11,7 @@ import {
   formatOrderDate,
   formatOrderNumber,
   orderPlacedAt,
-  paymentLabel,
+  orderPaymentLabel,
 } from "@/lib/orders/format";
 import { getUserOrder } from "@/lib/orders/queries";
 import { formatPrice } from "@/lib/utils";
@@ -173,7 +173,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
               </SectionTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-label text-fg">{paymentLabel(order.paymentBrand, order.paymentLast4)}</p>
+              <p className="text-label text-fg">{orderPaymentLabel(order)}</p>
             </CardContent>
           </Card>
         </div>

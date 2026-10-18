@@ -23,9 +23,12 @@ export const pageCount = (total: number, size = ADMIN_PAGE_SIZE) => Math.max(1, 
  * The status changes an admin can make, from each status (design doc,
  * "Cambios de estado del admin"). Shipped and delivered orders cannot be
  * cancelled; PENDING -> PAID is only ever the webhook's (a real payment).
+ * PAYMENT_PENDING (Mercado Pago: a ticket not paid yet, a card under review)
+ * can be cancelled: its payment is cancelled with the provider first.
  */
 export const ADMIN_TRANSITIONS: Record<OrderStatus, readonly ("SHIPPED" | "DELIVERED" | "CANCELLED")[]> = {
   PENDING: ["CANCELLED"],
+  PAYMENT_PENDING: ["CANCELLED"],
   PAID: ["SHIPPED", "CANCELLED"],
   SHIPPED: ["DELIVERED"],
   DELIVERED: [],
@@ -72,12 +75,14 @@ export const formatAdminDateTime = (iso: string) => adminDateTimeFormat.format(n
 
 const ADMIN_CANCEL_REASONS: Record<Exclude<CancelReason, "admin">, string> = {
   out_of_stock: "Se agotó un producto mientras se procesaba el pago; se reembolsó automáticamente.",
-  amount_mismatch: "Stripe cobró un monto distinto del total del pedido; se reembolsó automáticamente.",
-  payment_canceled: "El pago se canceló en Stripe antes de cobrarse; no se cobró nada.",
-  expired: "El pago no se completó a tiempo y la limpieza de pendientes lo canceló; no se cobró nada.",
+  amount_mismatch: "El proveedor de pagos cobró un monto distinto del total del pedido; se reembolsó automáticamente.",
+  payment_canceled: "El pago se canceló en el proveedor antes de cobrarse; no se cobró nada.",
+  expired: "El pago no se completó a tiempo (o venció el ticket) y el pedido se canceló; no se cobró nada.",
   superseded: "Lo reemplazó un pedido más nuevo del mismo navegador; no se cobró nada.",
-  payment_setup_failed: "No se pudo crear el pago en Stripe; no se cobró nada.",
-  refunded: "El pago se reembolsó desde Stripe (fuera del panel), así que el pedido se canceló.",
+  payment_setup_failed: "No se pudo crear el pago en el proveedor; no se cobró nada.",
+  refunded: "El pago se reembolsó desde el proveedor (fuera del panel), así que el pedido se canceló.",
+  payment_rejected: "El pago quedó en revisión y después fue rechazado; no se cobró nada.",
+  chargeback: "El cliente desconoció el pago (contracargo); se devolvió el stock.",
 };
 
 /**

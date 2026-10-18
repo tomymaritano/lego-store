@@ -6,7 +6,15 @@ import type { ShippingInfo } from "@/types";
  * toOrderView (./queries.ts); amounts are integer pesos.
  */
 
-export type OrderStatus = "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+/**
+ * PENDING: prepared on "Revisar", not paid. PAYMENT_PENDING: the provider took
+ * the payment but has not settled it (a Mercado Pago cash ticket waiting to be
+ * paid, a card under review). PAID onwards: the money is in.
+ */
+export type OrderStatus = "PENDING" | "PAYMENT_PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+
+/** Who takes the order's payment (Order.paymentProvider). */
+export type PaymentProviderId = "STRIPE" | "MERCADOPAGO";
 
 /** Why an order was cancelled (Order.cancelReason). */
 export type CancelReason =
@@ -17,6 +25,10 @@ export type CancelReason =
   | "superseded"
   | "payment_setup_failed"
   | "refunded"
+  /** Mercado Pago rejected a payment that was under review (or a ticket's payment). */
+  | "payment_rejected"
+  /** The customer disputed the charge with their bank (Mercado Pago charged_back). */
+  | "chargeback"
   | "admin";
 
 export interface OrderLineView {
@@ -40,6 +52,8 @@ export interface OrderView {
   total: number;
   paymentBrand: string | null;
   paymentLast4: string | null;
+  /** How it is paid (Mercado Pago orders tell more than the card). */
+  payment: OrderPaymentView;
   createdAt: string;
   /** First payment attempt; null for a checkout that never got to "Realizar pedido". */
   submittedAt: string | null;
@@ -50,6 +64,16 @@ export interface OrderView {
   cancelReason: CancelReason | null;
   /** Whether the order belongs to an account (guest orders have no "Mis pedidos" page). */
   hasAccount: boolean;
+}
+
+export interface OrderPaymentView {
+  provider: PaymentProviderId;
+  /** credit_card, debit_card, prepaid_card, ticket, account_money...; null for Stripe (always a card) or before paying. */
+  methodType: string | null;
+  installments: number | null;
+  /** Cash payments: the ticket to pay with, and until when (ISO). */
+  ticketUrl: string | null;
+  ticketExpiresAt: string | null;
 }
 
 /** The checkout's view of its order: the order plus what the browser needs next. */
@@ -76,6 +100,13 @@ export type CheckoutErrorCode =
   | "not_pending"
   | "declined"
   | "server";
+
+/** What "Realizar pedido" answers for a Mercado Pago order. */
+export type MercadoPagoPayResponse =
+  /** Approved, or taken and waiting (a cash ticket, a card under review): the order shows where it stands. */
+  | { next: "done"; order: OrderView }
+  /** "Cuenta de Mercado Pago": the customer pays on Mercado Pago's site and comes back. */
+  | { next: "redirect"; url: string; order: OrderView };
 
 export interface CheckoutError {
   error: string;

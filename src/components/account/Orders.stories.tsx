@@ -41,6 +41,7 @@ const order = (overrides: Partial<OrderView> = {}): OrderView => ({
   total: 3167,
   paymentBrand: "visa",
   paymentLast4: "4242",
+  payment: { provider: "STRIPE", methodType: null, installments: null, ticketUrl: null, ticketExpiresAt: null },
   createdAt: "2026-10-17T15:00:00.000Z",
   submittedAt: "2026-10-17T15:01:00.000Z",
   paidAt: "2026-10-17T15:01:05.000Z",

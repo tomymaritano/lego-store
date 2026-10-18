@@ -6,7 +6,7 @@ import { m } from "motion/react";
 import { ArrowRight, CircleX, Mail, PackageSearch, Truck } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { STAGGER, STAGGER_DELAY, drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
-import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, cancelReasonLabel, formatOrderNumber, paymentLabel } from "@/lib/orders/format";
+import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, cancelReasonLabel, formatOrderNumber, orderPaymentLabel } from "@/lib/orders/format";
 import type { OrderView } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
 import { Badge, Button, Spinner } from "@/components/ui";
@@ -120,7 +120,7 @@ export function ConfirmationStep({ order, canViewInAccount, stale = false }: Con
           </div>
           <div className="sm:text-right">
             <dt className="text-caption text-fg-muted">Pago</dt>
-            <dd className="text-label text-fg">{paymentLabel(order.paymentBrand, order.paymentLast4)}</dd>
+            <dd className="text-label text-fg">{orderPaymentLabel(order)}</dd>
           </div>
         </m.dl>
 

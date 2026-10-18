@@ -100,8 +100,11 @@ export function stripeGateway(stripe: StripeClient): PaymentGateway {
       return toIntent(await stripe.paymentIntents.cancel(id));
     },
 
-    async refund(intentId, idempotencyKey) {
-      const refund = await stripe.refunds.create({ payment_intent: intentId }, { idempotencyKey });
+    async refund(intentId, idempotencyKey, amount) {
+      const refund = await stripe.refunds.create(
+        amount === undefined ? { payment_intent: intentId } : { payment_intent: intentId, amount },
+        { idempotencyKey }
+      );
       return { id: refund.id };
     },
 

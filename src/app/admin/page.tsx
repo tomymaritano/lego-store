@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "Administración",
 };
 
-const STATUS_ORDER = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
+const STATUS_ORDER = ["PENDING", "PAYMENT_PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
 
 /**
  * /admin: how the store is doing today, what needs attention (orders to
@@ -107,7 +107,7 @@ export default async function AdminPage() {
               <h2 id="orders-title" className="mb-4 text-title">
                 Pedidos por estado
               </h2>
-              <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-5" aria-labelledby="orders-title">
+              <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-6" aria-labelledby="orders-title">
                 {STATUS_ORDER.map((status) => (
                   <div key={status} className="flex items-baseline justify-between gap-3 border-b border-border pb-2 lg:block lg:border-0 lg:pb-0">
                     <dt className="text-label text-fg-secondary">
