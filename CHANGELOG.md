@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Backend (see `docs/superpowers/specs/2026-10-17-backend-completo-design.md`):
+Postgres + Prisma, accounts (Auth.js), cart and wishlist per account, reviews,
+checkout with Stripe (Payment Element + ConfirmationTokens, webhook), order
+emails, Mis pedidos and the admin panel.
+
+### Security
+
+- Anti-framing on every route (`X-Frame-Options: DENY`, CSP
+  `frame-ancestors 'none'`), `nosniff`, `Referrer-Policy`, HSTS in production,
+  no `X-Powered-By`.
+- "Cerrar sesión en todos los dispositivos" on `/account`; an admin's logout
+  always revokes every admin session (`sessionVersion`).
+- A production server that trusts no client IP (neither `VERCEL=1` nor
+  `TRUSTED_PROXY_HOPS`) warns at startup.
+
+### Added
+
+- Cancellation email with the refund when a charged order is cancelled.
+- "Mis pedidos" in the account menus; signed-in checkout prefills name and email.
+- Optional E2E against real Stripe test mode (`npm run test:e2e:stripe`, CI job
+  gated on secrets); `vercel.json` with the pending-orders cleanup cron.
+
+### Changed
+
+- The amount-mismatch warning on `/admin` looks at the last 7 days.
+- Admin products table and section nav fit phones better.
+
+### Fixed
+
+- zod no longer ships in every route's first load (~30 kB gzip; ESLint now
+  guards root-layout client modules); the checkout payment step loads on demand.
+- E2E: unique webhook event ids across workers; the order page is warmed up.
+- Setup docs: `AUTH_SECRET` is generated with Node/OpenSSL (`npx auth secret`
+  now runs another project's CLI); Playwright Chromium install step.
+
 ## [2.0.0] - 2026-10-17
 
 UI overhaul (see `docs/superpowers/specs/2026-10-17-ui-overhaul-design.md`).

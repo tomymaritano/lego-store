@@ -53,7 +53,7 @@ Requiere Node `^22.13` o `>=24`.
 | Comando | Qué hace |
 | --- | --- |
 | `npm run dev` | Servidor de desarrollo en http://localhost:3000 (necesita la base, ver abajo) |
-| `npm run build` / `npm start` | Build de producción y servidor (el build lee la base: prerenderiza el catálogo) |
+| `npm run build` / `npm start` | Build de producción y servidor (el build lee la base: la lista de categorías y los ids de las rutas; las páginas se renderizan por pedido) |
 | `npm run db:up` / `npm run db:down` | Levanta / detiene Postgres en Docker (bases `lego_store` y `lego_store_test`) |
 | `npm run db:migrate` | `prisma migrate dev`: aplica migraciones pendientes en dev (y crea una nueva si cambiaste el schema) |
 | `npm run db:deploy` | `prisma migrate deploy`: solo aplica migraciones (CI, producción) |
@@ -68,6 +68,7 @@ Requiere Node `^22.13` o `>=24`.
 | `npm run test:db:setup` | Reconstruye la base de test desde cero (si quedó desfasada de las migraciones) |
 | `npm run test:coverage` | Cobertura de los tests unitarios |
 | `npm run test:e2e` | Playwright: proyecto `chromium` contra `npm run dev` y proyecto `prod` contra un build en el puerto 3100 (los levanta si no están) |
+| `npm run test:e2e:stripe` | Checkout contra Stripe en modo test real (Payment Element, 3D Secure, webhook); se saltea sin claves de test (ver «Checkout, pagos y pedidos») |
 | `npm run storybook` / `npm run build-storybook` | Storybook en http://localhost:6006 / build estático |
 | `npm run size -- <url>` | JS de primera carga (gzip) por ruta clave contra su presupuesto, sobre un `npm start` en marcha |
 | `npm run screenshots` | Regenera las capturas de `screenshots/` (`BASE_URL` para otro origen) |
@@ -136,7 +137,7 @@ src/
     argentina.ts       Provincias y zona horaria de la tienda
     flyToCart.ts       Animación "vuela al carrito" (Web Animations API)
     motion.ts motion-features.ts theme.ts metadata.ts utils.ts validations/
-  stores/              Zustand: cart, wishlist, compare, recentlyViewed, theme, reviews, checkout, ui
+  stores/              Zustand: cart, wishlist, compare, recentlyViewed, theme, checkout, ui
   types/               Tipos de dominio (única fuente)
 src/proxy.ts           /account y /admin sin sesión van a /login; 404 reales de /item y /category
 __tests__/             Tests unitarios y de componentes (Vitest + Testing Library)
@@ -195,12 +196,14 @@ scripts/               Presupuesto de JS y capturas del README
   a la versión nueva exige una renovación firmada con `AUTH_SECRET` que arma la
   acción de cambio de contraseña para su propia sesión (`session-token.ts`). El rol
   también sale siempre de la base, nunca del token.
-- **Cerrar sesión** borra la cookie de ese navegador y nada más: los otros
+- **Cerrar sesión** (cliente) borra la cookie de ese navegador: los otros
   dispositivos siguen con su sesión (lo esperable al cerrar sesión en el celular,
   por ejemplo). Una copia del token tomada antes (cookie filtrada, compu
-  compartida) sigue valiendo hasta que vence (30 días desde el ingreso) o hasta
-  que se cambia la contraseña, que sí cierra todas las sesiones. Cerrar todas al
-  salir sería incrementar `sessionVersion` en `logoutAction` (`src/lib/auth/actions.ts`).
+  compartida) seguiría valiendo hasta que vence (30 días), así que `/account`
+  ofrece **"Cerrar sesión en todos los dispositivos"** (`logoutEverywhereAction`):
+  incrementa `sessionVersion` y cualquier copia deja de valer en el siguiente
+  pedido. Para un **admin**, cerrar sesión siempre hace eso: un token de admin no
+  sobrevive a su logout. Cambiar la contraseña también cierra las demás sesiones.
 - **La sesión no se renueva sola**: `proxy.ts` decide con la cookie pero no escribe
   cookies (el wrapper de Auth.js re-emite la cookie en cada pedido, y un prefetch
   de `/account` que respondiera después del logout la volvía a escribir y deshacía
@@ -252,8 +255,12 @@ scripts/               Presupuesto de JS y capturas del README
   IP: todos los clientes comparten el bucket `unknown`, así que los límites por IP
   valen para todo el sitio junto (estricto, pero puede frenar a gente legítima: un
   self-host público tiene que estar detrás de un proxy que reescriba
-  `X-Forwarded-For` y definir `TRUSTED_PROXY_HOPS`). Los límites por cuenta y los
-  dispositivos conocidos no dependen de la IP.
+  `X-Forwarded-For` y definir `TRUSTED_PROXY_HOPS`). En ese modo una sola persona
+  puede agotar el límite compartido y bloquear el login desde navegadores nuevos,
+  el registro y el checkout de invitado para todos; por eso un servidor de
+  producción sin `VERCEL=1` ni `TRUSTED_PROXY_HOPS` lo avisa en el log al arrancar
+  (`src/instrumentation.ts`). Los límites por cuenta y los dispositivos conocidos no
+  dependen de la IP.
 - **Navbar sin parpadeo**: el layout raíz lee la sesión (`getCurrentUser()`) y el
   navbar llega del servidor ya con el menú de cuenta o el link de ingreso. El costo:
   todas las páginas se renderizan por pedido en vez de prerenderizarse (ver
@@ -376,10 +383,9 @@ reembolso parcial no cambia nada.
 su pedido pendiente (y el monto del PaymentIntent) o, si ya no se puede pagar, lo
 cancela. El resto los cancela `GET /api/cron/expire-orders` (con
 `Authorization: Bearer $CRON_SECRET`) a las 24 h, junto con su PaymentIntent. En
-Vercel se agenda con un Cron Job en `vercel.json`
-(`{"crons":[{"path":"/api/cron/expire-orders","schedule":"0 4 * * *"}]}`; Vercel
-manda el `CRON_SECRET` del proyecto solo); en otro hosting, cualquier scheduler que
-haga ese GET. Sin `CRON_SECRET` la ruta responde 503.
+Vercel lo agenda el `vercel.json` del repo (`/api/cron/expire-orders` todos los
+días a las 4 UTC; Vercel manda el `CRON_SECRET` del proyecto solo); en otro hosting,
+cualquier scheduler que haga ese GET. Sin `CRON_SECRET` la ruta responde 503.
 
 **Mis pedidos** (`/account/orders`, `/account/orders/[id]`): solo los pedidos de la
 cuenta que llegaron a "Realizar pedido" (un checkout abandonado no es una compra),
@@ -388,8 +394,11 @@ estado, las líneas como se compraron (nombre, precio e imagen
 de ese momento), totales, dirección y tarjeta. El pedido de otra persona es un 404.
 Los pedidos de invitado no se vinculan a una cuenta creada después.
 
-**Emails** (`src/lib/email`): confirmación al pasar a PAID y "en camino" al pasar a
-SHIPPED (`sendOrderShipped`, lo usa el admin). HTML simple con estilos en línea y
+**Emails** (`src/lib/email`): confirmación al pasar a PAID, "en camino" al pasar a
+SHIPPED (`sendOrderShipped`, lo usa el admin) y "Cancelamos tu pedido" con el
+monto reembolsado cuando se cancela un pedido cobrado (un admin cancela uno
+pagado, un reembolso hecho en Stripe, sin stock al pagar o `amount_mismatch`):
+un invitado no tiene otra forma de enterarse del reembolso. HTML simple con estilos en línea y
 versión en texto. Con `RESEND_API_KEY` y `EMAIL_FROM` se envían por Resend (sin
 dominio verificado, Resend solo entrega al dueño de la cuenta); sin ellas se
 muestran en la consola del servidor.
@@ -411,6 +420,21 @@ muestran en la consola del servidor.
   firman sus eventos con `stripe.webhooks.generateTestHeaderString`.
 - Rate limits del checkout: 30 preparaciones y 15 pagos cada 15 minutos por usuario
   (o IP).
+- **Con sesión**, el paso Envío llega con nombre y email de la cuenta y avisa que el
+  pedido queda asociado a ella (el email se puede cambiar: es adonde van los avisos).
+- El paso Pago (Stripe Elements, tarjetas de prueba) se carga bajo demanda con
+  `next/dynamic` y se precarga mientras se completa el envío: no está en la primera
+  carga de `/checkout`.
+- **E2E contra Stripe real** (`e2e/stripe-live`, `npm run test:e2e:stripe`): con
+  claves de **test** (`sk_test_`/`pk_test_`, más `STRIPE_WEBHOOK_SECRET`) en
+  `.env.local` o el entorno, levanta su propio `next dev` en el 3200 sin
+  `STRIPE_MOCK`, completa el Payment Element con `4242…` y con la tarjeta 3D Secure
+  (resuelve el desafío), comprueba que Stripe cobró el total del servidor y entrega
+  al webhook el evento `payment_intent.succeeded` real que Stripe registró (firmado
+  con tu secret; si además corre `stripe listen --forward-to
+  localhost:3200/api/stripe/webhook`, ese llega primero y el reenvío da
+  `duplicate`). Sin claves se saltea. En CI corre el job opcional
+  `e2e-stripe-live` solo si el repo tiene esos tres secrets.
 
 ## Panel de admin
 
@@ -424,7 +448,9 @@ cae en "sin filtro").
 - **Resumen**: pedidos de hoy (día calendario de Argentina), ingresos
   (PAID + SHIPPED + DELIVERED, total y de hoy), pedidos por enviar, pagos
   pendientes, stock bajo (≤ 5, con edición en línea), últimos pedidos y un aviso
-  si hay pedidos cancelados por `amount_mismatch`.
+  si hubo pedidos cancelados por `amount_mismatch` en los últimos 7 días (un
+  incidente viejo no deja el aviso para siempre; el filtro "Cancelados: monto
+  distinto" de Pedidos los muestra todos).
 - **Productos**: lista con búsqueda (la misma de la tienda, o el id exacto),
   categoría, estado (en la tienda / archivados) y stock bajo (≤ 5, agotados
   incluidos, lo mismo que cuenta la tarjeta del resumen) o agotado, 20 por
@@ -503,10 +529,13 @@ Requisitos: Node `^22.13` o `>=24` y Docker (Docker Desktop en Windows/macOS).
 ```bash
 npm install                 # también genera el cliente de Prisma (postinstall)
 cp .env.example .env.local  # los valores por defecto ya apuntan al Postgres de Docker;
-                            # completá AUTH_SECRET (obligatoria): npx auth secret
+                            # completá AUTH_SECRET (obligatoria), por ejemplo con:
+                            # node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+                            # (u openssl rand -base64 32)
 npm run db:up               # Postgres 17 en localhost:5433, bases lego_store y lego_store_test
 npm run db:migrate          # aplica las migraciones a lego_store
 npm run db:seed             # catálogo, reseñas de ejemplo y el admin (ver "Admin")
+npx playwright install chromium   # navegador de los tests de Storybook (npx vitest run) y de los E2E
 npm run dev
 ```
 
@@ -550,7 +579,21 @@ npm run dev
   `payment_intent.payment_failed`, `payment_intent.canceled` y `charge.refunded` (su signing secret es
   `STRIPE_WEBHOOK_SECRET`), `CRON_SECRET` + el Cron Job de la limpieza (ver
   [Checkout, pagos y pedidos](#checkout-pagos-y-pedidos)), y opcionalmente
-  `RESEND_API_KEY` / `EMAIL_FROM`.
+  `RESEND_API_KEY` / `EMAIL_FROM`. **Fuera de Vercel**: `AUTH_TRUST_HOST=true` y
+  `TRUSTED_PROXY_HOPS` con la cantidad de proxies delante (sin eso todos los
+  visitantes comparten los límites por IP; el servidor lo avisa al arrancar).
+- **Headers de seguridad** (`next.config.mjs`, todas las rutas):
+  `X-Frame-Options: DENY` y `Content-Security-Policy: frame-ancestors 'none'`
+  (nadie puede meter `/admin` o `/account` en un iframe para clickjacking; el
+  Payment Element es un iframe de Stripe dentro de nuestras páginas, no al revés),
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  strict-origin-when-cross-origin`, HSTS en producción y sin `X-Powered-By`.
+- **`npm audit`**: las dependencias de producción no tienen vulnerabilidades (CI lo
+  exige). Quedan avisos altos solo en herramientas de lint (GHSA-vfj7-8cjw-p6xm,
+  `braces` vía `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` →
+  `micromatch`); el único arreglo que ofrece npm es bajar a `eslint-config-next`
+  14, así que es un riesgo aceptado (solo corre en desarrollo y CI sobre nuestro
+  propio código) hasta que `eslint-config-next` actualice esa cadena.
 
 ## Sistema de diseño
 
@@ -594,11 +637,16 @@ npm run dev
   precargan al pasar el puntero o enfocar su botón. Sonner (toasts) y las
   reseñas de la ficha se cargan después de hidratar.
 - Imágenes en AVIF (WebP de respaldo) con `sizes` ajustados a cada grilla.
+- El layout raíz no carga zod: los módulos del bundle de todas las rutas
+  (`components/layout`, `stores`, `providers`, `lib/lists/pending-merge.ts` y
+  `sync-plan.ts`) solo pueden importar tipos de `@/lib/validations` (regla de
+  ESLint); el servidor valida con zod igual.
 - `npm run size` mide el JS de primera carga por ruta (gzip, sin los polyfills
   `noModule`) contra un presupuesto por ruta; CI lo corre en cada PR.
 - Lighthouse CI (`lighthouserc.json`, móvil simulado) audita `/`, `/item/1`,
-  `/category/helmet` y `/cart`; la última corrida local dio rendimiento 80-82
-  (mediana), accesibilidad 100 y buenas prácticas 100. El gate de SEO de CI es
+  `/category/helmet` y `/cart`; la última corrida local (3 corridas, `next start`)
+  dio rendimiento 86 en `/` y 80-82 en fichas y categorías (mediana),
+  accesibilidad 100 y buenas prácticas 100. El gate de SEO de CI es
   ≥ 90 en las rutas indexables (`/`, fichas y categorías), y el objetivo es 100,
   que hoy cumplen. `/cart` y `/checkout` son `noindex` a propósito (lo correcto
   en páginas transaccionales), así que no se afirma SEO sobre ellas. `/checkout` no está en
@@ -655,7 +703,9 @@ npm run dev
   (axe WCAG 2.1 AA en cada página, en modo claro y oscuro), `auth` (registro →
   logout → login → cuenta, redirección de rutas protegidas, callbackUrl, 403 de
   admin, cambio de contraseña, menú móvil, axe), `account-lists` (carrito y
-  favoritos de visitante → cuenta, otro navegador, logout), `admin` (editar un
+  favoritos de visitante → cuenta, otro navegador, logout, cerrar sesión en todos
+  los dispositivos revoca una cookie copiada), `security-headers` (anti-framing en
+  `/admin` con sesión; HSTS y sin `X-Powered-By` en el proyecto `prod`), `admin` (editar un
   producto y verlo en la tienda; enviar y entregar un pedido pagado, con axe),
   `reviews` (login para
   opinar, publicar / editar / borrar, "útil", orden y páginas, axe) y el proyecto `prod` (navegación,
@@ -674,7 +724,8 @@ npm run dev
 
 CI (`.github/workflows/ci.yml`): lint, tipos, tests con cobertura, build de
 Storybook, build, E2E, auditoría de dependencias de producción, presupuesto de
-JS y Lighthouse. Los jobs que necesitan datos levantan un servicio Postgres 17,
+JS, Lighthouse y, solo si el repo tiene secrets de Stripe test, el E2E contra
+Stripe real (`e2e-stripe-live`). Los jobs que necesitan datos levantan un servicio Postgres 17,
 corren `prisma migrate deploy` y el seed antes de empezar.
 
 ## Licencia
