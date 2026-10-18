@@ -36,14 +36,21 @@ test("an admin uploads a picture to a product, makes it the main one, and the st
   await expect(items).toHaveCount(before + 1, COLD);
   const added = items.last();
   await expect(added).toContainText("/uploads/");
-  // Saving without its alt text is refused, naming the picture.
+  // Saving without its alt text is refused on that picture's alt field, which gets the focus.
   await page.getByTestId("product-save").click();
-  await expect(page.getByTestId("gallery-error")).toContainText(`La imagen ${before + 1} necesita su texto alternativo`);
+  const addedAlt = added.getByLabel(/^Texto alternativo/);
+  await expect(addedAlt).toHaveAttribute("aria-invalid", "true", COLD);
+  await expect(addedAlt).toBeFocused();
+  await expect(added).toContainText(`La imagen ${before + 1} necesita su texto alternativo`);
 
-  await added.getByLabel(/^Texto alternativo/).fill(ALT);
+  await addedAlt.fill(ALT);
+  await expect(addedAlt).not.toHaveAttribute("aria-invalid", "true");
   await added.getByRole("button", { name: /^Hacer principal/ }).click();
   await expect(items.first()).toContainText("Principal");
+  // The keyboard stays on the picture: its alt text, now the main one's.
   await expect(items.first().getByLabel(/^Texto alternativo/)).toHaveValue(ALT);
+  await expect(items.first().getByLabel(/^Texto alternativo/)).toBeFocused();
+  await expect(gallery.getByTestId("gallery-announcement")).toHaveText("Ahora es la imagen principal.");
   try {
     await page.getByTestId("product-save").click();
     await expect(page.getByText("Guardamos los cambios. Ya se ven en la tienda.")).toBeVisible({ timeout: 15_000 });
@@ -67,6 +74,56 @@ test("an admin uploads a picture to a product, makes it the main one, and the st
     await page.getByTestId("product-save").click();
     await expect(page.getByText("Guardamos los cambios. Ya se ven en la tienda.")).toBeVisible({ timeout: 15_000 });
   }
+});
+
+test("the gallery starts from the store's pictures, main one first, and keeps the keyboard on a moved picture", async ({ page }) => {
+  // The Batcueva (#10): its main picture is not among its other pictures; the editor must not drop it. Nothing is saved.
+  await logInAsAdmin(page, "/admin/products/10");
+  await expect(page.getByTestId("product-save")).toBeEnabled(COLD);
+  const gallery = page.getByTestId("gallery-editor");
+  const items = gallery.getByTestId("gallery-item");
+  await expect(items).toHaveCount(3);
+  await expect(items.first()).toContainText("76252.png");
+  await expect(items.first()).not.toContainText("_alt");
+
+  const second = items.nth(1);
+  const url = (await second.locator("p.font-mono").textContent())!;
+  await second.getByRole("button", { name: /^Mover antes/ }).focus();
+  await page.keyboard.press("Enter");
+  // It is first now ("Mover antes" is disabled there): the focus is on its "Mover después".
+  await expect(items.first()).toContainText(url);
+  await expect(items.first().getByRole("button", { name: /^Mover después/ })).toBeFocused();
+  await expect(gallery.getByTestId("gallery-announcement")).toHaveText("Ahora es la imagen principal.");
+  await page.keyboard.press("Enter");
+  await expect(items.nth(1)).toContainText(url);
+  await expect(items.nth(1).getByRole("button", { name: /^Mover después/ })).toBeFocused();
+  await expect(gallery.getByTestId("gallery-announcement")).toHaveText("La imagen quedó en el lugar 2 de 3.");
+});
+
+test("reordering themes with the keyboard keeps the focus and says the new place", async ({ page }) => {
+  await logInAsAdmin(page, "/admin/themes");
+  const rows = page.getByTestId("admin-theme-row");
+  await expect(rows.first()).toBeVisible(COLD);
+  const total = await rows.count();
+  const last = rows.nth(total - 1);
+  const name = (await last.getByRole("link").first().textContent())!.trim();
+  const up = page.getByRole("button", { name: `Subir ${name}`, exact: true });
+  const down = page.getByRole("button", { name: `Bajar ${name}`, exact: true });
+  await expect(up).toBeEnabled(COLD);
+  await up.focus();
+  await page.keyboard.press("Enter");
+  try {
+    await expect(rows.nth(total - 2)).toContainText(name, COLD);
+    await expect(up).toBeFocused();
+    await expect(rows.nth(total - 2).getByTestId("order-announcement")).toHaveText(`${name} quedó en el lugar ${total - 1} de ${total}`);
+  } finally {
+    // Back to the end; "Subir" stays usable, "Bajar" is disabled there, so the focus moves to "Subir".
+    await down.focus();
+    await page.keyboard.press("Enter");
+    await expect(rows.nth(total - 1)).toContainText(name, COLD);
+  }
+  await expect(up).toBeFocused();
+  await expect(rows.nth(total - 1).getByTestId("order-announcement")).toHaveText(`${name} quedó en el lugar ${total} de ${total}`);
 });
 
 test("an admin blocks a customer: their session ends and logging in again is refused", async ({ page, browser }) => {
