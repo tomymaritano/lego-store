@@ -59,7 +59,7 @@ export default async function AdminMessagesPage({ searchParams }: { searchParams
           method="get"
           role="search"
           aria-label="Filtrar mensajes"
-          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] lg:items-end"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:items-end"
         >
           <Field label="Buscar">
             <Input name="q" type="search" defaultValue={filters.q} placeholder="Nombre, email, pedido o texto" leftIcon={<Search aria-hidden="true" className="size-4" />} className="h-9" />
@@ -86,7 +86,7 @@ export default async function AdminMessagesPage({ searchParams }: { searchParams
       </Card>
 
       {page.items.length === 0 ? (
-        <Card>
+        <Card tabIndex={-1} data-inbox-focus="" className="outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg">
           <EmptyState
             title={filtered ? "No hay mensajes con esos filtros" : "La bandeja está vacía"}
             description={filtered ? "Prueba con otra búsqueda o limpia los filtros." : "Cuando alguien escriba desde la página de contacto, lo vas a ver acá."}
@@ -100,6 +100,7 @@ export default async function AdminMessagesPage({ searchParams }: { searchParams
                 key={message.id}
                 className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start data-[status=NEW]:bg-row-highlight"
                 data-status={message.status}
+                data-message-id={message.id}
                 data-testid="admin-message-row"
               >
                 <div className="min-w-0 flex-1">
