@@ -5,10 +5,18 @@ import { E2E_DEV_PORT, E2E_PROD_DIST_DIR, E2E_PROD_PORT } from "./e2e/helpers/se
 /*
  * Outside CI a server already listening on these ports is reused as it is,
  * whoever started it. The global setup checks that the dev server pays through
- * the mock and that the production server serves this checkout's e2e build;
- * to run next to another checkout's servers, pick free ports:
- * E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx playwright test.
+ * the mock and is this checkout's, on its database, and that the production
+ * server serves this checkout's e2e build; to run next to another checkout's
+ * servers, pick free ports: E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx playwright test.
  */
+
+/**
+ * Local workers: every chromium spec shares one `next dev`, which compiles
+ * routes on first use and hashes passwords with bcrypt on each sign-in; more
+ * workers than this made a full run time out on cold routes. E2E_WORKERS
+ * overrides it; CI runs one.
+ */
+const LOCAL_WORKERS = Number(process.env.E2E_WORKERS) || 4;
 const DEV_URL = `http://localhost:${E2E_DEV_PORT}`;
 /** Production server (`next build` + `next start`) for the e2e/prod specs. */
 const PROD_URL = `http://localhost:${E2E_PROD_PORT}`;
@@ -22,7 +30,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : LOCAL_WORKERS,
   reporter: "html",
   use: {
     trace: "on-first-retry",

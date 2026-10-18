@@ -42,7 +42,7 @@ test("a signed-in customer buys, and follows the order in Mis pedidos (only thei
   await page.goto("/login");
   await logIn(page, email);
   await expect(page.getByTestId("account-menu")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("cart-count")).toHaveText("2");
+  await expect(page.getByTestId("cart-count")).toHaveText("2", { timeout: 15_000 });
 
   await page.goto("/account");
   await expect(page.getByRole("heading", { name: "Mis pedidos" })).toBeVisible();
@@ -110,7 +110,7 @@ test("a signed-in customer buys, and follows the order in Mis pedidos (only thei
   const visitor = await browser.newContext();
   const anonymous = await visitor.newPage();
   await anonymous.goto(`/account/orders/${order.id}`);
-  await expect(anonymous).toHaveURL(/\/login\?callbackUrl=/);
+  await expect(anonymous).toHaveURL(/\/login\?callbackUrl=/, { timeout: 15_000 });
   await visitor.close();
 
   // Signing out locks the order in this browser too: the checkout cookie goes with the session.

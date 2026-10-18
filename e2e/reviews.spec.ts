@@ -44,11 +44,11 @@ test.describe("Reviews", () => {
     // Signed out: "Escribir reseña" leads to login, and back to the form afterwards.
     await expect(reviewsRegion(page).getByText("Inicia sesión para opinar")).toBeVisible();
     await reviewsRegion(page).getByRole("link", { name: "Escribir reseña" }).click();
-    await expect(page).toHaveURL(new RegExp(`/login\\?callbackUrl=%2Fitem%2F${PRODUCT}%23escribir-resena$`));
+    await expect(page).toHaveURL(new RegExp(`/login\\?callbackUrl=%2Fitem%2F${PRODUCT}%23escribir-resena$`), { timeout: 15_000 });
     await page.getByRole("link", { name: "Crea una" }).click();
     await register(page, { name: "Reseñista E2E", email: uniqueEmail("review") });
     await expect(page.getByTestId("account-menu")).toBeVisible({ timeout: 15_000 });
-    await expect(page).toHaveURL(new RegExp(`/item/${PRODUCT}`));
+    await expect(page).toHaveURL(new RegExp(`/item/${PRODUCT}`), { timeout: 15_000 });
 
     // The form opens (from the link's fragment) and validates in Spanish.
     const toggle = reviewsRegion(page).getByRole("button", { name: /^(Escribir reseña|Cancelar)$/ });

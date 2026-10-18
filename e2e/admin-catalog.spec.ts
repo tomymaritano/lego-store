@@ -136,7 +136,8 @@ test("an admin blocks a customer: their session ends and logging in again is ref
   const email = await createE2eAccount("blockable", "Cliente Bloqueable");
   await customer.goto("/login?callbackUrl=%2Faccount");
   await logIn(customer, email, PASSWORD);
-  await expect(customer).toHaveURL(/\/account$/);
+  // A sign-in (bcrypt, slow on purpose) plus a cold compile of /account, under the parallel workers.
+  await expect(customer).toHaveURL(/\/account$/, COLD);
 
   await logInAsAdmin(page, "/admin/users");
   await page.getByRole("searchbox", { name: "Buscar" }).fill(email);
@@ -170,7 +171,7 @@ test("an admin blocks a customer: their session ends and logging in again is ref
 
   // The customer's session no longer counts: the account page sends them to log in.
   await customer.goto("/account");
-  await expect(customer).toHaveURL(/\/login/);
+  await expect(customer).toHaveURL(/\/login/, COLD);
   await logIn(customer, email, PASSWORD);
   await expect(customer.getByRole("main").getByText("Tu cuenta está bloqueada", { exact: false })).toBeVisible({ timeout: 15_000 });
   await expect(field(customer, "Email")).toHaveValue(email);

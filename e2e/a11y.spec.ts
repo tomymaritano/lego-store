@@ -92,7 +92,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await page.goto("/");
       const search = page.getByRole("combobox", { name: /Buscar/ }).first();
       await search.fill("star");
-      await expect(page.getByRole("listbox").first()).toBeVisible();
+      // The first search under the parallel workers can wait on the dev server's /api/search.
+      await expect(page.getByRole("listbox").first()).toBeVisible({ timeout: 15_000 });
       await expect.poll(() => seriousAxeViolations(page), { timeout: 15_000 }).toEqual([]);
     });
 

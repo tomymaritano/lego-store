@@ -28,10 +28,20 @@ test.beforeAll(async ({ browser }) => {
   await context.close();
 });
 
-/** A page signed in as the specs' admin, on `path`. */
-async function adminPage(browser: Browser, path: string): Promise<Page> {
+/** React's hydration warnings on `page` from now on (a server/client mismatch fails the spec that checks them). */
+function hydrationErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && /hydrat/i.test(message.text())) errors.push(message.text());
+  });
+  return errors;
+}
+
+/** A page signed in as the specs' admin, on `path`; `onPage` runs before it loads (listeners). */
+async function adminPage(browser: Browser, path: string, onPage?: (page: Page) => void): Promise<Page> {
   const context = await browser.newContext({ storageState: adminState });
   const page = await context.newPage();
+  onPage?.(page);
   await page.goto(path);
   await expect(page).toHaveURL((url) => url.pathname === path.split("?")[0], COLD);
   return page;
@@ -168,11 +178,15 @@ test("a visitor's contact message reaches the admin's inbox", async ({ browser }
   await expect(visitor.getByRole("heading", { name: "¡Mensaje enviado!" })).toBeFocused(COLD);
   await context.close();
 
-  const page = await adminPage(browser, "/admin/mensajes");
+  let hydration: string[] = [];
+  const page = await adminPage(browser, "/admin/mensajes", (page) => (hydration = hydrationErrors(page)));
   await page.getByRole("searchbox", { name: "Buscar" }).fill(email);
   await page.getByRole("button", { name: "Filtrar" }).click();
   const row = page.getByTestId("admin-message-row");
   await expect(row).toHaveCount(1, COLD);
+  // The inbox filtered by a seconds-old message hydrates without a server/client mismatch.
+  await expect(row.getByRole("button", { name: /^Marcar leído/ })).toBeEnabled(COLD);
+  expect(hydration).toEqual([]);
   await expect(row).toContainText("Nuevo");
   await expect(row).toContainText("Envíos y entregas");
   await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
@@ -194,12 +208,14 @@ test("the inbox keeps the keyboard focus through mark read and archive", async (
   test.slow();
   const tag = `foco${Date.now()}`;
   const [first, second] = await createE2eContactMessages(tag, ["Bruno Foco", "Carla Foco"]);
-  const page = await adminPage(browser, `/admin/mensajes?q=${tag}`);
+  let hydration: string[] = [];
+  const page = await adminPage(browser, `/admin/mensajes?q=${tag}`, (page) => (hydration = hydrationErrors(page)));
   const rows = page.getByTestId("admin-message-row");
   await expect(rows).toHaveCount(2, COLD);
   const firstRow = page.locator(`[data-message-id="${first!.id}"]`);
   const secondRow = page.locator(`[data-message-id="${second!.id}"]`);
   await expect(firstRow.getByRole("button", { name: /^Marcar leído/ })).toBeEnabled(COLD);
+  expect(hydration).toEqual([]);
 
   // Mark read from the keyboard: the same button, now "No leído", keeps the focus.
   await firstRow.getByRole("button", { name: /^Marcar leído/ }).focus();

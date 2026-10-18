@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { FullConfig } from "@playwright/test";
+import { loadEnv } from "../prisma/env";
+import { serverIdentity } from "../src/lib/server-identity";
 import { prepareAuthFixtures } from "./helpers/db";
 import { E2E_PROD_DIST_DIR } from "./helpers/servers";
 
@@ -15,10 +17,12 @@ import { E2E_PROD_DIST_DIR } from "./helpers/servers";
  * hands the run's admin password to the workers through the environment.
  *
  * Outside CI Playwright reuses whatever already listens on the e2e ports, so
- * it first checks both servers: the dev server must pay through the mock, and
- * the production server must serve this checkout's e2e build (its BUILD_ID).
- * A dev server from another checkout with the same flags is not detected:
- * pick free ports (E2E_DEV_PORT / E2E_PROD_PORT) when one may be running.
+ * it first checks both servers: the dev server must pay through the mock and
+ * run from this checkout on the database the specs use (its identity: a hash
+ * of its folder and DATABASE_URL, src/lib/server-identity.ts), and the
+ * production server must serve this checkout's e2e build (its BUILD_ID).
+ * Another checkout's server on these ports is refused: pick free ports
+ * (E2E_DEV_PORT / E2E_PROD_PORT), and never run two suites on one machine at once.
  */
 const ROUTES = [
   "/",
@@ -70,12 +74,33 @@ export default async function globalSetup(config: FullConfig) {
         "(e2e/helpers/stripe.ts) y sin PAYMENT_PROVIDER, o elige otro puerto con E2E_DEV_PORT."
     );
   }
+  await checkDevServerIdentity(baseURL);
   for (const route of ROUTES) {
     try {
       await (await fetch(new URL(route, baseURL))).arrayBuffer();
     } catch {
       // A route that fails here fails in its own spec with a real error.
     }
+  }
+}
+
+/**
+ * The dev server must be this checkout's, on the database the specs write to
+ * (helpers/db.ts reads DATABASE_URL the same way): a `next dev` of another
+ * checkout with the same flags would answer every page while the specs'
+ * accounts, orders and rate limits went to another database.
+ */
+async function checkDevServerIdentity(baseURL: string) {
+  loadEnv();
+  const expected = serverIdentity(process.cwd(), process.env.DATABASE_URL);
+  const response = await fetch(new URL("/api/test/identity", baseURL)).catch(() => null);
+  const identity = response?.ok ? ((await response.json()) as { identity?: string }).identity : null;
+  if (identity !== expected) {
+    throw new Error(
+      `El servidor de ${baseURL} no es el \`next dev\` de esta copia con su base de datos (identidad ${identity ?? "desconocida"}, ` +
+        `esperada ${expected}). Detén el servidor que está usando ese puerto para que Playwright levante el suyo, o elige otro ` +
+        "puerto con E2E_DEV_PORT."
+    );
   }
 }
 

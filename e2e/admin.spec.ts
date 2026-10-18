@@ -30,7 +30,7 @@ async function saveProduct(page: Page, price: string, shortDescription: string) 
   await field(page, "Precio").fill(price);
   await field(page, "Descripción corta").fill(shortDescription);
   await page.getByTestId("product-save").click();
-  await expect(page.getByText("Guardamos los cambios. Ya se ven en la tienda.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Guardamos los cambios. Ya se ven en la tienda.")).toBeVisible(COLD);
 }
 
 test("an admin edits a product and the store shows it right away", async ({ page }) => {

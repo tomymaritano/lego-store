@@ -68,7 +68,8 @@ test.describe("Cart and wishlist with an account", () => {
     await logIn(second, email);
     await expect(second.getByTestId("account-menu")).toBeVisible({ timeout: 15_000 });
     const merged = `1x${Math.min(3, rex!.stock)}`;
-    await expect.poll(() => stored(second)).toMatchObject({ cart: [merged, "3x1"], wishlist: ["2", "4"] });
+    // The merge is a request after the sign-in: room for a busy dev server.
+    await expect.poll(() => stored(second), { timeout: 15_000 }).toMatchObject({ cart: [merged, "3x1"], wishlist: ["2", "4"] });
 
     // A change there is saved on the server: the first browser sees it after a reload.
     await second.goto("/cart");
