@@ -120,11 +120,11 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
                     <TableCell className="hidden max-w-56 sm:table-cell">
                       <span className="block truncate">{entry.actorEmail}</span>
                     </TableCell>
-                    <TableCell className="min-w-48">
+                    <TableCell className="min-w-40 sm:min-w-48">
                       <span className="block font-medium text-fg">{auditActionLabel(entry.action)}</span>
                       {/* On a phone the Admin column is hidden: who did it goes under the action. */}
-                      <span className="block truncate text-caption text-fg-secondary sm:hidden">{entry.actorEmail}</span>
-                      <span className="block text-caption text-fg-muted">
+                      <span className="block text-caption break-all text-fg-secondary sm:hidden">{entry.actorEmail}</span>
+                      <span className="block text-caption break-all text-fg-muted sm:break-normal">
                         {label}{" "}
                         {href ? (
                           <Link href={href} prefetch={false} className="font-mono underline-offset-4 hover:text-fg hover:underline">
