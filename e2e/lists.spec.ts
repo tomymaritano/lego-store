@@ -1,6 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
+import { keepSeededCart } from "./helpers/catalog";
 
-const seed = (page: Page, key: string, state: unknown) =>
+const seed = async (page: Page, key: string, state: unknown) => {
+  // Made-up names and prices below: keep them when the visitor's cart refreshes from the catalogue.
+  if (key === "lego-cart-storage") await keepSeededCart(page, (state as { cart: Parameters<typeof keepSeededCart>[1] }).cart);
+  return addSeed(page, key, state);
+};
+
+const addSeed = (page: Page, key: string, state: unknown) =>
   page.addInitScript(
     ([k, v]) => {
       // Only seed on the first load of the test, so reloads keep what the page saved.

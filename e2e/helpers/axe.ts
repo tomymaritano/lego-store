@@ -13,13 +13,24 @@ const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"];
  * page has settled.
  */
 export async function seriousAxeViolations(page: Page): Promise<string[]> {
+  return axeViolations(page, (violation) => violation.impact === "serious" || violation.impact === "critical");
+}
+
+/**
+ * The violations of these axe rules, whatever their impact: for moderate
+ * ones (landmark-unique, heading-order…) a page is known to pass.
+ */
+export async function axeRuleViolations(page: Page, rules: string[]): Promise<string[]> {
+  return axeViolations(page, (violation) => rules.includes(violation.id));
+}
+
+async function axeViolations(page: Page, keep: (violation: { id: string; impact: string }) => boolean): Promise<string[]> {
   if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ path: AXE_PATH });
-  return page.evaluate(async (tags) => {
+  const violations = await page.evaluate(async (tags) => {
     type Result = { violations: { id: string; impact: string; nodes: { target: string[] }[] }[] };
     const axe = (window as unknown as { axe: { run: (ctx: Document, opts: object) => Promise<Result> } }).axe;
     const { violations } = await axe.run(document, { runOnly: { type: "tag", values: tags } });
-    return violations
-      .filter((v) => v.impact === "serious" || v.impact === "critical")
-      .map((v) => `${v.id} :: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`);
+    return violations.map((v) => ({ id: v.id, impact: v.impact, targets: v.nodes.map((n) => n.target.join(" ")).join(", ") }));
   }, WCAG_TAGS);
+  return violations.filter(keep).map((v) => `${v.id} :: ${v.targets}`);
 }

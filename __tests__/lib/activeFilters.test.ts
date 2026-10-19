@@ -50,6 +50,10 @@ describe("active filters", () => {
   it("describes chips in Spanish with display names", () => {
     const options = { categories: [{ value: "helmet", label: "Helmets", count: 5 }] };
     expect(describeFilter({ field: "category", value: "helmet" }, options)).toBe("Helmets");
+    const themes = { themes: [{ value: "star-wars", label: "Star Wars", count: 9 }] };
+    expect(describeFilter({ field: "themes", value: "star-wars" }, themes)).toBe("Star Wars");
+    // An older link by name shows as it is.
+    expect(describeFilter({ field: "themes", value: "Marvel" }, themes)).toBe("Marvel");
     expect(describeFilter({ field: "onSale" })).toBe("En oferta");
     expect(describeFilter({ field: "minRating", value: 4.5 })).toBe("4,5★ o más");
     expect(describeFilter({ field: "pieces", value: "2001+" })).toBe("2001+ piezas");

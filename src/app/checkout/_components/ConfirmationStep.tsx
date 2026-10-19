@@ -3,32 +3,51 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { m } from "motion/react";
-import { ArrowRight, Mail, Truck } from "lucide-react";
+import { ArrowRight, CircleX, Clock, Mail, PackageSearch, Truck } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { STAGGER, STAGGER_DELAY, drawPath, scaleIn, staggerContainer, staggerItem, successPop } from "@/lib/motion";
+import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS, cancelReasonLabel, formatOrderNumber, orderPaymentLabel } from "@/lib/orders/format";
+import type { OrderView } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
-import { Button } from "@/components/ui";
-import type { CartItem } from "@/types";
-import { OrderLines } from "./OrderLines";
+import { PendingPaymentNotice } from "@/components/orders/PendingPaymentNotice";
+import { Badge, Button, Spinner } from "@/components/ui";
+import { OrderLines, orderLinesOf } from "./OrderLines";
 
 interface ConfirmationStepProps {
-  orderId: string;
-  total: number | null;
-  email: string | null;
-  /** The lines that were bought (empty when unknown). */
-  lines?: readonly CartItem[];
+  order: OrderView;
+  /** True when the visitor is signed in as the order's owner ("Ver mi pedido"). */
+  canViewInAccount: boolean;
+  /** The status could not be refreshed for a while (shown as a hint, the polling goes on). */
+  stale?: boolean;
+  /** What to say while the order waits for its payment (default: the bank accepted it, the confirmation is on its way). */
+  waitingMessage?: string;
 }
 
 const { deliveryDays } = siteConfig.commerce;
 
+const HEADINGS = {
+  waiting: "Estamos confirmando tu pago",
+  pending: "Recibimos tu pedido",
+  paid: "¡Gracias por tu compra!",
+  cancelled: "No pudimos completar tu pedido",
+} as const;
+
 /**
- * Order placed: an animated tick, the order number and what happens next.
- * Its heading is the page's h1 (the checkout header is gone by then); focus
- * moves to it so the success is announced.
+ * After "Realizar pedido": the real order number and its status. Stripe's
+ * bank accepted the payment, but the order is only confirmed (PAID) when its
+ * webhook arrives; Mercado Pago answers at once (PAID), or leaves the payment
+ * pending (PAYMENT_PENDING: a cash ticket to pay, with its instructions, or a
+ * card under review). CheckoutFlow polls the order and this re-renders. Its
+ * heading is the page's h1 (the checkout header is gone by then); focus moves
+ * to it so the outcome is announced, and status changes are announced too.
  */
-export function ConfirmationStep({ orderId, total, email, lines = [] }: ConfirmationStepProps) {
+export function ConfirmationStep({ order, canViewInAccount, stale = false, waitingMessage }: ConfirmationStepProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => headingRef.current?.focus(), []);
+
+  const phase =
+    order.status === "PENDING" ? "waiting" : order.status === "PAYMENT_PENDING" ? "pending" : order.status === "CANCELLED" ? "cancelled" : "paid";
+  const number = formatOrderNumber(order.number);
 
   return (
     <m.section
@@ -38,18 +57,37 @@ export function ConfirmationStep({ orderId, total, email, lines = [] }: Confirma
       animate="visible"
       exit="exit"
       data-testid="order-confirmation"
+      data-status={order.status}
       className="mx-auto max-w-xl rounded-2xl border border-border bg-surface p-6 text-center shadow-card sm:p-10"
     >
       <m.div variants={staggerContainer(STAGGER, STAGGER_DELAY.step)} initial="hidden" animate="visible" className="flex flex-col items-center">
-        <m.span
-          variants={successPop}
-          aria-hidden="true"
-          className="mb-6 flex size-20 items-center justify-center rounded-full bg-success text-on-success shadow-card"
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="size-10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-            <m.path d="M5 12.5l4.5 4.5L19 7.5" variants={drawPath} />
-          </svg>
-        </m.span>
+        <span aria-hidden="true" className="mb-6 flex size-20 items-center justify-center">
+          {phase === "paid" ? (
+            <m.span
+              key="paid"
+              variants={successPop}
+              initial="hidden"
+              animate="visible"
+              className="flex size-20 items-center justify-center rounded-full bg-success text-on-success shadow-card"
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="size-10" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <m.path d="M5 12.5l4.5 4.5L19 7.5" variants={drawPath} />
+              </svg>
+            </m.span>
+          ) : phase === "cancelled" ? (
+            <span className="flex size-20 items-center justify-center rounded-full bg-bg-muted text-danger">
+              <CircleX className="size-10" />
+            </span>
+          ) : phase === "pending" ? (
+            <span className="flex size-20 items-center justify-center rounded-full bg-bg-muted text-info">
+              <Clock className="size-10" />
+            </span>
+          ) : (
+            <span className="flex size-20 items-center justify-center rounded-full bg-bg-muted text-fg">
+              <Spinner className="size-9" />
+            </span>
+          )}
+        </span>
 
         <m.h1
           variants={staggerItem}
@@ -58,58 +96,99 @@ export function ConfirmationStep({ orderId, total, email, lines = [] }: Confirma
           tabIndex={-1}
           className="mb-2 scroll-mt-32 text-heading text-fg outline-none"
         >
-          ¡Gracias por tu compra!
+          {HEADINGS[phase]}
         </m.h1>
-        <m.p variants={staggerItem} className="mb-6 text-fg-secondary">
-          Tu pedido está confirmado y ya lo estamos preparando.
+        <m.p variants={staggerItem} role="status" className="mb-6 text-fg-secondary" data-testid="order-status-message">
+          {phase === "paid"
+            ? "Tu pedido está confirmado y ya lo estamos preparando."
+            : phase === "cancelled"
+              ? cancelReasonLabel(order.cancelReason)
+              : phase === "pending"
+                ? order.payment.methodType === "ticket"
+                  ? "Lo confirmamos en cuanto pagues el ticket."
+                  : "Lo confirmamos en cuanto se acredite el pago."
+                : (waitingMessage ??
+                  (stale
+                    ? "Tu banco aceptó el pago, pero la confirmación está tardando más de lo normal. Te avisaremos por email."
+                    : "Tu banco aceptó el pago. Esto suele tardar unos segundos."))}
         </m.p>
 
         <m.dl variants={staggerItem} className="mb-6 grid w-full gap-3 rounded-xl bg-bg-subtle p-4 text-left sm:grid-cols-2">
           <div>
             <dt className="text-caption text-fg-muted">Número de pedido</dt>
             <dd className="font-mono text-title text-fg" data-testid="order-id">
-              {orderId}
+              {number}
             </dd>
           </div>
-          {total !== null && (
-            <div className="sm:text-right">
-              <dt className="text-caption text-fg-muted">Total pagado</dt>
-              <dd className="text-title text-fg tabular-nums">{formatPrice(total)}</dd>
-            </div>
-          )}
+          <div className="sm:text-right">
+            <dt className="text-caption text-fg-muted">Estado</dt>
+            <dd className="mt-1">
+              <Badge variant={ORDER_STATUS_BADGE[order.status]} data-testid="order-status">
+                {ORDER_STATUS_LABELS[order.status]}
+              </Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-caption text-fg-muted">{phase === "paid" ? "Total pagado" : "Total"}</dt>
+            <dd className="text-title text-fg tabular-nums" data-testid="order-total">
+              {formatPrice(order.total)}
+            </dd>
+            {order.discount > 0 ? (
+              <dd className="text-caption font-semibold text-success" data-testid="order-discount">
+                Ahorraste {formatPrice(order.discount)}
+                {order.couponCode ? ` con ${order.couponCode}` : ""}
+              </dd>
+            ) : null}
+          </div>
+          <div className="sm:text-right">
+            <dt className="text-caption text-fg-muted">Pago</dt>
+            <dd className="text-label text-fg">{orderPaymentLabel(order)}</dd>
+          </div>
         </m.dl>
 
-        {lines.length > 0 ? (
-          <m.div variants={staggerItem} className="mb-6 w-full rounded-xl border border-border p-4">
-            <OrderLines lines={lines} label="Productos comprados" />
+        {phase === "pending" ? (
+          <m.div variants={staggerItem} className="mb-6 w-full">
+            <PendingPaymentNotice order={order} />
           </m.div>
         ) : null}
 
-        <m.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-label font-normal text-fg-secondary">
-          {email && (
+        <m.div variants={staggerItem} className="mb-6 w-full rounded-xl border border-border p-4">
+          <OrderLines lines={orderLinesOf(order)} label="Productos del pedido" />
+        </m.div>
+
+        {phase !== "cancelled" ? (
+          <m.ul variants={staggerItem} className="mb-8 w-full space-y-2 text-left text-label font-normal text-fg-secondary">
             <li className="flex items-start gap-2">
               <Mail aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />
               <span>
-                Te enviamos la confirmación a <strong className="font-semibold text-fg">{email}</strong>.
+                {phase === "paid" ? "Te enviamos la confirmación a " : "Te enviaremos la confirmación a "}
+                <strong className="font-semibold text-fg">{order.email}</strong>.
               </span>
             </li>
-          )}
-          <li className="flex items-start gap-2">
-            <Truck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />
-            <span>
-              Llega en {deliveryDays.min} a {deliveryDays.max} días hábiles.
-            </span>
-          </li>
-        </m.ul>
+            <li className="flex items-start gap-2">
+              <Truck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-info" />
+              <span>
+                Llega en {deliveryDays.min} a {deliveryDays.max} días hábiles.
+              </span>
+            </li>
+          </m.ul>
+        ) : null}
 
         <m.div variants={staggerItem} className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
           <Button size="lg" render={<Link href="/" />}>
             Seguir comprando
             <ArrowRight aria-hidden="true" />
           </Button>
-          <Button size="lg" variant="outline" render={<Link href="/contacto" />}>
-            ¿Necesitas ayuda?
-          </Button>
+          {canViewInAccount ? (
+            <Button size="lg" variant="outline" render={<Link href={`/account/orders/${order.id}`} />}>
+              <PackageSearch aria-hidden="true" />
+              Ver mi pedido
+            </Button>
+          ) : (
+            <Button size="lg" variant="outline" render={<Link href="/contacto" />}>
+              ¿Necesitas ayuda?
+            </Button>
+          )}
         </m.div>
       </m.div>
     </m.section>

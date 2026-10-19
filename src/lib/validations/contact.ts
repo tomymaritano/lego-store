@@ -1,14 +1,7 @@
 import { z } from "zod";
+import { CONTACT_MESSAGE_MAX, CONTACT_TOPICS } from "./contact-options";
 
-export const CONTACT_TOPICS = [
-  { value: "pedido", label: "Estado de un pedido" },
-  { value: "envio", label: "Envíos y entregas" },
-  { value: "devolucion", label: "Cambios y devoluciones" },
-  { value: "producto", label: "Consulta sobre un producto" },
-  { value: "otro", label: "Otro motivo" },
-] as const;
-
-export const CONTACT_MESSAGE_MAX = 1000;
+export { CONTACT_MESSAGE_MAX, CONTACT_TOPICS };
 
 /** /contacto form. */
 export const contactSchema = z.object({

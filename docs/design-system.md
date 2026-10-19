@@ -133,6 +133,7 @@ en `src/lib/utils.ts`). El barrel `src/components/ui/index.ts` es la API públic
 | `Toaster`, `showToast`, `toast` | Toasts con Sonner cargado bajo demanda | `showToast.success`, `error`, `warning`, `info`, `cart`, `undo`, `wishlist`; `toast.dismiss` |
 | `Breadcrumbs` | Migas de pan desde "Inicio" | `items: { label, href? }[]` (el último es la página actual) |
 | `ThemeToggle` | Ciclo claro / oscuro / sistema | `showLabel` |
+| `Table` (`TableHeader`, `TableBody`, `TableFooter`, `TableRow`, `TableHead`, `TableCell`, `TableCaption`) | Tabla de datos con HTML semántico (las del admin); en pantallas angostas se desplaza dentro de su marco, una región enfocable y con nombre | `label` (nombre de la región, obligatorio), `containerClassName` |
 
 `ToastViewport.tsx` es interno (lo carga `Toaster`) y no se exporta.
 
@@ -207,7 +208,8 @@ dentro de cualquier string o template literal. Cada patrón tiene casos en
 | Tiempos de Tailwind | `duration-300`, `ease-in`, `ease-out`, `ease-in-out`, `ease-linear` | todo `src/` |
 | `transform` en transiciones | `transition-[…transform…]` (en Tailwind 4 `scale`, `rotate` y `translate` son propiedades propias) | todo `src/` |
 | Tamaños de texto | `text-xs`, `text-sm`, `text-base`, `text-lg`, `text-xl` … `text-9xl` | `src/` salvo `src/components/ui` |
-| Import del mock | `@/data`, `@/data/*`, `**/data/products` (`no-restricted-imports`) | `src/` salvo `src/lib/api/**` y `src/data/**` |
+| Import de `src/data` | `@/data`, `@/data/*`, `**/data/products`, `**/data/categories` (`no-restricted-imports`): es solo la fuente del seed, la app lee de la base vía `@/lib/api` | `src/` salvo `src/data/**` |
+| zod en el bundle del layout | `zod`, `zod/*` y `@/lib/validations/*` (salvo `@/lib/validations/newsletter`) sin `import type` (~30 kB gzip en la primera carga de todas las rutas) | `src/components/layout`, `src/stores`, `src/providers`, `src/lib/lists/pending-merge.ts` y `sync-plan.ts` |
 
 Dentro de `src/components/ui` rigen las de color, alias, motion y `transform`;
 `dark:` y los tamaños compactos de los primitivos (por ejemplo los de `Button`)

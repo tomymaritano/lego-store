@@ -1,13 +1,25 @@
 name: CI/CD Pipeline
 
 on:
+  # Feature branches too: a pushed feat/* branch, and a PR stacked on one (for
+  # example feat/backend onto feat/ui-overhaul), gets the same checks as main.
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'feat/**']
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 'feat/**']
 
 env:
   NODE_VERSION: '22'
+  # Postgres service of the jobs that need data (see `services: postgres` below).
+  # The build reads the category list and route ids from it; the integration tests wipe the test database.
+  DATABASE_URL: postgresql://lego:lego@localhost:5432/lego_store
+  DATABASE_URL_TEST: postgresql://lego:lego@localhost:5432/lego_store_test
+  # CI-only credentials for the seeded admin (no real data lives here).
+  ADMIN_EMAIL: admin@ci.lego-store.local
+  ADMIN_PASSWORD: ci-admin-password
+  # `next start` (e2e prod project, Lighthouse, bundle size) outside Vercel:
+  # let Auth.js trust the request's host. AUTH_SECRET is generated per job.
+  AUTH_TRUST_HOST: 'true'
 
 jobs:
   # Lint and Type Check
@@ -37,6 +49,20 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lego
+          POSTGRES_PASSWORD: lego
+          POSTGRES_DB: lego_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lego -d lego_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -47,8 +73,21 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Prepare the databases (dev + integration test)
+        run: |
+          psql postgresql://lego:lego@localhost:5432/lego_store -c 'CREATE DATABASE lego_store_test'
+          npx prisma migrate deploy
+          npm run db:seed
+
+      # A schema.prisma edit without its migration fails here (exit 2 when they differ).
+      - name: Check that the migrations match the schema
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
 
       - name: Install Playwright Chromium (Storybook browser tests)
         run: npx playwright install --with-deps chromium
@@ -72,6 +111,20 @@ jobs:
     name: Build Application
     runs-on: ubuntu-latest
     needs: [lint, test]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lego
+          POSTGRES_PASSWORD: lego
+          POSTGRES_DB: lego_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lego -d lego_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,8 +135,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Migrate and seed the database
+        run: |
+          npx prisma migrate deploy
+          npm run db:seed
 
       - name: Build application
         run: npm run build
@@ -100,6 +161,20 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     needs: build
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lego
+          POSTGRES_PASSWORD: lego
+          POSTGRES_DB: lego_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lego -d lego_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -110,8 +185,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Migrate and seed the database
+        run: |
+          npx prisma migrate deploy
+          npm run db:seed
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -127,12 +210,100 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # Checkout against real Stripe TEST mode (e2e/stripe-live, playwright.stripe-live.config.ts).
+  # Optional: runs only when the repository has the secrets STRIPE_SECRET_KEY (sk_test_),
+  # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (pk_test_) and STRIPE_WEBHOOK_SECRET; otherwise every
+  # step is skipped and the job passes. Forks never receive secrets.
+  e2e-stripe-live:
+    name: E2E vs Stripe test mode (optional)
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lego
+          POSTGRES_PASSWORD: lego
+          POSTGRES_DB: lego_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lego -d lego_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - name: Stripe secrets present?
+        id: stripe
+        run: |
+          if [ -n "$STRIPE_SECRET_KEY" ] && [ -n "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" ] && [ -n "$STRIPE_WEBHOOK_SECRET" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Stripe test secrets not configured: skipping."
+          fi
+
+      - name: Checkout code
+        if: steps.stripe.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.stripe.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Generate a throwaway AUTH_SECRET
+        if: steps.stripe.outputs.enabled == 'true'
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies, migrate and seed
+        if: steps.stripe.outputs.enabled == 'true'
+        run: |
+          npm ci
+          npx prisma migrate deploy
+          npm run db:seed
+
+      - name: Install Playwright Chromium
+        if: steps.stripe.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the Stripe test-mode checkout
+        if: steps.stripe.outputs.enabled == 'true'
+        run: npm run test:e2e:stripe
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure() && steps.stripe.outputs.enabled == 'true'
+        with:
+          name: playwright-report-stripe-live
+          path: playwright-report/
+          retention-days: 7
+
   # Lighthouse Performance Audit (on PRs only)
   lighthouse:
     name: Lighthouse Audit
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lego
+          POSTGRES_PASSWORD: lego
+          POSTGRES_DB: lego_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lego -d lego_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -143,8 +314,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Migrate and seed the database
+        run: |
+          npx prisma migrate deploy
+          npm run db:seed
 
       - name: Build application
         run: npm run build
@@ -197,6 +376,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lego
+          POSTGRES_PASSWORD: lego
+          POSTGRES_DB: lego_store
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lego -d lego_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -207,8 +400,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Generate a throwaway AUTH_SECRET
+        run: echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Migrate and seed the database
+        run: |
+          npx prisma migrate deploy
+          npm run db:seed
 
       - name: Build application
         run: npm run build

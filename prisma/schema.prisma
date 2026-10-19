@@ -1,0 +1,775 @@
+// Data model of the store (docs/superpowers/specs/2026-10-17-backend-completo-design.md).
+//
+// Conventions
+// - Money is integer pesos (ARS), like the prices in the UI. Stripe gets centavos (x100);
+//   Mercado Pago takes decimal pesos, which for our prices are the same integers.
+// - Check constraints (stock >= 0, quantity > 0, rating 1..5, totals that add up…)
+//   are written by hand in the first migration: Prisma's schema language has no
+//   syntax for them. Keep them there when you add a migration that rebuilds a table.
+// - Product.searchText / searchName are maintained by the app (see
+//   src/lib/api/search.ts, productSearchColumns): every write to a product's
+//   name, theme, category or description recomputes them.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Users and auth (Auth.js v5 Prisma adapter shape: User, Account, Session,
+// VerificationToken). Sessions are JWT, so Session stays empty unless a
+// database-session provider is added; the adapter still expects the table.
+// ---------------------------------------------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  /// Always stored lowercased: the app normalises it before every write and lookup.
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  /// bcrypt hash (src/lib/auth/password.ts). Null for OAuth-only users.
+  passwordHash   String?
+  role           Role      @default(USER)
+  /// Bumped when the password changes or an admin blocks the account: session
+  /// tokens carry the version they were issued with, and an older one no
+  /// longer counts (src/lib/auth/session.ts).
+  sessionVersion Int       @default(0)
+  /// Set by an admin (src/lib/admin/users.ts): the account cannot log in, by
+  /// password or Google, and its sessions ended. Null = active.
+  blockedAt      DateTime?
+  /// The admin's note on why (shown in the admin only).
+  blockedReason  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  cartItems          CartItem[]
+  wishlistItems      WishlistItem[]
+  listMerges         ListMerge[]
+  reviews            Review[]
+  helpfulVotes       ReviewHelpful[]
+  orders             Order[]
+  /// Order status changes this user made as an admin (audit trail).
+  orderStatusChanges OrderStatusChange[]
+  couponRedemptions  CouponRedemption[]
+  /// What this user did as an admin (AuditLog).
+  auditLogs          AuditLog[]
+  /// Info pages this user published last as an admin.
+  publishedContent   ContentPage[]
+  contactMessages    ContactMessage[]
+
+  @@index([createdAt])
+  @@index([role])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue
+// ---------------------------------------------------------------------------
+
+model Category {
+  /// URL slug, e.g. "helmet" (Product.categoryId, /category/<id>). An admin can
+  /// change it (src/lib/admin/categories.ts): the products follow (ON UPDATE
+  /// CASCADE) and the old slug stays as a CategoryRedirect.
+  id          String   @id
+  name        String
+  description String
+  image       String
+  /// What the image shows, for screen readers (required by the admin form).
+  imageAlt    String   @default("")
+  /// Navigation order.
+  position    Int
+  /// Off: out of the navigation, the home page and the filters, and its page
+  /// is not found; its products stay on sale (search, their own pages).
+  visible     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products  Product[]
+  redirects CategoryRedirect[]
+
+  @@index([position])
+}
+
+/// A category's previous slug: /category/<slug> redirects to the category's
+/// current one (permanently). Removed if a new category takes the slug.
+model CategoryRedirect {
+  slug       String   @id
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([categoryId])
+}
+
+/// A product theme ("Star Wars", "Technic"): the product cards' label, the
+/// "Temas" menu and the theme filter. Edited in /admin/themes.
+model Theme {
+  id        String   @id @default(cuid())
+  /// "star-wars": also accepted as a theme filter value (?theme=star-wars).
+  slug      String   @unique
+  /// Unique ignoring case and accents (the app checks it before writing).
+  name      String   @unique
+  /// Menu and filter order.
+  position  Int
+  /// Off: out of the "Temas" menu and the filter list; its products keep it.
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@index([position])
+}
+
+model Product {
+  /// Seeded products keep their historical ids ("1"…"22") so /item/1 keeps working.
+  id               String    @id @default(cuid())
+  name             String
+  /// Price in pesos (ARS).
+  price            Int
+  /// Pre-discount price; set exactly when isOnSale.
+  originalPrice    Int?
+  isNew            Boolean   @default(false)
+  isOnSale         Boolean   @default(false)
+  /// Cached average of the product's reviews (0 when it has none), one decimal.
+  rating           Float     @default(0)
+  /// Cached number of reviews.
+  reviewCount      Int       @default(0)
+  categoryId       String
+  type             String
+  age              String
+  themeId          String
+  interests        String[]
+  pieces           String
+  highlight        String
+  img              String
+  imageSecondary   String?
+  images           String[]
+  /// Alt text of each gallery image, in the same order as `images`.
+  imageAlts        String[]  @default([])
+  stock            Int       @default(0)
+  /// Set when an admin archives the product: it leaves the storefront (catalogue,
+  /// search, product page, carts, wishlists, checkout) but stays in the database,
+  /// because orders reference it. Null = on sale. See src/lib/admin/products.ts.
+  archivedAt       DateTime?
+  shortDescription String
+  description      String
+  /// Lowercase, accent-free name + theme + category (slug and name) + description: what search matches.
+  searchText       String
+  /// Lowercase, accent-free name: search ranking and the A-Z sort.
+  searchName       String
+  /// Catalogue order ("Destacados") is creation order; newest sorts by it too.
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  category      Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  theme         Theme            @relation(fields: [themeId], references: [id], onDelete: Restrict)
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  reviews       Review[]
+  orderItems    OrderItem[]
+  /// Its place among the home page's "Destacados", if an admin picked it.
+  featured      FeaturedProduct?
+
+  @@index([categoryId])
+  @@index([themeId])
+  @@index([createdAt])
+  @@index([price])
+  @@index([rating])
+  @@index([archivedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Per-user lists (visitors keep theirs in localStorage; merged on login)
+// ---------------------------------------------------------------------------
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  /// > 0 (check constraint); capped by stock when the server writes it.
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+model WishlistItem {
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@index([productId])
+}
+
+/// A browser's guest lists merged into an account on login, by the token the
+/// browser generated for that merge: a retried or repeated merge with the same
+/// token does nothing (src/lib/lists/merge.ts). Old rows are pruned on merge.
+model ListMerge {
+  userId    String
+  token     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, token])
+}
+
+// ---------------------------------------------------------------------------
+// Reviews
+// ---------------------------------------------------------------------------
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  /// 1..5 (check constraint).
+  rating    Int
+  title     String
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  helpfulVotes ReviewHelpful[]
+
+  @@unique([userId, productId])
+  @@index([productId, createdAt])
+}
+
+model ReviewHelpful {
+  userId    String
+  reviewId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@id([userId, reviewId])
+  @@index([reviewId])
+}
+
+// ---------------------------------------------------------------------------
+// Orders and payments
+// ---------------------------------------------------------------------------
+
+/// PENDING -> PAID -> SHIPPED -> DELIVERED; PENDING | PAID -> CANCELLED.
+/// Mercado Pago adds PENDING -> PAYMENT_PENDING (a cash ticket waiting to be
+/// paid, a card payment under review) -> PAID | CANCELLED.
+enum OrderStatus {
+  PENDING
+  PAYMENT_PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+/// Who takes an order's payment (src/lib/payments). Chosen by PAYMENT_PROVIDER
+/// when the order is created and kept for its whole life.
+enum PaymentProvider {
+  STRIPE
+  MERCADOPAGO
+}
+
+model Order {
+  id     String      @id @default(cuid())
+  /// What customers see ("LEGO-001001", src/lib/orders/format.ts). Starts at 1001.
+  number Int         @unique @default(autoincrement())
+  /// Null for guest checkouts (never linked to an account created later).
+  userId String?
+  /// Contact email from the shipping form (lowercased).
+  email  String
+  status OrderStatus @default(PENDING)
+
+  // Shipping address, as entered (snapshot).
+  firstName String
+  lastName  String
+  phone     String
+  address   String
+  city      String
+  state     String
+  zipCode   String
+  country   String
+
+  // Amounts in pesos, computed on the server by lib/pricing (orderTotals):
+  // total = subtotal - discount + shipping (check constraint).
+  subtotal   Int
+  /// Coupon discount on the products (0 without a coupon); never more than the subtotal.
+  discount   Int     @default(0)
+  /// The coupon's code as applied (snapshot; the redemption links the coupon itself).
+  couponCode String?
+  shipping   Int
+  total      Int
+  currency   String  @default("ars")
+
+  /// Stripe orders use stripePaymentIntentId / stripeRefundId; Mercado Pago
+  /// orders providerPaymentId / providerRefundId (src/lib/payments/provider.ts,
+  /// paymentRefOf). Rows from before Mercado Pago are all STRIPE.
+  paymentProvider       PaymentProvider @default(STRIPE)
+  stripePaymentIntentId String?         @unique
+  stripeRefundId        String?         @unique
+  /// Mercado Pago: the payment of the latest attempt (a rejected card is
+  /// replaced by the next one). Every attempt is in PaymentEvent.
+  providerPaymentId     String?
+  providerRefundId      String?
+  /// Mercado Pago Checkout Pro preference of a "Cuenta de Mercado Pago" payment,
+  /// reused while the order's total does not change.
+  providerCheckoutId    String?
+  providerCheckoutUrl   String?
+  /// The provider's own status of the latest payment ("approved", "pending"...)
+  /// and its detail ("accredited", "pending_waiting_payment", "cc_rejected_...").
+  paymentStatus         String?
+  paymentStatusDetail   String?
+  /// credit_card, debit_card, prepaid_card, ticket, account_money...
+  paymentMethodType     String?
+  installments          Int?
+  /// Cash payments: where the customer gets the ticket, and until when it can be paid.
+  ticketUrl             String?
+  ticketExpiresAt       DateTime?
+  /// Set (and committed) before an admin's cancellation asks Stripe for the
+  /// refund; while it is set and the order is still PAID the refund's outcome
+  /// is unknown, so the order cannot be shipped (src/lib/admin/orders.ts).
+  refundRequestedAt     DateTime?
+  /// sha256 of the checkout access token kept in the browser's HttpOnly cookie
+  /// (src/lib/orders/access.ts): lets a guest's browser read and pay its own order.
+  checkoutTokenHash     String?
+  /// What the review step and the order page show ("visa", "4242"); never card data.
+  paymentBrand          String?
+  paymentLast4          String?
+
+  /// First "Realizar pedido" (payment attempt). Orders without it are abandoned
+  /// checkouts: "Mis pedidos" does not list them.
+  submittedAt  DateTime?
+  paidAt       DateTime?
+  shippedAt    DateTime?
+  deliveredAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user             User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items            OrderItem[]
+  statusChanges    OrderStatusChange[]
+  paymentEvents    PaymentEvent[]
+  /// The use of the order's coupon (src/lib/coupons): reserved while it waits to be paid.
+  couponRedemption CouponRedemption?
+
+  @@unique([paymentProvider, providerPaymentId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([email])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  /// Null once the product is deleted; the snapshot below keeps the line readable.
+  productId String?
+  // Snapshot at order time.
+  name      String
+  unitPrice Int
+  image     String
+  /// > 0 (check constraint).
+  quantity  Int
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, productId])
+  @@index([productId])
+}
+
+/// Audit trail of the status changes an admin made to an order (src/lib/admin/orders.ts):
+/// who, when, from what to what. The webhook's and the cleanup's own changes are
+/// not listed here; their timestamps live on the order (paidAt, cancelledAt...).
+model OrderStatusChange {
+  id         String      @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus
+  toStatus   OrderStatus
+  /// Null once that account is deleted; actorEmail keeps who it was.
+  actorId    String?
+  actorEmail String
+  /// Stripe refund id when the change refunded the payment (PAID -> CANCELLED).
+  refundId   String?
+  createdAt  DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([actorId])
+}
+
+/// What a provider said about an order's payments, in order (Mercado Pago;
+/// src/lib/orders/mercadopago.ts): the admin's payment history, and the
+/// idempotency of its notifications. `key` is provider:payment:status:detail,
+/// so the same news about a payment is applied once however many times it
+/// arrives (retries, a webhook after the checkout already applied it).
+model PaymentEvent {
+  id           String          @id @default(cuid())
+  key          String          @unique
+  orderId      String
+  provider     PaymentProvider
+  paymentId    String
+  status       String
+  statusDetail String?
+  /// Who told us: "checkout" (the payment's own answer), "webhook", "return"
+  /// (back from Mercado Pago), "expire" (the cleanup) or "admin".
+  source       String
+  createdAt    DateTime        @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Coupons (src/lib/coupons; discount math in src/lib/pricing.ts)
+// ---------------------------------------------------------------------------
+
+enum CouponType {
+  /// `value` percent off the subtotal (1..100), rounded to whole pesos (half up).
+  PERCENT
+  /// `value` pesos off the subtotal, capped at the subtotal.
+  FIXED
+}
+
+/// What a coupon discounts. Only the whole order's products for now (shipping is never discounted).
+enum CouponScope {
+  ALL
+}
+
+/// RESERVED: its order waits to be paid (PENDING, PAYMENT_PENDING); counts toward the limits.
+/// REDEEMED: its order was paid. RELEASED: its order was cancelled (expired, refunded,
+/// cancelled by an admin...): the use is free again. A database trigger moves it with
+/// the order's status (see the coupons migration).
+enum CouponRedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
+}
+
+model Coupon {
+  id             String      @id @default(cuid())
+  /// Uppercase (check constraint): the app normalises codes before every write and
+  /// lookup, so they are unique case-insensitively ("bienvenida10" is BIENVENIDA10).
+  code           String      @unique
+  /// The admin's note on what it is for (not shown to customers).
+  description    String      @default("")
+  type           CouponType
+  /// PERCENT: 1..100. FIXED: pesos, > 0 (check constraints).
+  value          Int
+  /// Smallest subtotal (pesos, before the discount) it applies to; 0 = any.
+  minSubtotal    Int         @default(0)
+  /// Valid from / until (inclusive / exclusive); null = no bound.
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  /// Most uses in total (live RESERVED holds + REDEEMED); null = no limit.
+  maxRedemptions Int?
+  /// Most uses per customer (an account, or an email for guests); null = no limit.
+  maxPerUser     Int?
+  /// Turned off by an admin: no new uses (orders that hold one keep it).
+  active         Boolean     @default(true)
+  appliesTo      CouponScope @default(ALL)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  redemptions CouponRedemption[]
+
+  @@index([createdAt])
+}
+
+/// One use of a coupon by one order (at most one coupon per order).
+model CouponRedemption {
+  id            String                 @id @default(cuid())
+  couponId      String
+  orderId       String                 @unique
+  /// The order's account (null for guests); the per-customer limit counts by it or by email.
+  userId        String?
+  /// The order's email (lowercased).
+  email         String
+  status        CouponRedemptionStatus @default(RESERVED)
+  /// While RESERVED: when the hold lapses if no payment is submitted (set by "Revisar",
+  /// src/lib/coupons/server.ts COUPON_HOLD_MS). Null: held until the order settles
+  /// (a payment was submitted, or the order is waiting on one). A lapsed hold no
+  /// longer counts toward the limits.
+  holdExpiresAt DateTime?
+  /// Discount the order got (pesos, snapshot).
+  discount      Int
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  redeemedAt    DateTime?
+  releasedAt    DateTime?
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([couponId, status])
+  @@index([couponId, userId])
+  @@index([couponId, email])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Admin audit log: who did what to which record, and when. Every admin
+// mutation writes its entry here, in the same transaction as the change
+// (src/lib/admin/audit.ts); order status changes also keep their own table
+// (OrderStatusChange), which the order page's timeline reads.
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Null once that account is deleted; actorEmail keeps who it was.
+  actorId    String?
+  actorEmail String
+  /// "<entity>.<verb>", e.g. "coupon.create", "coupon.update", "coupon.deactivate".
+  action     String
+  entityType String
+  entityId   String
+  /// What changed: { field: [before, after] } for an edit, the new values for a create.
+  changes    Json?
+  /// The admin's IP as src/lib/rate-limit/client-ip.ts trusts it; null when no proxy is trusted.
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Store settings (src/lib/settings): what an admin changes in /admin/configuracion.
+// ---------------------------------------------------------------------------
+
+/// The announcement bar's colours: a pair of design tokens (background and the
+/// text on it, src/lib/settings/announcement.ts), never a raw colour.
+enum AnnouncementTone {
+  BRAND
+  PRIMARY
+  INFO
+  SUCCESS
+  NEUTRAL
+}
+
+/// The store's settings: a single row (id 1, check constraint). The app reads
+/// it through the data cache (tag "settings") and falls back to
+/// DEFAULT_STORE_SETTINGS (src/lib/settings/defaults.ts) while it is missing.
+model StoreSettings {
+  id                    Int              @id @default(1)
+  /// Pesos (lib/pricing): flat shipping below freeShippingFrom (> 0, check constraint).
+  shippingCost          Int
+  /// Subtotals from this amount ship free (> 0, check constraint).
+  freeShippingFrom      Int
+  /// The bar above the header. Text may use the placeholders of src/lib/settings/placeholders.ts.
+  announcementActive    Boolean          @default(true)
+  announcementText      String           @default("")
+  /// A site path ("/envios") or an https URL; empty = no link.
+  announcementLinkUrl   String           @default("")
+  announcementLinkLabel String           @default("")
+  announcementTone      AnnouncementTone @default(BRAND)
+  /// Contact details shown in the footer and on /contacto.
+  contactEmail          String
+  contactPhone          String
+  contactAddress        String
+  contactHours          String
+  /// Profile URLs (https); empty = not shown.
+  socialFacebook        String           @default("")
+  socialInstagram       String           @default("")
+  socialYoutube         String           @default("")
+  socialX               String           @default("")
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+}
+
+/// The home page's "Destacados", in order (archived products are skipped).
+model FeaturedProduct {
+  productId String   @id
+  /// 0-based order on the home page.
+  position  Int
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([position])
+}
+
+// ---------------------------------------------------------------------------
+// Info pages' content (src/lib/content): edited in /admin/contenido.
+// ---------------------------------------------------------------------------
+
+/// One info page (/faq, /envios...: src/lib/content/pages.ts CONTENT_SLUGS).
+/// `draft` is what the editor saves; `published` what the page shows, a copy
+/// of the draft made by "Publicar". Both are a ContentDocument
+/// (src/lib/content/types.ts), checked by src/lib/validations/content.ts on
+/// every write and read.
+model ContentPage {
+  slug             String    @id
+  draft            Json
+  /// Null until the first publication (the page is not found meanwhile).
+  published        Json?
+  publishedAt      DateTime?
+  /// Who published last (null once that account is deleted; the email stays).
+  publishedById    String?
+  publishedByEmail String?
+  /// Who saved the draft last.
+  draftByEmail     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  publishedBy User? @relation(fields: [publishedById], references: [id], onDelete: SetNull)
+}
+
+// ---------------------------------------------------------------------------
+// Contact form and newsletter (src/lib/contact, src/lib/newsletter)
+// ---------------------------------------------------------------------------
+
+/// NEW until an admin opens it in /admin/mensajes; ARCHIVED leaves the inbox.
+enum ContactMessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+/// A message sent from /contacto.
+model ContactMessage {
+  id          String               @id @default(cuid())
+  /// src/lib/validations/contact-options.ts CONTACT_TOPICS value ("pedido", "envio"...).
+  topic       String
+  name        String
+  /// Lowercased.
+  email       String
+  orderNumber String?
+  message     String
+  status      ContactMessageStatus @default(NEW)
+  /// The sender's account, when signed in.
+  userId      String?
+  /// As src/lib/rate-limit/client-ip.ts trusts it; null when no proxy is trusted.
+  ip          String?
+  createdAt   DateTime             @default(now())
+  readAt      DateTime?
+  archivedAt  DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([email])
+}
+
+/// A newsletter subscription. Unsubscribing keeps the row (unsubscribedAt),
+/// so the admin's list and its export say who left and when.
+model NewsletterSubscriber {
+  id                     String    @id @default(cuid())
+  /// Lowercased.
+  email                  String    @unique
+  /// Where the form was: "footer", "home"...
+  source                 String
+  subscribedAt           DateTime  @default(now())
+  unsubscribedAt         DateTime?
+  // The unsubscribe link (/newsletter/baja?token=...) is not stored: its token is
+  // the row's id signed with AUTH_SECRET (src/lib/newsletter), so every email
+  // can carry it.
+  /// Signing up again after unsubscribing needs the owner's confirmation: sha256 of
+  /// the token in the "confirm" email (/newsletter/confirmar?token=...), and when
+  /// it was sent (the link expires; one email per address per day).
+  resubscribeTokenHash   String?   @unique
+  resubscribeRequestedAt DateTime?
+  ip                     String?
+  updatedAt              DateTime  @updatedAt
+
+  @@index([subscribedAt])
+  @@index([unsubscribedAt])
+}
+
+/// Stripe webhook idempotency: an event id is processed at most once.
+model ProcessedStripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiting (src/lib/rate-limit): one fixed-window counter per key, shared
+// by every server instance. Expired rows are reused by the next hit and swept
+// now and then; nothing else reads them.
+// ---------------------------------------------------------------------------
+
+model RateLimit {
+  /// "<limiter>:<subject>", e.g. "login-email:ana@example.com".
+  key     String   @id
+  /// Hits in the current window (> 0, check constraint).
+  count   Int
+  /// End of the current window (database clock).
+  resetAt DateTime
+
+  @@index([resetAt])
+}

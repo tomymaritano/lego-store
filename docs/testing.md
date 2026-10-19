@@ -6,124 +6,234 @@ Qué se prueba, con qué herramienta, cómo correrlo y qué corre CI.
 
 | Capa | Herramienta | Dónde | Comando |
 | --- | --- | --- | --- |
-| Unit y componentes | Vitest (proyecto `unit`, jsdom) + Testing Library | `__tests__/**`, `src/**/*.test.{ts,tsx}` | `npx vitest run --project unit` |
+| Unit y componentes | Vitest (proyecto `unit`, jsdom) + Testing Library | `__tests__/**` (salvo `integration/`), `src/**/*.test.{ts,tsx}` | `npm run test:unit` |
+| Integración (base de test) | Vitest (proyecto `integration`, Node) | `__tests__/integration/**` | `npm run test:integration` |
 | Stories + a11y | Vitest (proyecto `storybook`, Chromium real) + addon a11y | `src/**/*.stories.tsx` | `npx vitest run --project storybook` |
-| E2E (dev) | Playwright, proyecto `chromium` | `e2e/*.spec.ts` | `npx playwright test --project chromium` |
+| E2E (dev, pagos simulados) | Playwright, proyecto `chromium` | `e2e/*.spec.ts` | `npx playwright test --project chromium` |
 | E2E (build de producción) | Playwright, proyecto `prod` | `e2e/prod/*.spec.ts` | `npx playwright test --project prod` |
+| E2E (configuración de la tienda) | Playwright, proyecto `store-ops` | `e2e/store-ops/*.spec.ts` | corre con `npx playwright test` |
+| E2E contra Stripe test real | Playwright, config aparte | `e2e/stripe-live/` | `npm run test:e2e:stripe` |
 | Lint y guardas | ESLint 9 (flat config) | `eslint.config.mjs` | `npm run lint` |
 | Tipos | TypeScript | `tsconfig.json` | `npx tsc --noEmit` |
 | JS de primera carga | `scripts/first-load-js.mjs` | presupuestos por ruta | `npm run size -- <url>` |
 | Lighthouse | Lighthouse CI | `lighthouserc.json` | en CI (job `lighthouse`) |
 
+Antes de la primera corrida: Postgres levantado (`npm run db:up`), la base de dev
+migrada y sembrada (la usan los E2E) y Chromium de Playwright
+(`npx playwright install chromium`). La base de test se migra sola.
+
 ## Vitest
 
-Configuración en `vitest.config.mts`, con dos proyectos:
+Configuración en `vitest.config.mts`, con tres proyectos:
 
 - **`unit`**: entorno `jsdom`, `globals: true`, setup en `__tests__/setup.tsx`
   (jest-dom, mocks de `next/navigation` y `next/image`, `localStorage.clear()`
   antes de cada test, stub de `IntersectionObserver`). El alias `server-only`
-  apunta a un módulo vacío para poder probar `src/lib/api` directo.
+  apunta a un módulo vacío para poder probar `src/lib` directo. No usa la base.
+- **`integration`**: entorno `node`, contra la base de `DATABASE_URL_TEST` (su
+  nombre tiene que contener "test"). El setup global toma un advisory lock de la
+  base (una segunda corrida a la vez, por ejemplo `npm test` en modo watch
+  abierto, falla enseguida diciendo que la base está ocupada) y aplica las
+  migraciones pendientes; cada archivo vacía las tablas y vuelve a sembrar lo que
+  usa (`resetAndSeed`, `__tests__/integration/setup/db.ts`). Los archivos corren
+  uno tras otro (`fileParallelism: false`), con 30 s por test.
+  `worker-setup.ts` apunta `DATABASE_URL` a la base de test y reemplaza
+  `next/cache` (el data cache pasa directo y las revalidaciones quedan
+  registradas para verificarlas). Si la base de test se desfasó de las
+  migraciones (una migración editada), `npm run test:db:setup` la reconstruye.
 - **`storybook`**: `@storybook/addon-vitest` renderiza cada story en Chromium
-  headless (`@vitest/browser-playwright`). `.storybook/preview.tsx` configura
-  `a11y: { test: "error" }`, así que una violación de axe hace fallar la story.
+  headless (`@vitest/browser-playwright`). `.storybook/preview.tsx` configura `a11y: { test: "error" }`, así que
+  una violación de axe hace fallar la story.
 
 Comandos:
 
 ```bash
-npm test                          # watch, los dos proyectos
-npx vitest run                    # una corrida, los dos proyectos
-npx vitest run --project unit     # solo unit (no necesita navegador)
+npm test                          # watch, los tres proyectos
+npx vitest run                    # una corrida, los tres proyectos
+npm run test:unit                 # solo unit (sin base ni navegador)
+npm run test:integration          # solo integración (base de test)
 npx vitest run --project storybook
 npm run test:coverage             # cobertura v8 (text, json, html en coverage/)
 npm run test:ui                   # interfaz de Vitest
 ```
 
-El proyecto `storybook` necesita Chromium de Playwright:
-`npx playwright install chromium`.
-
-La cobertura mide `src/**/*.{ts,tsx}` sin stories, `src/types` ni `src/app`.
+La cobertura mide `src/**/*.{ts,tsx}` sin stories, `src/types`, `src/app` ni
+`src/generated`.
 
 ### Qué hay en `__tests__`
 
-- `lib/`: gateway de datos (`api.test.ts`: búsqueda, filtros, orden, paginación,
-  facetas), `productQuery`, Route Handlers (`routes.test.ts`), precios, tarjetas,
-  comparador, metadata, validaciones, `cn`, `pluralize`, resaltado de búsqueda.
-- `stores/`: cada store, selectores, migraciones, `restorePosition` e hidratación.
-- `components/`: primitivos (`ui/`), carrito lateral, carrito / favoritos /
-  comparador, catálogo y filtros, checkout, formularios, galería, ficha, reseñas,
-  autocompletado, `useProductActions`, `useProductsByIds`, `useScrollEdges`,
-  suscripciones a stores.
+- `integration/`: gateway de datos (búsqueda, filtros, orden, paginación,
+  facetas) y lecturas después de escrituras; Route Handlers y proxy; seed y
+  restricciones del schema; cuentas, sesiones y revocación; rate limiter en
+  Postgres; carrito y favoritos (fusión, topes de stock); reseñas y ratings;
+  checkout de Stripe y su webhook firmado; Mercado Pago (`mercadopago.test.ts`:
+  el total del servidor es lo que se cobra, aprobado / ticket / en revisión /
+  rechazado / vencido / reembolsado / contracargo, firma, idempotencia,
+  notificaciones tardías, carrera por la última unidad, Checkout Pro, limpieza);
+  cupones (reservas, límites, concurrencia, trigger); admin (`admin-*.test.ts`,
+  `catalog-admin`, `store-settings`, `content-pages`, `inbox-newsletter`,
+  `dashboard-report`, `exports`, `uploads`: cada acción, su auditoría y sus
+  permisos); `sitemap.test.ts` (lo que lista `/sitemap.xml`).
+- `lib/`: lógica pura: precios y cupones, firma `x-signature` comparada con el
+  validador del SDK oficial, estados de Mercado Pago, la pasarela de Stripe con el
+  SDK simulado, configuración de pagos, emails, CSV, auditoría, subidas, sitemap y
+  robots, rate limiter, búsqueda, `productQuery`, metadata…
+- `stores/`: cada store, selectores, migraciones, hidratación y la capa optimista
+  contra el servidor (`listsRemote`).
+- `components/`: primitivos (`ui/`), carrito, catálogo y filtros, checkout (Stripe
+  y Mercado Pago), cupón, formularios, galería y subidas, ficha, reseñas,
+  autocompletado, gráficos del admin, `ListsSync`…
 - `config/navigation.test.ts`: cada link de navegación resuelve a una página.
 - `design/tokens.test.ts`: contraste AA de los tokens en claro y oscuro (ver
   [design-system.md](./design-system.md#contraste)).
-- `lint/guardrails.test.ts`: casos que las guardas de ESLint deben marcar y
-  casos que deben dejar pasar.
-- `helpers/render.tsx`: `renderWithQuery` (React Query sin reintentos ni caché) y
-  `mockFetch` (stub de `fetch` con JSON).
+- `lint/guardrails.test.ts`: casos que las guardas de ESLint deben marcar y dejar
+  pasar.
+- `helpers/`: `renderWithQuery` (React Query sin reintentos ni caché),
+  `mockFetch` (stub de `fetch` con JSON) y fábricas de catálogo y pedidos.
+
+### Mocks y dobles
+
+- **Pagos**: los tests de integración usan los proveedores simulados de
+  `src/lib/payments/mock.ts` y `src/lib/payments/mercadopago/mock.ts` (los mismos
+  que `PAYMENTS_MOCK=1`) o un doble del cliente pasado por argumento; los webhooks
+  se firman con los secretos de test (`signMercadoPagoNotification`, la firma de
+  Stripe). Los de Stripe corren con `PAYMENT_PROVIDER=stripe`.
+- **Sesión**: `vi.mock("@/lib/auth")` con una sesión de prueba; las Server
+  Actions se importan y se llaman directo.
+- **Next**: `next/cache` reemplazado en `worker-setup.ts`; `redirect` y
+  `forbidden` se simulan tirando el error que lanzaría Next.
+- **Emails**: sin `RESEND_API_KEY` van a la consola.
+- **Subidas**: el adaptador de disco con `UPLOADS_DIR` en una carpeta temporal.
 
 ### Convenciones
 
-- Un archivo `*.test.ts(x)` por módulo o área, en la carpeta de `__tests__` que
-  corresponda a su capa.
+- Un archivo `*.test.ts(x)` por módulo o área, en la carpeta de su capa.
 - Componentes: consulta por rol y nombre accesible (`getByRole("button", { name:
-  … })`), interacción con `@testing-library/user-event`.
-- Componentes que usan React Query: `renderWithQuery` y `mockFetch` en vez de
-  mockear `@/lib/api-client`.
-- Tests que corren en Node (por ejemplo el de guardas) declaran
+  … })`), interacción con `@testing-library/user-event`; con React Query,
+  `renderWithQuery` y `mockFetch` en vez de mockear `@/lib/api-client`.
+- Tests que corren en Node fuera de `integration/` declaran
   `// @vitest-environment node`.
+- Lo que toca la base va en `integration/`, nunca en `unit`.
 - Si tocas una guarda de ESLint o un token de color, actualiza su test.
 
 ## Playwright
 
 Configuración en `playwright.config.ts`:
 
-- **`chromium`**: Desktop Chrome contra `npm run dev` en `http://localhost:3000`.
-  Ignora `e2e/prod/**`. Antes de los workers, `e2e/global-setup.ts` compila cada
-  ruta una vez (evita errores de manifest en un `next dev` frío).
-- **`prod`**: Desktop Chrome contra un build de producción en
-  `http://localhost:3100` (`npm run build && npx next start -p 3100`, con
-  `NEXT_DIST_DIR=.next-e2e` para no pisar el `.next` de dev). Prueba lo que solo
-  muestra el build: navegación del lado del cliente, transición de página, 404
-  reales, categorías prerenderizadas que aplican los filtros de la URL y que el
-  texto del hero no esté oculto antes de hidratar.
+- **`chromium`**: Desktop Chrome contra `next dev` en el puerto 3000, levantado
+  con `PAYMENTS_MOCK=1` y los secretos de webhook de test
+  (`E2E_SERVER_ENV`, `e2e/helpers/stripe.ts`). La tienda cobra con Mercado Pago
+  simulado; los specs de Stripe (`checkout`, `orders`, `admin`) ponen en su
+  navegador la cookie `payments-mock-provider=STRIPE`. Ignora `e2e/prod/**`,
+  `e2e/store-ops/**` y `e2e/stripe-live/**`. Antes de los workers,
+  `e2e/global-setup.ts` compila cada ruta una vez (evita errores de manifest en un
+  `next dev` frío).
+- **`prod`**: un build de producción en el puerto 3100 (`next build` en
+  `.next-e2e` y `next start`). Prueba lo que solo muestra el build: navegación,
+  transiciones, 404 reales, que una categoría aplique los filtros de la URL después
+  de hidratar, que el texto del hero no esté oculto antes de hidratar, headers de
+  seguridad, `/sitemap.xml` y `/robots.txt`, y que sin claves del proveedor el admin ve "Cancelar"
+  deshabilitado (un build nunca usa los pagos simulados).
+- **`store-ops`**: corre después de `chromium` y `prod`, solo: cambia el costo de
+  envío y el FAQ desde el admin (lo que ven todas las páginas) y los deja como
+  estaban.
 
-Playwright levanta los dos servidores si no están corriendo (fuera de CI reutiliza
-los que ya estén). En CI: `retries: 2`, `workers: 1`, `forbidOnly`.
+Playwright arranca primero el build y después `next dev`. Fuera de CI reutiliza
+lo que ya escuche en esos puertos; el setup global comprueba que el dev server
+corre con el mock y es **el de esta copia con su base de datos** (compara un hash
+de la carpeta y `DATABASE_URL` con el de `GET /api/test/identity`, que solo
+existe con `PAYMENTS_MOCK=1`), y que el de producción sirve el build de esta
+copia. Si no coincide, el setup se detiene en vez de escribir en otra base. Para
+correr al lado de otros servidores: `E2E_DEV_PORT=3010 E2E_PROD_PORT=3110 npx
+playwright test`; no corras dos suites a la vez en la misma máquina (comparten
+CPU y los límites por IP de la base). Localmente usa 4 workers (`E2E_WORKERS`
+lo cambia): con más, el único `next dev` compilando rutas y bcrypt en cada login
+hacían vencer esperas de rutas frías. En CI: `retries: 2`, `workers: 1`,
+`forbidOnly`.
+
+**Ruido esperado en el log**: en una corrida local completa, el `[WebServer]` de
+`next dev` suele registrar `Error: aborted` (`ECONNRESET`), a veces como
+`uncaughtException`, sobre todo al pasar de los proyectos chromium a store-ops: es
+un pedido que seguía en curso cuando un spec cerró su contexto. No hace fallar
+ningún test; un fallo real se ve en el reporte de Playwright, no en esas líneas.
+
+**Datos de los E2E**: usan la base de dev. Las cuentas, pedidos, mensajes y
+suscripciones de los specs usan emails `@e2e.lego-store.test`; el setup global los
+borra (devolviendo el stock que tomaron), limpia los contadores de rate limiting y
+crea un admin con contraseña aleatoria, y el teardown vuelve a borrarlos. Una
+corrida hace 20 registros por el formulario (el límite por IP por hora): un spec
+nuevo que necesite una cuenta debe usar `createE2eAccount` (`e2e/helpers/db.ts`).
+Después de una corrida, registrarte a mano en el mismo equipo puede chocar con
+ese límite ("Se crearon demasiadas cuentas desde tu conexión"); en dev se
+limpia con `docker compose exec db psql -U lego -d lego_store -c 'DELETE FROM
+"RateLimit";'` (el setup de la próxima corrida también lo limpia). Tras
+ese error el formulario vacía las contraseñas a propósito: el servidor nunca las
+devuelve.
+
+**Pagos en los E2E**: `mercadopago.spec.ts` (tarjeta aprobada, rechazada y otra que
+paga, ticket pendiente que se acredita por webhook firmado, firma inválida, con axe
+en claro y oscuro), `checkout.spec.ts` (Stripe hasta PAID), `orders.spec.ts`
+(compra con cuenta → Mis pedidos), `coupons.spec.ts`, `admin.spec.ts` (enviar y
+entregar un pedido pagado). Lo que Mercado Pago haría solo (acreditar un ticket,
+pagar una preferencia) lo pide el spec a `POST /api/test/mercadopago` y después
+manda la notificación firmada (`e2e/helpers/mercadopago.ts`).
 
 ```bash
-npm run test:e2e                     # los dos proyectos
+npm run test:e2e                     # chromium, prod y store-ops
 npx playwright test --project chromium
 npx playwright test --project prod
 npm run test:e2e:ui                  # modo UI
 npx playwright show-report           # reporte HTML
 ```
 
-Specs por área: `homepage`, `catalog` (filtros en la URL, orden, precio), `search`
-(búsqueda y combobox), `product`, `cart`, `lists` (favoritos, comparador y su
-barra), `checkout` (con axe en cada paso), `shell` (navbar, footer, páginas de
-información, 404), `state` (estado persistido) y `a11y` (axe WCAG 2.1 A/AA + best
-practices en cada página, en claro y oscuro).
+Specs por área: `homepage`, `catalog`, `search`, `product`, `cart`, `lists`,
+`account-lists`, `auth`, `reviews`, `checkout`, `mercadopago`, `orders`,
+`coupons`, `newsletter`, `admin`, `admin-catalog`, `shell`, `state`,
+`security-headers` y `a11y` (axe WCAG 2.1 A/AA en cada página, claro y oscuro,
+incluidas Mis pedidos y cada sección del admin).
 
 Convenciones:
 
 - Selectores por rol y nombre accesible, como en Vitest.
-- Para sembrar estado persistido usa `page.addInitScript` escribiendo
-  `localStorage` con `{ state, version: 1 }` (ver `e2e/a11y.spec.ts`).
-- Para auditar accesibilidad usa `seriousAxeViolations(page)` de
-  `e2e/helpers/axe.ts` dentro de `expect.poll` (las animaciones de entrada tienen
-  que terminar antes de medir contraste). Falla con violaciones `serious` o
-  `critical`.
+- Estado persistido: `page.addInitScript` escribiendo `localStorage` con
+  `{ state, version: 1 }` (ver `e2e/a11y.spec.ts`).
+- Accesibilidad: `seriousAxeViolations(page)` de `e2e/helpers/axe.ts` dentro de
+  `expect.poll` (las animaciones de entrada tienen que terminar antes de medir
+  contraste). Falla con violaciones `serious` o `critical`.
+
+### E2E contra Stripe en modo test
+
+`npm run test:e2e:stripe` (`playwright.stripe-live.config.ts`, `e2e/stripe-live`):
+con claves de **test** (`sk_test_`/`pk_test_` y `STRIPE_WEBHOOK_SECRET`) levanta su
+propio `next dev` en el 3200 sin mock, completa el Payment Element con `4242…` y
+con la tarjeta 3D Secure, comprueba que Stripe cobró el total del servidor y
+entrega al webhook el evento real. Sin claves se saltea. No hay un equivalente
+contra Mercado Pago real.
+
+### Qué no cubre ningún test automático
+
+- Pagar contra un build de producción (un build nunca usa los pagos simulados).
+- El Payment Brick y Checkout Pro reales, y la secuencia de un contracargo, contra
+  credenciales de Mercado Pago.
+- Vercel Blob con un token real (solo el adaptador de disco).
+
+Ver la checklist de [deploy.md](./deploy.md#después-del-deploy).
 
 ## CI (`.github/workflows/ci.yml`)
 
-Corre en push y pull request a `main` y `develop`, con Node 22.
+Corre en push a `main`, `develop` y las ramas `feat/**` (por ejemplo
+`feat/backend`), y en pull requests hacia `main`, `develop` o una rama `feat/**`
+(un PR apilado sobre otra rama de feature también tiene CI), con Node 22. Los jobs que
+necesitan datos levantan un servicio Postgres 17, corren `prisma migrate deploy`
+y el seed antes de empezar, y generan un `AUTH_SECRET` descartable.
 
 | Job | Qué hace | Cuándo |
 | --- | --- | --- |
 | `lint` | `npm run lint` y `npx tsc --noEmit` | siempre |
-| `test` | instala Chromium, `npm run test -- --run --coverage` (unit + storybook), sube la cobertura y corre `npm run build-storybook -- --quiet` | siempre |
-| `build` | `npm run build` y sube `.next/` | después de `lint` y `test` |
-| `e2e` | instala Chromium y corre `npx playwright test` (los dos proyectos) | después de `build` |
+| `test` | crea `lego_store_test`, migra y siembra, comprueba que las migraciones coinciden con `schema.prisma` (`prisma migrate diff --exit-code`), instala Chromium, `npm run test -- --run --coverage` (unit + integración + storybook), sube la cobertura y corre `npm run build-storybook -- --quiet` | siempre |
+| `build` | migra y siembra, `npm run build` y sube `.next/` | después de `lint` y `test` |
+| `e2e` | migra y siembra, instala Chromium y corre `npx playwright test` (`chromium`, `prod` y `store-ops`) | después de `build` |
+| `e2e-stripe-live` | `npm run test:e2e:stripe` contra Stripe en modo test; los pasos se saltean si el repo no tiene los secrets `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` y `STRIPE_WEBHOOK_SECRET` | después de `build` |
 | `lighthouse` | build y Lighthouse CI con `lighthouserc.json` (reportes como artefactos, sin almacenamiento público) | solo en PR, después de `build` |
 | `security` | `npm audit --omit=dev --audit-level=high` (bloquea) y `npm audit --audit-level=high` (solo informa) | siempre |
 | `bundle-size` | build, `npm run start -- -p 3311` y `npm run size -- http://localhost:3311` | solo en PR, después de `build` |

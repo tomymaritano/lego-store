@@ -22,7 +22,8 @@ interface NavLinkProps extends ComponentProps<typeof Link> {
  * Component nav can style the active item with `aria-[current=page]:`.
  */
 export function NavLink({ href, matchPath = true, ...props }: NavLinkProps) {
-  const pathname = usePathname();
+  // Null outside the App Router (Storybook renders without one).
+  const pathname = usePathname() ?? "";
   const current = matchPath && isCurrentPath(pathname, href);
   return <Link href={href} aria-current={current ? "page" : undefined} {...props} />;
 }

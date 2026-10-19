@@ -1,28 +1,18 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { summarizePayment, useCheckoutStore } from "@/stores/checkoutStore";
+import { describe, it, expect, beforeEach } from "vitest";
+import { useCheckoutStore } from "@/stores/checkoutStore";
+import { makeOrder } from "../helpers/orders";
 
-const card = { cardNumber: "4111 1111 1111 1234", cardName: "Ana Pérez", expiryDate: "12/29", cvv: "987" };
+const card = { confirmationTokenId: "ctoken_mock_visa", brand: "visa", last4: "4242" };
 
 describe("checkoutStore", () => {
   beforeEach(() => {
     useCheckoutStore.getState().resetCheckout();
   });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
 
-  it("keeps only a summary of the card, never the number or the CVV", () => {
-    useCheckoutStore.getState().setPaymentInfo(card);
-    const state = useCheckoutStore.getState();
-    expect(state.paymentSummary).toEqual({ brand: "visa", cardName: "Ana Pérez", expiryDate: "12/29", last4: "1234" });
-    const serialized = JSON.stringify(state);
-    expect(serialized).not.toContain("4111");
-    expect(serialized).not.toContain("987");
-  });
-
-  it("summarizes any card format", () => {
-    expect(summarizePayment({ ...card, cardNumber: "5555-4444-3333-2222" })).toMatchObject({ last4: "2222", brand: "mastercard" });
-    expect(summarizePayment({ ...card, cardNumber: "3782 822463 10005" })).toMatchObject({ last4: "0005", brand: "amex" });
+  it("keeps the ConfirmationToken and its preview, never card data", () => {
+    useCheckoutStore.getState().setPayment(card);
+    expect(useCheckoutStore.getState().payment).toEqual(card);
+    expect(Object.keys(useCheckoutStore.getState())).not.toContain("cardNumber");
   });
 
   it("is not persisted", () => {
@@ -41,33 +31,28 @@ describe("checkoutStore", () => {
     expect("persist" in useCheckoutStore).toBe(false);
   });
 
-  it("processes the order, moves to confirmation and drops the payment summary", async () => {
-    vi.useFakeTimers();
-    useCheckoutStore.getState().setPaymentInfo(card);
-    const pending = useCheckoutStore.getState().processOrder({ total: 1198 });
-    expect(useCheckoutStore.getState().isProcessing).toBe(true);
-    await vi.runAllTimersAsync();
-    const orderId = await pending;
-    expect(orderId).toMatch(/^LEGO-/);
+  it("a refused payment goes back to the payment step with the reason and forgets the spent token", () => {
+    const store = useCheckoutStore.getState();
+    store.setPayment(card);
+    store.setStep("review");
+    store.setProcessing(true);
+    store.paymentFailed("Tu banco rechazó el pago.");
     expect(useCheckoutStore.getState()).toMatchObject({
-      currentStep: "confirmation",
+      currentStep: "payment",
+      payment: null,
+      paymentError: "Tu banco rechazó el pago.",
       isProcessing: false,
-      orderId,
-      orderTotal: 1198,
-      paymentSummary: null,
     });
+    store.setPayment(card);
+    expect(useCheckoutStore.getState().paymentError).toBeNull();
   });
 
-  it("cancels the order when its signal aborts: no order id, no confirmation", async () => {
-    vi.useFakeTimers();
-    useCheckoutStore.getState().setStep("review");
-    useCheckoutStore.getState().setPaymentInfo(card);
-    const controller = new AbortController();
-    const pending = useCheckoutStore.getState().processOrder({ total: 1198 }, { signal: controller.signal });
-    const outcome = expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    controller.abort();
-    await outcome;
-    await vi.runAllTimersAsync();
-    expect(useCheckoutStore.getState()).toMatchObject({ currentStep: "review", isProcessing: false, orderId: null });
+  it("a placed order moves to the confirmation and drops the token", () => {
+    const store = useCheckoutStore.getState();
+    store.setPayment(card);
+    store.setProcessing(true);
+    const order = makeOrder();
+    store.orderPlaced(order);
+    expect(useCheckoutStore.getState()).toMatchObject({ currentStep: "confirmation", order, payment: null, isProcessing: false });
   });
 });

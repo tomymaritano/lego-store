@@ -1,0 +1,74 @@
+import type { NextRequest } from "next/server";
+import { invalidateCatalog } from "@/lib/api/cache";
+import { getDb } from "@/lib/db";
+import { sendOrderCancelled, sendOrderConfirmation } from "@/lib/orders/notify";
+import { handleStripeEvent } from "@/lib/orders/webhook";
+import { getPaymentGateway, webhookSecret } from "@/lib/payments/config";
+import { stripeProvider } from "@/lib/payments/stripe-provider";
+import { readTextCapped } from "@/lib/request-body";
+
+/** Stripe's events are a few kB; this leaves room for the largest (a charge with its refunds). */
+const MAX_EVENT_BYTES = 512 * 1024;
+
+/**
+ * POST /api/stripe/webhook: Stripe's events about payments.
+ *
+ * The body is read raw (the signature covers the exact bytes) and verified
+ * against STRIPE_WEBHOOK_SECRET before anything else; then
+ * lib/orders/webhook.ts applies it at most once. After a payment is taken,
+ * the catalogue cache of the products whose stock changed is expired and the
+ * confirmation email goes out; after a refund cancels a paid order, the
+ * stock that came back is shown again.
+ *
+ * 200 handled (or ignored / already handled) · 400 bad signature ·
+ * 413 body over MAX_EVENT_BYTES ·
+ * 500 the work failed: Stripe retries it · 503 not configured.
+ *
+ * Local development: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
+ */
+export async function POST(request: NextRequest) {
+  const secret = webhookSecret();
+  const gateway = getPaymentGateway();
+  if (!secret || !gateway) return Response.json({ error: "Webhooks de Stripe no configurados." }, { status: 503 });
+
+  // The signature covers the exact bytes, so the body is read first, with a cap: Stripe's events are a few kB.
+  let payload: string | null;
+  try {
+    payload = await readTextCapped(request, MAX_EVENT_BYTES);
+  } catch {
+    return Response.json({ error: "No recibimos el evento completo." }, { status: 400 });
+  }
+  if (payload === null) return Response.json({ error: "El evento es demasiado grande." }, { status: 413 });
+  // Verified and read through the provider interface; the order code works on Stripe's own event.
+  const events = await stripeProvider(gateway, secret).parseWebhook({ body: payload, url: request.nextUrl, headers: request.headers });
+  if (!events) return Response.json({ error: "Firma inválida." }, { status: 400 });
+  // A verified event the store does not act on.
+  if (events.length === 0) return Response.json({ received: true, result: "ignored" });
+  const event = events[0]!.raw;
+
+  const db = getDb();
+  let outcome;
+  try {
+    outcome = await handleStripeEvent(db, gateway, event);
+  } catch (error) {
+    console.error(`[stripe] No se pudo procesar ${event.type} (${event.id}):`, error);
+    return Response.json({ error: "No se pudo procesar el evento." }, { status: 500 });
+  }
+
+  if (outcome.result === "paid") {
+    invalidateCatalog({ productIds: outcome.productIds });
+    await sendOrderConfirmation(db, outcome.orderId);
+  }
+  // A refund cancelled a paid order: its stock is back on sale.
+  if (outcome.result === "refund_cancelled" && outcome.productIds.length > 0) invalidateCatalog({ productIds: outcome.productIds });
+  // The customer was charged and is getting the money back: tell them (a guest has no other way to know).
+  if (
+    outcome.result === "refund_cancelled" ||
+    outcome.result === "amount_mismatch" ||
+    outcome.result === "out_of_stock" ||
+    outcome.result === "coupon_unavailable"
+  ) {
+    await sendOrderCancelled(db, outcome.orderId);
+  }
+  return Response.json({ received: true, result: outcome.result });
+}

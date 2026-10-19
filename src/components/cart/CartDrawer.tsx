@@ -7,6 +7,7 @@ import { ArrowRight, ShoppingCart, Trash2 } from "lucide-react";
 import { useCartCount, useCartItems, useCartStore, useCartSubtotal, useStoreHydrated } from "@/stores";
 import { dismissible, fadeIn, transitions } from "@/lib/motion";
 import { quoteShipping } from "@/lib/pricing";
+import { useShippingRules } from "@/providers/ShippingRulesProvider";
 import { formatPrice, pluralize } from "@/lib/utils";
 import {
   Button,
@@ -44,7 +45,7 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const subtotal = useCartSubtotal();
   const removeItem = useCartStore((state) => state.removeItem);
   const setQuantity = useCartStore((state) => state.setQuantity);
-  const shipping = quoteShipping(subtotal);
+  const shipping = quoteShipping(subtotal, useShippingRules());
 
   // Toasts sit bottom-right on desktop, over the drawer footer CTAs: clear them when it opens.
   useEffect(() => {

@@ -16,26 +16,31 @@ const recordCartBumps = (page: Page) =>
       return animate.call(this, keyframes, options);
     };
   });
+/**
+ * Client navigations against `next dev` can wait on a route compiling under
+ * the parallel workers' load: more room than the default 5 s.
+ */
+const NAVIGATION = { timeout: 30_000 };
+
 const cartBumps = (page: Page) => page.evaluate(() => (window as unknown as { __cartBumps: number[] }).__cartBumps);
 
 test.describe("Cart", () => {
   test("should add product to cart", async ({ page }) => {
     await page.goto("/");
 
-    // Go to a product page
-    const firstProduct = page.locator("[data-testid='product-card']").first();
+    // Go to a product page through the card's link
+    const firstProduct = page.getByTestId("product-card").first().getByTestId("product-name");
+    await expect(firstProduct).toHaveAttribute("href", /^\/item\//);
     await firstProduct.click();
+    await expect(page).toHaveURL(/\/item\//, NAVIGATION);
 
-    // Wait for product page to load
-    await expect(page).toHaveURL(/\/item\//);
-
-    // Click add to cart button
-    const addToCartBtn = page.locator("button", { hasText: /agregar|añadir|cart/i });
-    await addToCartBtn.first().click();
+    // The buy box's button, once the stores have hydrated
+    const addToCartBtn = page.getByTestId("add-to-cart-btn").first();
+    await expect(addToCartBtn).toBeEnabled(NAVIGATION);
+    await addToCartBtn.click();
 
     // Cart badge should show item
-    const cartBadge = page.locator("[data-testid='cart-count']");
-    await expect(cartBadge).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("cart-count")).toBeVisible();
   });
 
   test("should display empty cart message", async ({ page }) => {
@@ -126,7 +131,7 @@ test.describe("Cart page", () => {
     await page.goto("/cart");
     const summary = page.getByRole("region", { name: "Resumen del pedido" });
     await summary.getByRole("link", { name: "Seguir comprando" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/$/, NAVIGATION);
   });
 });
 

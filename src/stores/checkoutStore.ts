@@ -1,46 +1,74 @@
 import { create } from "zustand";
-import { detectCardBrand } from "@/lib/card";
-import type { CheckoutStep, PaymentInfo, PaymentSummary, ShippingInfo } from "@/types";
+import type { OrderView } from "@/lib/orders/types";
+import type { CheckoutStep, ShippingInfo } from "@/types";
 
 /**
- * Checkout wizard state. In memory only (never persisted) and it never holds
- * the card number or the CVV: the payment form keeps those while its step is
- * open and hands over a summary (last 4 digits, name, expiry) on submit.
+ * Checkout wizard state. In memory only (never persisted). It never holds
+ * card data: Stripe's Payment Element and Mercado Pago's Payment Brick keep
+ * the card inside their iframes and hand back a token (a Stripe
+ * ConfirmationToken, a single-use Mercado Pago card token), which is all that
+ * is kept here, with what "Revisar" shows (brand, last 4 digits, installments).
+ * Prices and totals come from the server (`order`), not from the cart.
  */
+
+/** Stripe: the card chosen on the payment step, as a ConfirmationToken. */
+export interface StripePaymentSummary {
+  provider?: "STRIPE";
+  confirmationTokenId: string;
+  brand: string;
+  last4: string;
+}
+
+/**
+ * Mercado Pago: what the Payment Brick collected (sent to the server only on
+ * "Realizar pedido") or "Cuenta de Mercado Pago". `attemptId` identifies this
+ * attempt: a retried "Realizar pedido" is the same payment, never a second one.
+ */
+export interface MercadoPagoPaymentSummary {
+  provider: "MERCADOPAGO";
+  attemptId: string;
+  method: "card" | "ticket" | "wallet";
+  /** The Brick's formData (card token, method, installments, payer); none for "wallet". */
+  formData?: Record<string, unknown>;
+  /** payment_method_id ("visa", "master", "rapipago"…) for the label. */
+  brand: string;
+  last4: string | null;
+  installments: number | null;
+}
+
+export type PaymentSummary = StripePaymentSummary | MercadoPagoPaymentSummary;
+
+export const isMercadoPagoPayment = (payment: PaymentSummary): payment is MercadoPagoPaymentSummary => payment.provider === "MERCADOPAGO";
+
 interface CheckoutState {
   currentStep: CheckoutStep;
   shippingInfo: ShippingInfo | null;
-  paymentSummary: PaymentSummary | null;
-  orderId: string | null;
-  /** Amount charged for the placed order (shown on the confirmation). */
-  orderTotal: number | null;
+  payment: PaymentSummary | null;
+  /** Why the last payment did not go through (shown on the payment step). */
+  paymentError: string | null;
+  /** The server's order: prepared on entering "Revisar", then the placed one. */
+  order: OrderView | null;
+  /** True from "Realizar pedido" until the payment is accepted or refused. */
   isProcessing: boolean;
 
   setStep: (step: CheckoutStep) => void;
   setShippingInfo: (info: ShippingInfo) => void;
-  /** Stores only the summary of the card; the full data is dropped here. */
-  setPaymentInfo: (info: PaymentInfo) => void;
-  /**
-   * Mock payment: resolves with the order id and moves to the confirmation.
-   * Aborting `signal` (the visitor left the page) cancels the order: it
-   * rejects with an AbortError and the checkout stays where it was.
-   */
-  processOrder: (order: { total: number }, options?: { signal?: AbortSignal }) => Promise<string>;
+  setPayment: (payment: PaymentSummary) => void;
+  /** A refused payment: back to the payment step with the reason; the token is spent. */
+  paymentFailed: (message: string) => void;
+  setOrder: (order: OrderView | null) => void;
+  setProcessing: (processing: boolean) => void;
+  /** The payment was accepted: show the confirmation for this order. */
+  orderPlaced: (order: OrderView) => void;
   resetCheckout: () => void;
 }
-
-export function summarizePayment({ cardNumber, cardName, expiryDate }: PaymentInfo): PaymentSummary {
-  return { brand: detectCardBrand(cardNumber), cardName, expiryDate, last4: cardNumber.replace(/\D/g, "").slice(-4) };
-}
-
-const ORDER_DELAY_MS = 1200;
 
 const initialState = {
   currentStep: "shipping" as CheckoutStep,
   shippingInfo: null,
-  paymentSummary: null,
-  orderId: null,
-  orderTotal: null,
+  payment: null,
+  paymentError: null,
+  order: null,
   isProcessing: false,
 };
 
@@ -48,35 +76,11 @@ export const useCheckoutStore = create<CheckoutState>((set) => ({
   ...initialState,
 
   setStep: (step) => set({ currentStep: step }),
-
   setShippingInfo: (info) => set({ shippingInfo: info }),
-
-  setPaymentInfo: (info) => set({ paymentSummary: summarizePayment(info) }),
-
-  processOrder: async ({ total }, { signal } = {}) => {
-    signal?.throwIfAborted();
-    set({ isProcessing: true });
-    try {
-      // Mock payment gateway.
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(resolve, ORDER_DELAY_MS);
-        signal?.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(timer);
-            reject(signal.reason);
-          },
-          { once: true }
-        );
-      });
-    } catch (error) {
-      set({ isProcessing: false });
-      throw error;
-    }
-    const orderId = `LEGO-${Date.now().toString(36).toUpperCase()}`;
-    set({ orderId, orderTotal: total, isProcessing: false, currentStep: "confirmation", paymentSummary: null });
-    return orderId;
-  },
-
+  setPayment: (payment) => set({ payment, paymentError: null }),
+  paymentFailed: (message) => set({ payment: null, paymentError: message, isProcessing: false, currentStep: "payment" }),
+  setOrder: (order) => set({ order }),
+  setProcessing: (isProcessing) => set({ isProcessing }),
+  orderPlaced: (order) => set({ order, payment: null, isProcessing: false, currentStep: "confirmation" }),
   resetCheckout: () => set(initialState),
 }));

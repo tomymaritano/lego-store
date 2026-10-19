@@ -14,6 +14,9 @@ type Story = StoryObj<typeof meta>;
 
 export const ReadOnly: Story = {};
 
+/** A product nobody reviewed yet. */
+export const NoReviews: Story = { args: { value: 0, count: 0 } };
+
 function InputExample() {
   const [value, setValue] = useState(0);
   return (

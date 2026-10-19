@@ -5,6 +5,7 @@ import { PartyPopper, Truck } from "lucide-react";
 import { transitions } from "@/lib/motion";
 import { quoteShipping } from "@/lib/pricing";
 import { cn, formatPrice } from "@/lib/utils";
+import { useShippingRules } from "@/providers/ShippingRulesProvider";
 
 /**
  * "Te faltan $X para el envío gratis" with a bar that fills as the subtotal
@@ -12,7 +13,7 @@ import { cn, formatPrice } from "@/lib/utils";
  * text already carries the numbers).
  */
 export function FreeShippingProgress({ subtotal, className }: { subtotal: number; className?: string }) {
-  const { free, remaining, progress } = quoteShipping(subtotal);
+  const { free, remaining, progress } = quoteShipping(subtotal, useShippingRules());
 
   return (
     <div className={cn("space-y-2", className)} data-testid="free-shipping">

@@ -41,10 +41,14 @@ interface SelectTriggerProps extends Omit<React.ComponentProps<typeof BaseSelect
 }
 
 function SelectTrigger({ className, children, size = "md", ...props }: SelectTriggerProps) {
-  const { controlProps } = useFieldControl(props);
-  // Base UI's trigger is a <button>: the Field's label[for] names it.
+  const { field, controlProps } = useFieldControl(props);
   const { required: _required, ...triggerProps } = controlProps as typeof controlProps & { required?: boolean };
   void _required;
+  // The trigger is a <button>: axe's button-name ignores label[for], and the value text can be
+  // empty before hydration. Inside a Field, name it with "label + current value" explicitly.
+  const labelledBy =
+    props["aria-labelledby"] ??
+    (field && !props["aria-label"] && triggerProps.id ? `${field.labelId} ${triggerProps.id}` : undefined);
   return (
     <BaseSelect.Trigger
       data-slot="select-trigger"
@@ -56,6 +60,7 @@ function SelectTrigger({ className, children, size = "md", ...props }: SelectTri
         className
       )}
       {...triggerProps}
+      aria-labelledby={labelledBy}
     >
       {children}
       <BaseSelect.Icon className="text-fg-muted transition-transform duration-fast group-data-popup-open:rotate-180">

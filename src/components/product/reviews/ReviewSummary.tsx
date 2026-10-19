@@ -3,17 +3,24 @@
 import { m } from "motion/react";
 import { transitions } from "@/lib/motion";
 import { pluralize } from "@/lib/utils";
-import type { Review } from "@/types";
+import type { ReviewSummary as Summary } from "@/types";
 import { Rating } from "@/components/ui";
 
-/** Average rating and the 5-to-1 star histogram (bars grow in when scrolled into view). */
-export function ReviewSummary({ reviews }: { reviews: readonly Review[] }) {
-  const total = reviews.length;
-  const average = total === 0 ? 0 : Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / total) * 10) / 10;
-  const distribution = [5, 4, 3, 2, 1].map((rating) => {
-    const count = reviews.filter((r) => r.rating === rating).length;
-    return { rating, count, share: total > 0 ? count / total : 0 };
-  });
+/**
+ * Average rating and the 5-to-1 star histogram over all of the product's
+ * reviews (computed on the server, not from the loaded page). Bars grow in
+ * when mounted and follow later changes. Not whileInView: the summary
+ * usually mounts inside the reviews tab panel while it is hidden
+ * (display: none), and the bars must not stay empty if the in-view
+ * observer never fires for it.
+ */
+export function ReviewSummary({ summary }: { summary: Summary }) {
+  const { average, count: total } = summary;
+  const distribution = summary.distribution.map(({ rating, count }) => ({
+    rating,
+    count,
+    share: total > 0 ? count / total : 0,
+  }));
 
   return (
     <div className="grid gap-8 rounded-2xl border border-border bg-bg-subtle p-6 md:grid-cols-[auto_1fr] md:gap-12">
@@ -34,8 +41,7 @@ export function ReviewSummary({ reviews }: { reviews: readonly Review[] }) {
               <m.span
                 className="block h-full origin-left rounded-full bg-rating"
                 initial={{ scaleX: 0 }}
-                whileInView={{ scaleX: share }}
-                viewport={{ once: true }}
+                animate={{ scaleX: share }}
                 transition={transitions.slow}
               />
             </span>

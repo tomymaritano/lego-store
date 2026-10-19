@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { uniqueEmail } from "./helpers/accounts";
 
 const INFO_PAGES = [
   ["/faq", "Preguntas frecuentes"],
@@ -30,12 +31,12 @@ test.describe("App shell", () => {
     await expect(nav.getByRole("link", { name: "Todos" })).not.toHaveAttribute("aria-current");
   });
 
-  test("themes disclosure opens, lists searches and closes on Escape", async ({ page }) => {
+  test("themes disclosure opens, lists the themes from the database and closes on Escape", async ({ page }) => {
     await page.goto("/");
     const trigger = page.getByRole("button", { name: "Temas" });
     await trigger.click();
     await expect(trigger).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("link", { name: "Marvel" }).first()).toHaveAttribute("href", "/search?q=Marvel");
+    await expect(page.getByRole("link", { name: "Marvel" }).first()).toHaveAttribute("href", "/search?theme=marvel");
     await page.keyboard.press("Escape");
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await expect(trigger).toBeFocused();
@@ -144,6 +145,9 @@ test.describe("Mobile shell", () => {
 
 test.describe("Footer and info pages", () => {
   test("every footer link resolves (no dead links)", async ({ page, request }) => {
+    // Some 17 pages one after another (in parallel they would race a cold `next dev`
+    // compiling them): about 6 s warm, much longer while other workers load the server.
+    test.slow();
     await page.goto("/");
     const hrefs = await page
       .getByRole("contentinfo")
@@ -174,14 +178,14 @@ test.describe("Footer and info pages", () => {
     await expect(page.getByText(/es gratis en compras desde/)).toBeVisible();
   });
 
-  test("contact form validates and confirms a mock submission", async ({ page }) => {
+  test("contact form validates and confirms the submission", async ({ page }) => {
     await page.goto("/contacto");
     await page.getByRole("button", { name: "Enviar mensaje" }).click();
     await expect(page.getByText("Ingresa tu nombre (al menos 2 caracteres)")).toBeVisible();
     await expect(page.getByLabel(/^Nombre/)).toBeFocused();
 
     await page.getByLabel(/^Nombre/).fill("Ana Pérez");
-    await page.getByLabel(/^Email/).fill("ana@example.com");
+    await page.getByLabel(/^Email/).fill(uniqueEmail("contacto"));
     await page.getByRole("combobox", { name: /Motivo/ }).click();
     await page.getByRole("option", { name: "Estado de un pedido" }).click();
     await page.getByLabel(/^Mensaje/).fill("¿Cuándo llega mi pedido LS-12345? Gracias.");
@@ -194,9 +198,10 @@ test.describe("Footer and info pages", () => {
     const form = page.getByRole("form", { name: "Suscríbete al newsletter" });
     await form.getByRole("button", { name: "Suscribirse" }).click();
     await expect(form.getByText("Ingresa tu email")).toBeVisible();
-    await form.getByLabel("Tu email").fill("fan@lego.com");
+    const email = uniqueEmail("fan");
+    await form.getByLabel("Tu email").fill(email);
     await form.getByRole("button", { name: "Suscribirse" }).click();
-    await expect(page.getByText("Suscribimos fan@lego.com. Revisa tu correo.")).toBeVisible();
+    await expect(page.getByText(`Recibimos ${email}. Revisa tu correo.`)).toBeVisible();
   });
 });
 
@@ -205,6 +210,12 @@ test.describe("Shell details", () => {
     await page.goto("/");
     await expect(page.getByRole("form", { name: /newsletter|Nuevo en LEGO/i })).toHaveCount(1);
     await expect(page.getByText(/^Envío gratis$/)).toHaveCount(1);
+  });
+
+  test("the footer's payment methods are the store's provider's (Mercado Pago here)", async ({ page }) => {
+    await page.goto("/");
+    const methods = page.getByRole("contentinfo").getByRole("list", { name: "Medios de pago" });
+    await expect(methods.getByRole("listitem")).toHaveText(["Mercado Pago", "Tarjetas de crédito", "Tarjetas de débito", "Efectivo"]);
   });
 
   for (const [path, title] of [

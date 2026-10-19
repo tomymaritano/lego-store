@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 export interface AccordionItem {
+  /** React key; the question when left out. */
+  id?: string;
   question: string;
   answer: ReactNode;
 }
@@ -15,7 +17,7 @@ export function Accordion({ items, name }: { items: AccordionItem[]; name?: stri
   return (
     <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface shadow-card">
       {items.map((item) => (
-        <details key={item.question} name={name} className="disclosure group">
+        <details key={item.id ?? item.question} name={name} className="disclosure group">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold text-fg transition-colors duration-fast ease-standard hover:bg-bg-subtle focus-visible:-outline-offset-2 [&::-webkit-details-marker]:hidden">
             {item.question}
             <ChevronDown

@@ -1,8 +1,9 @@
 /**
  * The single data gateway of the app (server-only). Pages (Server Components)
- * and Route Handlers read the catalogue through these functions; nothing else
- * imports @/data (ESLint enforces it). Client islands call the Route Handlers
- * in src/app/api through @/lib/api-client.
+ * and Route Handlers read the catalogue through these functions; they query
+ * Postgres through Prisma behind the Next data cache (see ./products.ts and
+ * ./cache.ts). Client islands call the Route Handlers in src/app/api through
+ * @/lib/api-client.
  */
 import "server-only";
 
@@ -18,6 +19,14 @@ export {
   getFacetCounts,
   getFeaturedProducts,
   getSaleProducts,
+  getHomePicks,
   getCategories,
   getCategoryById,
+  getCategoryNames,
+  getCategoryRedirect,
+  getThemes,
+  getReviewPage,
+  getSitemapSource,
 } from "./products";
+export type { SitemapSource } from "./catalog";
+export { CATALOG_TAGS, invalidateCatalog, updateCatalog } from "./cache";

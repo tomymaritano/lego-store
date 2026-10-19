@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import { CloudOff, SearchX, SlidersHorizontal } from "lucide-react";
 import { useCatalogQuery } from "@/hooks/useCatalogQuery";
 import { useFacetCounts } from "@/hooks/useFacetCounts";
 import { useProductPages } from "@/hooks/useProductPages";
 import { useScrollEdges } from "@/hooks/useScrollEdges";
 import { listActiveFilters, removeFilter, serializeProductQuery } from "@/lib/productQuery";
+import { canonicalizeThemes } from "@/lib/themeFilter";
 import { cn, pluralize } from "@/lib/utils";
 import {
   Badge,
@@ -54,16 +55,20 @@ const EAGER_IMAGES = 3;
  */
 export function CatalogView({
   initialPage,
-  initialQuery,
+  initialQuery: renderedQuery,
   scope,
   options,
   initialCounts,
   showCategories = false,
 }: CatalogViewProps) {
+  // Older links name a theme ("Star Wars"); the filter's options are slugs.
+  const canonicalize = useCallback((next: ProductQuery) => canonicalizeThemes(next, options.themes), [options.themes]);
+  const initialQuery = canonicalize(renderedQuery);
   // The route's scope (the category in the path) is not a URL filter.
   const { query, update, setQuery, clear } = useCatalogQuery(
     scope ? (Object.keys(scope) as (keyof ProductQuery)[]) : [],
-    initialQuery
+    initialQuery,
+    canonicalize
   );
   const apiQuery = { ...query, ...scope };
   const scopedInitialQuery = { ...initialQuery, ...scope };

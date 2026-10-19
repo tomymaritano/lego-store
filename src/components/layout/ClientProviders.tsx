@@ -5,11 +5,13 @@ import { LazyMotion, MotionConfig } from "motion/react";
 import { transitions } from "@/lib/motion";
 import { CompareBar } from "@/components/product/CompareBar";
 import { StoreHydrator } from "@/stores";
+import { ListsSync } from "./ListsSync";
 import { ThemeSync } from "./ThemeSync";
 
 /**
  * Client-only app shell: loads the persisted stores once (StoreHydrator),
- * keeps the theme class in sync, and sets the global motion policy
+ * keeps the cart and wishlist in step with the account (ListsSync), keeps
+ * the theme class in sync, and sets the global motion policy
  * (animations respect prefers-reduced-motion everywhere, and any motion
  * element without its own transition uses the token timing).
  *
@@ -29,6 +31,7 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     <LazyMotion features={loadMotionFeatures} strict>
       <MotionConfig reducedMotion="user" transition={transitions.base}>
         <StoreHydrator />
+        <ListsSync />
         <ThemeSync />
         {children}
         <CompareBar />

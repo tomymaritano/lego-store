@@ -35,8 +35,16 @@ const readSearch = () => window.location.search.replace(/^\?/, "");
  * (/category/[id]) stays in the path: pass its keys as `scopeKeys` so a
  * stray `?category=` on that page is ignored (no chip, no extra fetch) and
  * dropped from the URL on the next change.
+ *
+ * `canonicalize` (stable: memoise it) rewrites a parsed query into its
+ * canonical form, such as a theme's name into its slug; when it changes
+ * anything, the URL is replaced (not pushed) with the canonical one.
  */
-export function useCatalogQuery(scopeKeys: readonly (keyof ProductQuery)[] = [], initialQuery: ProductQuery = {}) {
+export function useCatalogQuery(
+  scopeKeys: readonly (keyof ProductQuery)[] = [],
+  initialQuery: ProductQuery = {},
+  canonicalize?: (query: ProductQuery) => ProductQuery
+) {
   const pathname = usePathname();
   const serverSearch = serializeProductQuery({ ...initialQuery, page: undefined, limit: undefined }).toString();
   const search = useSyncExternalStore(subscribe, readSearch, () => serverSearch);
@@ -54,8 +62,18 @@ export function useCatalogQuery(scopeKeys: readonly (keyof ProductQuery)[] = [],
     void _limit;
     const ignored = scopeKey ? scopeKey.split(",") : [];
     for (const key of ignored) delete rest[key as keyof typeof rest];
-    return rest;
-  }, [search, scopeKey]);
+    return canonicalize ? canonicalize(rest) : rest;
+  }, [search, scopeKey, canonicalize]);
+
+  // An old link's non-canonical values: show the canonical URL, without a history entry.
+  const canonicalSearch = serializeProductQuery(query).toString();
+  useEffect(() => {
+    if (!canonicalize || readSearch() !== search || canonicalSearch === search) return;
+    const parsed = parseProductQuery(new URLSearchParams(search));
+    if (serializeProductQuery(canonicalize(parsed)).toString() === serializeProductQuery(parsed).toString()) return;
+    window.history.replaceState(window.history.state, "", canonicalSearch ? `${pathname}?${canonicalSearch}` : pathname);
+    window.dispatchEvent(new Event(URL_CHANGE));
+  }, [canonicalize, canonicalSearch, search, pathname]);
 
   const setQuery = useCallback(
     (next: ProductQuery) => {

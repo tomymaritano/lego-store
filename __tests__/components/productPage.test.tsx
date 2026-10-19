@@ -5,7 +5,6 @@ import { ProductGallery, gallerySources } from "@/components/product/ProductGall
 import { StockStatus } from "@/components/product/ProductPurchase";
 import { ReviewsLink, reviewsLinkTarget } from "@/components/product/ReviewsLink";
 import { REVIEWS_HASH, WRITE_REVIEW_HASH } from "@/components/product/anchors";
-import { mockReviews, useReviewStore } from "@/stores/reviewStore";
 import { useRecentlyViewedStore } from "@/stores";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { PLACEHOLDER_IMAGE } from "@/lib/utils";
@@ -18,6 +17,7 @@ const product: Product = {
   isNew: false,
   isOnSale: false,
   rating: 4.4,
+  reviewCount: 5,
   category: "brickheadz",
   type: "Sets",
   age: "16+",
@@ -109,16 +109,13 @@ describe("product structured data", () => {
 });
 
 describe("ReviewsLink", () => {
-  beforeEach(() => useReviewStore.setState({ reviews: mockReviews }));
-
-  it("counts the reviews the tab will show, from the same store", () => {
-    const count = mockReviews.filter((r) => r.productId === "1").length;
-    render(<ReviewsLink productId="1" />);
-    expect(screen.getByRole("link", { name: `Ver ${count} reseñas` })).toHaveAttribute("href", `#${REVIEWS_HASH}`);
+  it("counts the product's reviews in the database (the ones behind the rating)", () => {
+    render(<ReviewsLink count={4} />);
+    expect(screen.getByRole("link", { name: "Ver 4 reseñas" })).toHaveAttribute("href", `#${REVIEWS_HASH}`);
   });
 
   it("offers to write the first review (not \"no reviews\") when there are none", () => {
-    render(<ReviewsLink productId="no-reviews" />);
+    render(<ReviewsLink count={0} />);
     expect(screen.getByRole("link", { name: "Escribir una reseña" })).toHaveAttribute("href", `#${WRITE_REVIEW_HASH}`);
     expect(screen.queryByText(/Aún sin reseñas/)).toBeNull();
     expect(reviewsLinkTarget(1)).toEqual({ label: "Ver 1 reseña", hash: REVIEWS_HASH });

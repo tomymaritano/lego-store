@@ -5,11 +5,14 @@ import { PLACEHOLDER_IMAGE } from "@/lib/utils";
 const NO_IMAGE = PLACEHOLDER_IMAGE;
 
 /**
- * Mock catalogue. Only src/lib/api reads this file (ESLint enforces it), so the
- * backend can replace it with a database without touching pages.
+ * The seed catalogue (prisma/seed): the database is the source of truth at
+ * runtime; nothing in src/ reads this file (ESLint enforces it). `rating` here
+ * is the average the seeded sample reviews are generated to reach; the real
+ * Product.rating is computed from the reviews in the database.
  */
+export type SeedProduct = Omit<Product, "reviewCount">;
 
-export const products: Product[] = [
+export const products: SeedProduct[] = [
   {
     id: "1",
     name: "Captain Rex Helmet",
@@ -143,14 +146,14 @@ export const products: Product[] = [
     category: "cars",
     type: "Sets",
     age: "18+",
-    theme: "Marvel",
+    theme: "DC",
     interests: ["Vehículos"],
     pieces: "1001-2000",
     highlight: "Exclusivos",
     img: NO_IMAGE,
     images: [],
     stock: 40,
-    shortDescription: "Iconico Batmobile en LEGO.",
+    shortDescription: "Icónico Batmobile en LEGO.",
     description: "Recreación del Batmobile con piezas LEGO. Detalle premium y tamaño impresionante.",
   },
   {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { paymentSchema, shippingSchema } from "@/lib/validations";
+import { shippingSchema } from "@/lib/validations";
+import { prepareOrderSchema } from "@/lib/validations/orders";
 
 const shipping = {
   firstName: "Ana",
@@ -13,8 +14,6 @@ const shipping = {
   country: "Argentina",
 };
 
-const nextYear = String((new Date().getFullYear() + 1) % 100).padStart(2, "0");
-const payment = { cardNumber: "4242 4242 4242 4242", cardName: "ANA PEREZ", expiryDate: `12/${nextYear}`, cvv: "123" };
 
 /** First message per field: the one react-hook-form's resolver shows. */
 const messages = (result: { success: boolean; error?: { issues: { path: PropertyKey[]; message: string }[] } }) => {
@@ -51,40 +50,25 @@ describe("shippingSchema", () => {
   });
 });
 
-describe("paymentSchema", () => {
-  it("accepts a valid Visa and Amex", () => {
-    expect(paymentSchema.safeParse(payment).success).toBe(true);
-    expect(paymentSchema.safeParse({ ...payment, cardNumber: "3782 822463 10005", cvv: "1234" }).success).toBe(true);
+describe("prepareOrderSchema (server side of the checkout)", () => {
+  const order = { shipping, lines: [{ productId: "1", quantity: 2 }], confirmationTokenId: "ctoken_1NnQ2kL" };
+
+  it("accepts ids, quantities, the shipping form and a ConfirmationToken id", () => {
+    expect(prepareOrderSchema.safeParse(order).success).toBe(true);
   });
 
-  it("rejects short, mistyped or expired cards and wrong CVV lengths", () => {
-    expect(messages(paymentSchema.safeParse({ ...payment, cardNumber: "4242 4242" }))).toMatchObject({
-      cardNumber: "El número debe tener 16 dígitos",
-    });
-    expect(messages(paymentSchema.safeParse({ ...payment, cardNumber: "4242 4242 4242 4241" }))).toMatchObject({
-      cardNumber: expect.stringContaining("no es una tarjeta válida"),
-    });
-    expect(messages(paymentSchema.safeParse({ ...payment, expiryDate: "01/20" }))).toMatchObject({
-      expiryDate: "La tarjeta está vencida",
-    });
-    expect(messages(paymentSchema.safeParse({ ...payment, cardNumber: "3782 822463 10005" }))).toMatchObject({
-      cvv: "El código de seguridad tiene 4 dígitos",
-    });
+  it("never takes prices or totals from the client: unknown keys are dropped", () => {
+    const parsed = prepareOrderSchema.parse({ ...order, total: 1, lines: [{ productId: "1", quantity: 2, price: 1 }] });
+    expect(parsed).not.toHaveProperty("total");
+    expect(parsed.lines[0]).toEqual({ productId: "1", quantity: 2 });
   });
 
-  it("rejects brands the store does not accept, even with a valid number", () => {
-    // Discover: passes Luhn and has 16 digits, but only Visa, Mastercard and Amex are accepted.
-    expect(messages(paymentSchema.safeParse({ ...payment, cardNumber: "6011 1111 1111 1117" }))).toMatchObject({
-      cardNumber: "Aceptamos Visa, Mastercard o American Express",
-    });
-  });
-
-  it("asks for every empty field", () => {
-    expect(messages(paymentSchema.safeParse({ cardNumber: "", cardName: "", expiryDate: "", cvv: "" }))).toMatchObject({
-      cardNumber: "Ingresa el número de tarjeta",
-      cardName: "Ingresa el nombre de la tarjeta",
-      expiryDate: "Ingresa el vencimiento",
-      cvv: "Ingresa el código de seguridad",
-    });
+  it("rejects empty or repeated lines, bad quantities, card data and the shipping form's own errors", () => {
+    expect(prepareOrderSchema.safeParse({ ...order, lines: [] }).success).toBe(false);
+    expect(prepareOrderSchema.safeParse({ ...order, lines: [order.lines[0], order.lines[0]] }).success).toBe(false);
+    expect(prepareOrderSchema.safeParse({ ...order, lines: [{ productId: "1", quantity: 0 }] }).success).toBe(false);
+    expect(prepareOrderSchema.safeParse({ ...order, lines: [{ productId: "1", quantity: 1.5 }] }).success).toBe(false);
+    expect(prepareOrderSchema.safeParse({ ...order, confirmationTokenId: "4242424242424242" }).success).toBe(false);
+    expect(prepareOrderSchema.safeParse({ ...order, shipping: { ...shipping, state: "Atlantis" } }).success).toBe(false);
   });
 });

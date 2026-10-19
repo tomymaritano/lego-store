@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Heart, Menu, Scale, Search, ShoppingCart, User } from "lucide-react";
+import { Heart, Menu, Scale, Search, ShoppingCart } from "lucide-react";
 import { pluralize } from "@/lib/utils";
 import { useCartCount, useCartDrawerOpen, useCompareCount, useUiStore, useWishlistCount } from "@/stores";
-import { IconButton, ThemeToggle, showToast } from "@/components/ui";
+import { IconButton, ThemeToggle } from "@/components/ui";
 import type { NavItem } from "@/config/navigation";
+import { AccountMenu, type NavAccount } from "./AccountMenu";
 import { CountIcon } from "./CountBadge";
 
 // The three panels load on demand: they are on every page but rarely opened,
@@ -49,14 +50,30 @@ function useOpenedOnce(open: boolean) {
 
 const withCount = (name: string, count: number) => (count > 0 ? `${name}, ${pluralize(count, "producto")}` : name);
 
+export interface NavbarActionsProps {
+  links: NavItem[];
+  themes: NavItem[];
+  /** The signed-in user (null for visitors), read on the server. */
+  account: NavAccount | null;
+  logoutAction: () => Promise<void>;
+}
+
 /**
  * Right side of the Navbar (client island): search trigger (phones), theme,
- * account, compare / wishlist / cart with live counts, the menu trigger and
- * the panels they open (full-screen search, mobile menu, cart drawer).
+ * account (login link or account menu; on phones it lives in the mobile
+ * menu), compare / wishlist / cart with live counts, the menu trigger and the
+ * panels they open (full-screen search, mobile menu, cart drawer).
  */
-export function NavbarActions({ links, themes }: { links: NavItem[]; themes: NavItem[] }) {
+export function NavbarActions({ links, themes, account, logoutAction }: NavbarActionsProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // Logging out from inside the mobile menu re-renders it signed out: close it instead of leaving it open.
+  const accountKey = account?.email ?? null;
+  const [menuAccountKey, setMenuAccountKey] = useState(accountKey);
+  if (menuAccountKey !== accountKey) {
+    setMenuAccountKey(accountKey);
+    setIsMenuOpen(false);
+  }
   const isCartOpen = useCartDrawerOpen();
   const setIsCartOpen = useUiStore((state) => state.setCartDrawerOpen);
 
@@ -85,13 +102,7 @@ export function NavbarActions({ links, themes }: { links: NavItem[]; themes: Nav
 
       <ThemeToggle className="hidden sm:inline-flex" />
 
-      <IconButton
-        label="Mi cuenta"
-        className="hidden sm:inline-flex"
-        onClick={() => showToast.info("Muy pronto podrás crear tu cuenta")}
-      >
-        <User aria-hidden="true" />
-      </IconButton>
+      <AccountMenu account={account} logoutAction={logoutAction} className="hidden sm:flex" />
 
       <IconButton
         label={withCount("Comparar", compareCount)}
@@ -152,6 +163,8 @@ export function NavbarActions({ links, themes }: { links: NavItem[]; themes: Nav
           links={links}
           themes={themes}
           counts={{ cart: cartCount, wishlist: wishlistCount, compare: compareCount }}
+          account={account}
+          logoutAction={logoutAction}
           onOpenCart={() => setIsCartOpen(true)}
         />
       ) : null}

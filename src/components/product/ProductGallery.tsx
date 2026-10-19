@@ -8,8 +8,11 @@ import { calculateDiscount, cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Badge, IconButton } from "@/components/ui";
 import type { Product } from "@/types";
+import { galleryAlt, gallerySources } from "@/lib/gallery";
 import { ImageZoom } from "./ImageZoom";
 import { ProductThumbnails, useGalleryImages } from "./ProductThumbnails";
+
+export { galleryAlt, gallerySources };
 
 /** Marks the stage so other islands (the buy box's fly-to-cart) can find the picture on screen. */
 export const GALLERY_STAGE_ATTR = "data-gallery-stage";
@@ -17,11 +20,6 @@ export const GALLERY_STAGE_ATTR = "data-gallery-stage";
 /** A swipe counts once the finger travels this far or flicks this fast (px, px/s). */
 const SWIPE_DISTANCE = 60;
 const SWIPE_VELOCITY = 400;
-
-/** Main picture first, then the rest, without duplicates. */
-export function gallerySources(product: Pick<Product, "img" | "images">): string[] {
-  return Array.from(new Set([product.img, ...product.images].filter(Boolean)));
-}
 
 /**
  * Product page gallery: the zoomable main picture (ImageZoom), previous/next
@@ -124,7 +122,7 @@ export function ProductGallery({ product }: { product: Product }) {
             onClickCapture={swallowClickAfterDrag}
             style={touch && count > 1 ? { touchAction: "pan-y" } : undefined}
           >
-            <Slide src={gallery.selectedSrc} alt={product.name} />
+            <Slide src={gallery.selectedSrc} alt={galleryAlt(product, gallery.selectedSrc)} />
           </m.div>
         </AnimatePresence>
 

@@ -27,6 +27,28 @@ test.describe("Search", () => {
     // Should be on the search page with the query
     await expect(page).toHaveURL(/\/search\?q=star/);
   });
+
+  test("matches every term without accents, across category names (database search)", async ({ page }) => {
+    // "vehiculos" is the display name of the cars category ("Vehículos"), "porsche" narrows it to one set.
+    await page.goto("/search?q=vehiculos%20PORSCHE");
+    const cards = page.getByTestId("product-card");
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toContainText("Porsche 911 GT3 RS");
+
+    await page.goto("/search?q=vehiculos");
+    await expect(page.getByTestId("product-card")).toHaveCount(5);
+  });
+
+  test("hostile query strings render results or nothing, never the error page", async ({ page, request }) => {
+    for (const path of ["/search?q=lego&maxPrice=3000000000", "/search?q=%00", "/search?q=star&category=%00"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Algo salió mal" })).toHaveCount(0);
+    }
+    for (const path of ["/api/products?maxPrice=1e12", "/api/products/facets?minPrice=3000000000", "/api/search?q=%00"]) {
+      expect((await request.get(path)).status(), path).toBe(200);
+    }
+  });
 });
 
 test.describe("Search combobox focus", () => {

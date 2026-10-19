@@ -3,10 +3,17 @@ import { Barlow } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { CategoriesProvider } from "@/providers/CategoriesProvider";
+import { ViewerProvider } from "@/providers/ViewerProvider";
+import { ShippingRulesProvider } from "@/providers/ShippingRulesProvider";
 import { ClientProviders, Footer, Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui";
-import { getCategories } from "@/lib/api";
-import { THEME_SCRIPT } from "@/lib/theme";
+import { getCategories, getCategoryNames, getThemes } from "@/lib/api";
+import { themeNavItems } from "@/config/navigation";
+import { getCurrentUser } from "@/lib/auth/session";
+import { getStoreSettings } from "@/lib/settings";
+import { configuredProvider } from "@/lib/payments/config";
+import { PAYMENT_METHOD_BADGES } from "@/lib/payments/methods";
+import { ThemeScript } from "@/components/layout/ThemeScript";
 import { siteConfig } from "@/config/site";
 
 // Self-hosted by next/font: no render-blocking request to Google, preloaded
@@ -65,13 +72,25 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const categories = (await getCategories()).map(({ id, name }) => ({ id, name }));
+  // The session makes every page render per request (see docs/architecture.md, «Renderizado y caché»); the
+  // catalogue reads stay in the data cache, so this costs one session check and one query.
+  const [categories, categoryNames, themes, user, settings] = await Promise.all([
+    getCategories().then((list) => list.map(({ id, name }) => ({ id, name }))),
+    // Hidden categories too: their products still show the category's name.
+    getCategoryNames(),
+    getThemes().then(themeNavItems),
+    getCurrentUser(),
+    // The admin's settings (announcement bar, footer, the cart's shipping rule), cached under the "settings" tag.
+    getStoreSettings(),
+  ]);
+  const account = user ? { name: user.name, email: user.email, role: user.role } : null;
+  const viewer = user ? { id: user.id, name: user.name } : null;
 
   return (
     <html lang="es-AR" className={`${barlow.variable} motion-safe:scroll-smooth`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Applies the saved theme before first paint (no light/dark flash). See lib/theme.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <ThemeScript />
       </head>
       <body className="flex min-h-screen flex-col bg-bg text-fg antialiased">
         <a
@@ -81,15 +100,19 @@ export default async function RootLayout({
           Saltar al contenido principal
         </a>
         <QueryProvider>
-          <CategoriesProvider categories={categories}>
-            <ClientProviders>
-              <Navbar categories={categories} />
-              <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
-                {children}
-              </main>
-              <Footer categories={categories} />
-              <Toaster />
-            </ClientProviders>
+          <CategoriesProvider categories={categoryNames}>
+            <ViewerProvider viewer={viewer}>
+              <ShippingRulesProvider rules={settings.shipping}>
+                <ClientProviders>
+                  <Navbar categories={categories} themes={themes} account={account} settings={settings} />
+                  <main id="main-content" className="flex-1 outline-none" tabIndex={-1}>
+                    {children}
+                  </main>
+                  <Footer categories={categories} themes={themes} settings={settings} paymentMethods={PAYMENT_METHOD_BADGES[configuredProvider()]} />
+                  <Toaster />
+                </ClientProviders>
+              </ShippingRulesProvider>
+            </ViewerProvider>
           </CategoriesProvider>
         </QueryProvider>
       </body>

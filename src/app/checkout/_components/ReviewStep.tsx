@@ -1,24 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ClipboardCheck, CreditCard, Lock, MapPin, Pencil } from "lucide-react";
+import { ChevronLeft, ClipboardCheck, CreditCard, Lock, MapPin, Pencil, RotateCcw } from "lucide-react";
 import { siteConfig } from "@/config/site";
-import { CARD_BRAND_LABELS, maskedNumber } from "@/lib/card";
+import { cardBrandLabel, installmentsLabel } from "@/lib/orders/format";
 import { formatPrice } from "@/lib/utils";
-import { Button } from "@/components/ui";
-import type { PaymentSummary, ShippingInfo } from "@/types";
+import { FormAlert } from "@/components/auth/FormAlert";
+import { Button, Skeleton } from "@/components/ui";
+import { isMercadoPagoPayment, type PaymentSummary } from "@/stores/checkoutStore";
+import type { ShippingInfo } from "@/types";
 import { StepCount, StepPanel } from "./StepPanel";
 
 interface ReviewStepProps {
   shippingInfo: ShippingInfo;
   payment: PaymentSummary;
-  /** Amount to be charged (shown next to the button so phones see it too). */
-  total: number;
+  /**
+   * Amount to be charged, as the server priced the order (shown next to the
+   * button so phones see it too); null while the order is being prepared.
+   */
+  total: number | null;
+  /** Why the order could not be prepared or paid (with `onRetry` when trying again can help). */
+  error: string | null;
+  /** Something the visitor should know before paying (prices or stock changed). */
+  notice: string | null;
   focusHeading: boolean;
   isProcessing: boolean;
   onEditShipping: () => void;
   onEditPayment: () => void;
   onPlaceOrder: () => void;
+  onRetry?: () => void;
 }
 
 const { deliveryDays } = siteConfig.commerce;
@@ -57,17 +67,61 @@ function ReviewBlock({
   );
 }
 
-/** Step 3: what will be shipped where and how it is paid, then the order button. */
+/** How the order will be paid, as the payment step collected it. */
+function PaymentLines({ payment }: { payment: PaymentSummary }) {
+  if (!isMercadoPagoPayment(payment)) {
+    return (
+      <p className="font-medium text-fg">
+        {cardBrandLabel(payment.brand)} <span className="font-mono">•••• {payment.last4}</span>
+      </p>
+    );
+  }
+  if (payment.method === "wallet") {
+    return (
+      <>
+        <p className="font-medium text-fg">Cuenta de Mercado Pago</p>
+        <p>Al confirmar te llevamos a Mercado Pago para pagar.</p>
+      </>
+    );
+  }
+  if (payment.method === "ticket") {
+    return (
+      <>
+        <p className="font-medium text-fg">{cardBrandLabel(payment.brand)} (efectivo)</p>
+        <p>Al confirmar generamos el ticket para que pagues en efectivo.</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="font-medium text-fg">
+        {cardBrandLabel(payment.brand)}
+        {payment.last4 ? <span className="font-mono"> •••• {payment.last4}</span> : null}
+      </p>
+      {payment.installments ? <p>{installmentsLabel(payment.installments)}</p> : null}
+    </>
+  );
+}
+
+/**
+ * Step 3: what will be shipped where and how it is paid, then "Realizar
+ * pedido". Entering this step prepares the order on the server (prices,
+ * stock, shipping); the button waits for it and charges exactly that total.
+ */
 export function ReviewStep({
   shippingInfo,
   payment,
   total,
+  error,
+  notice,
   focusHeading,
   isProcessing,
   onEditShipping,
   onEditPayment,
   onPlaceOrder,
+  onRetry,
 }: ReviewStepProps) {
+  const preparing = total === null && !error;
   return (
     <StepPanel
       titleId="review-title"
@@ -109,21 +163,39 @@ export function ReviewStep({
           onEdit={onEditPayment}
           disabled={isProcessing}
         >
+          {/* Only what the card told us: the payment forms ask no cardholder name here, so the shipping name is not shown. */}
           <div className="space-y-0.5 text-label font-normal text-fg-secondary" data-testid="review-payment">
-            <p className="font-medium text-fg">
-              {CARD_BRAND_LABELS[payment.brand]} <span className="font-mono">{maskedNumber(payment.last4)}</span>
-            </p>
-            <p>{payment.cardName}</p>
-            <p>Vence {payment.expiryDate}</p>
+            <PaymentLines payment={payment} />
           </div>
         </ReviewBlock>
       </div>
 
-      <div className="mt-6 flex items-baseline justify-between gap-4 rounded-xl bg-bg-subtle p-4">
+      {notice ? (
+        <FormAlert tone="success" className="mt-6">
+          {notice}
+        </FormAlert>
+      ) : null}
+      {error ? (
+        <div className="mt-6 space-y-3">
+          <FormAlert>{error}</FormAlert>
+          {onRetry ? (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <RotateCcw aria-hidden="true" />
+              Reintentar
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-6 flex items-baseline justify-between gap-4 rounded-xl bg-bg-subtle p-4" aria-busy={preparing || undefined}>
         <span className="font-semibold text-fg">Total a pagar</span>
-        <span className="text-title text-fg tabular-nums" data-testid="review-total">
-          {formatPrice(total)}
-        </span>
+        {total === null ? (
+          <Skeleton className="h-7 w-28" />
+        ) : (
+          <span className="text-title text-fg tabular-nums" data-testid="review-total">
+            {formatPrice(total)}
+          </span>
+        )}
       </div>
 
       <p className="mt-4 text-caption text-fg-muted">
@@ -135,7 +207,7 @@ export function ReviewStep({
       </p>
 
       <p role="status" aria-live="polite" className="sr-only">
-        {isProcessing ? "Procesando el pago…" : ""}
+        {isProcessing ? "Procesando el pago…" : preparing ? "Calculando el total…" : ""}
       </p>
 
       <div className="mt-5 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -143,9 +215,16 @@ export function ReviewStep({
           <ChevronLeft aria-hidden="true" />
           Volver a pago
         </Button>
-        <Button size="lg" onClick={onPlaceOrder} loading={isProcessing} focusableWhenDisabled data-testid="place-order">
+        <Button
+          size="lg"
+          onClick={onPlaceOrder}
+          loading={isProcessing}
+          disabled={total === null}
+          focusableWhenDisabled
+          data-testid="place-order"
+        >
           {isProcessing ? null : <Lock aria-hidden="true" />}
-          {isProcessing ? "Procesando…" : "Confirmar pedido"}
+          {isProcessing ? "Procesando…" : "Realizar pedido"}
         </Button>
       </div>
     </StepPanel>

@@ -1,12 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Truck } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
-import { themeLinks, type NavItem } from "@/config/navigation";
+import { logoutAction } from "@/lib/auth/actions";
+import type { NavItem } from "@/config/navigation";
+import type { StoreSettings } from "@/lib/settings/defaults";
 import { SearchAutocomplete } from "@/components/search";
 import type { Category } from "@/types";
+import { AnnouncementBar } from "./AnnouncementBar";
 import { NavLink } from "./NavLink";
+import type { NavAccount } from "./AccountMenu";
 import { NavbarActions } from "./NavbarActions";
 import { ThemesMenu } from "./ThemesMenu";
 
@@ -17,11 +19,26 @@ const navLinkClasses =
   "inline-flex h-10 items-center rounded-lg px-3 font-medium text-fg-secondary transition-colors duration-fast ease-standard hover:bg-bg-muted hover:text-fg aria-[current=page]:bg-bg-muted aria-[current=page]:text-fg";
 
 /**
- * Site header. Server Component: the promo strip, logo and links render on
+ * Site header. Server Component: the announcement bar (the admin's, from the
+ * store's settings), logo and links render on
  * the server; NavLink (aria-current), ThemesMenu, SearchAutocomplete and
- * NavbarActions (counts, drawers, menus) are the client islands.
+ * NavbarActions (counts, drawers, menus, account) are the client islands.
+ * The root layout reads the session and passes `account`, so the signed-in
+ * state is in the server HTML (no flash after hydration).
  */
-export function Navbar({ categories }: { categories: Pick<Category, "id" | "name">[] }) {
+export function Navbar({
+  categories,
+  themes,
+  account,
+  settings = null,
+}: {
+  categories: Pick<Category, "id" | "name">[];
+  /** The "Temas" menu (config/navigation.ts themeNavItems). */
+  themes: NavItem[];
+  account: NavAccount | null;
+  /** The store's settings (the announcement bar); null leaves the bar out (Storybook). */
+  settings?: StoreSettings | null;
+}) {
   const links: NavItem[] = [
     { name: "Todos", href: "/" },
     ...categories.map((c) => ({ name: c.name, href: `/category/${c.id}` })),
@@ -29,18 +46,7 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
 
   return (
     <>
-      <aside aria-label="Promoción" className="bg-brand-red text-on-brand-red">
-        <p className="container-custom flex flex-wrap items-center justify-center gap-x-2 py-2 text-center text-label font-medium">
-          <Truck aria-hidden="true" className="size-4 shrink-0" />
-          <span>Envío gratis en compras desde {formatPrice(siteConfig.commerce.freeShippingThreshold)}</span>
-          <Link
-            href="/envios"
-            className="rounded-sm font-semibold underline underline-offset-2 hover:no-underline focus-visible:outline-on-brand-red"
-          >
-            Ver condiciones
-          </Link>
-        </p>
-      </aside>
+      {settings ? <AnnouncementBar announcement={settings.announcement} settings={settings} /> : null}
 
       <header data-site-header className="sticky top-0 z-40 border-b border-border bg-surface/90 shadow-sm backdrop-blur-md">
         <div className="container-custom flex h-header items-center gap-2 lg:gap-4">
@@ -58,7 +64,7 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
                 </li>
               ))}
               <li>
-                <ThemesMenu themes={themeLinks} triggerClassName="h-10 px-3 text-body font-medium" />
+                {themes.length > 0 ? <ThemesMenu themes={themes} triggerClassName="h-10 px-3 text-body font-medium" /> : null}
               </li>
             </ul>
           </nav>
@@ -67,7 +73,7 @@ export function Navbar({ categories }: { categories: Pick<Category, "id" | "name
             <SearchAutocomplete className="w-full max-w-md" />
           </div>
 
-          <NavbarActions links={links} themes={themeLinks} />
+          <NavbarActions links={links} themes={themes} account={account} logoutAction={logoutAction} />
         </div>
       </header>
     </>

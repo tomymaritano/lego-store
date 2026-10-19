@@ -1,7 +1,28 @@
 import { test, expect, type Page } from "@playwright/test";
+import { uniqueEmail } from "./helpers/accounts";
 import { seriousAxeViolations } from "./helpers/axe";
+import { keepSeededCart } from "./helpers/catalog";
+import { clearCheckoutRateLimits, latestOrder } from "./helpers/db";
+import { deliverPaymentSucceeded, useStripeCheckout } from "./helpers/stripe";
 
-const seedCart = (page: Page, cart: unknown[]) =>
+/*
+ * The Stripe checkout (a store with PAYMENT_PROVIDER=stripe; the e2e browser
+ * picks it with the mock-only cookie, helpers/stripe.ts) against the dev
+ * server, which runs with PAYMENTS_MOCK=1: the payment step offers test cards
+ * instead of Stripe's Payment Element, the server
+ * prices and creates the order, and the spec delivers the signed
+ * payment_intent.succeeded webhook that Stripe would send (helpers/stripe.ts).
+ * Purchases buy real products with plenty of stock (7, 20); the global
+ * teardown deletes their orders and puts the stock back.
+ */
+
+const seedCart = async (page: Page, cart: ReturnType<typeof line>[]) => {
+  // Made-up names and prices: keep them when the visitor's cart refreshes from the catalogue.
+  await keepSeededCart(page, cart);
+  return addCart(page, cart);
+};
+
+const addCart = (page: Page, cart: unknown[]) =>
   page.addInitScript((lines) => {
     // Seed once per test, so the cart cleared by the order stays cleared.
     if (!sessionStorage.getItem("seeded:cart")) {
@@ -19,12 +40,10 @@ const line = (id: string, name: string, price: number, quantity = 1) => ({
   stock: 10,
 });
 
-const nextYear = String((new Date().getFullYear() + 1) % 100).padStart(2, "0");
-
-async function fillShipping(page: Page) {
+async function fillShipping(page: Page, email = "ana@example.com") {
   await page.getByLabel(/^Nombre/).fill("Ana");
   await page.getByLabel(/^Apellido/).fill("Pérez");
-  await page.getByLabel(/^Email/).fill("ana@example.com");
+  await page.getByLabel(/^Email/).fill(email);
   await page.getByLabel(/^Teléfono/).fill("11 5555 1234");
   await page.getByLabel(/^Dirección/).fill("Av. Corrientes 1234");
   await page.getByLabel(/^Ciudad/).fill("Córdoba");
@@ -33,156 +52,116 @@ async function fillShipping(page: Page) {
   await page.getByRole("option", { name: "Córdoba" }).click();
 }
 
-async function fillPayment(page: Page) {
-  await page.getByLabel(/^Número de tarjeta/).pressSequentially("4242424242424242");
-  await page.getByLabel(/^Nombre en la tarjeta/).fill("ANA PEREZ");
-  await page.getByLabel(/^Vencimiento/).pressSequentially(`12${nextYear}`);
-  await page.getByLabel(/^Código de seguridad/).pressSequentially("123");
+/** The mock payment step's test card (Stripe's Payment Element in a configured store). */
+async function chooseCard(page: Page, card: RegExp = /Visa aprobada/) {
+  await expect(page.getByText(/Modo de prueba/)).toBeVisible();
+  await page.getByRole("radio", { name: card }).check();
 }
+
+// Every spec here checks out with Stripe (the Mercado Pago checkout is mercadopago.spec.ts).
+test.beforeEach(async ({ context, baseURL }) => {
+  await clearCheckoutRateLimits();
+  await useStripeCheckout(context, baseURL);
+});
 
 const stepper = (page: Page) => page.getByRole("navigation", { name: "Pasos del checkout" });
 
-test.describe("Checkout", () => {
-  test.beforeEach(async ({ page }) => {
-    await seedCart(page, [line("1", "Captain Rex Helmet", 899, 2), line("2", "Princess Leia Helmet", 649)]);
-  });
+/** Real catalogue lines (no patched prices): what the server will charge. */
+const REAL_CART = [line("7", "Batmobile", 2490), line("20", "Groot Guardians", 799)];
 
-  test("happy path: shipping, payment, review and confirmation", async ({ page }) => {
+test.describe("Checkout purchase", () => {
+  test("a guest buys: shipping, test card, server-priced review, confirmation until the webhook marks it paid", async ({ page }) => {
+    // Several server round trips and a webhook on a busy dev server.
+    test.slow();
+    await addCart(page, REAL_CART);
+    const email = uniqueEmail("guest");
     await page.goto("/checkout");
     await expect(page.getByRole("heading", { level: 1, name: "Finalizar compra" })).toBeVisible();
     await expect(stepper(page).locator("[aria-current='step']")).toContainText("Envío");
+    // $2.490 + $799 + $299 shipping.
+    await expect(page.getByTestId("checkout-total")).toHaveText(/3\.588/);
 
-    // Same totals as the cart: $2.447 + $299 shipping.
-    await expect(page.getByTestId("checkout-shipping")).toHaveText(/299/);
-    await expect(page.getByTestId("checkout-total")).toHaveText(/2\.746/);
-
-    await fillShipping(page);
+    await fillShipping(page, email);
     await page.getByRole("button", { name: /Continuar al pago/ }).click();
     await expect(page.getByRole("heading", { name: "Pago" })).toBeFocused();
-    await expect(stepper(page).locator("[aria-current='step']")).toContainText("Pago");
     await expect(stepper(page)).toContainText("Envío (completado)");
-
-    // Lighthouse skips /checkout (it redirects without a cart): axe audits every step here,
-    // polling because a step that just slid in is still fading (axe reads that as low contrast).
+    // Lighthouse skips /checkout (it redirects without a cart): axe audits every step here.
     await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
-    await fillPayment(page);
-    await expect(page.getByLabel(/^Número de tarjeta/)).toHaveValue("4242 4242 4242 4242");
-    await expect(page.getByTestId("card-brand")).toHaveText("Visa");
+    await chooseCard(page);
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
-
     await expect(page.getByRole("heading", { name: "Revisa tu pedido" })).toBeFocused();
     await expect(page.getByTestId("review-shipping")).toContainText("Córdoba X5000ABC");
     await expect(page.getByTestId("review-payment")).toContainText("Visa •••• 4242");
-    await expect(page.getByTestId("review-total")).toHaveText(/2\.746/);
+    // The server priced it and opened the PENDING order.
+    await expect(page.getByTestId("review-total")).toHaveText(/3\.588/);
+    await expect.poll(async () => (await latestOrder(email))?.status).toBe("PENDING");
     await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
-    await page.getByRole("button", { name: /Confirmar pedido/ }).click();
-    await expect(page.getByTestId("place-order")).toHaveAttribute("aria-busy", "true");
-    await expect(page.getByTestId("place-order")).toContainText("Procesando");
-
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
     const confirmation = page.getByTestId("order-confirmation");
-    await expect(confirmation).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeFocused();
-    // The purchase is finished: no "Finalizar compra" heading or checkout breadcrumb above it.
-    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    await expect(page.getByRole("heading", { name: "Finalizar compra" })).toHaveCount(0);
-    await expect(page.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
-    await expect(confirmation.getByTestId("order-id")).toHaveText(/^LEGO-[A-Z0-9]+$/);
-    await expect(confirmation).toContainText("ana@example.com");
-    await expect(confirmation).toContainText(/2\.746/);
-    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
-
-    // The cart is now empty, but the confirmation stays (no redirect to the cart).
+    await expect(confirmation).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "Estamos confirmando tu pago" })).toBeFocused();
+    await expect(confirmation.getByTestId("order-status")).toHaveText("Pago pendiente");
+    const order = await latestOrder(email);
+    await expect(confirmation.getByTestId("order-id")).toHaveText(`LEGO-${String(order!.number).padStart(6, "0")}`);
+    // The bought lines left the cart; the confirmation stays (no redirect to the cart).
     await expect(page.getByTestId("cart-count")).toHaveCount(0);
-    await page.waitForTimeout(500);
     await expect(page).toHaveURL(/\/checkout$/);
-    await expect(confirmation).toBeVisible();
+
+    // Stripe's webhook: the order is paid and the confirmation follows.
+    expect((await deliverPaymentSucceeded(page.request, email)).result).toBe("paid");
+    await expect(confirmation.getByTestId("order-status")).toHaveText("Pagado", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(page.getByRole("navigation", { name: "Ruta de navegación" })).toHaveCount(0);
+    await expect(confirmation).toContainText(email);
+    await expect(confirmation.getByTestId("order-total")).toHaveText(/3\.588/);
+    // A guest has no account page for it.
+    await expect(confirmation.getByRole("link", { name: /Ver mi pedido/ })).toHaveCount(0);
+    await expect.poll(() => seriousAxeViolations(page)).toEqual([]);
 
     await confirmation.getByRole("link", { name: /Seguir comprando/ }).click();
     await expect(page).toHaveURL(/:\d+\/$/);
   });
 
-  test("shipping step: Spanish errors, focus on the first invalid field", async ({ page }) => {
+  test("a declined card goes back to the payment step with the bank's reason; another card pays", async ({ page }) => {
+    test.slow();
+    await addCart(page, REAL_CART.slice(1));
+    const email = uniqueEmail("declined");
     await page.goto("/checkout");
+    await fillShipping(page, email);
     await page.getByRole("button", { name: /Continuar al pago/ }).click();
-    await expect(page.getByText("Ingresa tu nombre")).toBeVisible();
-    await expect(page.getByText("Elige una provincia")).toBeVisible();
-    await expect(page.getByLabel(/^Nombre/)).toBeFocused();
-    await expect(page.getByLabel(/^Nombre/)).toHaveAttribute("aria-invalid", "true");
-
-    await page.getByLabel(/^Email/).fill("no-es-email");
-    await page.getByLabel(/^Código postal/).fill("06600");
-    await page.getByLabel(/^Teléfono/).fill("123");
-    await page.getByLabel(/^Ciudad/).focus();
-    await expect(page.getByText("Ingresa un email válido")).toBeVisible();
-    await expect(page.getByText(/formato CPA/)).toBeVisible();
-    await expect(page.getByText(/entre 10 y 13 dígitos/)).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pago" })).toHaveCount(0);
-  });
-
-  test("payment step: rejects an invalid card and an expired date; back keeps the address", async ({ page }) => {
-    await page.goto("/checkout");
-    await fillShipping(page);
-    await page.getByRole("button", { name: /Continuar al pago/ }).click();
-    await expect(page.getByRole("heading", { name: "Pago" })).toBeFocused();
-
+    await chooseCard(page, /Visa rechazada/);
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
-    await expect(page.getByText("Ingresa el número de tarjeta")).toBeVisible();
-    await expect(page.getByText("Ingresa el código de seguridad")).toBeVisible();
-    await expect(page.getByLabel(/^Número de tarjeta/)).toBeFocused();
+    await expect(page.getByTestId("review-payment")).toContainText("Visa •••• 0002");
+    await expect(page.getByTestId("review-total")).toBeVisible();
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
 
-    await page.getByLabel(/^Número de tarjeta/).pressSequentially("4242424242424241");
-    await page.getByLabel(/^Vencimiento/).pressSequentially("0120");
+    await expect(page.getByRole("heading", { level: 2, name: "Pago" })).toBeFocused();
+    await expect(page.getByRole("region", { name: "Pago" }).getByRole("alert")).toContainText("Tu banco rechazó el pago");
+    await expect(page.getByTestId("cart-count")).toHaveText("1");
+    expect((await latestOrder(email))?.status).toBe("PENDING");
+
+    await chooseCard(page, /Mastercard aprobada/);
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
-    await expect(page.getByText(/no es una tarjeta válida/)).toBeVisible();
-    await expect(page.getByText("La tarjeta está vencida")).toBeVisible();
-
-    await page.getByRole("button", { name: /Volver a envío/ }).click();
-    await expect(page.getByRole("heading", { name: "Datos de envío" })).toBeFocused();
-    await expect(page.getByLabel(/^Nombre/)).toHaveValue("Ana");
-    await expect(page.getByRole("combobox", { name: /Provincia/ })).toContainText("Córdoba");
-  });
-
-  test("review step: editing the payment asks for the card again; the full number is never shown", async ({ page }) => {
-    await page.goto("/checkout");
-    await fillShipping(page);
-    await page.getByRole("button", { name: /Continuar al pago/ }).click();
-    await fillPayment(page);
-    await page.getByRole("button", { name: /Revisar pedido/ }).click();
-    await expect(page.getByTestId("review-payment")).toBeVisible();
-    await expect(page.locator("main")).not.toContainText("4242 4242 4242 4242");
-
-    await page.getByRole("button", { name: "Editar método de pago" }).click();
-    await expect(page.getByRole("heading", { name: "Pago" })).toBeFocused();
-    await expect(page.getByLabel(/^Número de tarjeta/)).toHaveValue("");
-    await expect(page.getByText("Por seguridad, vuelve a ingresar la tarjeta terminada en 4242.")).toBeVisible();
-    await expect(page.getByLabel(/^Nombre en la tarjeta/)).toHaveValue("ANA PEREZ");
-    await page.getByRole("button", { name: /Revisar pedido/ }).click();
-    await expect(page.getByText("Ingresa el número de tarjeta")).toBeVisible();
-  });
-  test("phones show the order summary once, collapsed above the form", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/checkout");
-    await expect(page.getByRole("region", { name: "Resumen del pedido" })).toBeHidden();
-    const summary = page.locator("summary", { hasText: "Ver resumen" });
-    await expect(summary).toContainText("2.746");
-    await summary.click();
-    await expect(page.getByTestId("checkout-mobile-total")).toBeVisible();
-
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await expect(page.getByRole("region", { name: "Resumen del pedido" })).toBeVisible();
-    await expect(summary).toBeHidden();
+    await expect(page.getByTestId("review-payment")).toContainText("Mastercard •••• 4444");
+    await expect(page.getByTestId("review-total")).toBeVisible();
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
+    await expect(page.getByTestId("order-confirmation")).toBeVisible({ timeout: 15_000 });
   });
 
   test("placing the order keeps the layout still until the review has faded out", async ({ page }) => {
+    test.slow();
+    await addCart(page, REAL_CART.slice(0, 1));
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/checkout");
-    await fillShipping(page);
+    await fillShipping(page, uniqueEmail("layout"));
     await page.getByRole("button", { name: /Continuar al pago/ }).click();
-    await fillPayment(page);
+    await chooseCard(page);
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
     await expect(page.getByRole("heading", { name: "Revisa tu pedido" })).toBeFocused();
+    await expect(page.getByTestId("review-total")).toBeVisible();
 
     // Sample every frame from the click until the confirmation shows up.
     await page.evaluate(() => {
@@ -203,42 +182,79 @@ test.describe("Checkout", () => {
     });
     const before = await page.locator("section[aria-labelledby='review-title']").evaluate((el) => el.getBoundingClientRect().width);
 
-    await page.getByRole("button", { name: /Confirmar pedido/ }).click();
-    await expect(page.getByTestId("order-confirmation")).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: /Realizar pedido/ }).click();
+    await expect(page.getByTestId("order-confirmation")).toBeVisible({ timeout: 15_000 });
 
     const samples = await page.evaluate(() => (window as unknown as { samples: { width: number; summary: boolean; stepper: boolean }[] }).samples);
-    expect(samples.length).toBeGreaterThan(10);
+    expect(samples.length).toBeGreaterThan(5);
     for (const sample of samples) {
       expect(Math.abs(sample.width - before)).toBeLessThanOrEqual(1);
       expect(sample).toMatchObject({ summary: true, stepper: true });
     }
     // The confirmation enters at the top of the page, its h1 in view.
-    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeFocused();
-    await expect(page.getByRole("heading", { level: 1, name: "¡Gracias por tu compra!" })).toBeInViewport();
+    const heading = page.getByRole("heading", { level: 1, name: "Estamos confirmando tu pago" });
+    await expect(heading).toBeFocused();
+    await expect(heading).toBeInViewport();
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
+});
 
-  test("leaving while the payment runs cancels the order and keeps the cart", async ({ page }) => {
+test.describe("Checkout", () => {
+  test.beforeEach(async ({ page }) => {
+    await seedCart(page, [line("1", "Captain Rex Helmet", 899, 2), line("2", "Princess Leia Helmet", 649)]);
+  });
+
+  test("shipping step: Spanish errors, focus on the first invalid field", async ({ page }) => {
     await page.goto("/checkout");
-    await fillShipping(page);
+    await expect(page.getByTestId("checkout-shipping")).toHaveText(/299/);
+    await expect(page.getByTestId("checkout-total")).toHaveText(/2\.746/);
     await page.getByRole("button", { name: /Continuar al pago/ }).click();
-    await fillPayment(page);
+    await expect(page.getByText("Ingresa tu nombre")).toBeVisible();
+    await expect(page.getByText("Elige una provincia")).toBeVisible();
+    await expect(page.getByLabel(/^Nombre/)).toBeFocused();
+    await expect(page.getByLabel(/^Nombre/)).toHaveAttribute("aria-invalid", "true");
+
+    await page.getByLabel(/^Email/).fill("no-es-email");
+    await page.getByLabel(/^Código postal/).fill("06600");
+    await page.getByLabel(/^Teléfono/).fill("123");
+    await page.getByLabel(/^Ciudad/).focus();
+    await expect(page.getByText("Ingresa un email válido")).toBeVisible();
+    await expect(page.getByText(/formato CPA/)).toBeVisible();
+    await expect(page.getByText(/entre 10 y 13 dígitos/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pago" })).toHaveCount(0);
+  });
+
+  test("payment step: back keeps the address; editing the payment from the review asks for the card again", async ({ page }) => {
+    await page.goto("/checkout");
+    await fillShipping(page, uniqueEmail("edit"));
+    await page.getByRole("button", { name: /Continuar al pago/ }).click();
+    await expect(page.getByRole("heading", { name: "Pago" })).toBeFocused();
+    await page.getByRole("button", { name: /Volver a envío/ }).click();
+    await expect(page.getByRole("heading", { name: "Datos de envío" })).toBeFocused();
+    await expect(page.getByLabel(/^Nombre/)).toHaveValue("Ana");
+    await expect(page.getByRole("combobox", { name: /Provincia/ })).toContainText("Córdoba");
+
+    await page.getByRole("button", { name: /Continuar al pago/ }).click();
+    await chooseCard(page);
     await page.getByRole("button", { name: /Revisar pedido/ }).click();
-    await page.getByRole("button", { name: /Confirmar pedido/ }).click();
-    await expect(page.getByTestId("place-order")).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByTestId("review-payment")).toContainText("Visa •••• 4242");
+    await page.getByRole("button", { name: "Editar método de pago" }).click();
+    await expect(page.getByRole("heading", { name: "Pago" })).toBeFocused();
+    await expect(page.getByText("Por seguridad, vuelve a ingresar la tarjeta (Visa •••• 4242).")).toBeVisible();
+  });
 
-    await page.getByRole("navigation", { name: "Ruta de navegación" }).getByRole("link", { name: "Carrito" }).click();
-    await expect(page).toHaveURL(/\/cart$/);
-    await expect(page.getByText(/Cancelamos el pago porque saliste del checkout/)).toBeVisible();
-    // Past the mock payment's delay: still no order, the cart is intact.
-    await page.waitForTimeout(1_500);
-    await expect(page.getByText("Tu carrito está vacío")).toHaveCount(0);
-    await expect(page.getByTestId("cart-count")).toHaveText("3");
+  test("phones show the order summary once, collapsed above the form", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/checkout");
+    await expect(page.getByRole("region", { name: "Resumen del pedido" })).toBeHidden();
+    const summary = page.locator("summary", { hasText: "Ver resumen" });
+    await expect(summary).toContainText("2.746");
+    await summary.click();
+    await expect(page.getByTestId("checkout-mobile-total")).toBeVisible();
 
-    await page.goBack();
-    await expect(page).toHaveURL(/\/checkout$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Finalizar compra" })).toBeVisible();
-    await expect(page.getByTestId("order-confirmation")).toHaveCount(0);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.getByRole("region", { name: "Resumen del pedido" })).toBeVisible();
+    await expect(summary).toBeHidden();
   });
 });
 

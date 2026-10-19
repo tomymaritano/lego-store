@@ -27,6 +27,7 @@ const baseProduct = {
   isNew: false,
   isOnSale: false,
   rating: 4.8,
+  reviewCount: 4,
   category: "helmet",
   type: "Sets",
   age: "18+",
@@ -115,6 +116,10 @@ export const WithSecondaryImage: Story = {
 
 export const LowStock: Story = {
   args: { product: { ...baseProduct, stock: 3 } },
+};
+
+export const NoReviews: Story = {
+  args: { product: { ...baseProduct, id: "11", rating: 0, reviewCount: 0 } },
 };
 
 export const Dark: Story = {

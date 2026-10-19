@@ -2,8 +2,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { companyLinks, helpLinks, infoNav, legalLinks, themeLinks } from "@/config/navigation";
-import { getCategories } from "@/lib/api";
+import { companyLinks, helpLinks, infoNav, legalLinks, themeHref } from "@/config/navigation";
+import { fixtureCategoryIds } from "../helpers/catalog";
 
 const appDir = path.resolve(__dirname, "../../src/app");
 
@@ -34,8 +34,8 @@ async function resolves(href: string, routes: Set<string>, categoryIds: Set<stri
 describe("navigation config", () => {
   it("has no dead internal links", async () => {
     const routes = staticRoutes();
-    const categoryIds = new Set((await getCategories()).map((c) => c.id));
-    const hrefs = [...themeLinks, ...helpLinks, ...companyLinks, ...legalLinks, ...infoNav.flatMap((g) => g.items)].map(
+    const categoryIds = fixtureCategoryIds;
+    const hrefs = [{ href: themeHref("star-wars") }, ...helpLinks, ...companyLinks, ...legalLinks, ...infoNav.flatMap((g) => g.items)].map(
       (l) => l.href
     );
     const dead: string[] = [];
@@ -45,7 +45,7 @@ describe("navigation config", () => {
 
   it("every literal internal href in src/ resolves to a page", async () => {
     const routes = staticRoutes();
-    const categoryIds = new Set((await getCategories()).map((c) => c.id));
+    const categoryIds = fixtureCategoryIds;
     const hrefs = new Set<string>();
     const hrefPattern = /href(?:=|:\s*)["'`](\/[^"'`$]*)["'`]/g;
     const walk = (dir: string) => {

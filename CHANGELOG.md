@@ -5,6 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+The backend (see `docs/superpowers/specs/2026-10-17-backend-completo-design.md`
+and the guides in `docs/`): the store runs on PostgreSQL with accounts, server
+carts, reviews, orders and payments, and an admin panel. Then the extension
+decided on 2026-10-17: Mercado Pago as the main payment provider, coupons, the
+full admin (users, categories and themes, uploads, settings, content, inbox,
+dashboard, exports, audit log), sitemap and robots, and the documentation.
+
+### Added
+
+- **Database**: PostgreSQL 17 in Docker (`npm run db:up`), Prisma 7 data model
+  and migrations with hand-written `CHECK` constraints, an idempotent seed
+  (catalogue, sample reviews and orders, coupons, settings, content, admin), a
+  separate test database for the Vitest `integration` project.
+- **Catalogue from the database** through `src/lib/api`, cached with Next's data
+  cache under tags that every write invalidates; one normalised search column.
+- **Accounts** (Auth.js v5): email and password, optional Google, JWT sessions
+  revocable through `sessionVersion` ("Cerrar sesión en todos los
+  dispositivos"), roles USER / ADMIN, `/login`, `/register`, `/account`, 403 page.
+- **Rate limiting** on Postgres (login, registration, reviews, checkout, coupons,
+  lists, uploads, contact, newsletter), shared by every instance.
+- **Cart and wishlist per account**, merged once on login, with optimistic
+  updates.
+- **Reviews in the database**: one per user and product, verified purchase,
+  "útil" votes, cached rating, server-side sort and pages.
+- **Orders and payments**: server-priced orders, "Mis pedidos", order emails
+  (Resend, or the console without keys), pending-orders cleanup cron.
+- **Mercado Pago** as the default provider: Payment Brick (cards in
+  installments, cash tickets), Checkout Pro (account money), `PAYMENT_PENDING`
+  orders with ticket instructions, signed and idempotent webhooks (`x-signature`,
+  the payment read from the API), refunds and cancellations from the admin.
+  **Stripe** stays as the alternative behind a `PaymentProvider` interface
+  (`PAYMENT_PROVIDER`); every order keeps its provider.
+- **Payments mock** for tests and e2e (`PAYMENTS_MOCK=1`, never in a production
+  build) and an optional e2e against real Stripe test mode
+  (`npm run test:e2e:stripe`).
+- **Coupons**: percent or fixed, minimum, dates, total and per-customer limits;
+  validated on the server; a use counts toward the total limit once its payment
+  is submitted (an unpaid checkout's 30-minute hold does not take one), held
+  while a payment is pending, released by a database trigger when the order is
+  cancelled.
+- **Admin panel**: dashboard with KPIs and charts for a date range; products
+  (archive, stock compare-and-set, gallery with alt texts); categories and themes
+  in the database with ordering and slug redirects; orders with ship / deliver /
+  cancel-and-refund; review moderation; coupons; users with roles and blocking;
+  contact inbox; newsletter subscribers; editable info pages (draft / publish);
+  store settings (shipping, announcement bar, contact, featured products); CSV
+  exports (orders, customers, newsletter, contact messages); an audit log of
+  every admin mutation, with a short "Historial" on each record's page.
+- **Image uploads** for the admin, re-encoded with sharp, stored in Vercel Blob
+  (`BLOB_READ_WRITE_TOKEN`) or on the local disk.
+- **Contact messages and newsletter** stored, with signed unsubscribe links and
+  a confirmation email to re-subscribe.
+- `/sitemap.xml` and `/robots.txt` from the database.
+- **Docs**: `docs/backend.md`, `docs/data-model.md`, `docs/payments.md`,
+  `docs/admin.md`, `docs/deploy.md`; architecture, testing and contributing
+  guides updated for the backend; a complete `.env.example`.
+
+### Security
+
+- Anti-framing on every route (`X-Frame-Options: DENY`, CSP
+  `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`), `nosniff`,
+  `Referrer-Policy`, HSTS in production, no `X-Powered-By`.
+- An admin's logout always revokes every admin session.
+- A production server that trusts no client IP (neither `VERCEL=1` nor
+  `TRUSTED_PROXY_HOPS`) or runs the payments mock warns at startup.
+- "Realizar pedido" charges only the card shown at "Revisar".
+- A production server without Resend logs no email bodies.
+- Unpaid checkouts cannot use up a limited coupon; deleting someone else's
+  review is only possible as audited moderation from the admin.
+- The Mercado Pago webhook checks the signature before reading the body, and
+  both webhooks cap their bodies; `next/image` and admin picture URLs accept only
+  the store's own Vercel Blob store.
+- Unpaid cash tickets and payments waiting on 3D Secure take no coupon use
+  (neither the coupon's total nor someone else's per-email allowance); the
+  coupon is checked again when they are paid, and refunded if it no longer fits.
+- The checkout's JSON bodies are capped at 64 KB (413); an off or upcoming
+  coupon reads as an unknown code to a visitor who never had it accepted.
+
+### Changed
+
+- Shipping cost and free-shipping threshold come from the store settings;
+  `lib/pricing` takes them as an argument.
+- Theme links and filters use the theme's slug (`/search?theme=star-wars`);
+  names keep working.
+- Server messages, setup docs and ESLint guardrail messages in tuteo.
+- Playwright: a `store-ops` project, configurable ports, the production build
+  starts before `next dev`; a reused dev server must be this checkout's on its
+  database; 4 local workers.
+- Checkout: a placed order moves to `/checkout/pedido/<id>` (a reload keeps it);
+  the cart and the first step say when payments are unavailable.
+- CI also runs on `feat/**` branches and PRs into them.
+
 ## [2.0.0] - 2026-10-17
 
 UI overhaul (see `docs/superpowers/specs/2026-10-17-ui-overhaul-design.md`).
@@ -165,6 +259,6 @@ UI overhaul (see `docs/superpowers/specs/2026-10-17-ui-overhaul-design.md`).
 
 ## Roadmap
 
-Next: a real backend (database catalogue, users, server-side cart, orders,
-payments, real reviews, admin). See
-`docs/superpowers/specs/2026-10-17-backend-completo-design.md`.
+Pending work is tracked in the backend spec
+(`docs/superpowers/specs/2026-10-17-backend-completo-design.md`) and in the
+"Qué no cubre ningún test automático" section of `docs/testing.md`.

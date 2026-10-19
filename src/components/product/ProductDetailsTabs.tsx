@@ -2,13 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import { useReviewStore } from "@/stores/reviewStore";
+import type { ReviewPage } from "@/types";
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
 import { REVIEWS_HASH, WRITE_REVIEW_HASH } from "./anchors";
 import type { ReviewsFocusRequest } from "./ProductReviews";
 
-// Reviews live in a closed tab and come from the client-side review store, so
-// they load after hydration: their sort menu (Base UI Select + floating UI)
+// Reviews live in a closed tab, so their list loads after hydration: their sort menu (Base UI Select + floating UI)
 // and list stay out of the product page's first-load JS.
 const ProductReviews = dynamic(() => import("./ProductReviews").then((mod) => mod.ProductReviews), {
   ssr: false,
@@ -19,6 +18,8 @@ type DetailsTab = "description" | "specs" | "reviews";
 
 interface ProductDetailsTabsProps {
   productId: string;
+  /** First page of the product's reviews (database), newest first, with the summary. */
+  reviews: ReviewPage;
   /** Server-rendered panels: they stay in the HTML even while their tab is not selected. */
   description: ReactNode;
   specs: ReactNode;
@@ -31,10 +32,10 @@ interface ProductDetailsTabsProps {
  * selects the reviews tab and focuses its heading; #escribir-resena also opens
  * the review form and focuses its first field.
  */
-export function ProductDetailsTabs({ productId, description, specs }: ProductDetailsTabsProps) {
+export function ProductDetailsTabs({ productId, reviews, description, specs }: ProductDetailsTabsProps) {
   const [tab, setTab] = useState<DetailsTab>("description");
   const [focusRequest, setFocusRequest] = useState<ReviewsFocusRequest | null>(null);
-  const reviewCount = useReviewStore((state) => state.reviews.filter((r) => r.productId === productId).length);
+  const reviewCount = reviews.summary.count;
 
   useEffect(() => {
     const openFromHash = () => {
@@ -71,7 +72,7 @@ export function ProductDetailsTabs({ productId, description, specs }: ProductDet
           {specs}
         </TabsContent>
         <TabsContent value="reviews" keepMounted className="pt-4">
-          <ProductReviews productId={productId} focusRequest={focusRequest} />
+          <ProductReviews productId={productId} initialPage={reviews} focusRequest={focusRequest} />
         </TabsContent>
       </Tabs>
     </section>

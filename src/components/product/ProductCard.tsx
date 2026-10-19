@@ -8,6 +8,7 @@ import { Eye, Heart, Scale } from "lucide-react";
 import { hoverLift } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
 import { PLACEHOLDER_IMAGE, calculateDiscount, cn } from "@/lib/utils";
+import { collectionBadgeLabel } from "@/lib/collection";
 import { useProductActions } from "@/hooks/useProductActions";
 import { Badge, IconButton, Price, Rating, cardVariants } from "@/components/ui";
 import { AddToCartButton } from "./AddToCartButton";
@@ -67,7 +68,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
             </Badge>
           )}
           {product.highlight === "Edición Limitada" && <Badge variant="limited">Limitado</Badge>}
-          {product.highlight === "Exclusivos" && <Badge variant="exclusive">Exclusivo</Badge>}
+          {product.highlight === "Exclusivos" && <Badge variant="exclusive">{collectionBadgeLabel(product.highlight)}</Badge>}
         </div>
 
         <div
@@ -166,7 +167,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
           </Link>
         </h3>
 
-        <Rating value={product.rating} showValue size="sm" />
+        <Rating value={product.rating} unrated={product.reviewCount === 0} showValue size="sm" />
 
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
           <Price value={product.price} originalValue={discounted} size="md" data-testid="product-price" />

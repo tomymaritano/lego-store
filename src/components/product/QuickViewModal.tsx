@@ -98,7 +98,7 @@ function QuickViewBody({ product, onClose }: { product: Product; onClose: () => 
         <span className="text-caption font-semibold tracking-wider text-info uppercase">{product.theme}</span>
         <DialogTitle className="mt-2 pr-8 text-heading">{product.name}</DialogTitle>
 
-        <Rating className="mt-3" value={product.rating} showValue />
+        <Rating className="mt-3" value={product.rating} unrated={product.reviewCount === 0} showValue />
 
         <Price className="mt-4" size="lg" value={product.price} originalValue={discounted ? product.originalPrice : undefined} />
 

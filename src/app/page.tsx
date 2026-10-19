@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { getCategories, getFeaturedProducts, getPaginatedProducts, getSaleProducts } from "@/lib/api";
+import { getCategories, getFeaturedProducts, getHomePicks, getPaginatedProducts, getSaleProducts } from "@/lib/api";
+import { getStoreSettings } from "@/lib/settings";
 import { Button } from "@/components/ui";
 import { CatalogSection, CategoriesSection, CtaBanner, HeroSection, ProductShowcase } from "@/components/home";
 
@@ -8,12 +9,14 @@ import { CatalogSection, CategoriesSection, CtaBanner, HeroSection, ProductShowc
 const SHOWCASE_SIZE = 4;
 
 export default async function HomePage() {
-  const [categories, newProducts, saleProducts, allSale, firstPage] = await Promise.all([
+  const [categories, picks, newProducts, saleProducts, allSale, firstPage, settings] = await Promise.all([
     getCategories(),
+    getHomePicks(),
     getFeaturedProducts(SHOWCASE_SIZE),
     getSaleProducts(SHOWCASE_SIZE),
     getSaleProducts(),
     getPaginatedProducts({ limit: 12 }),
+    getStoreSettings(),
   ]);
 
   return (
@@ -21,6 +24,16 @@ export default async function HomePage() {
       <HeroSection productCount={firstPage.total} saleCount={allSale.length} />
 
       <CategoriesSection categories={categories} />
+
+      {/* The admin's picks (/admin/configuracion); nothing while there are none. */}
+      <ProductShowcase
+        id="destacados"
+        eyebrow="Destacados"
+        title="Selección de la tienda"
+        description="Los sets que más recomendamos esta temporada."
+        products={picks}
+        className="bg-bg-subtle"
+      />
 
       <ProductShowcase
         id="novedades"
@@ -39,7 +52,7 @@ export default async function HomePage() {
 
       <ProductShowcase
         id="ofertas"
-        eyebrow="Destacados"
+        eyebrow="Por tiempo limitado"
         tone="sale"
         title="Ofertas especiales"
         description="Los mayores descuentos primero, mientras haya stock."
@@ -57,7 +70,7 @@ export default async function HomePage() {
 
       <CatalogSection firstPage={firstPage} />
 
-      <CtaBanner />
+      <CtaBanner freeShippingFrom={settings.shipping.freeFrom} />
     </div>
   );
 }

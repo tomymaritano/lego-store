@@ -26,14 +26,14 @@ describe("Field", () => {
 
   it("marks the control invalid and describes it with hint and error", () => {
     render(
-      <Field label="Email" hint="Usá tu email personal" error="Ingresá un email válido">
+      <Field label="Email" hint="Usa tu email personal" error="Ingresa un email válido">
         <Input type="email" />
       </Field>
     );
     const input = screen.getByLabelText("Email");
     expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveAccessibleDescription("Usá tu email personal Ingresá un email válido");
-    expect(screen.getByRole("alert")).toHaveTextContent("Ingresá un email válido");
+    expect(input).toHaveAccessibleDescription("Usa tu email personal Ingresa un email válido");
+    expect(screen.getByRole("alert")).toHaveTextContent("Ingresa un email válido");
   });
 
   it("keeps the control's own aria-describedby and uses the Field id", () => {
@@ -116,11 +116,26 @@ describe("Field", () => {
       <Field label="Provincia" required>
         <Select items={[{ value: "ba", label: "Buenos Aires" }]}>
           <SelectTrigger>
-            <SelectValue placeholder="Elegí" />
+            <SelectValue placeholder="Elige" />
           </SelectTrigger>
         </Select>
       </Field>
     );
     expect(screen.getByRole("combobox", { name: /Provincia/ })).toHaveAttribute("aria-required", "true");
+  });
+
+  it("names a Select trigger with aria-labelledby (label + value), not only label[for]", () => {
+    render(
+      <Field label="Ordenar por">
+        <Select items={[{ value: "featured", label: "Destacados" }]} value="featured">
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+        </Select>
+      </Field>
+    );
+    const trigger = screen.getByRole("combobox", { name: /Ordenar por/ });
+    const label = screen.getByText("Ordenar por");
+    expect(trigger.getAttribute("aria-labelledby")).toBe(`${label.id} ${trigger.id}`);
   });
 });

@@ -1,0 +1,303 @@
+import { z } from "zod";
+import { isAllowedImageUrl, REMOTE_IMAGE_HOSTS } from "@/lib/images";
+import type { FormState } from "@/lib/auth/form-state";
+import { idSchema } from "./ids";
+
+/*
+ * Inputs of the admin panel (src/lib/admin/actions.ts and the /admin pages'
+ * search params). The server validates everything again here: the forms'
+ * own checks are only a convenience.
+ */
+
+// ---------------------------------------------------------------------------
+// Product form
+// ---------------------------------------------------------------------------
+
+/** Highest price, original price and stock the form takes (Postgres int4 holds far more). */
+export const MAX_ADMIN_PRICE = 100_000_000;
+export const MAX_ADMIN_STOCK = 1_000_000;
+export const MAX_PRODUCT_IMAGES = 10;
+export const MAX_PRODUCT_INTERESTS = 10;
+/** Longest alt text a picture takes. */
+export const MAX_IMAGE_ALT = 200;
+
+const text = (label: string, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, `Completa ${label}`)
+    .max(max, `Como máximo ${max} caracteres`);
+
+const wholeNumber = (label: string, min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(1, `Completa ${label}`)
+    .regex(/^\d+$/, "Tiene que ser un número entero, sin puntos ni signos")
+    .transform(Number)
+    .pipe(
+      z
+        .number()
+        .min(min, min === 0 ? "No puede ser negativo" : `Tiene que ser al menos ${min}`)
+        .max(max, `Como máximo ${max.toLocaleString("es-AR")}`)
+    );
+
+export const IMAGE_RULE = `Sube una imagen, o usa una ruta del sitio (/images/…) o una URL https de ${REMOTE_IMAGE_HOSTS.join(", ")}`;
+
+/** One picture of a gallery as the form sends it. */
+export interface GalleryImage {
+  url: string;
+  alt: string;
+}
+
+/** Which picture of the gallery a validation error is about (index as sent) and which part of it. */
+export interface GalleryIssue {
+  index: number;
+  field: "url" | "alt";
+}
+
+/** The picture a gallery issue's path points to (["gallery", 1, "alt"]), if any. */
+export function galleryIssueOf(path: readonly PropertyKey[]): GalleryIssue | undefined {
+  const [field, index, part] = path;
+  if (field !== "gallery" || typeof index !== "number" || (part !== "url" && part !== "alt")) return undefined;
+  return { index, field: part };
+}
+
+/**
+ * The gallery as the form sends it: a JSON list of { url, alt }, in order
+ * (the first is the main picture). Every picture needs an allowed URL and
+ * its alt text; the messages name the picture by its position.
+ */
+const gallery = z.string().transform((value, ctx): GalleryImage[] => {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(value || "[]");
+  } catch {
+    raw = null;
+  }
+  if (!Array.isArray(raw)) {
+    ctx.addIssue({ code: "custom", message: "No pudimos leer la galería. Recarga la página." });
+    return z.NEVER;
+  }
+  if (raw.length === 0) {
+    ctx.addIssue({ code: "custom", message: "Agrega al menos una imagen" });
+    return z.NEVER;
+  }
+  if (raw.length > MAX_PRODUCT_IMAGES) {
+    ctx.addIssue({ code: "custom", message: `Como máximo ${MAX_PRODUCT_IMAGES} imágenes` });
+    return z.NEVER;
+  }
+  const images: GalleryImage[] = [];
+  for (const [index, item] of raw.entries()) {
+    const url = typeof item?.url === "string" ? item.url.trim() : "";
+    const alt = typeof item?.alt === "string" ? item.alt.trim().replace(/\s+/g, " ") : "";
+    const which = index === 0 ? "La imagen principal" : `La imagen ${index + 1}`;
+    // The path names the picture, so the form can mark its alt field (galleryIssueOf).
+    if (!isAllowedImageUrl(url)) ctx.addIssue({ code: "custom", path: [index, "url"], message: `${which} no tiene una URL permitida. ${IMAGE_RULE}` });
+    else if (!alt) ctx.addIssue({ code: "custom", path: [index, "alt"], message: `${which} necesita su texto alternativo (qué se ve en ella)` });
+    else if (alt.length > MAX_IMAGE_ALT)
+      ctx.addIssue({ code: "custom", path: [index, "alt"], message: `${which}: el texto alternativo tiene como máximo ${MAX_IMAGE_ALT} caracteres` });
+    images.push({ url, alt });
+  }
+  if (new Set(images.map((image) => image.url)).size !== images.length) {
+    ctx.addIssue({ code: "custom", message: "Hay una imagen repetida en la galería" });
+  }
+  return images;
+});
+
+/** "a, b , ,c" -> ["a", "b", "c"] (distinct, in order). */
+export const splitList = (value: string, separator: RegExp) =>
+  Array.from(new Set(value.split(separator).map((item) => item.trim()).filter(Boolean)));
+
+/**
+ * The product form as the browser sends it: every field a string (as in
+ * FormData), flags as booleans. Interests are comma separated and the gallery
+ * a JSON list of { url, alt } (the gallery editor's hidden field).
+ */
+export const productFormSchema = z
+  .object({
+    name: text("el nombre", 120),
+    price: wholeNumber("el precio", 1, MAX_ADMIN_PRICE),
+    originalPrice: z.string().trim(),
+    isNew: z.boolean(),
+    isOnSale: z.boolean(),
+    categoryId: z.string().trim().min(1, "Elige una categoría").max(64),
+    type: text("el tipo", 60),
+    age: text("la edad", 20),
+    themeId: z.string().trim().min(1, "Elige un tema").max(64),
+    interests: z
+      .string()
+      .transform((value) => splitList(value, /,/))
+      .pipe(
+        z
+          .array(z.string().max(40, "Cada interés: como máximo 40 caracteres"))
+          .max(MAX_PRODUCT_INTERESTS, `Como máximo ${MAX_PRODUCT_INTERESTS} intereses`)
+      ),
+    pieces: text("las piezas", 20),
+    highlight: text("el destacado", 60),
+    gallery,
+    imageSecondary: z
+      .string()
+      .trim()
+      .refine((value) => value === "" || isAllowedImageUrl(value), IMAGE_RULE),
+    stock: wholeNumber("el stock", 0, MAX_ADMIN_STOCK),
+    shortDescription: text("la descripción corta", 300),
+    description: text("la descripción", 5000),
+  })
+  .transform((input, ctx) => {
+    let originalPrice: number | null = null;
+    if (input.isOnSale) {
+      const parsed = /^\d+$/.test(input.originalPrice) ? Number(input.originalPrice) : NaN;
+      if (input.originalPrice === "") {
+        ctx.addIssue({ code: "custom", path: ["originalPrice"], message: "Un producto en oferta necesita el precio anterior" });
+      } else if (!Number.isInteger(parsed) || parsed > MAX_ADMIN_PRICE) {
+        ctx.addIssue({ code: "custom", path: ["originalPrice"], message: "Tiene que ser un número entero, sin puntos ni signos" });
+      } else if (parsed <= input.price) {
+        ctx.addIssue({ code: "custom", path: ["originalPrice"], message: "Tiene que ser mayor que el precio actual" });
+      } else {
+        originalPrice = parsed;
+      }
+    }
+    const { gallery: pictures, ...rest } = input;
+    return {
+      ...rest,
+      // Not on sale: no original price (the database requires both or neither).
+      originalPrice,
+      imageSecondary: input.imageSecondary === "" ? null : input.imageSecondary,
+      // The first picture is the main one (cards, cart, search); the gallery has them all.
+      img: pictures[0]!.url,
+      images: pictures.map((picture) => picture.url),
+      imageAlts: pictures.map((picture) => picture.alt),
+    };
+  });
+
+export type ProductFormInput = z.input<typeof productFormSchema>;
+export type ProductInput = z.output<typeof productFormSchema>;
+export type ProductField = keyof ProductFormInput;
+/** The product form's state: field errors, plus the picture a gallery error is about. */
+export type ProductFormState = FormState<ProductField> & { galleryIssue?: GalleryIssue };
+
+/**
+ * The stock a form or the quick edit loaded (a hidden value, not typed): the
+ * write only lands while the product still has it (src/lib/admin/products.ts).
+ */
+export const stockSeenSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{1,9}$/)
+  .transform(Number);
+
+/** Quick stock edit from the products list or the dashboard. */
+export const stockUpdateSchema = z.object({
+  productId: idSchema,
+  stock: wholeNumber("el stock", 0, MAX_ADMIN_STOCK),
+  seen: stockSeenSchema,
+});
+
+// ---------------------------------------------------------------------------
+// Orders
+// ---------------------------------------------------------------------------
+
+export const ORDER_STATUSES = ["PENDING", "PAYMENT_PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"] as const;
+export const orderStatusSchema = z.enum(ORDER_STATUSES);
+
+/** The statuses an admin can move an order to (see src/lib/admin/orders.ts for which from where). */
+export const orderTransitionSchema = z.object({
+  orderId: idSchema,
+  to: z.enum(["SHIPPED", "DELIVERED", "CANCELLED"]),
+  /** The status the admin saw: if it changed meanwhile, nothing happens. */
+  expected: orderStatusSchema,
+});
+
+export type OrderTransitionInput = z.infer<typeof orderTransitionSchema>;
+
+// ---------------------------------------------------------------------------
+// List filters (search params). Anything invalid falls back to "no filter":
+// a hand-edited URL shows the unfiltered list instead of an error.
+// ---------------------------------------------------------------------------
+
+export const ADMIN_PAGE_SIZE = 20;
+
+export type SearchParams = Record<string, string | string[] | undefined>;
+
+export const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? "";
+
+export const pageOf = (value: string) => {
+  const page = /^\d{1,6}$/.test(value) ? Number(value) : 1;
+  return Math.max(1, page);
+};
+
+export const textParam = (value: string, max = 100) => value.trim().slice(0, max);
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+export const dateParam = (value: string) => (DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) ? value : "");
+
+export const PRODUCT_STATUS_FILTERS = ["active", "archived", "all"] as const;
+export const PRODUCT_STOCK_FILTERS = ["low", "out"] as const;
+
+export interface AdminProductFilters {
+  q: string;
+  category: string;
+  status: (typeof PRODUCT_STATUS_FILTERS)[number];
+  stock: (typeof PRODUCT_STOCK_FILTERS)[number] | "";
+  page: number;
+}
+
+export function parseProductFilters(params: SearchParams): AdminProductFilters {
+  const status = first(params.status);
+  const stock = first(params.stock);
+  return {
+    q: textParam(first(params.q)),
+    category: textParam(first(params.category), 64),
+    status: (PRODUCT_STATUS_FILTERS as readonly string[]).includes(status) ? (status as AdminProductFilters["status"]) : "active",
+    stock: (PRODUCT_STOCK_FILTERS as readonly string[]).includes(stock) ? (stock as AdminProductFilters["stock"]) : "",
+    page: pageOf(first(params.page)),
+  };
+}
+
+/**
+ * Order list status filter: a status, the cancelled orders whose charge did
+ * not match their total, or "draft": checkouts that never reached "Realizar
+ * pedido" (no payment attempt). Every other filter lists placed orders only.
+ */
+export const ORDER_STATUS_FILTERS = [...ORDER_STATUSES, "amount_mismatch", "draft"] as const;
+export type OrderStatusFilter = (typeof ORDER_STATUS_FILTERS)[number];
+
+export interface AdminOrderFilters {
+  status: OrderStatusFilter | "";
+  /** Part of the customer's email (or the order number "LEGO-001001" / "1001"). */
+  q: string;
+  /** Store-time calendar dates of "Realizar pedido" (creation, for drafts), inclusive (YYYY-MM-DD). */
+  from: string;
+  to: string;
+  page: number;
+}
+
+export function parseOrderFilters(params: SearchParams): AdminOrderFilters {
+  const status = first(params.status);
+  return {
+    status: (ORDER_STATUS_FILTERS as readonly string[]).includes(status) ? (status as OrderStatusFilter) : "",
+    q: textParam(first(params.q), 254),
+    from: dateParam(first(params.from)),
+    to: dateParam(first(params.to)),
+    page: pageOf(first(params.page)),
+  };
+}
+
+export interface AdminReviewFilters {
+  q: string;
+  /** Product id. */
+  product: string;
+  rating: number | null;
+  page: number;
+}
+
+export function parseReviewFilters(params: SearchParams): AdminReviewFilters {
+  const rating = first(params.rating);
+  return {
+    q: textParam(first(params.q)),
+    product: textParam(first(params.product), 64),
+    rating: /^[1-5]$/.test(rating) ? Number(rating) : null,
+    page: pageOf(first(params.page)),
+  };
+}

@@ -3,25 +3,24 @@ import Image from "next/image";
 import { Clock, Mail, MapPin, Phone, RotateCcw, Shield, Truck } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { siteConfig } from "@/config/site";
-import { companyLinks, helpLinks, legalLinks, themeLinks, type NavItem } from "@/config/navigation";
+import { phoneHref, socialLinks, type StoreSettings } from "@/lib/settings/defaults";
+import { companyLinks, helpLinks, legalLinks, type NavItem } from "@/config/navigation";
 import { NewsletterForm } from "@/components/forms/NewsletterForm";
 import { socialIcons } from "@/components/icons/SocialIcons";
 import type { Category } from "@/types";
 
-const { commerce, contact } = siteConfig;
+const { commerce } = siteConfig;
 
-const features = [
+const featuresFor = (settings: StoreSettings) => [
   {
     icon: Truck,
     title: "Envío gratis",
-    text: `En compras desde ${formatPrice(commerce.freeShippingThreshold)}`,
+    text: `En compras desde ${formatPrice(settings.shipping.freeFrom)}`,
     href: "/envios",
   },
   { icon: RotateCcw, title: `${commerce.returnDays} días para devolver`, text: "Cambios simples y sin costo", href: "/devoluciones" },
   { icon: Shield, title: "Compra segura", text: "Productos originales con garantía", href: "/faq" },
 ];
-
-const paymentMethods = ["Visa", "Mastercard", "American Express"];
 
 const linkClasses =
   "rounded-sm text-fg-secondary transition-colors duration-fast ease-standard hover:text-fg hover:underline underline-offset-4 focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none";
@@ -49,8 +48,24 @@ function LinkColumn({ title, links }: { title: string; links: NavItem[] }) {
 /**
  * Site footer. Server Component; only the newsletter form hydrates.
  * Every link resolves to a page (see config/navigation.ts and its test).
+ * The free-shipping threshold, contact details and social profiles are the
+ * store's settings (/admin/configuracion).
  */
-export function Footer({ categories }: { categories: Pick<Category, "id" | "name">[] }) {
+export function Footer({
+  categories,
+  themes,
+  settings,
+  paymentMethods,
+}: {
+  categories: Pick<Category, "id" | "name">[];
+  themes: NavItem[];
+  settings: StoreSettings;
+  /** The store's payment provider's methods (PAYMENT_METHOD_BADGES). */
+  paymentMethods: readonly string[];
+}) {
+  const { contact } = settings;
+  const features = featuresFor(settings);
+  const social = socialLinks(settings.social);
   const shopLinks: NavItem[] = [
     { name: "Todos los sets", href: "/" },
     ...categories.slice(0, 4).map((c) => ({ name: c.name, href: `/category/${c.id}` })),
@@ -114,7 +129,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
                 <Mail aria-hidden="true" className="size-4 shrink-0" />
                 {contact.email}
               </a>
-              <a href={contact.phoneHref} className={`flex w-fit items-center gap-3 ${linkClasses}`}>
+              <a href={phoneHref(contact.phone)} className={`flex w-fit items-center gap-3 ${linkClasses}`}>
                 <Phone aria-hidden="true" className="size-4 shrink-0" />
                 {contact.phone}
               </a>
@@ -128,30 +143,32 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
               </p>
             </address>
 
-            <ul className="flex gap-2" aria-label="LEGO en redes sociales">
-              {siteConfig.social.map((social) => {
-                const Icon = socialIcons[social.name];
-                return (
-                  <li key={social.name}>
-                    <a
-                      href={social.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`${social.name} (se abre en una pestaña nueva)`}
-                      title={social.name}
-                      className="flex size-10 items-center justify-center rounded-xl border border-border bg-surface text-fg-secondary transition-[color,background-color,border-color,translate] duration-base ease-standard hover:-translate-y-0.5 hover:border-primary hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none motion-reduce:hover:translate-y-0"
-                    >
-                      <Icon className="size-5" />
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
+            {social.length > 0 ? (
+              <ul className="flex gap-2" aria-label="LEGO en redes sociales">
+                {social.map((profile) => {
+                  const Icon = socialIcons[profile.name];
+                  return (
+                    <li key={profile.name}>
+                      <a
+                        href={profile.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${profile.name} (se abre en una pestaña nueva)`}
+                        title={profile.name}
+                        className="flex size-10 items-center justify-center rounded-xl border border-border bg-surface text-fg-secondary transition-[color,background-color,border-color,translate] duration-base ease-standard hover:-translate-y-0.5 hover:border-primary hover:bg-primary hover:text-on-primary focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:outline-none motion-reduce:hover:translate-y-0"
+                      >
+                        <Icon className="size-5" />
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
           </div>
 
           <nav aria-label="Pie de página" className="col-span-2 grid grid-cols-2 gap-x-8 gap-y-10 md:col-span-4 md:grid-cols-4 lg:gap-12">
             <LinkColumn title="Comprar" links={shopLinks} />
-            <LinkColumn title="Temas" links={themeLinks} />
+            {themes.length > 0 ? <LinkColumn title="Temas" links={themes} /> : null}
             <LinkColumn title="Ayuda" links={helpLinks} />
             <LinkColumn title="La tienda" links={[...companyLinks, ...legalLinks]} />
           </nav>
@@ -167,7 +184,7 @@ export function Footer({ categories }: { categories: Pick<Category, "id" | "name
               Suscríbete al newsletter
             </h2>
             <p className="mt-1 text-label font-normal text-fg-secondary">
-              Ofertas exclusivas y novedades en tu correo. Te regalamos 10% en tu primera compra.
+              Lanzamientos, ofertas y novedades en tu correo. Te das de baja cuando quieras.
             </p>
           </div>
           <NewsletterForm labelledBy="footer-newsletter-title" />

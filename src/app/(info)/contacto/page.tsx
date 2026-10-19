@@ -1,42 +1,29 @@
-import Link from "next/link";
 import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
-import { siteConfig } from "@/config/site";
-import { pageMetadata } from "@/lib/metadata";
+import { contentMetadata, loadContentPage } from "@/lib/content/page";
+import { phoneHref } from "@/lib/settings/defaults";
 import { ContactForm } from "@/components/forms";
-import { InfoPageHeader } from "@/components/info/InfoPage";
+import { ContentBlocks, ContentHeader } from "@/components/content/ContentBlocks";
 
-export const metadata = pageMetadata({
-  title: "Contacto",
-  description:
-    "Escríbenos por pedidos, envíos, devoluciones o cualquier consulta. Respondemos en menos de 24 horas hábiles.",
-  path: "/contacto",
-});
+export const generateMetadata = () => contentMetadata("contacto");
 
-const { contact } = siteConfig;
-
-const channels = [
-  { icon: Mail, label: "Email", value: contact.email, href: `mailto:${contact.email}` },
-  { icon: Phone, label: "Teléfono", value: contact.phone, href: contact.phoneHref },
-  { icon: Clock, label: "Horario de atención", value: contact.hours },
-  { icon: MapPin, label: "Ubicación", value: contact.address },
-];
-
-export default function ContactPage() {
+/** /contacto: the admin's introduction (/admin/contenido), the form and the store's channels (/admin/configuracion). */
+export default async function ContactPage() {
+  const { doc, settings } = await loadContentPage("contacto");
+  const { contact } = settings;
+  const channels = [
+    { icon: Mail, label: "Email", value: contact.email, href: `mailto:${contact.email}` },
+    { icon: Phone, label: "Teléfono", value: contact.phone, href: phoneHref(contact.phone) },
+    { icon: Clock, label: "Horario de atención", value: contact.hours },
+    { icon: MapPin, label: "Ubicación", value: contact.address },
+  ];
   return (
     <>
-      <InfoPageHeader
-        icon={<MessageCircle />}
-        title="Contacto"
-        description={
-          <>
-            ¿Tienes una consulta? Revisa las{" "}
-            <Link href="/faq" className="font-medium text-info underline underline-offset-4 hover:no-underline">
-              preguntas frecuentes
-            </Link>{" "}
-            o escríbenos: respondemos en menos de 24 horas hábiles.
-          </>
-        }
-      />
+      <ContentHeader icon={<MessageCircle />} title={doc.title} description={doc.description} />
+      {doc.blocks.length > 0 ? (
+        <div className="mb-10">
+          <ContentBlocks blocks={doc.blocks} />
+        </div>
+      ) : null}
 
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-card sm:p-8">

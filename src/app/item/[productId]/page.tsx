@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Award, Blocks, RotateCcw, Shield, Sparkles, Truck, Users } from "lucide-react";
-import { getCategoryById, getProductById, getProducts, getRelatedProducts } from "@/lib/api";
+import { getCategoryById, getCategoryNames, getProductById, getProducts, getRelatedProducts, getReviewPage } from "@/lib/api";
+import { DEFAULT_REVIEW_SORT, REVIEW_PAGE_SIZE } from "@/lib/reviews/sorts";
+import type { ReviewPage } from "@/types";
 import { formatPrice } from "@/lib/utils";
+import { collectionBadgeLabel } from "@/lib/collection";
 import { defaultOgImage, pageMetadata } from "@/lib/metadata";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { siteConfig } from "@/config/site";
+import { getStoreSettings } from "@/lib/settings";
 import { Badge, Breadcrumbs, Price, Rating } from "@/components/ui";
 import { ProductDetailsTabs } from "@/components/product/ProductDetailsTabs";
 import { ProductGallery } from "@/components/product/ProductGallery";
@@ -37,8 +41,18 @@ export async function generateMetadata({ params }: ItemPageProps): Promise<Metad
   });
 }
 
-const perks = [
-  { icon: Truck, title: "Envío gratis", detail: `Desde ${formatPrice(siteConfig.commerce.freeShippingThreshold)}` },
+const emptyReviewPage: ReviewPage = {
+  items: [],
+  summary: { average: 0, count: 0, distribution: [5, 4, 3, 2, 1].map((rating) => ({ rating, count: 0 })) },
+  sort: DEFAULT_REVIEW_SORT,
+  page: 1,
+  limit: REVIEW_PAGE_SIZE,
+  totalPages: 0,
+  hasMore: false,
+};
+
+const perksFor = (freeShippingFrom: number) => [
+  { icon: Truck, title: "Envío gratis", detail: `Desde ${formatPrice(freeShippingFrom)}` },
   { icon: Shield, title: "Garantía", detail: "Producto original" },
   { icon: RotateCcw, title: "Devolución", detail: `${siteConfig.commerce.returnDays} días` },
 ];
@@ -46,7 +60,9 @@ const perks = [
 /**
  * Product page (Server Component, statically generated per product). Unknown
  * ids get a real 404 from src/proxy.ts before rendering; notFound() here is
- * the fallback. Client islands: gallery, buy box, details tabs (reviews),
+ * the fallback. Reviews are read from the database here (tagged with the
+ * product, so a review write regenerates the page). Client islands: gallery,
+ * buy box, details tabs (reviews),
  * related grid and the recently viewed strip.
  */
 export default async function ItemPage({ params }: ItemPageProps) {
@@ -54,11 +70,20 @@ export default async function ItemPage({ params }: ItemPageProps) {
   const product = await getProductById(productId);
   if (!product) notFound();
 
-  const [category, related] = await Promise.all([
+  const [category, categoryNames, related, reviewPage, settings] = await Promise.all([
     getCategoryById(product.category),
+    getCategoryNames(),
     getRelatedProducts(product.id, 4),
+    getReviewPage(product.id, DEFAULT_REVIEW_SORT),
+    getStoreSettings(),
   ]);
-  const categoryName = category?.name ?? product.category;
+  const perks = perksFor(settings.shipping.freeFrom);
+  const reviews = reviewPage ?? emptyReviewPage;
+  // A hidden category still has a name (getCategoryById only finds visible ones), but no page of its own:
+  // its breadcrumb goes to the search filtered by it.
+  const categoryName =
+    category?.name ?? categoryNames.find((entry) => entry.id.toLowerCase() === product.category.toLowerCase())?.name ?? product.category;
+  const categoryHref = category ? `/category/${category.id}` : `/search?category=${encodeURIComponent(product.category)}`;
 
   const facts = [
     { icon: Users, label: "Edad recomendada", value: product.age },
@@ -88,7 +113,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
       <div className="container-custom space-y-12 py-6 lg:space-y-16">
         <div>
-          <Breadcrumbs items={[{ label: categoryName, href: `/category/${product.category}` }, { label: product.name }]} />
+          <Breadcrumbs items={[{ label: categoryName, href: categoryHref }, { label: product.name }]} />
 
           <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
             <div className="lg:sticky lg:top-24 lg:self-start">
@@ -99,17 +124,17 @@ export default async function ItemPage({ params }: ItemPageProps) {
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-label tracking-wider text-info uppercase">{product.theme}</p>
-                  <Badge variant="neutral">{product.highlight}</Badge>
+                  <Badge variant="neutral">{collectionBadgeLabel(product.highlight)}</Badge>
                 </div>
                 <h1 className="text-headline text-balance">{product.name}</h1>
-                {/* Catalogue rating (same as the product cards), labelled as such; the link counts the reviews in the tab. */}
+                {/* Rating, link and tab all come from the same reviews in the database (one cache tag: a review write refreshes them together). */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-label font-normal">
-                  <Rating value={product.rating} showValue />
-                  <span className="text-fg-muted">valoración general</span>
+                  <Rating value={product.rating} unrated={product.reviewCount === 0} showValue />
+                  {product.reviewCount > 0 ? <span className="text-fg-muted">valoración general</span> : null}
                   <span aria-hidden="true" className="text-fg-muted">
                     ·
                   </span>
-                  <ReviewsLink productId={product.id} />
+                  <ReviewsLink count={reviews.summary.count} />
                 </div>
               </div>
 
@@ -141,6 +166,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
 
         <ProductDetailsTabs
           productId={product.id}
+          reviews={reviews}
           description={
             <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
               <div className="space-y-4">

@@ -16,7 +16,10 @@ export interface Product {
   originalPrice?: number;
   isNew: boolean;
   isOnSale: boolean;
+  /** Average of the product's reviews, one decimal; 0 when it has none (see reviewCount). */
   rating: number;
+  reviewCount: number;
+  /** Category slug (Category.id). */
   category: string;
   type: string;
   age: string;
@@ -27,6 +30,8 @@ export interface Product {
   img: string;
   imageSecondary?: string;
   images: string[];
+  /** Alt text of each gallery image (same order as `images`); the product name when missing. */
+  imageAlts?: string[];
   stock: number;
   shortDescription: string;
   description: string;
@@ -48,7 +53,16 @@ export interface Category {
   name: string;
   description: string;
   image: string;
+  /** What the image shows (empty: decorative). */
+  imageAlt?: string;
   productCount: number;
+}
+
+/** A product theme as the storefront shows it (the "Temas" menu, filters). */
+export interface ProductTheme {
+  id: string;
+  slug: string;
+  name: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +191,7 @@ export type Theme = "light" | "dark" | "system";
 export interface Review {
   id: string;
   productId: string;
-  userId: string;
+  /** The author's display name (their account id is never sent: review lists are public). */
   userName: string;
   rating: number;
   title: string;
@@ -185,6 +199,34 @@ export interface Review {
   date: string;
   helpful: number;
   verified: boolean;
+}
+
+/** A product's star histogram and average, over all its reviews. */
+export interface ReviewSummary {
+  /** One decimal; 0 without reviews. */
+  average: number;
+  count: number;
+  /** Reviews per star rating, 5 stars first. */
+  distribution: { rating: number; count: number }[];
+}
+
+/** One page of a product's reviews, in the requested order (GET /api/products/<id>/reviews). */
+export interface ReviewPage {
+  items: Review[];
+  summary: ReviewSummary;
+  sort: "recent" | "helpful" | "highest" | "lowest";
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+/** The signed-in user's side of a product's reviews (GET /api/products/<id>/reviews/mine). */
+export interface ViewerReviews {
+  /** Their own review of the product, if they wrote one. */
+  review: Review | null;
+  /** Ids of this product's reviews they marked "útil". */
+  helpful: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -201,24 +243,6 @@ export interface ShippingInfo {
   state: string;
   zipCode: string;
   country: string;
-}
-
-/** Full card data: lives only in the payment form while that step is open. */
-export interface PaymentInfo {
-  cardNumber: string;
-  cardName: string;
-  expiryDate: string;
-  cvv: string;
-}
-
-export type CardBrand = "visa" | "mastercard" | "amex" | "unknown";
-
-/** What survives the payment step: never the card number or the CVV. */
-export interface PaymentSummary {
-  brand: CardBrand;
-  cardName: string;
-  last4: string;
-  expiryDate: string;
 }
 
 export type CheckoutStep = "shipping" | "payment" | "review" | "confirmation";

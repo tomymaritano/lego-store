@@ -39,7 +39,7 @@ export function CategoriesSection({ categories }: { categories: Category[] }) {
                 <div className="relative h-48 overflow-hidden bg-bg-subtle">
                   <Image
                     src={category.image}
-                    alt=""
+                    alt={category.imageAlt ?? ""}
                     fill
                     sizes="(max-width: 767px) calc(100vw - 2rem), 400px"
                     className="photo-blend object-contain p-5 transition-[scale] duration-slow ease-emphasized group-hover:scale-110 motion-reduce:group-hover:scale-100"
