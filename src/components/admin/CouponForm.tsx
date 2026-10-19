@@ -134,7 +134,7 @@ export function CouponForm({ action, initial, mode }: CouponFormProps) {
         <CardHeader>
           <h2 className="text-title text-fg">Vigencia y límites</h2>
           <CardDescription>
-            Un uso cuenta desde que el pedido llega a «Revisar» y vuelve a quedar libre si el pedido se cancela.
+            Un uso cuenta cuando se paga el pedido o se envía el pago con tarjeta. Un pedido sin pagar (un checkout o un ticket de efectivo) solo lo reserva para su cliente, y el uso vuelve a quedar libre si el pedido se cancela.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5 sm:grid-cols-2">

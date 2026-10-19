@@ -117,9 +117,9 @@ export default async function AdminCouponPage({ params, searchParams }: CouponPa
         />
         <AdminStat
           icon={<Clock />}
-          label="Sin pagar"
+          label="En curso"
           value={<span data-testid="coupon-reserved">{coupon.reserved}</span>}
-          detail={`${coupon.held === 1 ? "1 con el pago enviado" : `${coupon.held} con el pago enviado`} (cuentan como uso) · ${coupon.released === 1 ? "1 uso liberado" : `${coupon.released} usos liberados`} por pedidos cancelados`}
+          detail={`${coupon.held} con el pago enviado (cuentan como uso) · ${coupon.reserved - coupon.held} sin pagar, solo reservados para su cliente (no cuentan) · ${coupon.released === 1 ? "1 uso liberado" : `${coupon.released} usos liberados`} por pedidos cancelados`}
         />
         <AdminStat
           icon={<BadgeDollarSign />}
