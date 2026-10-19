@@ -123,4 +123,19 @@ describe("Field", () => {
     );
     expect(screen.getByRole("combobox", { name: /Provincia/ })).toHaveAttribute("aria-required", "true");
   });
+
+  it("names a Select trigger with aria-labelledby (label + value), not only label[for]", () => {
+    render(
+      <Field label="Ordenar por">
+        <Select items={[{ value: "featured", label: "Destacados" }]} value="featured">
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+        </Select>
+      </Field>
+    );
+    const trigger = screen.getByRole("combobox", { name: /Ordenar por/ });
+    const label = screen.getByText("Ordenar por");
+    expect(trigger.getAttribute("aria-labelledby")).toBe(`${label.id} ${trigger.id}`);
+  });
 });
