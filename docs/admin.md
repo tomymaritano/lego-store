@@ -25,8 +25,15 @@ Qué hay en `/admin`, quién entra y qué hace cada acción, con sus efectos
 - **Concurrencia**: los cambios que dependen de lo que el admin vio (stock,
   estado del pedido) se escriben con compare-and-set o bajo bloqueo; si otro lo
   cambió en el medio, la acción lo dice y no pisa nada.
-- `/admin/cupones`, `/admin/categorias`, `/admin/temas`, `/admin/usuarios` y
-  `/admin/auditoria` redirigen a sus rutas en inglés.
+- **Rutas**: las secciones del panel base (productos, pedidos, reseñas, cupones,
+  usuarios, categorías, temas, auditoría) viven en rutas en inglés, como el resto
+  de la API; `/admin/cupones`, `/admin/categorias`, `/admin/temas`,
+  `/admin/usuarios` y `/admin/auditoria` redirigen a ellas. Las que se sumaron con
+  la extensión y no tienen equivalente en la tienda (`/admin/mensajes`,
+  `/admin/contenido`, `/admin/configuracion`) quedaron en castellano, y
+  `/admin/newsletter` se llama igual en los dos idiomas. Es una división a
+  propósito (la tabla de abajo es la fuente): cambiarlas ahora solo
+  sumaría redirecciones sin ganar nada para quien usa el panel.
 - **Fechas**: numéricas con año y reloj de 24 h (`18/10/2026, 04:51`), en hora de
   Argentina.
 
@@ -152,7 +159,11 @@ Lista con estado (activo, programado, vencido, agotado, desactivado), usos contr
 el límite (pagados más los que tienen el pago enviado y en curso; los checkouts
 sin pagar y los tickets de efectivo que nadie pagó todavía se muestran aparte y
 no ocupan usos), descuento otorgado y ventas de los pedidos
-pagados que lo usaron. Crear y editar (tipo, valor, mínimo, fechas, límites,
+pagados que lo usaron. Un uso cuenta cuando se paga el pedido o se envía el pago
+con tarjeta; un pedido sin pagar (un checkout o un ticket de efectivo) solo lo
+reserva para su cliente. El detalle separa los usos «En curso»: con el pago
+enviado (cuentan) y sin pagar (no cuentan), más los liberados por pedidos
+cancelados. Crear y editar (tipo, valor, mínimo, fechas, límites,
 descripción); **el código no cambia nunca y los cupones no se borran** (los
 pedidos los guardan); "Desactivar" / "Activar" corta o habilita usos nuevos (los
 pedidos que ya lo tienen lo conservan). El detalle muestra los usos con su pedido
@@ -232,7 +243,12 @@ CSV" con los filtros de la lista:
 admins, en streaming por lotes. UTF-8 con BOM y `;` (lo que espera Excel en
 español), comillas RFC 4180 y un apóstrofo delante de todo campo que una planilla
 ejecutaría como fórmula (`=`, `+`, `-`, `@`, tab, CR). Cada exportación queda en la
-auditoría (`export.<tipo>`) con sus filtros y la cantidad de filas.
+auditoría (`export.<tipo>`) con sus filtros y lo que trae: `filas` en usuarios,
+newsletter y mensajes; en pedidos, `pedidos` y `líneas` (una por producto), para
+que cuadre con el archivo. Es un `GET` para que el navegador lo descargue, así
+que rechaza con 403, antes de leer o auditar nada, un pedido que el navegador
+marca como de otro sitio (`Sec-Fetch-Site` distinto de `same-origin` o `none`):
+otro sitio no puede llenar la auditoría de exportaciones falsas con un enlace.
 
 ### Subir imágenes
 
@@ -244,7 +260,10 @@ Auditoría `upload.create`. Las subidas no se borran.
 ## Auditoría
 
 `/admin/audit` lista `AuditLog` con filtros por admin, tipo de registro, un
-registro y fechas. Productos, pedidos, cupones, usuarios, categorías, temas,
+registro y fechas. Cada entrada nombra su registro como lo hace el resto del panel
+(número de pedido, nombre del producto, tema o categoría, código del cupón, email
+del usuario, del mensaje o del suscriptor) con el id debajo; si el registro ya no
+existe, queda el id. Productos, pedidos, cupones, usuarios, categorías, temas,
 configuración, contenido y mensajes muestran su propio "Historial" (los 8 cambios
 más recientes; el resto, con "Ver todo" en la auditoría filtrada por el registro). Cada entrada guarda el admin, su IP
 (solo la que `client-ip.ts` confía; si no, vacía), la acción, la entidad y

@@ -618,12 +618,17 @@ Decisiones explícitas (no son pendientes):
   `getFormData`) y Checkout Pro solo corrieron contra el mock; falta una corrida
   con credenciales de prueba (docs/payments.md, «Probar con credenciales de
   prueba de Mercado Pago») antes de producción.
-- *Ruido conocido*: `next dev` puede registrar `uncaughtException: Error:
-  aborted` cuando un spec cierra el navegador con un pedido en curso. Se vio una
-  vez (y otra en la corrida de store-ops de la segunda verificación, sin tests
-  fallidos) y no se reprodujo; los handlers de la tienda que leen cuerpos a mano
-  (subidas, webhooks y los JSON del checkout) capturan el corte, así que lo más probable es que venga del
-  manejo de cuerpos de Next en desarrollo (sin confirmar). `npm audit` informa `braces` (alta) solo en dependencias de
+- *Ruido conocido*: `next dev` registra `Error: aborted` (`ECONNRESET`), a veces
+  como `uncaughtException`, cuando un spec cierra su contexto con un pedido en
+  curso. Ya no es esporádico: en una corrida local completa con 4 workers aparece
+  de forma habitual (5 veces en la tercera verificación, alrededor del reorden de
+  temas, el logout de auth.spec y admin-pages) y casi siempre en el paso de los
+  proyectos chromium a store-ops, cuando se cierran los contextos y workers del
+  anterior (la corrida que cerró la ronda, 228/228, no lo registró). Nunca hizo
+  fallar un test. Los handlers de la tienda que leen
+  cuerpos a mano (subidas, webhooks y los JSON del checkout) capturan el corte, así
+  que lo más probable es que venga del manejo de cuerpos de Next en desarrollo (sin
+  confirmar). docs/testing.md lo lista como ruido esperado. `npm audit` informa `braces` (alta) solo en dependencias de
   desarrollo, vía `eslint-config-next`; producción queda limpia.
 
 ## Notas de implementación: verificación final, segunda ronda
@@ -656,3 +661,36 @@ Decisiones explícitas (no son pendientes):
   servidor (nunca las devuelve); docs/testing.md explica cómo limpiar
   `RateLimit` en dev. El error de hidratación visto una vez en
   `/admin/mensajes` no se reprodujo.
+
+## Notas de implementación: verificación final, tercera ronda
+
+- *Exportaciones CSV*: el `GET` de `/api/admin/export/<tipo>` rechaza con 403, antes
+  de leer o auditar, un pedido que el navegador marca de otro sitio
+  (`Sec-Fetch-Site` distinto de `same-origin` o `none`): un enlace de otro sitio ya
+  no deja entradas `export.*` falsas ni baja un CSV al disco del admin. La entrada
+  de los pedidos guarda `pedidos` y `líneas` (antes `filas` contaba pedidos y el
+  archivo trae una línea por producto).
+- *Sesión del cliente*: `GET /api/auth/session` compara el token con la base como
+  `getCurrentUser()`; una cuenta bloqueada o un token revocado lee `null`. La
+  tienda no usa `useSession()`, así que era solo el endpoint crudo; el servidor ya
+  negaba todo.
+- *Admin*: el editor de producto (y las otras fichas con columna lateral) ya no se
+  desborda en el teléfono con una URL larga en la galería (`grid-cols-1` en la
+  grilla móvil y `min-w-0` en el formulario). La ayuda de «Vigencia y límites» del
+  cupón y su tarjeta «En curso» dicen cómo cuentan los usos desde la segunda ronda.
+  La auditoría nombra cada registro (número de pedido, nombre, código, email) con el
+  id debajo. Las rutas del admin mezclan idiomas a propósito (docs/admin.md).
+- *Tienda*: un cupón que todavía no llega a su mínimo se muestra con el tono de
+  información, no con el check verde. Batmobile pasa al tema DC (nuevo, al final del
+  menú) y su descripción dice «Icónico»; la ficha muestra la colección en singular
+  como la tarjeta («Exclusivo»).
+- *CI*: el job de tests corre `prisma migrate diff --exit-code` después de
+  `migrate deploy`: un cambio en `schema.prisma` sin su migración falla ahí.
+- Sin cambios: el aviso de `next dev` «Image … detected as the Largest Contentful
+  Paint» sobre 75349.png es un falso positivo. En /, /item/1, /search?q=star,
+  /category/helmet y /cart (1280 y 390 px, con carga fría y recorriendo la página
+  como el spec de a11y) la imagen que es LCP ya carga `eager`. El chequeo de
+  next/image guarda una entrada por URL optimizada; la misma foto aparece en el
+  héroe (`eager`) y en la tarjeta de la categoría Cascos (`lazy`, más abajo) con la
+  misma URL, y la segunda pisa a la primera. `npm audit` sigue
+  informando `braces` solo en dependencias de desarrollo.

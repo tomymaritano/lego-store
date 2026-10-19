@@ -272,7 +272,9 @@ Las decisiones de diseño de la autenticación, con sus trade-offs.
   a cualquier cliente): el refresh solo copia nombre, email y rol de la base, y pasar
   a la versión nueva exige una renovación firmada con `AUTH_SECRET` que arma la
   acción de cambio de contraseña para su propia sesión (`session-token.ts`). El rol
-  también sale siempre de la base, nunca del token.
+  también sale siempre de la base, nunca del token. `GET /api/auth/session` (lo que
+  lee un cliente) hace la misma comparación: para una cuenta bloqueada o un token de
+  otra versión responde `null`, como sin sesión, y no renueva la cookie.
 - **Cerrar sesión** (cliente) borra la cookie de ese navegador: los otros
   dispositivos siguen con su sesión (lo esperable al cerrar sesión en el celular,
   por ejemplo). Una copia del token tomada antes (cookie filtrada, compu

@@ -145,6 +145,12 @@ lo cambia): con más, el único `next dev` compilando rutas y bcrypt en cada log
 hacían vencer esperas de rutas frías. En CI: `retries: 2`, `workers: 1`,
 `forbidOnly`.
 
+**Ruido esperado en el log**: en una corrida local completa, el `[WebServer]` de
+`next dev` suele registrar `Error: aborted` (`ECONNRESET`), a veces como
+`uncaughtException`, sobre todo al pasar de los proyectos chromium a store-ops: es
+un pedido que seguía en curso cuando un spec cerró su contexto. No hace fallar
+ningún test; un fallo real se ve en el reporte de Playwright, no en esas líneas.
+
 **Datos de los E2E**: usan la base de dev. Las cuentas, pedidos, mensajes y
 suscripciones de los specs usan emails `@e2e.lego-store.test`; el setup global los
 borra (devolviendo el stock que tomaron), limpia los contadores de rate limiting y
@@ -217,7 +223,7 @@ y el seed antes de empezar, y generan un `AUTH_SECRET` descartable.
 | Job | Qué hace | Cuándo |
 | --- | --- | --- |
 | `lint` | `npm run lint` y `npx tsc --noEmit` | siempre |
-| `test` | crea `lego_store_test`, migra y siembra, instala Chromium, `npm run test -- --run --coverage` (unit + integración + storybook), sube la cobertura y corre `npm run build-storybook -- --quiet` | siempre |
+| `test` | crea `lego_store_test`, migra y siembra, comprueba que las migraciones coinciden con `schema.prisma` (`prisma migrate diff --exit-code`), instala Chromium, `npm run test -- --run --coverage` (unit + integración + storybook), sube la cobertura y corre `npm run build-storybook -- --quiet` | siempre |
 | `build` | migra y siembra, `npm run build` y sube `.next/` | después de `lint` y `test` |
 | `e2e` | migra y siembra, instala Chromium y corre `npx playwright test` (`chromium`, `prod` y `store-ops`) | después de `build` |
 | `e2e-stripe-live` | `npm run test:e2e:stripe` contra Stripe en modo test; los pasos se saltean si el repo no tiene los secrets `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` y `STRIPE_WEBHOOK_SECRET` | después de `build` |
