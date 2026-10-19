@@ -42,7 +42,7 @@ Configuración en `vitest.config.mts`, con tres proyectos:
   registradas para verificarlas). Si la base de test se desfasó de las
   migraciones (una migración editada), `npm run test:db:setup` la reconstruye.
 - **`storybook`**: `@storybook/addon-vitest` renderiza cada story en Chromium
-  headless. `.storybook/preview.tsx` configura `a11y: { test: "error" }`, así que
+  headless (`@vitest/browser-playwright`). `.storybook/preview.tsx` configura `a11y: { test: "error" }`, así que
   una violación de axe hace fallar la story.
 
 Comandos:
@@ -84,10 +84,12 @@ La cobertura mide `src/**/*.{ts,tsx}` sin stories, `src/types`, `src/app` ni
   y Mercado Pago), cupón, formularios, galería y subidas, ficha, reseñas,
   autocompletado, gráficos del admin, `ListsSync`…
 - `config/navigation.test.ts`: cada link de navegación resuelve a una página.
-- `design/tokens.test.ts`: contraste AA de los tokens en claro y oscuro.
+- `design/tokens.test.ts`: contraste AA de los tokens en claro y oscuro (ver
+  [design-system.md](./design-system.md#contraste)).
 - `lint/guardrails.test.ts`: casos que las guardas de ESLint deben marcar y dejar
   pasar.
-- `helpers/`: `renderWithQuery`, `mockFetch`, fábricas de catálogo y pedidos.
+- `helpers/`: `renderWithQuery` (React Query sin reintentos ni caché),
+  `mockFetch` (stub de `fetch` con JSON) y fábricas de catálogo y pedidos.
 
 ### Mocks y dobles
 
@@ -106,9 +108,9 @@ La cobertura mide `src/**/*.{ts,tsx}` sin stories, `src/types`, `src/app` ni
 ### Convenciones
 
 - Un archivo `*.test.ts(x)` por módulo o área, en la carpeta de su capa.
-- Componentes: consulta por rol y nombre accesible, interacción con
-  `@testing-library/user-event`; con React Query, `renderWithQuery` y
-  `mockFetch`.
+- Componentes: consulta por rol y nombre accesible (`getByRole("button", { name:
+  … })`), interacción con `@testing-library/user-event`; con React Query,
+  `renderWithQuery` y `mockFetch` en vez de mockear `@/lib/api-client`.
 - Tests que corren en Node fuera de `integration/` declaran
   `// @vitest-environment node`.
 - Lo que toca la base va en `integration/`, nunca en `unit`.
@@ -122,11 +124,15 @@ Configuración en `playwright.config.ts`:
   con `PAYMENTS_MOCK=1` y los secretos de webhook de test
   (`E2E_SERVER_ENV`, `e2e/helpers/stripe.ts`). La tienda cobra con Mercado Pago
   simulado; los specs de Stripe (`checkout`, `orders`, `admin`) ponen en su
-  navegador la cookie `payments-mock-provider=STRIPE`.
+  navegador la cookie `payments-mock-provider=STRIPE`. Ignora `e2e/prod/**`,
+  `e2e/store-ops/**` y `e2e/stripe-live/**`. Antes de los workers,
+  `e2e/global-setup.ts` compila cada ruta una vez (evita errores de manifest en un
+  `next dev` frío).
 - **`prod`**: un build de producción en el puerto 3100 (`next build` en
   `.next-e2e` y `next start`). Prueba lo que solo muestra el build: navegación,
-  transiciones, códigos de estado, headers de seguridad, `/sitemap.xml` y
-  `/robots.txt`, y que sin claves del proveedor el admin ve "Cancelar"
+  transiciones, 404 reales, que una categoría aplique los filtros de la URL después
+  de hidratar, que el texto del hero no esté oculto antes de hidratar, headers de
+  seguridad, `/sitemap.xml` y `/robots.txt`, y que sin claves del proveedor el admin ve "Cancelar"
   deshabilitado (un build nunca usa los pagos simulados).
 - **`store-ops`**: corre después de `chromium` y `prod`, solo: cambia el costo de
   envío y el FAQ desde el admin (lo que ven todas las páginas) y los deja como
@@ -188,11 +194,12 @@ incluidas Mis pedidos y cada sección del admin).
 
 Convenciones:
 
-- Selectores por rol y nombre accesible.
+- Selectores por rol y nombre accesible, como en Vitest.
 - Estado persistido: `page.addInitScript` escribiendo `localStorage` con
-  `{ state, version: 1 }`.
+  `{ state, version: 1 }` (ver `e2e/a11y.spec.ts`).
 - Accesibilidad: `seriousAxeViolations(page)` de `e2e/helpers/axe.ts` dentro de
-  `expect.poll`.
+  `expect.poll` (las animaciones de entrada tienen que terminar antes de medir
+  contraste). Falla con violaciones `serious` o `critical`.
 
 ### E2E contra Stripe en modo test
 

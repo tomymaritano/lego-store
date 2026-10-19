@@ -70,6 +70,12 @@ servidor (`@/lib/api`, `@/lib/settings`, `@/lib/content`, la sesión) y pasan a 
 islas solo props serializables. `"use client"` va en el componente más chico que
 necesita estado, efectos, eventos o APIs del navegador.
 
+Server Components (sin `"use client"`): todas las `page.tsx` y `layout.tsx`,
+`Navbar`, `Footer`, `PageHeader`, las secciones de `components/home` (salvo
+`HeroArt`), `components/info`, `RecommendedProducts`, `CatalogSkeleton`,
+`ReviewsLink` y los primitivos sin interacción (`Badge`, `Breadcrumbs`, `Card`,
+`EmptyState`, `Price`, `Skeleton`, `Spinner`, `Table`).
+
 Islas cliente principales:
 
 | Isla | Dónde | Por qué es cliente |
@@ -77,17 +83,24 @@ Islas cliente principales:
 | `ClientProviders` | layout raíz | `LazyMotion`, `MotionConfig`, `StoreHydrator`, `ThemeSync`, `ListsSync`, `CompareBar` |
 | `NavbarActions`, `AccountMenu` | Navbar | Contadores del carrito y favoritos, carrito lateral, menú de cuenta, menú y búsqueda móviles |
 | `SearchAutocomplete` | Navbar, búsqueda móvil | Combobox con `/api/search` |
-| `CatalogView` (+ filtros, orden, chips) | inicio, `/search`, `/category/*` | Filtros en la URL, infinite scroll, conteos en vivo |
+| `CatalogView` (+ `ProductFilters`, `ProductSort`, `ActiveFilters`, `PriceFilter`) | inicio, `/search`, `/category/*` | Filtros en la URL, infinite scroll, conteos en vivo |
 | `ProductGrid` / `ProductCard` | grillas | Acciones (carrito, favoritos, comparar), vista rápida |
 | `ProductGallery`, `ProductPurchase`, `ProductDetailsTabs`, `RecentlyViewed` | ficha | Galería, compra, reseñas, vistos recientemente |
 | `CartView`, `WishlistView`, `CompareView` | `/cart`, `/wishlist`, `/compare` | Stores persistidos y, con sesión, el servidor |
 | `CheckoutFlow` | `/checkout` | Pasos con estado en memoria; paso Pago cargado bajo demanda (Payment Brick o Payment Element) |
 | `ContactForm`, `NewsletterForm` | contacto, footer | React Hook Form + Server Actions |
 | Formularios y tablas interactivas del admin | `/admin/*` | `useActionState`, confirmaciones, subidas con progreso |
+| `Stagger`, `StaggerItem`, `Reveal` | cualquier Server Component | Animaciones de entrada |
 
-Lo poco usado se carga con `next/dynamic` (carrito lateral, menús móviles, vista
-rápida, formulario de reseñas, el paso Pago) y se precarga al pasar el puntero o
-enfocar su botón; Sonner y las reseñas de la ficha se cargan después de hidratar.
+Lo poco usado se carga con `next/dynamic`:
+
+- Se precargan al pasar el puntero o enfocar su botón: `CartDrawer`, `MobileMenu`,
+  `MobileSearch` (en `NavbarActions`), `QuickViewModal` (en `ProductGrid`),
+  `ReviewForm` (en `ProductReviews`) y el paso Pago (`PaymentStep` en
+  `CheckoutFlow`; adentro, el Payment Brick de Mercado Pago también va aparte).
+- Se cargan después de hidratar: `ProductReviews` (en `ProductDetailsTabs`) y
+  Sonner (`Toaster` en `src/components/ui/Toast.tsx`).
+- Las devtools de React Query solo existen en desarrollo.
 
 ## Flujo de datos
 
@@ -133,19 +146,26 @@ flowchart LR
   `getCategoryById`, `getThemes`, `getReviewPage`, `getSitemapSource`… Consultas
   Prisma detrás del data cache con tags (ver
   [backend.md](./backend.md#caché-y-tags)).
-- **`src/data` es solo la fuente del seed**: importarlo desde `src/` es un error de
-  ESLint.
+- **`src/data` es solo la fuente del seed**: la regla `no-restricted-imports` de
+  `eslint.config.mjs` marca como error importarlo desde cualquier archivo de
+  `src/` fuera de `src/data/**`.
 - **Las islas cliente leen por Route Handlers** a través de `@/lib/api-client`
   (`fetchProductsPage`, `fetchFacetCounts`, `fetchSearchSuggestions`,
-  `fetchProductsByIds`…), casi siempre con React Query (`staleTime` 5 min, `gcTime`
-  30 min, sin refetch al enfocar). La primera página que renderizó el servidor
-  siembra la caché. El catálogo nunca viaja en el bundle.
+  `fetchProductsByIds`…), casi siempre con React Query
+  (`src/providers/QueryProvider.tsx`: `staleTime` 5 min, `gcTime` 30 min, sin
+  refetch al enfocar, 1 reintento). La primera página que renderizó el servidor
+  siembra la caché (`useProductPages`, `useFacetCounts`), así que al cargar no se
+  hace ningún fetch. El catálogo nunca viaja en el bundle.
 - **Las escrituras de la UI son Server Actions** (carrito y favoritos, reseñas,
   cuenta, contacto, newsletter, admin); el checkout usa Route Handlers porque
   necesita códigos de estado y cookies propias.
 - **Una sola búsqueda** (`src/lib/api/search.ts`): todos los términos tienen que
   aparecer en nombre, tema, categoría o descripción, sin distinguir mayúsculas ni
-  acentos, sobre la columna normalizada `Product.searchText`.
+  acentos, sobre la columna normalizada `Product.searchText`. La usan `/search`,
+  `/api/products?q=` y `/api/search`.
+- **`ProductQuery` significa lo mismo en todos lados**: `parseProductQuery` y
+  `serializeProductQuery` (`src/lib/productQuery.ts`) los usan las páginas, los
+  Route Handlers y `api-client`.
 - **Precios**: `src/lib/pricing.ts` (`orderTotals`, `quoteShipping`…) es la única
   cuenta de subtotal, descuento, envío y total. La regla de envío viene de la
   configuración de la tienda: el carrito la recibe del layout
@@ -173,13 +193,38 @@ flowchart LR
   volver a la pestaña (`GET /api/lists`) y borra la copia de la cuenta al cerrar
   sesión. Los cambios son optimistas (`listsRemote.ts`): la respuesta del servidor
   reemplaza la línea local y, si la rechaza, vuelve atrás con un toast.
-- Los componentes leen con **selectores** (`useCartCount`, `useIsInCart(id)`…).
-  Cada store persistido declara `version`, `partialize` y `migrate`.
-- **Hidratación**: los stores usan `skipHydration` y `<StoreHydrator />` los carga
-  una sola vez tras hidratar (y sincroniza pestañas). `useStoresHydrated()`
-  distingue "cargando" de "vacío".
-- **Tema sin parpadeo**: un script inline en `<head>` aplica la clase `dark` antes
-  del primer pintado y `ThemeSync` lo mantiene al día.
+- Los componentes leen con **selectores** exportados por `@/stores`
+  (`useCartCount`, `useCartSubtotal`, `useIsInCart(id)`, `useIsInWishlist(id)`,
+  `useCompareIds`, `useRecentlyViewedIds`…), no con el store entero.
+- **Ids en vez de productos**: comparar y vistos recientemente guardan ids y piden
+  datos frescos con `useProductsByIds` (`GET /api/products/by-ids`). Los ids que la
+  API ya no devuelve se quitan del store (`onMissing` → `removeMany`).
+- **Persistencia versionada**: cada store persistido declara `version`,
+  `partialize` (solo los datos, nunca las acciones) y `migrate`, que sanea
+  formatos anteriores (por ejemplo, `idsFrom` en `persist.ts` acepta arrays de
+  strings o de objetos con `id`).
+- **Deshacer**: carrito y favoritos tienen `restoreItem` y el comparador
+  `restoreId`; la posición se recuerda con `RestorePosition`
+  (`restorePosition.ts`).
+- **Hidratación**: los stores persistidos se crean con `skipHydration`, así el
+  render del servidor y el primer render del cliente coinciden.
+  `<StoreHydrator />` (`src/stores/hydration.ts`, montado en `ClientProviders`)
+  lee `localStorage` una vez después de hidratar, para todos los stores a la vez,
+  borra claves retiradas (`lego-reviews-storage`, de cuando las reseñas vivían en
+  el navegador) y escucha el evento `storage` para sincronizar pestañas. Donde
+  importa distinguir "cargando" de "vacío" se usa `useStoresHydrated()` o
+  `useStoreHydrated(store)`.
+- **Tema sin parpadeo**: el store de tema es la única fuente de verdad.
+  `THEME_SCRIPT` (`src/lib/theme.ts`) va inline en el `<head>` del layout raíz:
+  lee `lego-theme-storage` y aplica la clase `dark` y `color-scheme` antes del
+  primer pintado. Después, `ThemeSync` vuelve a aplicar el tema cuando el store se
+  hidrata, cuando cambia y cuando cambia la preferencia del sistema (modo
+  `system`). Ambos usan la misma regla, `resolveDark`.
+- **`useProductActions(product)`** (`src/hooks/useProductActions.ts`) reúne las
+  acciones de producto para todas las entradas (tarjeta, ficha, vista rápida,
+  favoritos): devuelve `inCart`, `inWishlist`, `inCompare`, `isAvailable`,
+  `addToCart`, `removeFromCart`, `toggleWishlist` y `toggleCompare`, y dispara
+  siempre los mismos toasts.
 - **El checkout no guarda datos de tarjeta**: solo lo que devolvió el medio de pago
   para mostrar (marca, últimos 4, cuotas) y, en memoria, el token o el `formData`
   del Brick hasta "Realizar pedido".
@@ -193,9 +238,14 @@ flowchart LR
   (308) al actual, con sus filtros.
 - Claves de la URL (`src/lib/productQuery.ts`): `q`, `category`, `sort`, listas
   `theme` (slug, o el nombre en enlaces viejos), `type`, `age`, `interest`,
-  `pieces`, `highlight`, números `minPrice`, `maxPrice`, `minRating`, booleanos
-  `inStock`, `onSale`, `isNew`. `page` y `limit` existen para la API, nunca en la
-  URL de la página (infinite scroll).
+  `pieces`, `highlight` (repetidas o separadas por comas), números `minPrice`,
+  `maxPrice`, `minRating`, booleanos `inStock`, `onSale`, `isNew` (`1` o `true`).
+  `page` y `limit` existen para la API, nunca en la URL de la página (infinite
+  scroll).
+- `useCatalogQuery` lee `window.location` (no `useSearchParams`) y escribe con
+  `history.pushState`: la URL es compartible y Atrás/Adelante recorren los estados
+  de filtros; en el servidor y durante la hidratación usa `initialQuery` (lo que
+  renderizó la página).
 - `src/proxy.ts` responde 404 real para categorías y productos desconocidos (o
   archivados) antes de renderizar, y manda a `/login` a quien pide `/account/*` o
   `/admin/*` sin sesión.
@@ -205,7 +255,8 @@ flowchart LR
 
 - **Metadata**: el layout raíz define `metadataBase` (`siteConfig.url`, de
   `NEXT_PUBLIC_SITE_URL`), plantilla de título, Open Graph y Twitter.
-  `pageMetadata()` agrega canonical. Ficha, categoría y páginas informativas usan
+  `pageMetadata()` (`src/lib/metadata.ts`) agrega canonical y rearma `openGraph`
+  (Next lo mezcla de forma superficial y perdería la imagen por defecto). Ficha, categoría y páginas informativas usan
   `generateMetadata`.
 - **`noindex`**: `/cart`, `/wishlist`, `/compare`, `/search`, `/login`,
   `/register` (index false, follow true); `/checkout`, `/checkout/pedido/*`,
@@ -218,8 +269,9 @@ flowchart LR
   sitemap. Reglas en `src/lib/sitemap.ts`.
 - **JSON-LD**: `Product` en la ficha (`serializeJsonLd` escapa `<`) y `FAQPage` en
   `/faq`, armado con los grupos de preguntas del contenido publicado.
-- **Imágenes sociales**: `opengraph-image.tsx` (tarjeta por defecto) y la primera
-  foto del producto en cada ficha.
+- **Imágenes sociales**: `src/app/opengraph-image.tsx` (tarjeta por defecto,
+  1200×630) y la primera foto del producto en cada ficha. También `apple-icon.tsx`
+  y `manifest.ts`.
 
 ## Renderizado y caché
 
@@ -235,6 +287,6 @@ flowchart LR
   `www.lego.com/cdn/**` y `uploads/**` del store de Blob de la tienda (subidas;
   solo ese host, `src/lib/blob-host.mjs`).
 - `next.config.mjs` acepta `NEXT_DIST_DIR` (el proyecto `prod` de Playwright
-  compila en `.next-e2e`) y define los headers de seguridad (anti-framing, CSP
+  compila en `.next-e2e` y así no pisa el `.next` de `next dev`) y define los headers de seguridad (anti-framing, CSP
   `frame-ancestors 'none'; object-src 'none'; base-uri 'self'`, `nosniff`,
   `Referrer-Policy`, HSTS en producción).

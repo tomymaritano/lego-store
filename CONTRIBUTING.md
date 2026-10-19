@@ -53,7 +53,9 @@ Para probar pagos sin cuentas reales, `PAYMENTS_MOCK=1` en `.env.local` (ver
 | `screenshots` | `node scripts/take-screenshots.mjs` | Regenera `screenshots/` contra un build en marcha (`BASE_URL` para otro origen) |
 
 Sin script propio: `npx tsc --noEmit` (tipos) y `npx vitest run` (una corrida).
-Detalle de cada suite en [docs/testing.md](./docs/testing.md).
+`NEXT_DIST_DIR` cambia la carpeta del build (la usan los proyectos de Playwright
+que levantan un build de producción). Detalle de cada suite en
+[docs/testing.md](./docs/testing.md).
 
 ## Base de datos y migraciones
 
@@ -134,7 +136,7 @@ Detalle de cada suite en [docs/testing.md](./docs/testing.md).
 - [ ] Variables de entorno nuevas en `.env.example` y en la referencia de
       [docs/deploy.md](./docs/deploy.md#variables-de-entorno).
 - [ ] Docs actualizadas si cambian la arquitectura, el modelo de datos, los pagos,
-      el admin, los scripts o los tests, y entrada en [CHANGELOG.md](./CHANGELOG.md)
+      el admin, los tokens, los scripts o los tests, y entrada en [CHANGELOG.md](./CHANGELOG.md)
       si es un cambio visible.
 - [ ] Textos de la UI en español con tuteo ("Revisa", "Completa"), como el resto
       de la app.
