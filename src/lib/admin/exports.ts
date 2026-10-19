@@ -65,8 +65,9 @@ const usedFilters = (filters: Record<string, unknown>) =>
     .map(([key, value]) => `${key}=${String(value)}`)
     .join(" ") || "ninguno";
 
-async function audit(db: Db, actor: AuditActor, kind: ExportKind, filters: Record<string, unknown>, rows: number) {
-  await recordAudit(db, actor, { action: `export.${kind}`, entityType: "export", entityId: kind, changes: { filters: usedFilters(filters), rows } });
+/** The audit entry of an export: its filters and what it holds (`rows`, or `orders` + `lines` for orders). */
+async function audit(db: Db, actor: AuditActor, kind: ExportKind, filters: Record<string, unknown>, counts: Record<string, number>) {
+  await recordAudit(db, actor, { action: `export.${kind}`, entityType: "export", entityId: kind, changes: { filters: usedFilters(filters), ...counts } });
 }
 
 // ---------------------------------------------------------------------------
@@ -158,11 +159,19 @@ function orderLines(order: ExportOrder): CsvValue[][] {
   return order.items.map((item) => [...head, item.name, item.productId, item.quantity, item.unitPrice, item.unitPrice * item.quantity]);
 }
 
-/** Orders matching the list's filters (status, search, dates), newest first. `rows` counts orders, not lines. */
+/**
+ * Orders matching the list's filters (status, search, dates), newest first. `rows` counts orders,
+ * not lines; the audit entry keeps both (`orders`, and `lines`: one per product, or one for an
+ * order without products), so it reconciles with the file.
+ */
 export async function exportOrders(db: Db, actor: AuditActor, filters: AdminOrderFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = orderWhere(filters);
-  const rows = await db.order.count({ where });
-  await audit(db, actor, "orders", { ...filters }, rows);
+  const [rows, items, empty] = await Promise.all([
+    db.order.count({ where }),
+    db.orderItem.count({ where: { order: where } }),
+    db.order.count({ where: { AND: [where, { items: { none: {} } }] } }),
+  ]);
+  await audit(db, actor, "orders", { ...filters }, { orders: rows, lines: items + empty });
   const body = csvStream<string>(ORDER_EXPORT_HEADER, async (cursor) => {
     const batch = await db.order.findMany({
       where,
@@ -185,7 +194,7 @@ export const CUSTOMER_EXPORT_HEADER = ["ID", "Email", "Nombre", "Rol", "Alta", "
 export async function exportCustomers(db: Db, actor: AuditActor, filters: AdminUserFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = userWhere(filters);
   const rows = await db.user.count({ where });
-  await audit(db, actor, "customers", { ...filters }, rows);
+  await audit(db, actor, "customers", { ...filters }, { rows });
   const body = csvStream<string>(CUSTOMER_EXPORT_HEADER, async (cursor) => {
     const batch = await db.user.findMany({
       where,
@@ -221,7 +230,7 @@ export const NEWSLETTER_EXPORT_HEADER = ["Email", "Estado", "Origen", "Alta", "B
 export async function exportNewsletter(db: Db, actor: AuditActor, filters: AdminSubscriberFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = subscriberWhere(filters);
   const rows = await db.newsletterSubscriber.count({ where });
-  await audit(db, actor, "newsletter", { ...filters }, rows);
+  await audit(db, actor, "newsletter", { ...filters }, { rows });
   const body = csvStream<string>(NEWSLETTER_EXPORT_HEADER, async (cursor) => {
     const batch = await db.newsletterSubscriber.findMany({
       where,
@@ -255,7 +264,7 @@ const topicLabel = (value: string) => CONTACT_TOPICS.find((topic) => topic.value
 export async function exportMessages(db: Db, actor: AuditActor, filters: AdminMessageFilters, { now = new Date(), batchSize = EXPORT_BATCH_SIZE }: ExportOptions = {}): Promise<CsvExport> {
   const where = messageWhere(filters);
   const rows = await db.contactMessage.count({ where });
-  await audit(db, actor, "messages", { ...filters }, rows);
+  await audit(db, actor, "messages", { ...filters }, { rows });
   const body = csvStream<string>(MESSAGE_EXPORT_HEADER, async (cursor) => {
     const batch = await db.contactMessage.findMany({
       where,

@@ -13,13 +13,28 @@ import { parseUserFilters } from "@/lib/validations/users";
  * streamed from the database. Admins only (401/403 as JSON); every export is
  * recorded in the audit log with its filters and row count. A plain link
  * (GET) so the browser downloads it; it changes nothing but the audit log.
+ *
+ * Because a GET carries the SameSite=Lax session on a top-level link from any
+ * site, a request the browser marks as coming from another site (or a
+ * same-site subdomain) is refused with 403 before anything is read or
+ * audited: another site can't fill the audit log with fake exports or drop
+ * PII files on the admin's disk. The panel's links send `same-origin`; a URL
+ * typed or opened from a bookmark sends `none`; a client without the header
+ * (curl, the tests) still has to bring the admin's session.
  */
 
 export const dynamic = "force-dynamic";
 
 const KINDS = ["orders", "customers", "newsletter", "messages"] as const satisfies readonly ExportKind[];
 
+/** `Sec-Fetch-Site` values an export accepts (the header absent is accepted too). */
+const ALLOWED_FETCH_SITES = new Set(["same-origin", "none"]);
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite !== null && !ALLOWED_FETCH_SITES.has(fetchSite)) {
+    return NextResponse.json({ error: "Abre la exportación desde el panel de administración." }, { status: 403 });
+  }
   const auth = await authorizeRequest({ admin: true });
   if ("response" in auth) return auth.response;
   const { kind } = await params;

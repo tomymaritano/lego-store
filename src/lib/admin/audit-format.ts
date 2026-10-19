@@ -147,6 +147,8 @@ const FIELD_LABELS: Record<string, string> = {
   featured: "destacados",
   // Exports
   rows: "filas",
+  orders: "pedidos",
+  lines: "líneas",
   filters: "filtros",
   // Content pages
   blocks: "bloques",

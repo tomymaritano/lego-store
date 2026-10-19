@@ -31,7 +31,8 @@ const { GET } = await import("@/app/api/admin/export/[kind]/route");
 
 let admin: { id: string; email: string };
 
-const request = (kind: string, query = "") => GET(new NextRequest(new URL(`/api/admin/export/${kind}${query}`, "http://localhost")), { params: Promise.resolve({ kind }) });
+const request = (kind: string, query = "", headers: Record<string, string> = {}) =>
+  GET(new NextRequest(new URL(`/api/admin/export/${kind}${query}`, "http://localhost"), { headers }), { params: Promise.resolve({ kind }) });
 
 async function csvOf(response: Response) {
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -96,6 +97,22 @@ describe("GET /api/admin/export/<kind>", () => {
     expect(await testDb.auditLog.count({ where: { entityType: "export" } })).toBe(0);
   });
 
+  it("refuses a link from another site before writing to the audit log, and serves the panel's own links", async () => {
+    session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
+    for (const site of ["cross-site", "same-site"]) {
+      const response = await request("customers", "?q=csrf-probe", { "sec-fetch-site": site, "sec-fetch-mode": "navigate" });
+      expect(response.status).toBe(403);
+      expect(response.headers.get("content-disposition")).toBeNull();
+    }
+    expect(await testDb.auditLog.count({ where: { entityType: "export" } })).toBe(0);
+
+    for (const site of ["same-origin", "none"]) {
+      expect((await request("customers", "?q=csrf-probe", { "sec-fetch-site": site })).status).toBe(200);
+    }
+    expect(await testDb.auditLog.count({ where: { entityType: "export", entityId: "customers" } })).toBe(2);
+    await testDb.auditLog.deleteMany({ where: { entityType: "export" } });
+  });
+
   it("streams the orders as an Excel-friendly CSV, one line per product, with formulas neutralised", async () => {
     session.current = { user: { id: admin.id, role: "ADMIN" }, sessionVersion: 0 };
     const response = await request("orders", "?q=formula@export.test");
@@ -118,7 +135,7 @@ describe("GET /api/admin/export/<kind>", () => {
     expect(batmobile!.startsWith("LEGO-")).toBe(true);
 
     const entry = await testDb.auditLog.findFirstOrThrow({ where: { entityType: "export", entityId: "orders" } });
-    expect(entry).toMatchObject({ action: "export.orders", actorEmail: admin.email, changes: { filters: "q=formula@export.test", rows: 1 } });
+    expect(entry).toMatchObject({ action: "export.orders", actorEmail: admin.email, changes: { filters: "q=formula@export.test", orders: 1, lines: 2 } });
   });
 
   it("exports every placed order without filters (the seed's delivered ones included)", async () => {
