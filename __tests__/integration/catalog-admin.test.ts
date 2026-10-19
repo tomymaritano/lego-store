@@ -127,7 +127,7 @@ describe("the themes migration", () => {
   });
 
   it("the seed is the same: the storefront reads themes by name, and the old URLs filter as before", async () => {
-    expect((await getThemes()).map((theme) => theme.name)).toEqual(["Star Wars", "Marvel", "Disney", "Harry Potter", "Architecture", "Technic"]);
+    expect((await getThemes()).map((theme) => theme.name)).toEqual(["Star Wars", "Marvel", "Disney", "Harry Potter", "Architecture", "Technic", "DC"]);
     const byName = await getPaginatedProducts({ themes: ["star wars"], limit: 48 });
     const bySlug = await getPaginatedProducts({ themes: ["star-wars"], limit: 48 });
     expect(byName.total).toBe(await testDb.product.count({ where: { theme: { name: "Star Wars" }, archivedAt: null } }));

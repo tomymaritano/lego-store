@@ -8,6 +8,7 @@ import { Eye, Heart, Scale } from "lucide-react";
 import { hoverLift } from "@/lib/motion";
 import { flyToCart } from "@/lib/flyToCart";
 import { PLACEHOLDER_IMAGE, calculateDiscount, cn } from "@/lib/utils";
+import { collectionBadgeLabel } from "@/lib/collection";
 import { useProductActions } from "@/hooks/useProductActions";
 import { Badge, IconButton, Price, Rating, cardVariants } from "@/components/ui";
 import { AddToCartButton } from "./AddToCartButton";
@@ -67,7 +68,7 @@ export function ProductCard({ product, onQuickView, priority = false }: ProductC
             </Badge>
           )}
           {product.highlight === "Edición Limitada" && <Badge variant="limited">Limitado</Badge>}
-          {product.highlight === "Exclusivos" && <Badge variant="exclusive">Exclusivo</Badge>}
+          {product.highlight === "Exclusivos" && <Badge variant="exclusive">{collectionBadgeLabel(product.highlight)}</Badge>}
         </div>
 
         <div

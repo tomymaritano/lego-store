@@ -5,6 +5,7 @@ import { getCategoryById, getCategoryNames, getProductById, getProducts, getRela
 import { DEFAULT_REVIEW_SORT, REVIEW_PAGE_SIZE } from "@/lib/reviews/sorts";
 import type { ReviewPage } from "@/types";
 import { formatPrice } from "@/lib/utils";
+import { collectionBadgeLabel } from "@/lib/collection";
 import { defaultOgImage, pageMetadata } from "@/lib/metadata";
 import { productImages, productJsonLd, serializeJsonLd } from "@/lib/structuredData";
 import { siteConfig } from "@/config/site";
@@ -123,7 +124,7 @@ export default async function ItemPage({ params }: ItemPageProps) {
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-label tracking-wider text-info uppercase">{product.theme}</p>
-                  <Badge variant="neutral">{product.highlight}</Badge>
+                  <Badge variant="neutral">{collectionBadgeLabel(product.highlight)}</Badge>
                 </div>
                 <h1 className="text-headline text-balance">{product.name}</h1>
                 {/* Rating, link and tab all come from the same reviews in the database (one cache tag: a review write refreshes them together). */}

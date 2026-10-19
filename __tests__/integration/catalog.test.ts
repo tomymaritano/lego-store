@@ -150,7 +150,7 @@ describe("lib/api", () => {
       expect(helmets.items.every((p) => p.category === "helmet")).toBe(true);
 
       const themed = await getPaginatedProducts({ themes: ["Marvel", "disney"], limit: 48 });
-      expect(themed.total).toBe(4);
+      expect(themed.total).toBe(3);
       expect(themed.items.every((p) => ["Marvel", "Disney"].includes(p.theme))).toBe(true);
 
       const both = await getPaginatedProducts({ themes: ["Star Wars"], ages: ["18+"], limit: 48 });

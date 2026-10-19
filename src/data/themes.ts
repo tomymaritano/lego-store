@@ -10,4 +10,5 @@ export const themes: { name: string; slug: string }[] = [
   { name: "Harry Potter", slug: "harry-potter" },
   { name: "Architecture", slug: "architecture" },
   { name: "Technic", slug: "technic" },
+  { name: "DC", slug: "dc" },
 ];

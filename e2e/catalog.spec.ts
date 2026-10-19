@@ -34,11 +34,11 @@ test.describe("Catalogue filters and sort (URL state)", () => {
   test("a shared URL renders the filtered view; removing the last chip moves focus to the count", async ({ page }) => {
     // The menus link by slug; an older link by name (?theme=Marvel) still filters the same products.
     await page.goto("/search?theme=Marvel");
-    await expect(count(page)).toContainText("3 productos");
+    await expect(count(page)).toContainText("2 productos");
     await page.goto("/search?theme=marvel");
-    await expect(count(page)).toContainText("3 productos");
+    await expect(count(page)).toContainText("2 productos");
     await expect(sidebar(page).getByRole("checkbox", { name: /Marvel/ })).toBeChecked();
-    await expect(page.getByTestId("product-card")).toHaveCount(3);
+    await expect(page.getByTestId("product-card")).toHaveCount(2);
 
     await page.getByRole("button", { name: "Quitar filtro Tema: Marvel" }).click();
     await expect(page).toHaveURL(/\/search$/);
