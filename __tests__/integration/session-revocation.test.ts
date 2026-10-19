@@ -140,3 +140,30 @@ describe("refreshSessionToken", () => {
     expect(await refreshSessionToken({ sub: user.id, sv: 0 }, {})).toBeNull();
   });
 });
+
+describe("GET /api/auth/session (what a client reads)", () => {
+  const readSession = async (sessionToken: string) => {
+    const { GET } = await import("@/app/api/auth/[...nextauth]/route");
+    const response = await GET(request("/api/auth/session", { [SALT]: sessionToken }));
+    return { status: response.status, body: (await response.json()) as { user?: { id: string } } | null, cookie: setCookies(response)[SALT] };
+  };
+
+  it("describes a current session", async () => {
+    const user = await newUser();
+    const result = await readSession(await tokenFor(user, 0));
+    expect(result.status).toBe(200);
+    expect(result.body?.user?.id).toBe(user.id);
+  });
+
+  it("answers null, as signed out, once an admin blocked the account or a password change revoked the token", async () => {
+    const blocked = await newUser();
+    const blockedToken = await tokenFor(blocked, 0);
+    await testDb.user.update({ where: { id: blocked.id }, data: { blockedAt: new Date() } });
+    expect(await readSession(blockedToken)).toEqual({ status: 200, body: null, cookie: undefined });
+
+    const revoked = await newUser();
+    const stale = await tokenFor(revoked, 0);
+    await changeUserPassword(revoked.id, PASSWORD, "otra-clave-segura-7");
+    expect(await readSession(stale)).toEqual({ status: 200, body: null, cookie: undefined });
+  });
+});
