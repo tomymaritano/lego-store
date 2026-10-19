@@ -85,6 +85,10 @@ jobs:
           npx prisma migrate deploy
           npm run db:seed
 
+      # A schema.prisma edit without its migration fails here (exit 2 when they differ).
+      - name: Check that the migrations match the schema
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+
       - name: Install Playwright Chromium (Storybook browser tests)
         run: npx playwright install --with-deps chromium
 
