@@ -58,7 +58,7 @@ export default async function AdminMessagePage({ params }: MessagePageProps) {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
         <Card>
           <CardContent className="space-y-6">
             <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">

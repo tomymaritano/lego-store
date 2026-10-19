@@ -65,7 +65,7 @@ export default async function AdminThemePage({ params, searchParams }: ThemePage
         </FlashNotice>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
         <ThemeForm mode="edit" action={saveThemeAction.bind(null, theme.id)} initial={{ name: theme.name, slug: theme.slug, visible: theme.visible }} />
         <div className="space-y-6">
           <Card>

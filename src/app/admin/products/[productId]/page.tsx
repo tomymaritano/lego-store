@@ -86,7 +86,7 @@ export default async function EditProductPage({ params, searchParams }: EditProd
         </p>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
         <ProductForm
           mode="edit"
           action={saveProductAction.bind(null, product.id)}

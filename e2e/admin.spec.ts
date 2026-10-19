@@ -102,6 +102,16 @@ test("a picture URL next/image would refuse is only flagged: the new-product for
   await expect(page.getByLabel(/^Texto alternativo \(imagen principal\)/)).toBeFocused();
 });
 
+test("on a phone the product editor fits the screen, even with a long picture URL in the gallery", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await logInAsAdmin(page, "/admin/products/3");
+  // The seeded gallery has lego.com CDN URLs: one unbroken line much wider than the phone.
+  await expect(page.getByTestId("gallery-item").first()).toContainText("https://", COLD);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const form = page.getByRole("form", { name: "Editar producto" });
+  expect((await form.boundingBox())!.width).toBeLessThanOrEqual(390);
+});
+
 test("an admin ships and then delivers a paid order", async ({ page, browser, baseURL }) => {
   test.slow();
   // The Stripe checkout (PAYMENT_PROVIDER=stripe); the Mercado Pago one is mercadopago.spec.ts.

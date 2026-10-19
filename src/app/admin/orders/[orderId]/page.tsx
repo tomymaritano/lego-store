@@ -98,7 +98,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
         <div className="min-w-0 space-y-6">
           <Card>
             <CardContent className="space-y-5">

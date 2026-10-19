@@ -128,7 +128,7 @@ export function ProductForm({ action, initial, categories, themes, suggestions, 
   const themeItems = Object.fromEntries(themes.map((theme) => [theme.id, theme.visible ? theme.name : `${theme.name} (oculto)`]));
 
   return (
-    <form ref={formRef} onSubmit={submit} noValidate aria-label={mode === "create" ? "Nuevo producto" : "Editar producto"} className="space-y-6">
+    <form ref={formRef} onSubmit={submit} noValidate aria-label={mode === "create" ? "Nuevo producto" : "Editar producto"} className="min-w-0 space-y-6">
       {state.status === "error" && state.message ? <FormAlert>{state.message}</FormAlert> : null}
 
       <Card>
