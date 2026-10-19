@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterSelect } from "@/components/admin/FilterSelect";
 import { Pagination, pageHref } from "@/components/admin/Pagination";
 import { Button, Card, EmptyState, Field, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Auditoría · Administración",
@@ -126,13 +127,27 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
                       <span className="block text-caption break-all text-fg-secondary sm:hidden">{entry.actorEmail}</span>
                       <span className="block text-caption break-all text-fg-muted sm:break-normal">
                         {label}{" "}
+                        {/* The record's name (order number, name, email) when it still exists; its id stays as secondary text. */}
                         {href ? (
-                          <Link href={href} prefetch={false} className="font-mono underline-offset-4 hover:text-fg hover:underline">
-                            {entry.entityId}
+                          <Link
+                            href={href}
+                            prefetch={false}
+                            className={cn("underline-offset-4 hover:text-fg hover:underline", entry.entityLabel ? "font-medium text-fg-secondary" : "font-mono")}
+                            data-testid="audit-entity"
+                          >
+                            {entry.entityLabel ?? entry.entityId}
                           </Link>
                         ) : (
-                          <span className="font-mono">{entry.entityId}</span>
+                          <span className={entry.entityLabel ? "font-medium text-fg-secondary" : "font-mono"} data-testid="audit-entity">
+                            {entry.entityLabel ?? entry.entityId}
+                          </span>
                         )}
+                        {entry.entityLabel && entry.entityLabel !== entry.entityId ? (
+                          <span className="block font-mono text-fg-muted" data-testid="audit-entity-id">
+                            <span className="sr-only">ID </span>
+                            {entry.entityId}
+                          </span>
+                        ) : null}
                       </span>
                     </TableCell>
                     <TableCell className="hidden max-w-md text-caption text-fg-secondary md:table-cell">

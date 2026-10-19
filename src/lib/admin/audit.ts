@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { Db } from "@/lib/lists/product";
 import { ADMIN_PAGE_SIZE } from "@/lib/validations/admin";
 import { AUDIT_ENTITY_TYPES, type AuditEntityType, type AuditFilters } from "@/lib/validations/audit";
+import { formatOrderNumber } from "@/lib/orders/format";
 import { pageCount, storeDayEnd, storeDayStart, type Page } from "./format";
 
 /*
@@ -149,7 +150,44 @@ function auditWhere(filters: AuditFilters): Prisma.AuditLogWhereInput {
 }
 
 /** /admin/audit: every entry matching the filters, newest first, a page at a time. */
-export async function searchAuditLog(db: Db, filters: AuditFilters): Promise<Page<AuditEntryView>> {
+/** An entry of the full log, with a readable name for its record when it still exists. */
+export interface AuditLogEntry extends AuditEntryView {
+  /** "LEGO-001935" for an order, a theme's or product's name, a user's email…; null when there is none (or it was deleted). */
+  entityLabel: string | null;
+}
+
+const labelKey = (entityType: string, entityId: string) => `${entityType}:${entityId}`;
+
+/**
+ * Readable names for the records a page of entries is about, one query per kind
+ * of record: ids alone (cuids) say nothing to an admin, and the rest of the
+ * panel names records by order number, name or email. A deleted record has no
+ * name; the entry keeps its id.
+ */
+async function entityLabels(db: Db, rows: { entityType: string; entityId: string }[]): Promise<Map<string, string>> {
+  const ids = (type: AuditEntityType) => [...new Set(rows.filter((row) => row.entityType === type).map((row) => row.entityId))];
+  const labels = new Map<string, string>();
+  const put = (type: AuditEntityType, found: { id: string; label: string }[]) => {
+    for (const { id, label } of found) labels.set(labelKey(type, id), label);
+  };
+  const lookups: Promise<void>[] = [];
+  const lookup = <T,>(type: AuditEntityType, query: (ids: string[]) => Promise<T[]>, toLabel: (row: T) => { id: string; label: string }) => {
+    const wanted = ids(type);
+    if (wanted.length > 0) lookups.push(query(wanted).then((found) => put(type, found.map(toLabel))));
+  };
+  lookup("order", (id) => db.order.findMany({ where: { id: { in: id } }, select: { id: true, number: true } }), (row) => ({ id: row.id, label: formatOrderNumber(row.number) }));
+  lookup("product", (id) => db.product.findMany({ where: { id: { in: id } }, select: { id: true, name: true } }), (row) => ({ id: row.id, label: row.name }));
+  lookup("coupon", (id) => db.coupon.findMany({ where: { id: { in: id } }, select: { id: true, code: true } }), (row) => ({ id: row.id, label: row.code }));
+  lookup("user", (id) => db.user.findMany({ where: { id: { in: id } }, select: { id: true, email: true } }), (row) => ({ id: row.id, label: row.email }));
+  lookup("category", (id) => db.category.findMany({ where: { id: { in: id } }, select: { id: true, name: true } }), (row) => ({ id: row.id, label: row.name }));
+  lookup("theme", (id) => db.theme.findMany({ where: { id: { in: id } }, select: { id: true, name: true } }), (row) => ({ id: row.id, label: row.name }));
+  lookup("message", (id) => db.contactMessage.findMany({ where: { id: { in: id } }, select: { id: true, email: true } }), (row) => ({ id: row.id, label: row.email }));
+  lookup("subscriber", (id) => db.newsletterSubscriber.findMany({ where: { id: { in: id } }, select: { id: true, email: true } }), (row) => ({ id: row.id, label: row.email }));
+  await Promise.all(lookups);
+  return labels;
+}
+
+export async function searchAuditLog(db: Db, filters: AuditFilters): Promise<Page<AuditLogEntry>> {
   const where = auditWhere(filters);
   const total = await db.auditLog.count({ where });
   const totalPages = pageCount(total);
@@ -161,5 +199,7 @@ export async function searchAuditLog(db: Db, filters: AuditFilters): Promise<Pag
     take: ADMIN_PAGE_SIZE,
     select: entrySelect,
   });
-  return { items: rows.map(toView), total, page, totalPages };
+  const labels = await entityLabels(db, rows);
+  const items = rows.map((row) => ({ ...toView(row), entityLabel: labels.get(labelKey(row.entityType, row.entityId)) ?? null }));
+  return { items, total, page, totalPages };
 }
