@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { Check, TicketPercent, X } from "lucide-react";
+import { Check, Info, TicketPercent, X } from "lucide-react";
 import { fadeInUp, successPop } from "@/lib/motion";
 import { cn, formatPrice } from "@/lib/utils";
 import { useViewer } from "@/providers/ViewerProvider";
@@ -34,8 +34,10 @@ export interface CouponFieldProps {
  * reserves the coupon again on the server.
  *
  * The form and the applied coupon swap in place; the applied one pops its
- * check mark, and a live region says what the customer did for screen
- * readers (a refusal, or the page's notice, is the field's alert).
+ * check mark (while the subtotal is under the coupon's minimum it takes the
+ * info tone instead, since no discount is in the totals yet), and a live
+ * region says what the customer did for screen readers (a refusal, or the
+ * page's notice, is the field's alert).
  */
 export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = "cart", className }: CouponFieldProps) {
   const viewer = useViewer();
@@ -98,6 +100,8 @@ export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = 
   };
 
   const shortBy = coupon ? Math.max(0, coupon.minSubtotal - subtotal) : 0;
+  /** Accepted but not in effect: the subtotal is still under its minimum. */
+  const belowMinimum = shortBy > 0;
 
   return (
     <div className={cn("min-h-11", className)} data-testid={`${testIdPrefix}-coupon`}>
@@ -109,15 +113,23 @@ export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = 
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="flex items-start gap-3 rounded-xl border border-success/40 bg-success/10 p-3"
+            className={cn(
+              "flex items-start gap-3 rounded-xl border p-3",
+              belowMinimum ? "border-info/40 bg-info/10" : "border-success/40 bg-success/10"
+            )}
+            data-state={belowMinimum ? "below-minimum" : "applied"}
             data-testid={`${testIdPrefix}-coupon-applied`}
           >
             <m.span
+              key={belowMinimum ? "info" : "check"}
               variants={successPop}
-              className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-success text-on-success"
+              className={cn(
+                "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
+                belowMinimum ? "bg-info text-on-info" : "bg-success text-on-success"
+              )}
               aria-hidden="true"
             >
-              <Check className="size-4" />
+              {belowMinimum ? <Info className="size-4" /> : <Check className="size-4" />}
             </m.span>
             <span className="flex min-w-0 flex-1 flex-col text-label font-normal">
               <span className="font-mono font-semibold text-fg" data-testid={`${testIdPrefix}-coupon-code`}>
@@ -128,7 +140,7 @@ export function CouponField({ lines, subtotal, disabled = false, testIdPrefix = 
                 <span className="mt-1 text-caption text-fg-muted" data-testid={`${testIdPrefix}-coupon-checking`}>
                   Comprobando que siga vigente…
                 </span>
-              ) : shortBy > 0 ? (
+              ) : belowMinimum ? (
                 <span className="mt-1 text-caption text-fg-muted" data-testid={`${testIdPrefix}-coupon-short`}>
                   Se aplica desde {formatPrice(coupon.minSubtotal)}: te faltan {formatPrice(shortBy)}.
                 </span>

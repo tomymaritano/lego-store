@@ -102,11 +102,14 @@ describe("Coupon field (cart summary)", () => {
     const applied = screen.getByTestId("cart-coupon-applied");
     expect(text(within(applied).getByTestId("cart-coupon-short"))).toBe(`Se aplica desde ${formatPrice(2000)}: te faltan ${formatPrice(2000 - 378)}.`);
     expect(screen.queryByTestId("cart-discount")).toBeNull();
+    // Not in effect yet: the info tone, not the green check of an applied discount.
+    expect(applied).toHaveAttribute("data-state", "below-minimum");
 
     rerender(<OrderSummary lines={[line("5", 189, 2), line("7", 2490)]} />);
     // 10% of $2868 = $286.80 → $287.
     await waitFor(() => expect(text(screen.getByTestId("cart-discount"))).toBe(formatPrice(287)));
     expect(screen.queryByTestId("cart-coupon-short")).toBeNull();
+    expect(screen.getByTestId("cart-coupon-applied")).toHaveAttribute("data-state", "applied");
 
     await user.click(screen.getByRole("button", { name: "Quitar el cupón BIENVENIDA10" }));
     await waitFor(() => expect(screen.getByLabelText("Código de descuento")).toHaveFocus());
